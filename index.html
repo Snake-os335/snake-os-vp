@@ -55,7 +55,7 @@ window.addEventListener('error', function(e){
 <script src="/static/snake-bluetooth.js?v=202610111725"></script onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1">
 <script src="/static/snake-keypad.js?v=202610111201"></script onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1">
 <script src="/static/snake-game-matrix.js?v=202610112000"></script onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1">
-<script src="/static/snake-racing.js?v=202610121930"></script onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1">
+<script src="/static/snake-racing.js?v=202610122005"></script onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1">
 <style>
   :root{
     --text:#ffffff; --muted:rgba(255,255,255,0.82);
@@ -1390,6 +1390,8 @@ window.addEventListener('error', function(e){
   }
   .desktop-icon .ic img.app-icon-img.ai-logo{ width:44px; height:44px; }
   .desktop-icon .ic img.app-icon-img.store-logo{ width:44px; height:44px; object-fit:contain; background:transparent; box-shadow:none !important; border-radius:0 !important; }
+  .desktop-icon .ic img.app-icon-img.snake-race-logo{ width:44px; height:44px; object-fit:contain; background:transparent; box-shadow:none !important; border-radius:8px !important; }
+  .start-item img.app-icon-img.snake-race-logo{ width:1.35em; height:1.35em; object-fit:contain; vertical-align:-0.2em; margin-right:4px; background:transparent; box-shadow:none; border-radius:4px; }
   .desktop-icon .ic img.app-icon-img.prism-logo{ width:44px; height:44px; object-fit:contain; background:transparent; box-shadow:none !important; border-radius:0 !important; }
   .desktop-icon .ic img.app-icon-img.terminal-logo{ width:44px; height:44px; object-fit:contain; background:transparent; box-shadow:none !important; border-radius:10px !important; }
   .start-item img.app-icon-img.store-logo{ width:1.35em; height:1.35em; object-fit:contain; vertical-align:-0.2em; margin-right:4px; background:transparent; box-shadow:none; border-radius:0; }
@@ -10621,6 +10623,7 @@ function renderCodeLabApp(container, opts){
   const PRISM_ICON_URL = '/static/assets/prism-logo.png?v=1';
   const TERMINAL_ICON_URL = '/static/assets/terminal-logo.png?v=1';
   const PHONE_ICON_URL = '/static/assets/phone-icon.png?v=1';
+  const SNAKE_RACING_ICON_URL = '/static/assets/snake-racing-logo.jpg?v=202610121940';
   function appIconImgHtml(url, cls){
     return '<img class="app-icon-img' + (cls ? ' ' + cls : '') + '" src="' + url + '" alt="">';
   }
@@ -14104,7 +14107,7 @@ function renderStoreApp(container){
     notes:    { title:'Notas',       icon:'📝', width:350, height:480, render: renderNotesApp },
     games:    { title:'Juegos',      icon:'🎮', width:370, height:520, render: renderGamesApp },
     snake:    { title:'Snake',       icon:'🐍', width:330, height:580, render: renderSnakeApp },
-    'snake-racing': { title:'Snake Racing', icon:'🏁', width:680, height:620, render: function(body){
+    'snake-racing': { title:'Snake Racing', icon:'🏁', iconImg: SNAKE_RACING_ICON_URL, iconImgClass: 'snake-race-logo', iconHtml: appIconImgHtml(SNAKE_RACING_ICON_URL, 'snake-race-logo'), width:680, height:620, render: function(body){
       if(typeof window.renderSnakeRacingApp !== 'function'){
         body.innerHTML = '<div style="padding:16px;color:#ff8a7a">No se pudo cargar Snake Racing. Recarga la página.</div>';
         return function(){};
