@@ -310,7 +310,7 @@ function processText(node) {
         if (a.nodeType === 1) {
           if (a.classList && (a.classList.contains('snk-ew') || a.classList.contains('snk-e') || a.classList.contains('snk-ei-wrap') || a.classList.contains('snk-ei-layer') || a.classList.contains('snk-ei-caret'))) continue;
           try {
-            if (a.closest && a.closest('.snk-ei-wrap,.snk-noemoji,#win-terminal,#win-code,.xterm,.leaflet-container,.snk-maps,#win-metaverse,#win-boing,#win-doganiero-tv,.mv-root,.prism-wrap,#win-phone,.dph')) continue;
+            if (a.closest && a.closest('.snk-ei-wrap,.snk-noemoji,#win-terminal,#win-code,.xterm,.leaflet-container,.snk-maps,#win-metaverse,#win-doganiero-tv,.mv-root,.prism-wrap,#win-phone,.dph')) continue;
           } catch (e0) {}
           queue.add(a);
         } else if (a.nodeType === 3) {
