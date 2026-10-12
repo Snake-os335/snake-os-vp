@@ -249,7 +249,7 @@
       '</div>' +
       '<div class="snk-race-controls">' +
         '<button type="button" class="snk-race-go" data-r="start" hidden>🏁 Otra carrera</button>' +
-        '<div class="snk-race-keys">W / ↑ acelerar · A/D girar · Espacio turbo</div>' +
+        '<div class="snk-race-keys">↑ acelerar · ← → girar · (W/A/D o Espacio también)</div>' +
       '</div>';
     container.innerHTML = '';
     container.appendChild(root);
@@ -364,20 +364,24 @@
       var now = Date.now();
       if (now - lastSend < 70) return;
       lastSend = now;
-      var steer = keys.left ? -1 : (keys.right ? 1 : 0);
+      var inp = currentInput();
       ws.send(JSON.stringify({
         type: 'input',
-        accel: !!(keys.up),
-        steer: steer
+        accel: inp.accel,
+        steer: inp.steer
       }));
+    }
+
+    function currentInput() {
+      return {
+        accel: !!keys.up,
+        steer: keys.left ? -1 : (keys.right ? 1 : 0)
+      };
     }
 
     function localInput() {
       if (online) return;
-      localRace.human.applyInput({
-        accel: !!keys.up,
-        steer: keys.left ? -1 : (keys.right ? 1 : 0)
-      });
+      localRace.human.applyInput(currentInput());
     }
 
     function drawTrack(w, h) {
@@ -477,23 +481,46 @@
       }
     }
 
+    function isTypingTarget(el) {
+      if (!el || el === document.body) return false;
+      var tag = el.tagName ? String(el.tagName).toUpperCase() : '';
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
+      if (el.isContentEditable) return true;
+      return false;
+    }
+
     function onKeyDown(ev) { onKey(ev, true); }
     function onKeyUp(ev) { onKey(ev, false); }
 
     function onKey(ev, down) {
-      if (!root.isConnected) return;
+      if (closed || !root.isConnected) return;
+      if (isTypingTarget(ev.target)) return;
+      var win = root.closest('.app-window');
+      if (win && win.classList.contains('minimized')) return;
+
       if (ev.code === 'ArrowUp' || ev.code === 'KeyW') keys.up = down;
+      if (ev.code === 'ArrowDown' && down) keys.up = false;
       if (ev.code === 'ArrowLeft' || ev.code === 'KeyA') keys.left = down;
       if (ev.code === 'ArrowRight' || ev.code === 'KeyD') keys.right = down;
       if (down && ev.code === 'Space') keys.up = true;
       if (!down && ev.code === 'Space') keys.up = false;
+
       if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].indexOf(ev.code) >= 0) {
         ev.preventDefault();
+        ev.stopPropagation();
       }
     }
 
-    root.addEventListener('keydown', onKeyDown);
-    root.addEventListener('keyup', onKeyUp);
+    root.tabIndex = 0;
+    root.addEventListener('pointerdown', function () {
+      try { root.focus({ preventScroll: true }); } catch (e) { root.focus(); }
+    });
+    canvas.addEventListener('pointerdown', function () {
+      try { root.focus({ preventScroll: true }); } catch (e2) { root.focus(); }
+    });
+    document.addEventListener('keydown', onKeyDown, true);
+    document.addEventListener('keyup', onKeyUp, true);
+    try { root.focus({ preventScroll: true }); } catch (eF) { root.focus(); }
     startBtn.addEventListener('click', function () {
       if (online) {
         if (ws && ws.readyState === 1) ws.send(JSON.stringify({ type: 'start' }));
@@ -547,8 +574,8 @@
     return function cleanup() {
       closed = true;
       cancelAnimationFrame(animId);
-      root.removeEventListener('keydown', onKeyDown);
-      root.removeEventListener('keyup', onKeyUp);
+      document.removeEventListener('keydown', onKeyDown, true);
+      document.removeEventListener('keyup', onKeyUp, true);
       try { if (ws) ws.close(); } catch (e) {}
     };
   }
