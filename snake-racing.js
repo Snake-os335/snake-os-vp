@@ -176,44 +176,48 @@
   }
 
   var CSS = '' +
-    '.srx{position:relative;height:100%;width:100%;background:#0b0d12;overflow:hidden;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#fff;outline:none;user-select:none;-webkit-user-select:none;touch-action:none}' +
+    '.srx{container-type:size;--sat:env(safe-area-inset-top,0px);--sar:env(safe-area-inset-right,0px);--sab:env(safe-area-inset-bottom,0px);--sal:env(safe-area-inset-left,0px);--btn:clamp(44px,12.5cqw,64px);position:relative;height:100%;width:100%;background:#0b0d12;overflow:hidden;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#fff;outline:none;user-select:none;-webkit-user-select:none;touch-action:none}' +
     '.srx canvas{position:absolute;inset:0;width:100%;height:100%;display:block}' +
-    '.srx-ov{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 30%,rgba(20,30,50,.75),rgba(5,6,10,.92));z-index:5}' +
-    '.srx-card{text-align:center;max-width:420px;padding:22px 26px;border-radius:18px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);backdrop-filter:blur(8px);box-shadow:0 20px 60px rgba(0,0,0,.5)}' +
+    '.srx-ov{position:absolute;inset:0;display:flex;align-items:safe center;justify-content:center;overflow:auto;padding:calc(10px + var(--sat)) calc(10px + var(--sar)) calc(10px + var(--sab)) calc(10px + var(--sal));box-sizing:border-box;background:radial-gradient(circle at 50% 30%,rgba(20,30,50,.75),rgba(5,6,10,.92));z-index:5}' +
+    '.srx-card{text-align:center;max-width:420px;width:100%;box-sizing:border-box;margin:auto;padding:clamp(14px,4cqmin,22px) clamp(14px,5cqw,26px);border-radius:18px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);backdrop-filter:blur(8px);box-shadow:0 20px 60px rgba(0,0,0,.5)}' +
     '.srx-card img{width:96px;height:96px;border-radius:22px;object-fit:cover;box-shadow:0 8px 24px rgba(0,0,0,.5)}' +
     '.srx-card h1{margin:12px 0 4px;font-size:28px;font-weight:900;letter-spacing:.5px;font-style:italic;background:linear-gradient(90deg,#ff3b30,#ffd60a);-webkit-background-clip:text;background-clip:text;color:transparent}' +
     '.srx-card p{margin:4px 0;color:#b8c0cc;font-size:13px}' +
-    '.srx-row{display:flex;gap:8px;justify-content:center;margin:12px 0}' +
+    '.srx-row{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:12px 0}' +
+    '.srx-btns{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;align-items:stretch;margin-top:12px}.srx-btns .srx-go{margin:0;flex:1 1 150px;max-width:220px}' +
     '.srx-opt{padding:7px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.05);color:#dfe5ee;font-size:13px;cursor:pointer}' +
     '.srx-opt.on{background:#ffd60a;color:#111;border-color:#ffd60a;font-weight:700}' +
-    '.srx-go{margin-top:10px;padding:12px 34px;font-size:17px;font-weight:800;border:0;border-radius:12px;cursor:pointer;color:#111;background:linear-gradient(90deg,#ffd60a,#ff9f0a);box-shadow:0 6px 20px rgba(255,159,10,.4)}' +
+    '.srx-go{display:inline-block;line-height:1.2;white-space:nowrap;margin-top:10px;padding:12px 24px;font-size:17px;font-weight:800;border:0;border-radius:12px;cursor:pointer;color:#111;background:linear-gradient(90deg,#ffd60a,#ff9f0a);box-shadow:0 6px 20px rgba(255,159,10,.4)}' +
     '.srx-go:hover{filter:brightness(1.08)}' +
     '.srx-keys{margin-top:14px;font-size:12px;color:#8f99a8;line-height:1.6}' +
     '.srx-keys b{display:inline-block;min-width:18px;padding:1px 6px;border-radius:5px;background:rgba(255,255,255,.12);color:#fff;font-weight:600}' +
     '.srx-hud{position:absolute;inset:0;pointer-events:none;z-index:3}' +
-    '.srx-pos{position:absolute;top:10px;left:12px;font-weight:900;font-style:italic;font-size:34px;line-height:1;text-shadow:0 2px 8px rgba(0,0,0,.6)}' +
+    '.srx-top{position:absolute;top:0;left:0;right:0;display:flex;align-items:flex-start;gap:8px;padding:calc(8px + var(--sat)) calc(10px + var(--sar)) 0 calc(10px + var(--sal))}.srx-top .sp{flex:1}' +
+    '.srx-pos{flex:none;font-weight:900;font-style:italic;font-size:34px;line-height:1;text-shadow:0 2px 8px rgba(0,0,0,.6)}' +
     '.srx-pos small{font-size:15px;color:#c8d0dc}' +
-    '.srx-info{position:absolute;top:10px;right:12px;text-align:right;font-size:13px;background:rgba(0,0,0,.45);padding:8px 12px;border-radius:12px;font-variant-numeric:tabular-nums}' +
+    '.srx-info{flex:none;text-align:right;font-size:13px;background:rgba(0,0,0,.45);padding:8px 12px;border-radius:12px;font-variant-numeric:tabular-nums}' +
     '.srx-info b{font-size:18px}' +
-    '.srx-spd{position:absolute;bottom:12px;right:14px;text-align:right;font-style:italic;font-weight:900;text-shadow:0 2px 8px rgba(0,0,0,.7)}' +
+    '.srx-spd{position:absolute;bottom:calc(12px + var(--sab));right:calc(14px + var(--sar));text-align:right;font-style:italic;font-weight:900;text-shadow:0 2px 8px rgba(0,0,0,.7)}' +
     '.srx-spd .v{font-size:44px;line-height:1;font-variant-numeric:tabular-nums}.srx-spd .u{font-size:13px;color:#c8d0dc}' +
     '.srx-bar{width:150px;height:6px;border-radius:3px;background:rgba(255,255,255,.15);margin-top:4px;overflow:hidden}.srx-bar i{display:block;height:100%;background:linear-gradient(90deg,#30d158,#ffd60a,#ff3b30)}' +
-    '.srx-big{position:absolute;left:0;right:0;top:38%;text-align:center;font-size:72px;font-weight:900;font-style:italic;text-shadow:0 4px 20px rgba(0,0,0,.7);transition:transform .15s}' +
-    '.srx-msg{position:absolute;left:0;right:0;top:22%;text-align:center;font-size:18px;font-weight:800;color:#ffd60a;text-shadow:0 2px 10px rgba(0,0,0,.8)}' +
-    '.srx-touch{position:absolute;bottom:14px;left:0;right:0;display:none;justify-content:space-between;padding:0 14px;z-index:4;pointer-events:none}' +
-    '.srx-touch .g{display:flex;gap:10px;pointer-events:auto}' +
-    '.srx-touch button{width:64px;height:64px;border-radius:50%;border:2px solid rgba(255,255,255,.3);background:rgba(255,255,255,.12);color:#fff;font-size:24px;font-weight:900;touch-action:none}' +
+    '.srx-big{position:absolute;left:0;right:0;top:30%;text-align:center;font-size:clamp(44px,14cqmin,72px);font-weight:900;font-style:italic;text-shadow:0 4px 20px rgba(0,0,0,.7);transition:transform .15s}' +
+    '.srx-msg{position:absolute;left:0;right:0;top:max(22%,calc(var(--toastTop,70px) + 44px));text-align:center;font-size:18px;font-weight:800;color:#ffd60a;text-shadow:0 2px 10px rgba(0,0,0,.8)}' +
+    '.srx-touch{position:absolute;bottom:calc(12px + var(--sab));left:0;right:0;display:none;justify-content:space-between;padding:0 calc(12px + var(--sar)) 0 calc(12px + var(--sal));z-index:4;pointer-events:none}' +
+    '.srx-touch .g{display:flex;gap:8px;pointer-events:auto}' +
+    '.srx-touch button{width:var(--btn);height:var(--btn);padding:0;border-radius:50%;border:2px solid rgba(255,255,255,.3);background:rgba(255,255,255,.12);color:#fff;font-size:24px;font-weight:900;touch-action:none}' +
     '.srx-touch button.on{background:rgba(255,214,10,.5)}' +
-    '.srx.touch .srx-touch{display:flex}.srx.touch .srx-spd{bottom:92px}' +
+    '.srx.touch .srx-touch{display:flex}.srx.touch .srx-spd{bottom:calc(var(--btn) + 26px + var(--sab))}' +
     '.srx-res{width:100%;border-collapse:collapse;margin:10px 0;font-size:14px;font-variant-numeric:tabular-nums}' +
     '.srx-res td{padding:5px 8px;border-bottom:1px solid rgba(255,255,255,.08);text-align:left}.srx-res tr.me td{color:#ffd60a;font-weight:800}' +
-    '.srx-toasts{position:absolute;top:60px;left:50%;transform:translateX(-50%);z-index:8;display:flex;flex-direction:column;gap:6px;align-items:center;pointer-events:none}' +
-    '.srx-toast{padding:7px 14px;border-radius:20px;background:rgba(10,12,18,.88);border:1px solid rgba(255,255,255,.15);font-size:13px;box-shadow:0 6px 20px rgba(0,0,0,.4);animation:srxIn .25s ease-out}' +
+    '.srx-toasts{position:absolute;top:var(--toastTop,70px);left:50%;transform:translateX(-50%);max-width:44cqw;z-index:8;display:flex;flex-direction:column;gap:6px;align-items:center;pointer-events:none}' +
+    '.srx-toast{text-align:center;padding:7px 14px;border-radius:20px;background:rgba(10,12,18,.88);border:1px solid rgba(255,255,255,.15);font-size:13px;box-shadow:0 6px 20px rgba(0,0,0,.4);animation:srxIn .25s ease-out}' +
     '@keyframes srxIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}' +
     '.srx-pl{list-style:none;margin:10px 0;padding:0;text-align:left;font-size:14px}.srx-pl li{display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:8px;background:rgba(255,255,255,.05);margin-bottom:5px}' +
     '.srx-pl .dot{width:12px;height:12px;border-radius:3px}.srx-pl .st{margin-left:auto;font-size:12px;color:#8f99a8}.srx-pl .st.ok{color:#30d158;font-weight:700}' +
-    '.srx-reset{position:absolute;left:0;right:0;top:30%;text-align:center;font-size:15px;font-weight:700;color:#fff;text-shadow:0 2px 8px #000}.srx-reset b{background:#ffd60a;color:#111;padding:2px 8px;border-radius:6px}' +
-    '.srx-pause{position:absolute;top:10px;left:50%;transform:translateX(-50%);pointer-events:auto;border:0;border-radius:10px;padding:5px 12px;background:rgba(0,0,0,.45);color:#fff;font-size:13px;cursor:pointer}';
+    '.srx-reset{position:absolute;left:0;right:0;top:66%;text-align:center;font-size:15px;font-weight:700;color:#fff;text-shadow:0 2px 8px #000}.srx-reset b{background:#ffd60a;color:#111;padding:2px 8px;border-radius:6px}' +
+    '@container (max-width:520px){.srx-pos{font-size:26px}.srx-info{font-size:11px;padding:6px 9px}.srx-info b{font-size:14px}.srx-spd .v{font-size:32px}.srx-bar{width:110px}}' +
+    '@container (max-height:420px){.srx-big{top:24%}.srx-reset{top:64%}}' +
+    '.srx-pause{flex:none;pointer-events:auto;min-height:32px;border:0;border-radius:10px;padding:5px 12px;background:rgba(0,0,0,.45);color:#fff;font-size:13px;cursor:pointer}';
 
   function renderSnakeRacingApp(container) {
     if (!TRACK) TRACK = buildTrack();
@@ -224,10 +228,9 @@
       '<div class="srx" tabindex="0">' +
       '<canvas></canvas>' +
       '<div class="srx-hud" style="display:none">' +
-      '<div class="srx-pos"></div><div class="srx-info"></div>' +
+      '<div class="srx-top"><div class="srx-pos"></div><div class="sp"></div><button class="srx-pause" type="button" title="Pausa (P)">❚❚</button><div class="srx-info"></div></div>' +
       '<div class="srx-spd"><span class="v">0</span> <span class="u">km/h</span><div class="srx-bar"><i></i></div></div>' +
       '<div class="srx-msg"></div><div class="srx-big"></div><div class="srx-reset" style="display:none">Pulsa <b>R</b> para volver a pista</div>' +
-      '<button class="srx-pause" type="button">❚❚ Pausa</button>' +
       '</div>' +
       '<div class="srx-toasts"></div><div class="srx-touch"><div class="g"><button data-k="reset">R</button><button data-k="left">◀</button><button data-k="right">▶</button></div>' +
       '<div class="g"><button data-k="drift">⤳</button><button data-k="down">▼</button><button data-k="up">▲</button></div></div>' +
@@ -254,11 +257,23 @@
 
     if ('ontouchstart' in window || navigator.maxTouchPoints > 0) root.classList.add('touch');
 
+    var safe = { l: 0, b: 0 }, topBottom = 60, elTop = null, layoutTick = 0;
+    function layoutHud() {
+      elTop = elTop || root.querySelector('.srx-top');
+      var cs = getComputedStyle(root);
+      safe.l = parseFloat(cs.getPropertyValue('padding-left')) || 0;
+      var tmp = document.createElement('div'); tmp.style.cssText = 'position:absolute;left:var(--sal);bottom:var(--sab);width:0;height:0'; root.appendChild(tmp);
+      var rr = root.getBoundingClientRect(), tr = tmp.getBoundingClientRect(); safe.l = tr.left - rr.left; safe.b = rr.bottom - tr.bottom; tmp.remove();
+      var mb = 0; root.querySelectorAll('.srx-pos,.srx-info,.srx-pause').forEach(function (e) { var r = e.getBoundingClientRect(); if (r.height) mb = Math.max(mb, r.bottom - rr.top); });
+      if (mb) topBottom = mb;
+      root.style.setProperty('--toastTop', (topBottom + 8) + 'px');
+    }
     function resize() {
       var r = root.getBoundingClientRect();
       dpr = Math.min(window.devicePixelRatio || 1, 2);
       vw = Math.max(1, r.width); vh = Math.max(1, r.height);
       canvas.width = Math.round(vw * dpr); canvas.height = Math.round(vh * dpr);
+      if (hud.style.display !== 'none') layoutHud();
     }
     var ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(resize) : null;
     if (ro) ro.observe(root); else window.addEventListener('resize', resize);
@@ -480,8 +495,8 @@
 
     function drawMinimap() {
       var B = TRACK.box, S = Math.min(130, vw * 0.22) / (B.maxX - B.minX);
-      var mw = (B.maxX - B.minX) * S, mh = (B.maxY - B.minY) * S, ox = 12, oy = vh - mh - 12;
-      if (root.classList.contains('touch')) oy = 70;
+      var mw = (B.maxX - B.minX) * S, mh = (B.maxY - B.minY) * S, ox = 12 + safe.l, oy = vh - mh - 12 - safe.b;
+      if (root.classList.contains('touch')) oy = topBottom + 10;
       ctx.fillStyle = 'rgba(0,0,0,.45)'; ctx.beginPath(); ctx.roundRect ? ctx.roundRect(ox - 6, oy - 6, mw + 12, mh + 12, 10) : ctx.rect(ox - 6, oy - 6, mw + 12, mh + 12); ctx.fill();
       ctx.strokeStyle = 'rgba(255,255,255,.75)'; ctx.lineWidth = 3; ctx.lineJoin = 'round';
       ctx.beginPath();
@@ -495,6 +510,7 @@
 
     function updateHud() {
       if (state === 'menu' || state === 'results' || !me) return;
+      if ((layoutTick = (layoutTick + 1) % 30) === 1) layoutHud();
       var rk = rankCars(), pos = rk.indexOf(me) + 1;
       elPos.innerHTML = pos + '<small>/' + cars.length + '</small>';
       var lap = Math.max(1, Math.min(opts.laps, me.lap));
@@ -532,7 +548,7 @@
         '<h1>SNAKE RACING</h1><p>Circuito Doganiero · 6 pilotos</p>' +
         '<div class="srx-row">' + optBtns('laps', [2, 3, 5], ['2 vueltas', '3 vueltas', '5 vueltas']) + '</div>' +
         '<div class="srx-row">' + optBtns('diff', [0, 1, 2], ['Fácil', 'Normal', 'Pro']) + '</div>' +
-        '<button type="button" class="srx-go">▶ UN JUGADOR</button> <button type="button" class="srx-go srx-online" style="background:linear-gradient(90deg,#0a84ff,#bf5af2);color:#fff">🌐 ONLINE</button>' +
+        '<div class="srx-btns"><button type="button" class="srx-go">▶ UN JUGADOR</button><button type="button" class="srx-go srx-online" style="background:linear-gradient(90deg,#0a84ff,#bf5af2);color:#fff">🌐 ONLINE</button></div>' +
         '<p style="margin-top:10px">Récord de vuelta: <b style="color:#ffd60a">' + fmtTime(best != null ? best * 1000 : null) + '</b></p>' +
         '<div class="srx-keys"><b>↑</b>/<b>W</b> acelerar · <b>↓</b>/<b>S</b> frenar · <b>←</b><b>→</b> girar<br><b>Espacio</b> derrape controlado · <b>R</b> volver a pista · <b>P</b>/<b>Esc</b> pausa</div>' +
         '</div>';
