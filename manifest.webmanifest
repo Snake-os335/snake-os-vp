@@ -1,0 +1,30 @@
+{
+  "name": "Snake OS!",
+  "short_name": "Snake OS",
+  "description": "Doganiero OS — escritorio, chat y metaverso",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a1f12",
+  "theme_color": "#1f9e57",
+  "lang": "es",
+  "icons": [
+    {
+      "src": "/static/assets/snake-os-favicon-64.png?v=202610101640",
+      "sizes": "64x64",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/static/assets/snake-os-icon-180.png?v=202610101640",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/static/assets/snake-os-icon.png?v=202610101640",
+      "sizes": "256x256",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

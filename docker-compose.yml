@@ -1,0 +1,43 @@
+services:
+  web:
+    build: .
+    container_name: snake-os
+    restart: unless-stopped
+    ports:
+      - "8987:8000"
+    volumes:
+      - .:/app
+      - snakeos-data:/app/data
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /etc/os-release:/host/os-release:ro
+      - /etc/hostname:/host/hostname:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+    environment:
+      - PYTHONUNBUFFERED=1
+      - OS_GATE_PASSWORD=${OS_GATE_PASSWORD:-}
+      - SNAKEOS_LAN_IP=${SNAKEOS_LAN_IP:-}
+      - SNAKEOS_LAN_PORT=${SNAKEOS_LAN_PORT:-8987}
+      - SNAKEOS_PVE_SSH_HOST=${SNAKEOS_PVE_SSH_HOST:-}
+      - SNAKEOS_PVE_SSH_USER=${SNAKEOS_PVE_SSH_USER:-}
+      - SNAKEOS_PVE_SSH_KEY=/run/secrets/pve_ssh_key
+      - SNAKEOS_UBUNTU_SSH_HOST=${SNAKEOS_UBUNTU_SSH_HOST:-}
+      - SNAKEOS_UBUNTU_SSH_USER=${SNAKEOS_UBUNTU_SSH_USER:-}
+      - SNAKEOS_UBUNTU_SSH_KEY=/run/secrets/ubuntu_ssh_key
+      - SNAKEOS_ASKBOX_BASE_URL=${SNAKEOS_ASKBOX_BASE_URL:-http://host.docker.internal:8066}
+      - SNAKEOS_ASKBOX_KEY=${SNAKEOS_ASKBOX_KEY:-}
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: snake-os-cloudflared
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --token ${TUNNEL_TOKEN}
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN}
+    depends_on:
+      - web
+
+volumes:
+  snakeos-data:

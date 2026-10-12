@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Cuentas — Snake OS</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2307150d'/%3E%3Crect x='4' y='14' width='6' height='6' rx='1.5' fill='%2334d17a'/%3E%3Crect x='11' y='14' width='6' height='6' rx='1.5' fill='%2334d17a'/%3E%3Crect x='18' y='14' width='6' height='6' rx='1.5' fill='%2334d17a'/%3E%3Crect x='22' y='7' width='6' height='6' rx='1.5' fill='%231f9e57'/%3E%3Ccircle cx='25' cy='9.5' r='1.2' fill='%23eef6ea'/%3E%3Ccircle cx='12' cy='24' r='2.2' fill='%23ff6b6b'/%3E%3C/svg%3E">
+<style>
+  :root{
+    --text:#eef6ea; --muted:#a9c9ae;
+    --accent:#34d17a; --accent-strong:#1f9e57;
+    --error:#ff6b6b;
+    --glass-bg:rgba(20,35,26,0.45);
+    --glass-border:rgba(255,255,255,0.14);
+    --input-bg:rgba(10,20,14,0.35);
+    --input-border:rgba(255,255,255,0.16);
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;margin:0;}
+  body{
+    position:relative;
+    min-height:100%;
+    background:linear-gradient(160deg,#07150d,#0e2d1b 55%,#07150d);
+    color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  .blob{ position:fixed; border-radius:50%; filter:blur(70px); z-index:0; opacity:0.5; pointer-events:none; }
+  .blob1{ width:420px; height:420px; top:-120px; left:-100px; background:radial-gradient(circle at 30% 30%,#4be38a,#1f9e57 60%,transparent 75%); }
+  .blob2{ width:380px; height:380px; bottom:-140px; right:-100px; background:radial-gradient(circle at 60% 40%,#8affc7,#34d17a 55%,transparent 75%); }
+
+  .wrap{
+    position:relative; z-index:1;
+    max-width:480px; margin:0 auto; padding:48px 20px 40px;
+  }
+  h1{ margin:0 0 6px; font-size:1.55rem; font-weight:700; }
+  p.sub{ color:var(--muted); margin:0 0 22px; font-size:0.9rem; line-height:1.4; }
+
+  .panel{
+    background:var(--glass-bg);
+    border:1px solid var(--glass-border);
+    border-radius:18px;
+    padding:10px;
+    backdrop-filter:blur(14px);
+    -webkit-backdrop-filter:blur(14px);
+  }
+
+  .list{ display:flex; flex-direction:column; gap:8px; }
+  .account{
+    display:flex; align-items:center; gap:14px;
+    width:100%; text-align:left;
+    padding:12px 14px; margin:0;
+    border-radius:14px;
+    border:1px solid var(--input-border);
+    background:var(--input-bg);
+    color:var(--text);
+    font:inherit; cursor:pointer;
+    transition:border-color .15s, box-shadow .15s, background .15s;
+  }
+  .account:hover:not(:disabled){
+    border-color:var(--accent);
+    box-shadow:0 0 0 3px rgba(52,209,122,0.2);
+    background:rgba(52,209,122,0.1);
+  }
+  .account:disabled{ opacity:0.55; cursor:wait; }
+  .avatar{
+    width:44px; height:44px; border-radius:12px;
+    display:flex; align-items:center; justify-content:center;
+    font-size:1.55rem;
+    background:rgba(0,0,0,0.25);
+    border:1px solid var(--input-border);
+    flex-shrink:0;
+  }
+  .meta{ min-width:0; flex:1; }
+  .name{ font-weight:700; font-size:0.95rem; }
+  .email{ font-size:0.78rem; color:var(--muted); margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .badge{
+    font-size:0.68rem; font-weight:600; color:var(--accent);
+    border:1px solid rgba(52,209,122,0.35);
+    background:rgba(52,209,122,0.12);
+    border-radius:999px; padding:3px 8px; flex-shrink:0;
+  }
+
+  .empty, .status{
+    margin:8px 4px; font-size:0.88rem; color:var(--muted); text-align:center; padding:18px 10px;
+  }
+  .status.err{
+    color:var(--error);
+    background:rgba(255,107,107,0.12);
+    border:1px solid rgba(255,107,107,0.3);
+    border-radius:12px;
+  }
+</style>
+</head>
+<body>
+  <div class="blob blob1"></div>
+  <div class="blob blob2"></div>
+  <div class="wrap">
+    <h1>Cuentas Snake OS</h1>
+    <p class="sub">Elige una cuenta para entrar automáticamente como ese usuario.</p>
+    <div class="panel">
+      <div class="list" id="list">
+        <div class="empty" id="loading">Cargando cuentas…</div>
+      </div>
+    </div>
+  </div>
+<script>
+(function(){
+  const listEl = document.getElementById('list');
+
+  function showError(msg){
+    listEl.innerHTML = '<div class="status err">' + escapeHtml(msg) + '</div>';
+  }
+
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, function(c){
+      return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c];
+    });
+  }
+
+  async function loadAccounts(){
+    try{
+      const res = await fetch('/api/accounts', { credentials: 'include' });
+      if(!res.ok){
+        const detail = await res.json().catch(function(){ return {}; });
+        throw new Error(detail.detail || ('Error ' + res.status));
+      }
+      const accounts = await res.json();
+      render(accounts);
+    }catch(e){
+      showError(e.message || 'No se pudieron cargar las cuentas');
+    }
+  }
+
+  function render(accounts){
+    listEl.innerHTML = '';
+    if(!accounts || !accounts.length){
+      listEl.innerHTML = '<div class="empty">No hay cuentas registradas.</div>';
+      return;
+    }
+    accounts.forEach(function(acc){
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'account';
+      btn.innerHTML =
+        '<span class="avatar">' + escapeHtml(acc.avatar || '🐶') + '</span>' +
+        '<span class="meta">' +
+          '<div class="name">' + escapeHtml(acc.name || 'Sin nombre') + '</div>' +
+          '<div class="email">' + escapeHtml(acc.email || '') + '</div>' +
+        '</span>' +
+        (acc.cloudSub ? '<span class="badge">Cloud</span>' : '');
+      btn.addEventListener('click', function(){ impersonate(acc.email, btn); });
+      listEl.appendChild(btn);
+    });
+  }
+
+  async function impersonate(email, btn){
+    const buttons = listEl.querySelectorAll('.account');
+    buttons.forEach(function(b){ b.disabled = true; });
+    try{
+      const res = await fetch('/api/accounts/impersonate', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email })
+      });
+      if(!res.ok){
+        const detail = await res.json().catch(function(){ return {}; });
+        throw new Error(detail.detail || ('Error ' + res.status));
+      }
+      window.location.href = '/';
+    }catch(e){
+      buttons.forEach(function(b){ b.disabled = false; });
+      showError(e.message || 'No se pudo iniciar sesión');
+      setTimeout(loadAccounts, 1600);
+    }
+  }
+
+  loadAccounts();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <title>Mando Pro · Snake OS</title>
+  <style>
+    :root {
+      --bg0: #07140f;
+      --bg1: #0d2418;
+      --panel: #12281c;
+      --line: rgba(52, 209, 122, 0.28);
+      --text: #eafff0;
+      --muted: #9dffc2;
+      --accent: #34d17a;
+      --accent2: #1fa85a;
+      --warn: #ffb454;
+      --danger: #ff6b6b;
+    }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body {
+      margin: 0; min-height: 100%;
+      background:
+        radial-gradient(ellipse 80% 50% at 50% -10%, rgba(52,209,122,0.18), transparent 55%),
+        linear-gradient(165deg, var(--bg0), var(--bg1) 55%, #10281c);
+      color: var(--text);
+      font-family: "Segoe UI", system-ui, sans-serif;
+    }
+    body {
+      padding: max(12px, env(safe-area-inset-top)) 14px max(18px, env(safe-area-inset-bottom));
+      display: flex; flex-direction: column; gap: 12px;
+      max-width: 480px; margin: 0 auto;
+    }
+    header {
+      text-align: center; padding: 8px 4px 2px;
+    }
+    .logo {
+      font-size: 0.72rem; letter-spacing: 0.18em; text-transform: uppercase;
+      color: var(--muted); font-weight: 700;
+    }
+    h1 {
+      margin: 4px 0 0; font-size: 1.45rem; font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+    .sub {
+      margin: 4px 0 0; font-size: 0.78rem; color: var(--muted); opacity: 0.9; line-height: 1.35;
+    }
+    .status {
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      padding: 8px 12px; border-radius: 999px; border: 1px solid var(--line);
+      background: rgba(0,0,0,0.28); font-size: 0.78rem; font-weight: 700;
+    }
+    .dot {
+      width: 8px; height: 8px; border-radius: 50%; background: var(--danger);
+      box-shadow: 0 0 0 3px rgba(255,107,107,0.2);
+    }
+    .status.on .dot {
+      background: var(--accent);
+      box-shadow: 0 0 0 3px rgba(52,209,122,0.25);
+    }
+    .pair-box {
+      display: flex; gap: 8px; align-items: stretch;
+    }
+    .pair-box input {
+      flex: 1; min-width: 0; border-radius: 14px; border: 1px solid var(--line);
+      background: rgba(0,0,0,0.35); color: var(--text); padding: 12px 14px;
+      font-size: 1.05rem; font-weight: 800; letter-spacing: 0.12em; text-align: center;
+      text-transform: uppercase;
+    }
+    .pair-box button, .ghost-btn {
+      border: 1px solid var(--line); background: rgba(52,209,122,0.18);
+      color: var(--text); border-radius: 14px; padding: 0 16px; font-weight: 800;
+      font-size: 0.85rem; cursor: pointer;
+    }
+    .ghost-btn {
+      width: 100%; padding: 12px; background: rgba(255,255,255,0.05);
+      margin-top: 4px;
+    }
+    .shell {
+      border: 1px solid var(--line);
+      background: linear-gradient(180deg, #163526, var(--panel));
+      border-radius: 28px;
+      padding: 16px 14px 18px;
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.08),
+        0 18px 40px rgba(0,0,0,0.35);
+    }
+    .shell-top {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 12px; padding: 0 4px;
+    }
+    .shell-top span {
+      font-size: 0.7rem; font-weight: 800; letter-spacing: 0.14em;
+      text-transform: uppercase; color: var(--muted);
+    }
+    .led {
+      width: 10px; height: 10px; border-radius: 50%; background: #244;
+      transition: background .2s, box-shadow .2s;
+    }
+    .led.on {
+      background: var(--accent);
+      box-shadow: 0 0 12px rgba(52,209,122,0.8);
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+    }
+    .pad {
+      appearance: none; border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 18px; min-height: 78px; padding: 10px 8px;
+      background: radial-gradient(circle at 30% 20%, rgba(255,255,255,0.08), transparent 45%),
+        linear-gradient(160deg, #1a3a28, #0f2218);
+      color: var(--text); cursor: pointer;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.12), 0 6px 14px rgba(0,0,0,0.25);
+      transition: transform .08s ease, background .15s, border-color .15s;
+      user-select: none; touch-action: manipulation;
+    }
+    .pad:active, .pad.flash {
+      transform: scale(0.94);
+      border-color: var(--accent);
+      background: linear-gradient(160deg, #245c3c, #143224);
+    }
+    .pad .ic { font-size: 1.55rem; line-height: 1; }
+    .pad .lb { font-size: 0.68rem; font-weight: 800; letter-spacing: 0.02em; color: var(--muted); }
+    .note {
+      margin: 0; font-size: 0.72rem; color: var(--muted); text-align: center; line-height: 1.4;
+      opacity: 0.85;
+    }
+    .toast {
+      position: fixed; left: 50%; bottom: max(24px, env(safe-area-inset-bottom));
+      transform: translateX(-50%) translateY(20px); opacity: 0;
+      background: rgba(7,20,15,0.92); border: 1px solid var(--line);
+      color: var(--text); padding: 10px 14px; border-radius: 999px;
+      font-size: 0.8rem; font-weight: 700; pointer-events: none;
+      transition: opacity .2s, transform .2s; z-index: 20; white-space: nowrap;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    .locked .grid { opacity: 0.35; pointer-events: none; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="logo">Snake OS · Metaverso</div>
+    <h1>Mando Pro</h1>
+    <p class="sub">Solo efectos extra. Sin mover al jugador.</p>
+  </header>
+
+  <div class="status" id="status"><span class="dot"></span><span id="statusText">Sin conectar</span></div>
+
+  <div class="pair-box" id="pairRow">
+    <input id="codeInput" maxlength="12" placeholder="CÓDIGO" autocomplete="off" spellcheck="false" />
+    <button type="button" id="connectBtn">Entrar</button>
+  </div>
+  <button type="button" class="ghost-btn" id="reconnectBtn" hidden>Reconectar</button>
+
+  <div class="shell locked" id="shell">
+    <div class="shell-top">
+      <span>Pro FX</span>
+      <div class="led" id="led"></div>
+    </div>
+    <div class="grid" id="grid"></div>
+  </div>
+
+  <p class="note">Pide el código / IP en el Metaverso del ordenador (botón Mando Pro). Misma Wi‑Fi o el enlace del túnel.</p>
+  <div class="toast" id="toast"></div>
+
+  <script>
+(function () {
+  var EFFECTS = [
+    { id: 'glow', ic: '✨', lb: 'Aura' },
+    { id: 'trail', ic: '🌟', lb: 'Estela' },
+    { id: 'bighead', ic: '🗿', lb: 'Cabezón' },
+    { id: 'tiny', ic: '🪲', lb: 'Mini' },
+    { id: 'rainbow', ic: '🌈', lb: 'Arcoíris' },
+    { id: 'ghost', ic: '👻', lb: 'Fantasma' },
+    { id: 'hearts', ic: '💖', lb: 'Corazones' },
+    { id: 'thunder', ic: '⚡', lb: 'Rayo' },
+    { id: 'spotlight', ic: '🔦', lb: 'Foco' },
+    { id: 'pulse', ic: '📳', lb: 'Pulso' },
+    { id: 'smoke', ic: '💨', lb: 'Humo' },
+    { id: 'crown', ic: '👑', lb: 'Corona' }
+  ];
+
+  var statusEl = document.getElementById('status');
+  var statusText = document.getElementById('statusText');
+  var codeInput = document.getElementById('codeInput');
+  var connectBtn = document.getElementById('connectBtn');
+  var reconnectBtn = document.getElementById('reconnectBtn');
+  var shell = document.getElementById('shell');
+  var led = document.getElementById('led');
+  var grid = document.getElementById('grid');
+  var toastEl = document.getElementById('toast');
+  var ws = null;
+  var closed = false;
+  var playerName = '';
+  var toastTimer = 0;
+
+  EFFECTS.forEach(function (fx) {
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'pad';
+    b.dataset.fx = fx.id;
+    b.innerHTML = '<span class="ic">' + fx.ic + '</span><span class="lb">' + fx.lb + '</span>';
+    b.addEventListener('click', function () { sendFx(fx.id, b); });
+    grid.appendChild(b);
+  });
+
+  function toast(msg) {
+    toastEl.textContent = msg;
+    toastEl.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { toastEl.classList.remove('show'); }, 1600);
+  }
+
+  function setConnected(on, detail) {
+    statusEl.classList.toggle('on', !!on);
+    led.classList.toggle('on', !!on);
+    shell.classList.toggle('locked', !on);
+    statusText.textContent = detail || (on ? 'Conectado' : 'Sin conectar');
+    reconnectBtn.hidden = !on && !codeInput.value;
+  }
+
+  function codeFromUrl() {
+    try {
+      var q = new URLSearchParams(location.search);
+      return (q.get('code') || q.get('c') || '').trim().toUpperCase();
+    } catch (e0) { return ''; }
+  }
+
+  function sendFx(effect, btn) {
+    if (!ws || ws.readyState !== 1) {
+      toast('No conectado');
+      return;
+    }
+    try {
+      ws.send(JSON.stringify({ type: 'pro', effect: effect }));
+      if (btn) {
+        btn.classList.add('flash');
+        setTimeout(function () { btn.classList.remove('flash'); }, 160);
+      }
+      toast(effect);
+    } catch (e1) {
+      toast('Error al enviar');
+    }
+  }
+
+  function connect() {
+    var code = (codeInput.value || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+    codeInput.value = code;
+    if (code.length < 4) {
+      toast('Código corto');
+      return;
+    }
+    closed = false;
+    try {
+      if (ws) { ws.onclose = null; ws.close(); }
+    } catch (e2) {}
+    var proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    var url = proto + '//' + location.host + '/api/metaverse/mando-ws?code=' + encodeURIComponent(code);
+    setConnected(false, 'Conectando…');
+    try { ws = new WebSocket(url); }
+    catch (e3) {
+      setConnected(false, 'Error WebSocket');
+      return;
+    }
+    ws.onopen = function () {
+      setConnected(false, 'Autenticando…');
+    };
+    ws.onmessage = function (ev) {
+      var msg;
+      try { msg = JSON.parse(ev.data); } catch (e4) { return; }
+      if (!msg || !msg.type) return;
+      if (msg.type === 'welcome') {
+        playerName = msg.name || '';
+        setConnected(true, 'Listo · ' + (playerName || 'jugador'));
+        toast('Mando Pro activo');
+      } else if (msg.type === 'ack') {
+        toast((msg.label || msg.effect || 'ok'));
+      } else if (msg.type === 'error') {
+        setConnected(false, msg.detail || 'Código inválido');
+        toast(msg.detail || 'Error');
+      }
+    };
+    ws.onclose = function () {
+      if (closed) return;
+      setConnected(false, 'Desconectado');
+    };
+    ws.onerror = function () {};
+  }
+
+  connectBtn.addEventListener('click', connect);
+  reconnectBtn.addEventListener('click', connect);
+  codeInput.addEventListener('keydown', function (ev) {
+    if (ev.key === 'Enter') connect();
+  });
+
+  var initial = codeFromUrl();
+  if (initial) {
+    codeInput.value = initial;
+    connect();
+  }
+})();
+  </script>
+</body>
+</html>

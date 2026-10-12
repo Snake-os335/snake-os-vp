@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Snake OS Lite</title>
+  <style>
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      box-sizing: border-box;
+      padding: 28px 16px 48px;
+      background: #07140d;
+      color: #e7fff1;
+      font-family: ui-sans-serif, system-ui, sans-serif;
+    }
+    main { width: min(680px, 100%); }
+    .cabecera { text-align: center; }
+    img {
+      width: 180px;
+      height: auto;
+      background: #000;
+      border-radius: 28px;
+      image-rendering: pixelated;
+    }
+    h1 { margin: 16px 0 4px; font-size: 1.8rem; }
+    p { margin: 0; color: rgba(231, 255, 241, 0.78); }
+    button {
+      margin-top: 22px;
+      border: 0;
+      border-radius: 999px;
+      background: #34d17a;
+      color: #042014;
+      font: inherit;
+      font-weight: 800;
+      padding: 12px 22px;
+      cursor: pointer;
+    }
+    button:disabled { opacity: 0.55; cursor: default; }
+    #estado { min-height: 1.4em; margin-top: 14px; line-height: 1.45; }
+    code { color: #7CFFB0; font-weight: 700; }
+    .linux {
+      margin-top: 28px;
+      text-align: left;
+      background: rgba(52, 209, 122, 0.08);
+      border: 1px solid rgba(124, 255, 176, 0.28);
+      border-radius: 18px;
+      padding: 18px 18px 8px;
+    }
+    .linux h2 {
+      margin: 0 0 12px;
+      font-size: 1.25rem;
+      text-align: center;
+    }
+    .linux ol {
+      margin: 0;
+      padding-left: 1.25rem;
+    }
+    .linux li {
+      margin: 0 0 14px;
+      line-height: 1.5;
+      color: rgba(231, 255, 241, 0.92);
+    }
+    .linux pre {
+      margin: 8px 0 0;
+      padding: 10px 12px;
+      background: #04140c;
+      border-radius: 10px;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+      color: #7CFFB0;
+      font-weight: 700;
+      font-size: 0.92rem;
+      line-height: 1.45;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="cabecera">
+      <img src="/static/snake-os-lite-logo.png" alt="Logo de Snake OS Lite">
+      <h1>Snake OS Lite</h1>
+      <p>Solo Arduino Mega, Ubuntu y Mac</p>
+      <button id="instalar" type="button">Instalar</button>
+      <p id="estado"></p>
+    </div>
+    <section class="linux" aria-label="Instalar en Linux">
+      <h2>Instalar en Linux</h2>
+      <ol>
+        <li>
+          Instala avrdude y Python 3 con pyserial:
+          <pre>sudo apt install avrdude python3 python3-serial</pre>
+        </li>
+        <li>
+          Descarga el programa y el instalador de esta página, en la misma carpeta:
+          <pre>mkdir -p "$HOME/snake-os-lite"
+cd "$HOME/snake-os-lite"
+curl -fL -o snake-os-lite-mega2560.hex "http://127.0.0.1:8987/descargas/snake-os-lite.hex"
+curl -fL -o snake-os-lite-cargar.sh "http://127.0.0.1:8987/descargas/snake-os-lite-cargar.sh"</pre>
+        </li>
+        <li>
+          Haz ejecutable el instalador:
+          <pre>chmod +x snake-os-lite-cargar.sh</pre>
+        </li>
+        <li>
+          Enchufa la Arduino Mega 2560 por USB. En Ubuntu aparece como <code>/dev/ttyACM0</code> o <code>/dev/ttyUSB0</code>. Añade tu usuario al grupo dialout y vuelve a entrar:
+          <pre>sudo usermod -aG dialout $USER</pre>
+        </li>
+        <li>
+          Ejecuta el instalador:
+          <pre>./snake-os-lite-cargar.sh</pre>
+        </li>
+        <li>
+          Cuando termine, abre el RTOS con el puerto que indique el instalador. En la Mega suele ser:
+          <pre>python3 -m serial.tools.miniterm /dev/ttyACM0 115200</pre>
+          Escribe <code>ayuda</code> o <code>rtos</code>.
+        </li>
+        <li>
+          Si Snake OS lo abres en el navegador contra el servidor de casa (no la nube), deja el puente USB apuntando a esa URL:
+          <pre>export SNAKEOS_WEB_BASE=http://127.0.0.1:8987
+python3 snake-os-lite-local.py</pre>
+          (En Mac el puerto serie suele ser <code>/dev/cu.usbmodem*</code>.)
+        </li>
+      </ol>
+    </section>
+  </main>
+  <script>
+    var boton = document.getElementById("instalar");
+    var estado = document.getElementById("estado");
+    var local = "http://127.0.0.1:8792";
+    var ocupado = false;
+    var aviso = "Esta Mega 2560 ya tiene Snake OS Lite. En la terminal escribe Snake-os-lite para abrir el RTOS.";
+
+    function decir(texto) {
+      estado.textContent = texto;
+    }
+
+    function mostrar(instalado) {
+      if (instalado) {
+        boton.disabled = true;
+        boton.textContent = "Instalar";
+        decir(aviso);
+      } else if (!ocupado) {
+        boton.disabled = false;
+        boton.textContent = "Instalar";
+        decir("");
+      }
+    }
+
+    async function mirar() {
+      if (ocupado) return;
+      try {
+        var res = await fetch(local + "/estado");
+        if (!res.ok) return;
+        var data = await res.json();
+        mostrar(!!data.instalado);
+      } catch (e) {}
+    }
+
+    boton.addEventListener("click", async function () {
+      if (boton.disabled) return;
+      ocupado = true;
+      boton.disabled = true;
+      decir("Instalando…");
+      try {
+        var previo = await fetch(local + "/estado");
+        var antes = await previo.json();
+        if (antes.instalado) {
+          ocupado = false;
+          mostrar(true);
+          return;
+        }
+        var res = await fetch(local + "/instalar", { method: "POST" });
+        var data = await res.json();
+        ocupado = false;
+        if (data.ok || data.instalado) {
+          mostrar(true);
+          return;
+        }
+        decir(data.mensaje || "No se pudo instalar.");
+        boton.disabled = false;
+      } catch (e) {
+        ocupado = false;
+        decir("Enchufa la Mega y deja el programa de la placa en marcha en Ubuntu o en el Mac.");
+        boton.disabled = false;
+      }
+    });
+
+    mirar();
+    setInterval(mirar, 1500);
+  </script>
+</body>
+</html>

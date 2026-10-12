@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Placa Mega</title>
+<style>
+  :root { color-scheme: dark; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: #07140d;
+    color: #f4fff8;
+    font-family: ui-sans-serif, system-ui, sans-serif;
+  }
+  main {
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 28px 18px 48px;
+  }
+  h1 { margin: 0 0 6px; font-size: 1.6rem; }
+  .lead { margin: 0 0 22px; color: rgba(244,255,248,0.7); }
+  ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+  li {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(124,255,176,0.18);
+    border-radius: 14px;
+    padding: 14px 16px;
+  }
+  .k {
+    margin: 0;
+    font-size: 0.78rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: rgba(244,255,248,0.62);
+  }
+  .v { margin: 6px 0 0; font-size: 1.25rem; font-weight: 750; line-height: 1.35; }
+  .miss { color: rgba(244,255,248,0.55); font-weight: 650; }
+</style>
+</head>
+<body>
+<main>
+  <img src="/static/assets/mega-logo.png" alt="Arduino Mega" width="140" height="140" style="width:140px;height:140px;object-fit:contain;display:block;margin:0 0 12px">
+  <h1>Placa Mega</h1>
+  <p class="lead">Lo que está haciendo la Arduino ahora. Se actualiza sola.</p>
+  <ul>
+    <li><p class="k">Temperatura</p><p class="v" id="temp">No disponible</p></li>
+    <li><p class="k">Humedad</p><p class="v" id="hum">No disponible</p></li>
+    <li><p class="k">Llamada</p><p class="v" id="call">No disponible</p></li>
+    <li><p class="k">Coder</p><p class="v" id="coder">No disponible</p></li>
+    <li><p class="k">Where I am</p><p class="v" id="where">No disponible</p></li>
+    <li><p class="k">Matriz</p><p class="v" id="glyph">No disponible</p></li>
+    <li><p class="k">Tiempo encendida</p><p class="v" id="up">No disponible</p></li>
+    <li><p class="k">SRAM</p><p class="v" id="ram">No disponible</p></li>
+  </ul>
+</main>
+<script>
+(function () {
+  var GLYPH = { phone: "teléfono", pushpin: "chincheta", prompt: ">_", off: "apagada" };
+
+  function miss(el) {
+    el.textContent = "No disponible";
+    el.className = "v miss";
+  }
+  function show(el, text) {
+    el.textContent = text;
+    el.className = "v";
+  }
+  function num(n) {
+    return typeof n === "number" && isFinite(n);
+  }
+  function uptime(sec) {
+    sec = sec | 0;
+    if (sec < 0) return null;
+    var h = Math.floor(sec / 3600);
+    var m = Math.floor((sec % 3600) / 60);
+    var s = sec % 60;
+    return h + " h, " + m + " min y " + s + " s";
+  }
+
+  function paint(data) {
+    var c = data && data.climate;
+    if (c && c.ok && num(c.c)) show(document.getElementById("temp"), c.c + " °C");
+    else if (c && c.err) show(document.getElementById("temp"), c.err);
+    else miss(document.getElementById("temp"));
+
+    if (c && c.ok && num(c.h)) show(document.getElementById("hum"), c.h + " %");
+    else if (c && c.err) show(document.getElementById("hum"), c.err);
+    else miss(document.getElementById("hum"));
+
+    var call = data && data.call;
+    if (!call || !call.state) miss(document.getElementById("call"));
+    else if (call.state === "counting") {
+      show(document.getElementById("call"), num(call.seconds) ? ("Contando · " + call.seconds + " s") : "Contando · segundos no disponibles");
+    } else if (call.state === "ringing") show(document.getElementById("call"), "Sonando");
+    else if (call.state === "none") show(document.getElementById("call"), "No hay llamada");
+    else miss(document.getElementById("call"));
+
+    var coder = data && data.coder;
+    if (!coder || typeof coder.programming !== "boolean") miss(document.getElementById("coder"));
+    else show(document.getElementById("coder"), coder.programming ? "Programando" : "No está programando");
+
+    var where = data && data.where;
+    if (!where || typeof where.searching !== "boolean") miss(document.getElementById("where"));
+    else if (!where.searching) show(document.getElementById("where"), "No hay búsqueda");
+    else if (num(where.meters)) show(document.getElementById("where"), where.meters + " m");
+    else show(document.getElementById("where"), "Búsqueda en curso · distancia no disponible");
+
+    var glyph = data && data.glyph;
+    if (GLYPH[glyph]) show(document.getElementById("glyph"), GLYPH[glyph]);
+    else miss(document.getElementById("glyph"));
+
+    var up = data && data.uptime;
+    var text = num(up) ? uptime(up) : null;
+    if (text) show(document.getElementById("up"), text);
+    else miss(document.getElementById("up"));
+
+    var ram = data && data.sram;
+    if (ram && num(ram.used) && num(ram.free)) {
+      show(document.getElementById("ram"), "8 KB de SRAM · " + ram.used + " bytes en uso · " + ram.free + " bytes libres");
+    } else miss(document.getElementById("ram"));
+  }
+
+  function fail() {
+    ["temp", "hum", "call", "coder", "where", "glyph", "up", "ram"].forEach(function (id) {
+      miss(document.getElementById(id));
+    });
+  }
+
+  async function pull() {
+    try {
+      var res = await fetch("/api/placa", { cache: "no-store" });
+      if (!res.ok) throw new Error("http");
+      paint(await res.json());
+    } catch (e) {
+      fail();
+    }
+  }
+  pull();
+  setInterval(pull, 2000);
+})();
+</script>
+</body>
+</html>

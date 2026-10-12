@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sesión de Google · Snake OS</title>
+  <style>
+    html,body{margin:0;height:100%;font-family:system-ui,sans-serif;background:#0b1a12;color:#eafff1;
+      display:flex;align-items:center;justify-content:center;}
+    .box{max-width:360px;padding:24px;text-align:center;line-height:1.45;}
+    .ok{font-size:2rem;margin-bottom:8px;}
+  </style>
+</head>
+<body>
+  <div class="box">
+    <div class="ok">✓</div>
+    <p id="msg"><strong>Sesión iniciada.</strong><br>Volviendo al Navegador de Snake OS…</p>
+  </div>
+  <script>
+  (function () {
+    var origin = location.origin;
+    var payload = { type: 'snk-google-auth-done', ok: true, t: Date.now() };
+    try {
+      if (window.opener && !window.opener.closed) {
+        window.opener.postMessage(payload, origin);
+        try { window.opener.focus(); } catch (e1) {}
+      }
+    } catch (e) {}
+    try { localStorage.setItem('snkGoogleAuthDone', String(Date.now())); } catch (e2) {}
+    setTimeout(function () {
+      try { window.close(); } catch (e3) {}
+      var m = document.getElementById('msg');
+      if (m) m.innerHTML = '<strong>Sesión iniciada.</strong><br>Ya puedes cerrar esta ventana y volver a Snake OS.';
+    }, 350);
+  })();
+  </script>
+</body>
+</html>
