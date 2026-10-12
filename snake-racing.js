@@ -2,9 +2,45 @@
 (function (global) {
   'use strict';
 
+  var NET_VER = '1';
   var LOGO_URL = '/static/assets/snake-racing-logo.jpg?v=202610121940';
   var CAR_COLORS = ['#ff3b30', '#0a84ff', '#ffd60a', '#30d158', '#bf5af2', '#ff9f0a'];
   var AI_NAMES = ['Vega', 'Kato', 'Rossi', 'Nadia', 'Blitz'];
+  var COLOR_NAMES = { '#ff3b30': 'rojo', '#0a84ff': 'azul', '#ffd60a': 'amarillo', '#30d158': 'verde', '#bf5af2': 'morado', '#ff9f0a': 'naranja' };
+  // Personalidades: vk = ritmo, look = anticipación, lane = trazada base, block = tapa huecos, aggr = busca el contacto/adelantar,
+  // late = empuje en la última vuelta, err = probabilidad de error por segundo
+  var PERS = {
+    Vega:  { key: 'agresiva',     label: 'Agresiva',     vk: 1.03, look: -2, lane: -25, block: 0.2, aggr: 1.0, late: 0.03, err: 0.02 },
+    Kato:  { key: 'prudente',     label: 'Prudente',     vk: 0.97, look: 1,  lane: 0,   block: 0.0, aggr: 0.2, late: 0.01, err: 0.0 },
+    Rossi: { key: 'bloqueador',   label: 'Bloqueador',   vk: 1.0,  look: 0,  lane: 10,  block: 1.0, aggr: 0.5, late: 0.02, err: 0.01 },
+    Nadia: { key: 'estratega',    label: 'Estratega',    vk: 0.985, look: 2, lane: 0,   block: 0.4, aggr: 0.6, late: 0.06, err: 0.005 },
+    Blitz: { key: 'imprevisible', label: 'Imprevisible', vk: 1.01, look: -1, lane: 0,   block: 0.3, aggr: 0.8, late: 0.03, err: 0.08 },
+    Iris:  { key: 'equilibrada',  label: 'Equilibrada',  vk: 1.0,  look: 0,  lane: 0,   block: 0.3, aggr: 0.5, late: 0.02, err: 0.01 }
+  };
+  var DEF_PERS = PERS.Iris;
+  var SECTOR_NAMES = ['Sector 1 · recta y primera curva', 'Sector 2 · chicane central', 'Sector 3 · horquilla y vuelta a meta'];
+  var PHR = {
+    start: ['¡Se apagan los semáforos y arrancamos!', '¡Salida! Seis coches a por la primera curva.', '¡Arranca la carrera en el circuito Doganiero!'],
+    overtake: ['¡{a} adelanta a {b}!', '¡Qué maniobra de {a} sobre {b}!', '{a} se mete por dentro y supera a {b}.', '¡{b} no puede contener a {a}!', 'Adelantamiento de {a}, {b} pierde la posición.'],
+    overtakeMe: ['¡Adelantas a {b}! Bien hecho.', '¡Gran pasada tuya sobre {b}!', 'Te deshaces de {b}, ¡sigue así!'],
+    overtakenMe: ['¡{a} te pasa! A recuperar.', '{a} se te ha colado, ¡no te rindas!', 'Cuidado, {a} te gana la posición.'],
+    offtrack: ['¡{a} se sale de la pista!', '{a} pisa la hierba y pierde tiempo.', 'Error de {a}, se va largo.'],
+    offtrackMe: ['¡Te sales de la pista!', 'Te vas a la hierba, ¡vuelve al asfalto!', 'Largo en la curva, pierdes tiempo.'],
+    crash: ['¡Toque entre {a} y {b}!', '¡Contacto! {a} y {b} se tocan.', '¡Chapa contra chapa entre {a} y {b}!'],
+    reset: ['{a} vuelve a pista con penalización.', '{a} se recoloca y pierde un segundo.'],
+    fastlap: ['¡Vuelta rápida de {a}: {t}!', '{a} marca la mejor vuelta: {t}.', 'Récord de la carrera para {a}, {t}.'],
+    lastlap: ['¡Última vuelta! {a} lidera.', '¡Campana! Última vuelta con {a} en cabeza.'],
+    finish: ['¡{a} gana la carrera!', '¡Victoria para {a}!', '¡{a} cruza la meta en primera posición!'],
+    finishOther: ['{a} cruza la meta en {p}ª posición.', '{a} termina {p}º.'],
+    join: ['{a} se une a la sala.', 'Llega {a} a la sala.'],
+    leave: ['{a} abandona la sala.', '{a} se ha desconectado.'],
+    revenge: ['{a} viene con ganas de revancha: le has ganado {w} veces.', 'Ojo con {a}, no olvida que le ganaste la última vez.'],
+    nemesis: ['{a} te ha ganado {l} veces. ¡Hoy toca vengarse!'],
+    ambient: ['Ritmo altísimo en el circuito Doganiero.', '{a} marca el ritmo en cabeza.', 'La carrera está muy abierta.', 'Atentos al rebufo en la recta principal.', '{a} parece muy cómodo con el coche.'],
+    radioBehind: ['Radio: {a} te pisa los talones, cierra el interior.', 'Radio: tienes a {a} detrás, defiende la posición.', 'Radio: {a} se acerca, cuidado en la frenada.'],
+    radioAhead: ['Radio: {a} está a tiro, aprovecha el rebufo.', 'Radio: {a} delante, prepara el adelantamiento.', 'Radio: estás ganando tiempo a {a}, ¡ataca!']
+  };
+  function pick(a) { return a[Math.floor(Math.random() * a.length)]; }
 
   // Circuito (puntos de control, Catmull-Rom cerrado)
   var CTRL = [
@@ -53,6 +89,22 @@
   }
 
   var TRACK = null;
+
+  // Sensores para la IA entrenada (mismos en el entrenamiento offline: tools/train-racing-ai.js)
+  function angDiff(a, b) { var d = a - b; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; return d; }
+  function racingSensors(T, c, MAXV, TW) {
+    var P = T.pts, N = T.N, p = P[c.idx];
+    var lat = (c.x - p.x) * p.nx + (c.y - p.y) * p.ny;
+    var fx = Math.cos(c.a), fy = Math.sin(c.a);
+    var fwd = c.vx * fx + c.vy * fy, side = -c.vx * fy + c.vy * fx;
+    var x = [fwd / MAXV, side / 300, lat / (TW / 2), angDiff(Math.atan2(p.ty, p.tx), c.a)];
+    [8, 20, 40, 70].forEach(function (k) {
+      var q = P[(c.idx + k) % N];
+      x.push(angDiff(Math.atan2(q.y - c.y, q.x - c.x), c.a));
+    });
+    return x;
+  }
+  global.SNK_RACING_SENSORS = racingSensors;
 
   function nearestIdx(x, y, hint) {
     var P = TRACK.pts, N = TRACK.N, best = -1, bd = 1e18, i, k;
@@ -217,7 +269,11 @@
     '.srx-reset{position:absolute;left:0;right:0;top:66%;text-align:center;font-size:15px;font-weight:700;color:#fff;text-shadow:0 2px 8px #000}.srx-reset b{background:#ffd60a;color:#111;padding:2px 8px;border-radius:6px}' +
     '@container (max-width:520px){.srx-pos{font-size:26px}.srx-info{font-size:11px;padding:6px 9px}.srx-info b{font-size:14px}.srx-spd .v{font-size:32px}.srx-bar{width:110px}}' +
     '@container (max-height:420px){.srx-big{top:24%}.srx-reset{top:64%}}' +
-    '.srx-pause{flex:none;pointer-events:auto;min-height:32px;border:0;border-radius:10px;padding:5px 12px;background:rgba(0,0,0,.45);color:#fff;font-size:13px;cursor:pointer}';
+    '.srx-sub{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(14px + var(--sab));max-width:50cqw;width:max-content;text-align:center;font-size:15px;font-weight:600;padding:6px 14px;border-radius:10px;background:rgba(0,0,0,.6);z-index:6;pointer-events:none;transition:opacity .25s}' +
+    '.srx-sub.radio{color:#9fe870;font-style:italic}.srx-sub:empty{opacity:0}' +
+    '.srx.touch .srx-sub{bottom:calc(var(--btn) + 90px + var(--sab));max-width:70cqw}' +
+    '.srx-tips{text-align:left;font-size:13px;color:#dfe5ee;background:rgba(255,255,255,.05);border-radius:10px;padding:8px 12px;margin:8px 0}.srx-tips li{margin:3px 0}' +
+    '.srx-pause,.srx-voice{flex:none;pointer-events:auto;min-height:32px;border:0;border-radius:10px;padding:5px 12px;background:rgba(0,0,0,.45);color:#fff;font-size:13px;cursor:pointer}';
 
   function renderSnakeRacingApp(container) {
     if (!TRACK) TRACK = buildTrack();
@@ -228,9 +284,9 @@
       '<div class="srx" tabindex="0">' +
       '<canvas></canvas>' +
       '<div class="srx-hud" style="display:none">' +
-      '<div class="srx-top"><div class="srx-pos"></div><div class="sp"></div><button class="srx-pause" type="button" title="Pausa (P)">❚❚</button><div class="srx-info"></div></div>' +
+      '<div class="srx-top"><div class="srx-pos"></div><div class="sp"></div><button class="srx-voice srx-pause" type="button" title="Voz del comentarista (V)">🔊</button><button class="srx-pause srx-pz" type="button" title="Pausa (P)">❚❚</button><div class="srx-info"></div></div>' +
       '<div class="srx-spd"><span class="v">0</span> <span class="u">km/h</span><div class="srx-bar"><i></i></div></div>' +
-      '<div class="srx-msg"></div><div class="srx-big"></div><div class="srx-reset" style="display:none">Pulsa <b>R</b> para volver a pista</div>' +
+      '<div class="srx-sub"></div><div class="srx-msg"></div><div class="srx-big"></div><div class="srx-reset" style="display:none">Pulsa <b>R</b> para volver a pista</div>' +
       '</div>' +
       '<div class="srx-toasts"></div><div class="srx-touch"><div class="g"><button data-k="reset">R</button><button data-k="left">◀</button><button data-k="right">▶</button></div>' +
       '<div class="g"><button data-k="drift">⤳</button><button data-k="down">▼</button><button data-k="up">▲</button></div></div>' +
@@ -250,8 +306,8 @@
     var keys = { up: false, down: false, left: false, right: false, drift: false };
     var elReset = root.querySelector('.srx-reset'), elToasts = root.querySelector('.srx-toasts');
     var net = { ws: null, on: false, you: null, lobby: null, isAiHost: false, sendAcc: 0, raceId: 0, results: null };
-    var opts = { laps: 3, diff: 1 };
-    try { var sv = JSON.parse(localStorage.getItem('snkRacingOpts') || 'null'); if (sv) { opts.laps = sv.laps || 3; opts.diff = sv.diff != null ? sv.diff : 1; } } catch (e) {}
+    var opts = { laps: 3, diff: 1, voice: true, subs: true, adapt: false };
+    try { var sv = JSON.parse(localStorage.getItem('snkRacingOpts') || 'null'); if (sv) { opts.laps = sv.laps || 3; opts.diff = sv.diff != null ? sv.diff : 1; if (sv.voice != null) opts.voice = !!sv.voice; if (sv.subs != null) opts.subs = !!sv.subs; opts.adapt = !!sv.adapt; } } catch (e) {}
     var best = null; try { best = parseFloat(localStorage.getItem('snkRacingBest')) || null; } catch (e) {}
     var state = 'menu', cars = [], me = null, t0 = 0, raceT = 0, countdown = 0, skids = [], parts = [], finishOrder = [], cam = { x: 0, y: 0, z: 1 }, msgTimer = 0;
 
@@ -288,10 +344,40 @@
         vx: 0, vy: 0, steer: 0, idx: idx, lap: 0, prog: 0, lastIdx: idx, lapStart: 0, bestLap: null,
         sprite: makeCarSprite(color), color: color, name: name, ai: ai, done: false, finishT: null,
         skill: ai ? (0.86 + opts.diff * 0.06 + Math.random() * 0.05) : 1, laneBias: (Math.random() - 0.5) * 50, drifting: false,
-        goodIdx: idx, offT: 0, frozen: 0, remote: false, buf: [], id: null
+        goodIdx: idx, offT: 0, frozen: 0, remote: false, buf: [], id: null,
+        pers: ai ? (PERS[name] || DEF_PERS) : null, adaptK: 1, errT: 0, errS: 0, draft: false, offCount: 0,
+        sec: 0, secStart: 0, secBest: [null, null, null], secOff: [0, 0, 0], resets: 0, useNet: false
       };
     }
 
+    // ---------- IA: personalidad, memoria de piques, adaptativa, red entrenada ----------
+    function loadJSON(k, d) { try { return JSON.parse(localStorage.getItem(k) || 'null') || d; } catch (e) { return d; } }
+    function saveJSON(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+    var rivals = loadJSON('snkRacingRivals', {});      // nombre -> { w: veces que les ganaste, l: veces que te ganaron, last: 'w'|'l' }
+    var rating = loadJSON('snkRacingRating', 0);       // ajuste adaptativo persistente (-0.08..0.08)
+    function prepareAI() {
+      cars.forEach(function (c) {
+        if (!c.ai) return;
+        var base = c.skill * (c.pers ? c.pers.vk : 1);
+        var m = rivals[c.name];
+        if (m && m.last === 'w') base *= 1.015;            // revancha: aprieta un poco más
+        if (opts.adapt) base *= 1 + rating;
+        c.skill = base;
+        c.laneBias = (c.pers ? c.pers.lane : 0) + (Math.random() - 0.5) * 30;
+        c.useNet = opts.diff === 3 && !!global.SNK_RACING_NET;
+        if (opts.diff === 3) c.skill = Math.max(c.skill, 1.0) * (c.pers ? c.pers.vk : 1);
+      });
+    }
+    function netPolicy(c) {
+      var W = global.SNK_RACING_NET; if (!W) return null;
+      var x = sensors(c), h = [], i, j;
+      for (i = 0; i < W.b1.length; i++) { var a = W.b1[i]; for (j = 0; j < x.length; j++) a += W.w1[i][j] * x[j]; h.push(Math.tanh(a)); }
+      var o = [];
+      for (i = 0; i < W.b2.length; i++) { var b = W.b2[i]; for (j = 0; j < h.length; j++) b += W.w2[i][j] * h[j]; o.push(Math.tanh(b)); }
+      return { steer: o[0], up: o[1] > -0.2, down: o[1] < -0.6, drift: false };
+    }
+    function sensors(c) { return global.SNK_RACING_SENSORS(TRACK, c, MAXV, TRACK_W); }
+    
     function startRace(grid) {
       try { localStorage.setItem('snkRacingOpts', JSON.stringify(opts)); } catch (e) {}
       cars = [];
@@ -313,7 +399,8 @@
           else cars.push(newCar(i, CAR_COLORS[i + 1], AI_NAMES[i], true));
         }
       }
-      skids = []; parts = []; finishOrder = [];
+      prepareAI(); raceStamp++;
+      skids = []; parts = []; finishOrder = []; raceBest = null; lastLapSaid = false; lastRank = null; evLog = []; speakQ = []; subClear(); ambT = 6; radioT = 4;
       countdown = 3.5; raceT = 0; state = 'count';
       cam.x = me.x; cam.y = me.y;
       ov.style.display = 'none'; hud.style.display = '';
@@ -325,9 +412,11 @@
     function resetCar(c) {
       if (c.frozen > 0) return;
       var P = TRACK.pts, i = c.goodIdx, p = P[i];
+      var wr = i - c.lastIdx; if (wr > TRACK.N / 2) c.lap--; else if (wr < -TRACK.N / 2) c.lap++;
       c.x = p.x; c.y = p.y; c.a = Math.atan2(p.ty, p.tx); c.vx = c.vy = 0; c.fwd = 0; c.steer = 0;
-      c.idx = i; c.lastIdx = i; c.offT = 0; c.frozen = 1;
+      c.idx = i; c.lastIdx = i; c.prog = c.lap * TRACK.N + i; c.offT = 0; c.frozen = 1;
       if (c === me) flash('Recolocado · +1 s');
+      c.resets++; ev('reset', c);
     }
     function stepCar(c, dt, inp) {
       if (c.frozen > 0) { c.frozen -= dt; c.vx = c.vy = 0; c.fwd = 0; return; }
@@ -338,7 +427,7 @@
       c.idx = near.i;
       var off = Math.sqrt(near.d2) > TRACK_W / 2 + 10;
       var grass = Math.sqrt(near.d2) > TRACK_W / 2 + 45;
-      var maxv = MAXV * c.skill * (grass ? 0.45 : off ? 0.8 : 1);
+      var maxv = MAXV * c.skill * (grass ? 0.45 : off ? 0.8 : 1) * (c.draft ? 1.05 : 1);
       // motor / freno
       if (inp.up) fwd += ACC * dt * (1 - Math.max(0, fwd) / maxv);
       if (inp.down) fwd -= (fwd > 20 ? BRAKE : REV) * dt;
@@ -367,18 +456,27 @@
         c.vx *= 0.5; c.vy *= 0.5;
       }
       c.fwd = fwd; c.off = off;
-      if (!off) { c.offT = 0; var gd = c.idx - c.goodIdx; if ((gd > 0 && gd < 60) || gd < -TRACK.N / 2) c.goodIdx = c.idx; } else c.offT += dt;
-      if (c.ai && c.offT > 3) resetCar(c);
+      if (off && c.offT === 0) { c.offCount++; c.secOff[c.sec]++; if (Math.sqrt(near.d2) > TRACK_W / 2 + 30) ev('offtrack', c); }
+      if (!grass) { var gd = c.idx - c.goodIdx; if ((gd > 0 && gd < 60) || gd < -TRACK.N / 2) c.goodIdx = c.idx; }
+      if (!off) c.offT = 0; else c.offT += dt;
+      c.stuckT = (grass && sp < 150) ? (c.stuckT || 0) + dt : 0;
+      if (c.ai && c.stuckT > 2.5) { c.stuckT = 0; resetCar(c); }
       // progreso / vueltas
       var N = TRACK.N, di = c.idx - c.lastIdx;
       if (di < -N / 2) { // cruzó meta hacia delante
         c.lap++;
         var lt = raceT - c.lapStart; c.lapStart = raceT;
-        if (c.lap > 1 || lt > 5) { if (c.bestLap == null || lt < c.bestLap) c.bestLap = lt; }
+        if (c.lap > 1 || lt > 5) { if (c.bestLap == null || lt < c.bestLap) c.bestLap = lt; if (c.lap >= 2 && (raceBest == null || lt < raceBest)) { raceBest = lt; ev('fastlap', c, null, lt); } }
+        if (c.lap === opts.laps && !lastLapSaid) { var lead0 = rankCars()[0]; if (lead0 === c) { lastLapSaid = true; ev('lastlap', c); } }
         if (c === me && c.lap >= 2) flash('Vuelta ' + fmtTime(lt * 1000));
-        if (c.lap > opts.laps && !c.done) { c.done = true; c.finishT = raceT; finishOrder.push(c);
+        if (c.lap > opts.laps && !c.done) { c.done = true; c.finishT = raceT; finishOrder.push(c); ev('finish', c, null, finishOrder.length);
           if (net.on) { if (c === me) netSend({ type: 'finish', t: raceT, best: c.bestLap }); else if (c.ai) netSend({ type: 'ai_finish', id: c.id, t: raceT, best: c.bestLap }); } }
       } else if (di > N / 2) c.lap--;
+      var nsec = Math.min(2, Math.floor(c.idx * 3 / N));
+      if (nsec !== c.sec && (nsec === (c.sec + 1) % 3)) {
+        var stt = raceT - c.secStart; if (c.lap >= 1 && c.secStart > 0 && (c.secBest[c.sec] == null || stt < c.secBest[c.sec])) c.secBest[c.sec] = stt;
+        c.sec = nsec; c.secStart = raceT;
+      } else if (nsec !== c.sec) { c.sec = nsec; c.secStart = raceT; }
       c.lastIdx = c.idx;
       c.prog = c.lap * N + c.idx;
       // marcas de derrape
@@ -393,19 +491,63 @@
     function aiInput(c) {
       var P = TRACK.pts, N = TRACK.N;
       var sp = Math.hypot(c.vx, c.vy);
-      var look = 14 + Math.floor(sp / 50);
+      var look = 14 + Math.floor(sp / 50) + ((c.pers && c.pers.look) || 0);
       var t = P[(c.idx + look) % N];
       var tx = t.x + t.nx * c.laneBias, ty = t.y + t.ny * c.laneBias;
       var desired = Math.atan2(ty - c.y, tx - c.x);
       var da = desired - c.a;
       while (da > Math.PI) da -= 2 * Math.PI; while (da < -Math.PI) da += 2 * Math.PI;
       var vt = P[(c.idx + 6) % N].vmax * c.skill;
-      // rubber band suave
       var lead = (me.prog - c.prog) / N;
-      vt *= 1 + Math.max(-0.08, Math.min(0.06, lead * 0.15));
-      return { steer: Math.max(-1, Math.min(1, da * 2.5)), up: sp < vt, down: sp > vt + 90, drift: false };
+      if (opts.adapt) { c.adaptK += ((1 + Math.max(-0.1, Math.min(0.1, lead * 0.3))) - c.adaptK) * 0.01; vt *= c.adaptK; }
+      else vt *= 1 + Math.max(-0.08, Math.min(0.06, lead * 0.15));
+      var pr = c.pers || DEF_PERS;
+      if (c.lap >= opts.laps) vt *= 1 + pr.late;                    // última vuelta: arriesgar
+      if (c.strat === 'attack') vt *= 1 + 0.03 * pr.aggr;
+      if (c.useNet && !c.done) { var nn = netPolicy(c); if (nn) { nn.steer = Math.max(-1, Math.min(1, nn.steer)); if (sp > vt + 60) { nn.up = false; nn.down = true; } return nn; } }
+      var st = Math.max(-1, Math.min(1, da * 2.5));
+      if (c.errT > 0) st = Math.max(-1, Math.min(1, st + c.errS));
+      return { steer: st, up: sp < vt, down: sp > vt + 45, drift: false };
     }
 
+    var stratAcc = 0;
+    function strategy(dt) {
+      var N = TRACK.N;
+      cars.forEach(function (c) {
+        // rebufo: coche delante, alineado y cerca
+        c.draft = false;
+        var fx = Math.cos(c.a), fy = Math.sin(c.a);
+        for (var i = 0; i < cars.length; i++) {
+          var o = cars[i]; if (o === c) continue;
+          var dx = o.x - c.x, dy = o.y - c.y, along = dx * fx + dy * fy, side = Math.abs(-dx * fy + dy * fx);
+          if (along > 40 && along < 190 && side < 26) { c.draft = true; break; }
+        }
+        if (!c.ai || c.remote || c.done) return;
+        var pr = c.pers || DEF_PERS;
+        var ahead = null, behind = null, da = 1e9, db = 1e9;
+        cars.forEach(function (o) {
+          if (o === c) return;
+          var d = o.prog - c.prog;
+          if (d > 0 && d < 45 && d < da) { da = d; ahead = o; }
+          if (d < 0 && -d < 35 && -d < db) { db = -d; behind = o; }
+        });
+        var target = pr.lane;
+        c.strat = 'ritmo';
+        if (ahead && pr.aggr > 0.3) {
+          c.strat = 'attack';
+          var lo = lateralOffset(ahead.idx, ahead.x, ahead.y);
+          target = lo > 0 ? lo - 45 : lo + 45;                 // buscar el hueco contrario
+        } else if (behind && (pr.block > 0.3 || c.lap >= opts.laps)) {
+          c.strat = 'defend';
+          var lb = lateralOffset(behind.idx, behind.x, behind.y);
+          target = lb * Math.min(1, pr.block + (c.lap >= opts.laps ? 0.3 : 0));
+        }
+        target = Math.max(-55, Math.min(55, target));
+        c.laneBias += (target - c.laneBias) * Math.min(1, dt * 1.5);
+        if (c.errT > 0) c.errT -= dt;
+        else if (Math.random() < pr.err * dt) { c.errT = 0.35; c.errS = (Math.random() < 0.5 ? -1 : 1) * 0.7; }
+      });
+    }
     function collide() {
       for (var i = 0; i < cars.length; i++) for (var j = i + 1; j < cars.length; j++) {
         var a = cars[i], b = cars[j], dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy), R = 26;
@@ -415,6 +557,7 @@
           var wa = a.remote ? 0 : (b.remote ? 2 : 1), wb = b.remote ? 0 : (a.remote ? 2 : 1);
           a.x -= nx * push * wa; a.y -= ny * push * wa; b.x += nx * push * wb; b.y += ny * push * wb;
           var rv = (b.vx - a.vx) * nx + (b.vy - a.vy) * ny;
+          if (rv < -140) ev('crash', a, b);
           if (rv < 0) { var imp = -rv * 0.6; a.vx -= nx * imp * wa; a.vy -= ny * imp * wa; b.vx += nx * imp * wb; b.vy += ny * imp * wb; }
         }
       }
@@ -438,9 +581,10 @@
         var n = Math.ceil(countdown - 0.5);
         elBig.textContent = countdown > 0.5 ? String(n) : '¡YA!';
         elBig.style.color = countdown > 0.5 ? '#ff3b30' : '#30d158';
-        if (countdown <= 0) { state = 'race'; elBig.textContent = ''; cars.forEach(function (c) { c.lapStart = 0; }); }
+        if (countdown <= 0) { state = 'race'; ev('start'); elBig.textContent = ''; cars.forEach(function (c) { c.lapStart = 0; }); }
       } else if (state === 'race' || state === 'finish') {
         raceT += dt;
+        stratAcc += dt; if (stratAcc > 0.2) { strategy(stratAcc); stratAcc = 0; }
         cars.forEach(function (c) {
           if (c.remote) { interp(c); return; }
           var inp;
@@ -452,6 +596,7 @@
         if (me.done && state === 'race') { state = 'finish'; flash('¡META!'); if (!net.on) setTimeout(function () { if (alive) showResults(); }, 2500); else flash('¡META! Esperando al resto…'); }
         if (net.on) { net.sendAcc += dt; if (net.sendAcc >= 0.04) { net.sendAcc = 0; sendState(); } }
         elReset.style.display = (me.offT > 2 && !me.done) ? '' : 'none';
+        commentTick(dt);
       }
       // cámara con anticipación y zoom por velocidad
       var sp = Math.hypot(me.vx, me.vy);
@@ -541,19 +686,31 @@
     function optBtns(name, vals, labels) {
       return vals.map(function (v, i) { return '<button type="button" class="srx-opt' + (opts[name] === v ? ' on' : '') + '" data-o="' + name + '" data-v="' + v + '">' + labels[i] + '</button>'; }).join('');
     }
+    function tog(k, label) { return '<button type="button" class="srx-opt' + (opts[k] ? ' on' : '') + '" data-t="' + k + '">' + label + '</button>'; }
+    function rivalsHtml() {
+      var ks = Object.keys(rivals).filter(function (k) { return PERS[k]; });
+      if (!ks.length) return '';
+      return '<p style="font-size:12px">Piques: ' + ks.map(function (k) { var r = rivals[k]; return '<b>' + esc(k) + '</b> ' + r.w + '-' + r.l; }).join(' · ') + '</p>';
+    }
     function showMenu() {
       state = 'menu'; elReset.style.display = 'none'; hud.style.display = 'none'; ov.style.display = '';
       ov.innerHTML = '<div class="srx-card">' +
         '<img src="' + LOGO_URL + '" alt="" onerror="this.style.display=\'none\'">' +
         '<h1>SNAKE RACING</h1><p>Circuito Doganiero · 6 pilotos</p>' +
         '<div class="srx-row">' + optBtns('laps', [2, 3, 5], ['2 vueltas', '3 vueltas', '5 vueltas']) + '</div>' +
-        '<div class="srx-row">' + optBtns('diff', [0, 1, 2], ['Fácil', 'Normal', 'Pro']) + '</div>' +
+        '<div class="srx-row">' + optBtns('diff', [0, 1, 2, 3], ['Fácil', 'Normal', 'Pro', '🧠 IA entrenada']) + '</div>' +
+        '<div class="srx-row">' + tog('voice', '🔊 Voz') + tog('subs', '💬 Subtítulos') + tog('adapt', '📈 Adaptativa') + '</div>' +
+        rivalsHtml() +
         '<div class="srx-btns"><button type="button" class="srx-go">▶ UN JUGADOR</button><button type="button" class="srx-go srx-online" style="background:linear-gradient(90deg,#0a84ff,#bf5af2);color:#fff">🌐 ONLINE</button></div>' +
         '<p style="margin-top:10px">Récord de vuelta: <b style="color:#ffd60a">' + fmtTime(best != null ? best * 1000 : null) + '</b></p>' +
-        '<div class="srx-keys"><b>↑</b>/<b>W</b> acelerar · <b>↓</b>/<b>S</b> frenar · <b>←</b><b>→</b> girar<br><b>Espacio</b> derrape controlado · <b>R</b> volver a pista · <b>P</b>/<b>Esc</b> pausa</div>' +
+        '<div class="srx-keys"><b>↑</b>/<b>W</b> acelerar · <b>↓</b>/<b>S</b> frenar · <b>←</b><b>→</b> girar<br><b>Espacio</b> derrape controlado · <b>R</b> volver a pista · <b>V</b> voz · <b>P</b>/<b>Esc</b> pausa</div>' +
         '</div>';
       ov.querySelectorAll('.srx-opt').forEach(function (b) {
-        b.onclick = function () { opts[b.dataset.o] = +b.dataset.v; showMenu(); };
+        b.onclick = function () {
+          if (b.dataset.t) { opts[b.dataset.t] = !opts[b.dataset.t]; if (b.dataset.t === 'voice') setVoice(opts.voice); }
+          else { opts[b.dataset.o] = +b.dataset.v; if (opts.diff === 3) loadNet(); }
+          saveJSON('snkRacingOpts', opts); showMenu();
+        };
       });
       ov.querySelector('.srx-go').onclick = function () { startRace(); };
       ov.querySelector('.srx-online').onclick = goOnline;
@@ -563,11 +720,12 @@
       state = 'results'; hud.style.display = 'none'; ov.style.display = '';
       var rk = rankCars(), pos = rk.indexOf(me) + 1;
       if (me.bestLap != null && (best == null || me.bestLap < best)) { best = me.bestLap; try { localStorage.setItem('snkRacingBest', String(best)); } catch (e) {} }
+      afterRace(rk);
       var rows = rk.map(function (c, i) {
         return '<tr class="' + (c === me ? 'me' : '') + '"><td>' + (i + 1) + '</td><td><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:' + c.color + '"></span> ' + c.name + '</td><td>' + (c.done ? fmtTime(c.finishT * 1000) : '—') + '</td><td>' + fmtTime(c.bestLap != null ? c.bestLap * 1000 : null) + '</td></tr>';
       }).join('');
       ov.innerHTML = '<div class="srx-card"><h1>' + (pos === 1 ? '🏆 ¡VICTORIA!' : 'P' + pos) + '</h1>' +
-        '<table class="srx-res"><tr style="color:#8f99a8"><td>#</td><td>Piloto</td><td>Total</td><td>Mejor</td></tr>' + rows + '</table>' +
+        '<table class="srx-res"><tr style="color:#8f99a8"><td>#</td><td>Piloto</td><td>Total</td><td>Mejor</td></tr>' + rows + '</table>' + tipsHtml(rk) +
         '<button type="button" class="srx-go">↻ Revancha</button> <button type="button" class="srx-opt srx-menu">Menú</button></div>';
       ov.querySelector('.srx-go').onclick = function () { startRace(); };
       ov.querySelector('.srx-menu').onclick = showMenu;
@@ -584,7 +742,8 @@
       ov.querySelector('.r2').onclick = showMenu;
       if (net.on) { ov.querySelector('.r1').style.display = 'none'; ov.querySelector('h1').textContent = 'PAUSA (la carrera online sigue)'; }
     }
-    root.querySelector('.srx-pause').onclick = togglePause;
+    root.querySelector('.srx-pz').onclick = togglePause;
+    root.querySelector('.srx-voice').onclick = function () { setVoice(!opts.voice); };
 
     // ---------- controles ----------
     var KMAP = { ArrowUp: 'up', KeyW: 'up', ArrowDown: 'down', KeyS: 'down', ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', Space: 'drift', ShiftLeft: 'drift', KeyR: 'reset' };
@@ -594,6 +753,7 @@
       var focusedHere = root.contains(document.activeElement) || document.activeElement === document.body;
       if (!focusedHere) return;
       var k = KMAP[e.code];
+      if (e.type === 'keydown' && e.code === 'KeyV') { setVoice(!opts.voice); e.preventDefault(); return; }
       if (e.type === 'keydown' && (e.code === 'KeyP' || e.code === 'Escape')) { togglePause(); e.preventDefault(); return; }
       if (e.type === 'keydown' && e.code === 'Enter' && !net.on && (state === 'menu' || state === 'results')) { startRace(); e.preventDefault(); return; }
       if (k === 'reset') { if (e.type === 'keydown' && me && (state === 'race')) resetCar(me); e.preventDefault(); return; }
@@ -612,6 +772,193 @@
       b.addEventListener('pointercancel', off); b.addEventListener('pointerleave', off);
     });
 
+
+
+    // ---------- comentarista + radio + consejos ----------
+    var elSub = root.querySelector('.srx-sub'), elVoice = root.querySelector('.srx-voice');
+    var raceBest = null, lastLapSaid = false, lastRank = null, evLog = [], speakQ = [], speaking = false, subTimer = 0, ambT = 6, radioT = 4, cool = {}, llm = { checked: false, on: false, busy: false };
+    function cname(c) { if (!c) return ''; if (c === me) return 'tú'; return c.name + ', el ' + (COLOR_NAMES[c.color] || 'coche'); }
+    function fill(t, v) { return t.replace(/\{(\w)\}/g, function (_, k) { return v[k] != null ? v[k] : ''; }); }
+    function setVoice(on) {
+      opts.voice = !!on; saveJSON('snkRacingOpts', opts);
+      if (elVoice) elVoice.textContent = opts.voice ? '🔊' : '🔇';
+      if (!opts.voice) { try { speechSynthesis.cancel(); } catch (e) {} speaking = false; speakQ = []; }
+    }
+    setVoice(opts.voice);
+    var esVoice = null;
+    function pickVoice() {
+      try { var vs = speechSynthesis.getVoices(); esVoice = vs.filter(function (v) { return /^es[-_]ES/i.test(v.lang); })[0] || vs.filter(function (v) { return /^es/i.test(v.lang); })[0] || null; } catch (e) {}
+    }
+    try { if (global.speechSynthesis) { pickVoice(); speechSynthesis.onvoiceschanged = pickVoice; } } catch (e) {}
+    function subClear() { if (elSub) { elSub.textContent = ''; elSub.className = 'srx-sub'; } }
+    // prioridad: 3 = crítica (meta/salida), 2 = importante, 1 = normal, 0 = ambiente
+    function say(text, prio, radio) {
+      if (!text) return;
+      evLog.push(text); if (evLog.length > 12) evLog.shift();
+      var item = { text: text, prio: prio || 1, radio: !!radio, t: performance.now() };
+      if (item.prio >= 3) speakQ = speakQ.filter(function (q) { return q.prio >= 3; });
+      speakQ.push(item);
+      speakQ.sort(function (a, b) { return b.prio - a.prio || a.t - b.t; });
+      if (speakQ.length > 3) speakQ.length = 3;
+      pump();
+    }
+    function show(item) {
+      if (!opts.subs || !elSub) return;
+      elSub.className = 'srx-sub' + (item.radio ? ' radio' : '');
+      elSub.textContent = (item.radio ? '📻 ' : '🎙️ ') + item.text;
+      subTimer = Math.max(2.2, item.text.length * 0.065);
+    }
+    function pump() {
+      if (speaking) return;
+      var now = performance.now();
+      speakQ = speakQ.filter(function (q) { return now - q.t < (q.prio >= 2 ? 6000 : 3500); });   // descarta lo viejo
+      var item = speakQ.shift(); if (!item) return;
+      show(item);
+      var synth = global.speechSynthesis;
+      if (!opts.voice || !synth || typeof SpeechSynthesisUtterance === 'undefined') {
+        speaking = true; setTimeout(function () { speaking = false; if (alive) pump(); }, Math.max(1400, item.text.length * 55)); return;
+      }
+      try {
+        var u = new SpeechSynthesisUtterance(item.text);
+        u.lang = 'es-ES'; if (esVoice) u.voice = esVoice;
+        u.rate = item.radio ? 1.15 : 1.08; u.pitch = item.radio ? 0.85 : 1.05; u.volume = 0.9;
+        var done = function () { if (!speaking) return; speaking = false; if (alive) setTimeout(pump, 120); };
+        u.onend = done; u.onerror = done;
+        speaking = true; synth.speak(u);
+        setTimeout(done, 9000);   // red de seguridad
+      } catch (e) { speaking = false; }
+    }
+    function cd(key, sec) { var n = raceT; if (cool[key] != null && n - cool[key] < sec) return false; cool[key] = n; return true; }
+    function ev(type, a, b, extra) {
+      if (!me || (state !== 'race' && state !== 'finish' && type !== 'start')) return;
+      var A = cname(a), B = cname(b);
+      if (type === 'start') { say(pick(PHR.start), 3); remindRivals(); }
+      else if (type === 'crash') { if ((a === me || b === me || cd('crash', 4)) && cd('crash' + a.name + b.name, 3)) say(fill(pick(PHR.crash), { a: A, b: B }), a === me || b === me ? 2 : 1); }
+      else if (type === 'offtrack') { if (a === me ? cd('offme', 4) : cd('off', 6)) say(a === me ? pick(PHR.offtrackMe) : fill(pick(PHR.offtrack), { a: A }), a === me ? 2 : 1); }
+      else if (type === 'reset') say(fill(pick(PHR.reset), { a: a === me ? 'Tu coche' : A }), 1);
+      else if (type === 'fastlap') say(fill(pick(PHR.fastlap), { a: a === me ? 'ti' : A, t: fmtTime(extra * 1000) }), a === me ? 2 : 1);
+      else if (type === 'lastlap') say(fill(pick(PHR.lastlap), { a: A }), 2);
+      else if (type === 'finish') {
+        if (extra === 1) say(a === me ? '¡Has ganado la carrera! ¡Enhorabuena!' : fill(pick(PHR.finish), { a: A }), 3);
+        else if (a === me) say('Cruzas la meta en ' + extra + 'ª posición.', 3);
+        else if (extra <= 3) say(fill(pick(PHR.finishOther), { a: A, p: extra }), 1);
+      }
+    }
+    function remindRivals() {
+      var best = null;
+      cars.forEach(function (c) { var r = c.ai && rivals[c.name]; if (r && (!best || r.w + r.l > best.r.w + best.r.l)) best = { c: c, r: r }; });
+      if (!best) return;
+      if (best.r.last === 'w') say(fill(pick(PHR.revenge), { a: cname(best.c), w: best.r.w }), 1);
+      else if (best.r.l > best.r.w) say(fill(pick(PHR.nemesis), { a: cname(best.c), l: best.r.l }), 1);
+    }
+    function commentTick(dt) {
+      if (subTimer > 0) { subTimer -= dt; if (subTimer <= 0 && !speaking) subClear(); }
+      if (state !== 'race') return;
+      // adelantamientos (comparando el orden cada frame, ignorando la salida)
+      var rk = rankCars();
+      if (lastRank && raceT > 2.5) {
+        for (var i = 0; i < rk.length; i++) {
+          var c = rk[i], prev = lastRank.indexOf(c);
+          if (prev > i && !c.done) {
+            var victim = lastRank[i];
+            if (!victim || victim === c || victim.done) continue;
+            var key = 'ov' + c.name + victim.name;
+            if (!cd(key, 6)) continue;
+            if (c === me) say(fill(pick(PHR.overtakeMe), { b: cname(victim) }), 2);
+            else if (victim === me) say(fill(pick(PHR.overtakenMe), { a: cname(c) }), 2);
+            else if (i <= 2 && cd('ovany', 3)) say(fill(pick(PHR.overtake), { a: cname(c), b: cname(victim) }), 1);
+          }
+        }
+      }
+      lastRank = rk;
+      // radio de equipo: rival cercano
+      radioT -= dt;
+      if (radioT <= 0 && !me.done) {
+        radioT = 2;
+        var mi = rk.indexOf(me), ah = rk[mi - 1], bh = rk[mi + 1];
+        var gapB = bh ? me.prog - bh.prog : 1e9, gapA = ah ? ah.prog - me.prog : 1e9;
+        if (bh && gapB < 14 && cd('radioB', 12)) say(fill(pick(PHR.radioBehind), { a: cname(bh) }), 1, true);
+        else if (ah && gapA < 18 && cd('radioA', 12)) say(fill(pick(PHR.radioAhead), { a: cname(ah) }) + (me.draft ? ' Estás en su rebufo.' : ''), 1, true);
+      }
+      // ambiente (LLM si hay, si no frases locales)
+      ambT -= dt;
+      if (ambT <= 0) {
+        ambT = 9;
+        if (speakQ.length || speaking) return;
+        if (llm.on && !llm.busy) {
+          llm.busy = true;
+          askLLM('ambient', raceFacts()).then(function (t) { llm.busy = false; if (t) say(t, 0); else say(fill(pick(PHR.ambient), { a: cname(rk[0]) }), 0); });
+        } else say(fill(pick(PHR.ambient), { a: cname(rk[0]) }), 0);
+      }
+    }
+    function raceFacts() {
+      var rk = rankCars(), N = TRACK.N;
+      return {
+        vuelta: Math.max(1, Math.min(opts.laps, me.lap)), vueltas: opts.laps,
+        clasificacion: rk.map(function (c, i) { return { pos: i + 1, nombre: c === me ? 'Tú' : c.name, color: COLOR_NAMES[c.color] || '', personalidad: c.pers ? c.pers.label : (c === me ? 'jugador' : 'humano'), distancia_al_lider_m: Math.round((rk[0].prog - c.prog) * TRACK.len / N / 10) }; }),
+        eventos_recientes: evLog.slice(-5)
+      };
+    }
+    function checkLLM() {
+      if (llm.checked) return; llm.checked = true;
+      try {
+        fetch('/api/snake-racing/commentary', { credentials: 'same-origin' }).then(function (r) { return r.ok ? r.json() : null; })
+          .then(function (j) { llm.on = !!(j && j.llm); }).catch(function () {});
+      } catch (e) {}
+    }
+    checkLLM();
+    function askLLM(kind, facts) {
+      try {
+        var ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+        if (ctl) setTimeout(function () { ctl.abort(); }, kind === 'summary' ? 9000 : 5000);
+        return fetch('/api/snake-racing/commentary', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kind: kind, facts: facts }), signal: ctl ? ctl.signal : undefined })
+          .then(function (r) { return r.ok ? r.json() : null; }).then(function (j) { return j && j.ok ? j.text : null; }).catch(function () { return null; });
+      } catch (e) { return Promise.resolve(null); }
+    }
+    function veces(n) { return n + (n === 1 ? ' vez' : ' veces'); }
+    function tipsList(rk) {
+      var tips = [];
+      // referencia por sector: el mejor parcial de cualquier rival
+      for (var s = 0; s < 3; s++) {
+        var mine = me.secBest[s], ref = null, who = null;
+        cars.forEach(function (c) { if (c !== me && c.secBest[s] != null && (ref == null || c.secBest[s] < ref)) { ref = c.secBest[s]; who = c; } });
+        if (mine != null && ref != null && mine - ref > 0.15) tips.push({ loss: mine - ref, text: 'Pierdes ' + (mine - ref).toFixed(2) + ' s en el ' + SECTOR_NAMES[s] + ' respecto a ' + cname(who) + '.' + (me.secOff[s] ? ' Te saliste ' + veces(me.secOff[s]) + ' ahí: frena antes y acelera a la salida.' : ' Prueba a frenar un poco antes y abrir gas antes en la salida.') });
+        else if (mine != null && ref != null && mine < ref) tips.push({ loss: -1, text: '¡Eres el más rápido en el ' + SECTOR_NAMES[s] + '!' });
+      }
+      tips.sort(function (a, b) { return b.loss - a.loss; });
+      var out = tips.map(function (t) { return t.text; });
+      if (me.offCount >= 3) out.push('Te saliste de la pista ' + me.offCount + ' veces: la hierba te frena a la mitad.');
+      if (me.resets) out.push('Usaste R ' + veces(me.resets) + ' (+1 s cada una).');
+      if (!out.length) out.push('Carrera muy limpia. Usa el rebufo (ponte detrás de un rival en recta) para ganar velocidad.');
+      return out.slice(0, 4);
+    }
+    var lastTipsHtml = '';
+    function tipsHtml(rk) {
+      var id = 'srxsum' + Date.now();
+      lastTipsHtml = '<div class="srx-tips"><b>Consejos</b><ul style="margin:4px 0;padding-left:18px">' + tipsList(rk).map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('') + '</ul><div id="' + id + '" style="color:#b8c0cc;font-style:italic"></div></div>';
+      var facts = raceFacts(); facts.consejos = tipsList(rk); facts.mejor_vuelta_tuya = me.bestLap;
+      if (llm.on) askLLM('summary', facts).then(function (t) { var el = document.getElementById(id); if (el && t) { el.textContent = '🎙️ ' + t; say(t, 2); } });
+      return lastTipsHtml;
+    }
+    var afterDone = -1;
+    function afterRace(rk) {
+      if (afterDone === raceStamp) return; afterDone = raceStamp;
+      var myPos = rk.indexOf(me);
+      rk.forEach(function (c, i) {
+        if (!c.ai || !PERS[c.name]) return;
+        var r = rivals[c.name] || { w: 0, l: 0, last: null };
+        if (myPos < i) { r.w++; r.last = 'w'; } else { r.l++; r.last = 'l'; }
+        rivals[c.name] = r;
+      });
+      saveJSON('snkRacingRivals', rivals);
+      if (opts.adapt) { rating = Math.max(-0.08, Math.min(0.08, rating + (2.5 - myPos) * 0.012)); saveJSON('snkRacingRating', rating); }
+    }
+    var raceStamp = 0;
+    function loadNet() {
+      if (global.SNK_RACING_NET || document.getElementById('srx-net')) return;
+      var sc = document.createElement('script'); sc.id = 'srx-net'; sc.src = '/static/snake-racing-net.js?v=' + NET_VER; document.head.appendChild(sc);
+    }
+    if (opts.diff === 3) loadNet();
 
     // ---------- online ----------
     var actx = null;
@@ -679,6 +1026,7 @@
       else if (m.type === 'info') { toast('ℹ️ ' + esc(m.detail), 'chat'); }
       else if (m.type === 'toast') {
         var dot = '<span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:' + esc(m.color) + '"></span> ';
+        if (m.kind === 'join' || m.kind === 'leave') say(fill(pick(PHR[m.kind]), { a: m.name + ', ' + (COLOR_NAMES[m.color] || 'sin color') }), 2);
         if (m.kind === 'join') toast(dot + '<b>' + esc(m.name) + '</b> ha entrado en la sala', 'join');
         else if (m.kind === 'leave') toast(dot + '<b>' + esc(m.name) + '</b> ha salido', 'leave');
         else toast(dot + '<b>' + esc(m.name) + ':</b> ' + esc(m.text), 'chat');
@@ -695,7 +1043,7 @@
         for (var id in m.p) { var c = carById(id); if (c && c.remote) pushSnap(c, m.p[id], 0); }
         (m.ai || []).forEach(function (a) { var c = carById(a[0]); if (c && c.remote) pushSnap(c, a, 1); });
       }
-      else if (m.type === 'finished') { var fc = carById(m.id); if (fc && fc !== me) { fc.done = true; fc.finishT = m.t; toast('🏁 <b>' + esc(fc.name) + '</b> ha cruzado la meta', 'chat'); } }
+      else if (m.type === 'finished') { var fc = carById(m.id); if (fc && fc !== me) { fc.done = true; fc.finishT = m.t; finishOrder.push(fc); ev('finish', fc, null, finishOrder.length); toast('🏁 <b>' + esc(fc.name) + '</b> ha cruzado la meta', 'chat'); } }
       else if (m.type === 'gone') { cars = cars.filter(function (c) { return c.id !== m.id; }); }
       else if (m.type === 'results') { if (m.raceId === net.raceId) showNetResults(m.rows); }
     }
@@ -731,7 +1079,8 @@
         var mine = r.id === net.you;
         return '<tr class="' + (mine ? 'me' : '') + '"><td>' + (i + 1) + '</td><td><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:' + esc(r.color) + '"></span> ' + esc(mine ? 'Tú' : r.name) + (r.ai ? ' <small style="color:#8f99a8">IA</small>' : '') + '</td><td>' + (r.t != null ? fmtTime(r.t * 1000) : '—') + '</td><td>' + fmtTime(r.best != null ? r.best * 1000 : null) + '</td></tr>';
       }).join('');
-      ov.innerHTML = '<div class="srx-card"><h1>RESULTADOS</h1><table class="srx-res"><tr style="color:#8f99a8"><td>#</td><td>Piloto</td><td>Total</td><td>Mejor</td></tr>' + html + '</table>' +
+      afterRace(rankCars());
+      ov.innerHTML = '<div class="srx-card"><h1>RESULTADOS</h1><table class="srx-res"><tr style="color:#8f99a8"><td>#</td><td>Piloto</td><td>Total</td><td>Mejor</td></tr>' + html + '</table>' + tipsHtml(rankCars()) +
         '<button type="button" class="srx-go">↩ Volver a la sala</button></div>';
       ov.querySelector('.srx-go').onclick = function () { state = 'lobby'; renderLobby(); };
     }
@@ -741,6 +1090,7 @@
 
     return function () {
       alive = false; cancelAnimationFrame(raf);
+      try { if (global.speechSynthesis) speechSynthesis.cancel(); } catch (e) {}
       if (net.ws) { try { net.ws.onclose = null; net.ws.close(); } catch (e) {} }
       window.removeEventListener('keydown', onKey, true);
       window.removeEventListener('keyup', onKey, true);

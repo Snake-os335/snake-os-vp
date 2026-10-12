@@ -5030,6 +5030,52 @@ async def snake_racing_ws(websocket: WebSocket):
         await snake_racing.racing_hub.disconnect(websocket)
 
 
+class SnakeRacingCommentaryBody(BaseModel):
+    kind: str = "ambient"
+    facts: dict = Field(default_factory=dict)
+
+
+_snake_racing_comm_last: dict[int, float] = {}
+
+
+@app.get("/api/snake-racing/commentary")
+def snake_racing_commentary_status(user=Depends(require_user)):
+    return {"llm": bool(resolve_askbox_key(int(user["id"])))}
+
+
+@app.post("/api/snake-racing/commentary")
+def snake_racing_commentary(body: SnakeRacingCommentaryBody, user=Depends(require_user)):
+    """Comentario de ambiente / resumen final con LLM (Askbox). Si no hay clave o falla, ok=False y el cliente usa frases locales."""
+    uid = int(user["id"])
+    key = resolve_askbox_key(uid)
+    if not key:
+        return {"ok": False, "reason": "no_key"}
+    kind = "summary" if body.kind == "summary" else "ambient"
+    now = time.time()
+    if kind == "ambient" and now - _snake_racing_comm_last.get(uid, 0) < 6:
+        return {"ok": False, "reason": "throttled"}
+    _snake_racing_comm_last[uid] = now
+    facts = json.dumps(body.facts, ensure_ascii=False)[:1800]
+    if kind == "summary":
+        prompt = "Resume en 2-3 frases emocionantes la carrera y da un consejo concreto al jugador (Tú). Datos: " + facts
+        max_tok = 220
+    else:
+        prompt = "Da UNA frase corta (max 20 palabras) de comentario de ambiente, mencionando nombre y color de algún coche. Datos actuales: " + facts
+        max_tok = 80
+    try:
+        result = askbox_client.ask(
+            prompt,
+            system="Eres un comentarista de carreras español, enérgico y breve. Responde solo con el texto a locutar, sin comillas.",
+            tier="fast", max_output_tokens=max_tok, api_key=key,
+        )
+    except AskboxError as exc:
+        return {"ok": False, "reason": exc.code or "error"}
+    except Exception:
+        return {"ok": False, "reason": "error"}
+    text = (result.get("text") or "").strip().strip(chr(34))[:400]
+    return {"ok": bool(text), "text": text}
+
+
 # ===== DOGANIERO CHAT + NOTIFICATIONS =====
 
 class ChatHub:
