@@ -4383,10 +4383,22 @@ window.addEventListener('error', function(e){
   }
 
   // ---------- Correo (EmailJS) ----------
-  const SERVICE_ID = 'service_q6a2m2c';
-  const TEMPLATE_ID = 'template_jlwpjxc';
-  const PUBLIC_KEY = 'EtTNhs8ppwkKxz-Jm';
-  emailjs.init({ publicKey: PUBLIC_KEY });
+  let SERVICE_ID = '';
+  let TEMPLATE_ID = '';
+  let PUBLIC_KEY = '';
+  function emailJsReady() {
+    return !!(SERVICE_ID && TEMPLATE_ID && PUBLIC_KEY && window.emailjs);
+  }
+  fetch('/api/emailjs-config', { cache: 'no-store' })
+    .then(function (res) { return res.ok ? res.json() : null; })
+    .then(function (data) {
+      if (!data || !data.enabled) return;
+      SERVICE_ID = String(data.serviceId || '');
+      TEMPLATE_ID = String(data.templateId || '');
+      PUBLIC_KEY = String(data.publicKey || '');
+      if (emailJsReady()) emailjs.init({ publicKey: PUBLIC_KEY });
+    })
+    .catch(function () {});
 
   // ---------- Sesión ----------
   let currentUser = null;
@@ -6632,6 +6644,12 @@ function buildIcons(){
         message: container.querySelector('#message-x').value,
         time: new Date().toLocaleString('es-ES')
       };
+      if (!emailJsReady()) {
+        showStatus('El correo no está configurado en este servidor.', false);
+        btn.disabled = false;
+        btn.textContent = 'Enviar correo';
+        return;
+      }
       emailjs.send(SERVICE_ID, TEMPLATE_ID, params)
         .then(function(){
           showStatus('Correo enviado correctamente ✅', true);

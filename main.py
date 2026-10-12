@@ -59,9 +59,9 @@ def placa_required() -> bool:
     return raw in {"1", "true", "yes", "si", "sí"}
 
 
-DEMO_EMAIL = "david@dogaemail.com"
+DEMO_EMAIL = (os.environ.get("SNAKEOS_DEMO_EMAIL") or "").strip().lower()
 DEMO_PASSWORD = os.environ.get("SNAKEOS_DEMO_PASSWORD") or ""
-DEMO_NAME = "David"
+DEMO_NAME = os.environ.get("SNAKEOS_DEMO_NAME") or "Snake OS"
 DEMO_AVATAR = "🐶"
 
 ACCOUNTS_BASIC_USER = "doganiero"
@@ -133,7 +133,7 @@ async def on_startup() -> None:
         db.backfill_missing_desk_codes()
     except Exception:
         pass
-    if DEMO_PASSWORD and not db.get_user_by_email(DEMO_EMAIL):
+    if DEMO_EMAIL and DEMO_PASSWORD and not db.get_user_by_email(DEMO_EMAIL):
         db.create_user(
             DEMO_EMAIL,
             DEMO_NAME,
@@ -266,6 +266,37 @@ class ImpersonateBody(BaseModel):
 
 class CheckDogaEmailBody(BaseModel):
     email: str
+
+
+def _emailjs_public_config() -> dict[str, str]:
+    """EmailJS ids come from the environment or emailjs.local.json. Never from source."""
+    service = (os.environ.get("EMAILJS_SERVICE_ID") or "").strip()
+    template = (os.environ.get("EMAILJS_TEMPLATE_ID") or "").strip()
+    public = (os.environ.get("EMAILJS_PUBLIC_KEY") or "").strip()
+    local_path = FsPath(__file__).resolve().parent / "emailjs.local.json"
+    if local_path.is_file():
+        try:
+            data = json.loads(local_path.read_text(encoding="utf-8"))
+        except Exception:
+            data = {}
+        if isinstance(data, dict):
+            service = service or str(data.get("serviceId") or data.get("EMAILJS_SERVICE_ID") or "").strip()
+            template = template or str(data.get("templateId") or data.get("EMAILJS_TEMPLATE_ID") or "").strip()
+            public = public or str(data.get("publicKey") or data.get("EMAILJS_PUBLIC_KEY") or "").strip()
+    if not (service and template and public):
+        return {"enabled": False}
+    return {
+        "enabled": True,
+        "serviceId": service,
+        "templateId": template,
+        "publicKey": public,
+    }
+
+
+@app.get("/api/emailjs-config")
+def emailjs_config():
+    return _emailjs_public_config()
+
 
 @app.get("/api/os-gate")
 def os_gate_status(request: Request):

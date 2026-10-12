@@ -278,7 +278,18 @@ class Handler(BaseHTTPRequestHandler):
         sys.stderr.write("%s - %s\n" % (self.address_string(), fmt % args))
 
     def _cors(self) -> None:
-        self.send_header("Access-Control-Allow-Origin", "*")
+        origin = (self.headers.get("Origin") or "").strip()
+        host = ""
+        if "://" in origin:
+            host = origin.split("://", 1)[1].split("/", 1)[0].split("@")[-1]
+            if host.startswith("["):
+                host = host.split("]")[0] + "]"
+            else:
+                host = host.split(":")[0]
+        host = host.lower()
+        if host in {"localhost", "127.0.0.1", "[::1]"}:
+            self.send_header("Access-Control-Allow-Origin", origin)
+            self.send_header("Vary", "Origin")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
 
