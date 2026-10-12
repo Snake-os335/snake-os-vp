@@ -605,6 +605,56 @@ def _hold_inside(x: float, y: float, vx: float, vy: float) -> tuple[float, float
 
 _party_until = 0.0
 
+PARTY_CYCLE_ORIGIN = None  # lazy: datetime(2026, 10, 12, 14, 0, Europe/Madrid)
+HOUR_CYCLE_S = 3600
+PARTY_DURATION_S = 600
+PARTY_FULL_CYCLE_S = HOUR_CYCLE_S + PARTY_DURATION_S
+
+
+def _party_cycle_origin():
+    global PARTY_CYCLE_ORIGIN
+    if PARTY_CYCLE_ORIGIN is None:
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+
+        PARTY_CYCLE_ORIGIN = datetime(2026, 10, 12, 14, 0, tzinfo=ZoneInfo("Europe/Madrid"))
+    return PARTY_CYCLE_ORIGIN
+
+
+def party_cycle_info() -> dict[str, Any]:
+    """Reloj de 1 h + fiesta de 10 min (misma lógica que _host_party_loop)."""
+    from datetime import datetime
+
+    origin = _party_cycle_origin()
+    now = datetime.now(origin.tzinfo)
+    elapsed = int((now - origin).total_seconds())
+    if elapsed < 0:
+        return {
+            "phase": "hour",
+            "secondsLeft": -elapsed,
+            "party": party_active(),
+            "hourSeconds": HOUR_CYCLE_S,
+            "partySeconds": PARTY_DURATION_S,
+        }
+    phase = elapsed % PARTY_FULL_CYCLE_S
+    if phase >= HOUR_CYCLE_S:
+        left = PARTY_DURATION_S - (phase - HOUR_CYCLE_S)
+        return {
+            "phase": "party",
+            "secondsLeft": max(0, left),
+            "party": True,
+            "hourSeconds": HOUR_CYCLE_S,
+            "partySeconds": PARTY_DURATION_S,
+        }
+    left = HOUR_CYCLE_S - phase
+    return {
+        "phase": "hour",
+        "secondsLeft": max(0, left),
+        "party": party_active(),
+        "hourSeconds": HOUR_CYCLE_S,
+        "partySeconds": PARTY_DURATION_S,
+    }
+
 
 def party_active() -> bool:
     return time.time() < _party_until
@@ -968,24 +1018,14 @@ def _placa_on() -> bool:
 
 
 async def _host_party_loop() -> None:
-    """La fiesta de 10 minutos sale del reloj de las 14:00, no de la Mega."""
-    from datetime import datetime
-    from zoneinfo import ZoneInfo
-
-    origin = datetime(2026, 10, 12, 14, 0, tzinfo=ZoneInfo("Europe/Madrid"))
-    hour_s = 3600
-    party_s = 600
-    cycle = hour_s + party_s
+    """La fiesta de 10 minutos sale del reloj de 1 h, no de la Mega."""
     while True:
-        elapsed = int((datetime.now(origin.tzinfo) - origin).total_seconds())
-        if elapsed >= 0:
-            phase = elapsed % cycle
-            if phase >= hour_s:
-                left = party_s - (phase - hour_s)
-                if not party_active():
-                    begin_party(float(max(1, left)))
-            elif party_active():
-                end_party()
+        info = party_cycle_info()
+        if info["phase"] == "party":
+            if not party_active():
+                begin_party(float(max(1, info["secondsLeft"])))
+        elif party_active():
+            end_party()
         await asyncio.sleep(1)
 
 

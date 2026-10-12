@@ -291,6 +291,7 @@
       '      <button type="button" class="mv-mando-pro-btn" data-mv="mandoProBtn" title="Abrir Mando Pro en el móvil">📱 Mando Pro</button>' +
       '      <div class="mv-status" data-mv="status">Conectando…</div>' +
       '      <div class="mv-score" data-mv="coins">🪙 0 coins</div>' +
+      '      <div class="mv-party-timer" data-mv="partyTimer">⏳ Fiesta en 1:00:00</div>' +
       '      <div class="mv-world-bar" data-mv="worldBar"></div>' +
       '    </div>' +
       '    <div class="mv-emotes" data-mv="emotes"></div>' +
@@ -399,6 +400,7 @@
     var statusEl = container.querySelector('[data-mv="status"]');
     var scoreEl = container.querySelector('[data-mv="score"]');
     var coinsEl = container.querySelector('[data-mv="coins"]');
+    var partyTimerEl = container.querySelector('[data-mv="partyTimer"]');
     var coinsSideEl = container.querySelector('[data-mv="coinsSide"]');
     var avatarShopEl = container.querySelector('[data-mv="avatarShop"]');
     var avatarMsgEl = container.querySelector('[data-mv="avatarMsg"]');
@@ -3209,6 +3211,46 @@
     var mapParty = false;
     var partyPollKnown = false;
     var partyPollTimer = null;
+    var partyCycleTimer = null;
+
+    function fmtPartyCountdown(sec) {
+      sec = Math.max(0, Math.floor(sec || 0));
+      var h = Math.floor(sec / 3600);
+      var m = Math.floor((sec % 3600) / 60);
+      var s = sec % 60;
+      if (h > 0) {
+        return h + ':' + (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+      }
+      return m + ':' + (s < 10 ? '0' : '') + s;
+    }
+
+    function paintPartyTimer(data) {
+      if (!partyTimerEl || !data) return;
+      var phase = data.phase === 'party' ? 'party' : 'hour';
+      var left = fmtPartyCountdown(data.secondsLeft);
+      if (phase === 'party' || data.party) {
+        partyTimerEl.textContent = '🎉 Modo fiesta · ' + left;
+        partyTimerEl.classList.add('party-on');
+      } else {
+        partyTimerEl.textContent = '⏳ Fiesta en ' + left;
+        partyTimerEl.classList.remove('party-on');
+      }
+    }
+
+    function pollPartyCycle() {
+      if (closed) return;
+      fetch('/api/metaverse/party-cycle', { credentials: 'include', cache: 'no-store' })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (data) {
+          if (closed || !data) return;
+          paintPartyTimer(data);
+          if (typeof data.party === 'boolean') {
+            partyPollKnown = true;
+            setMapParty(data.party);
+          }
+        })
+        .catch(function () {});
+    }
 
     function noteMapParty(on) {
       /* Antes del aviso directo, el baile de los bots ya trae la bandera de la Mega. */
@@ -6186,12 +6228,13 @@
       animId = requestAnimationFrame(animate);
     });
 
-    pollMapParty();
-    partyPollTimer = setInterval(pollMapParty, 2000);
+    pollPartyCycle();
+    partyCycleTimer = setInterval(pollPartyCycle, 1000);
     startMetaverseBg();
     return function cleanup() {
       closed = true;
       if (partyPollTimer) { clearInterval(partyPollTimer); partyPollTimer = null; }
+      if (partyCycleTimer) { clearInterval(partyCycleTimer); partyCycleTimer = null; }
       try { mvxCleanup(); } catch (eMvxC) {}
       try { stopMetaverseBg(); } catch (eBg) {}
       if (global.__mvEnterRoom === enterRoom) {

@@ -40,7 +40,7 @@ window.addEventListener('error', function(e){
 }, true);
 </script>
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1">
-<script src="/static/metaverse.js?v=202610121420"></script onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1">
+<script src="/static/metaverse.js?v=202610121930"></script onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1">
 <script src="/static/doganiero-chat.js?v=202610120945"></script onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1">
 <script src="/static/doganiero-desk.js?v=202610072130"></script onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1">
 <script src="/static/desktop-extras.js?v=202610101610"></script onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1">
@@ -54,12 +54,8 @@ window.addEventListener('error', function(e){
 <script src="/static/snake-maps.js?v=202610101610"></script onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1">
 <script src="/static/snake-bluetooth.js?v=202610111725"></script onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1">
 <script src="/static/snake-keypad.js?v=202610111201"></script onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1">
-<script src="/static/snake-clima.js?v=202610120840"></script onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1">
-<script src="/static/snake-where.js?v=202610120822"></script onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1">
-<script src="/static/snake-coder.js?v=202610121000"></script onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1">
-<script src="/static/snake-ask.js?v=202610121000"></script onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1">
-<script src="/static/snake-matrix.js?v=202610112006"></script onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1">
 <script src="/static/snake-game-matrix.js?v=202610112000"></script onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1">
+<script src="/static/snake-racing.js?v=202610121930"></script onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1">
 <style>
   :root{
     --text:#ffffff; --muted:rgba(255,255,255,0.82);
@@ -373,6 +369,9 @@ window.addEventListener('error', function(e){
   .mv-world-bar{ pointer-events:none; }
 
   .mv-score{ margin-top:6px; display:inline-block; padding:4px 10px; border-radius:999px; background:rgba(255,180,40,0.35); font-size:0.78rem; font-weight:700; text-shadow:0 1px 3px #000; }
+  .mv-party-timer{ margin-top:6px; display:inline-block; padding:4px 10px; border-radius:999px; background:rgba(199,125,255,0.32); font-size:0.78rem; font-weight:700; text-shadow:0 1px 3px #000; }
+  .mv-party-timer.party-on{ background:rgba(255,77,109,0.45); animation:mv-party-pulse 1.2s ease-in-out infinite; }
+  @keyframes mv-party-pulse{ 50%{ transform:scale(1.03); box-shadow:0 0 12px rgba(255,210,63,0.55); } }
   .mv-emotes{ position:absolute; left:10px; bottom:10px; display:flex; gap:6px; z-index:3; pointer-events:auto; }
   .mv-emote-btn{ margin:0; width:40px; height:40px; padding:0; border-radius:12px; font-size:1.2rem; background:rgba(0,0,0,0.45); border:1px solid rgba(255,255,255,0.2); color:#fff; }
   /* Virtual stick (mobile / phone-mode only) — bottom-left */
@@ -14105,6 +14104,13 @@ function renderStoreApp(container){
     notes:    { title:'Notas',       icon:'📝', width:350, height:480, render: renderNotesApp },
     games:    { title:'Juegos',      icon:'🎮', width:370, height:520, render: renderGamesApp },
     snake:    { title:'Snake',       icon:'🐍', width:330, height:580, render: renderSnakeApp },
+    'snake-racing': { title:'Snake Racing', icon:'🏁', width:680, height:620, render: function(body){
+      if(typeof window.renderSnakeRacingApp !== 'function'){
+        body.innerHTML = '<div style="padding:16px;color:#ff8a7a">No se pudo cargar Snake Racing. Recarga la página.</div>';
+        return function(){};
+      }
+      return window.renderSnakeRacingApp(body);
+    } },
     calc:     { title:'Calculadora', icon:'🧮', width:270, height:400, render: renderCalcApp },
     code:     { title:'Code Lab',    icon:'💻', width:760, height:680, render: renderCodeLabApp },
     explorer: { title:'Explorador',  icon:'🌍', width:350, height:360, render: renderExplorerApp },
@@ -14141,47 +14147,6 @@ function renderStoreApp(container){
       }
       return window.renderDoganieroPhoneApp(body);
     } },
-    clima:    { title:'Sensor', icon:'🌡️', width:360, height:320, render: function(body){
-      if(typeof window.renderSensorApp !== 'function'){
-        body.innerHTML = '<div style="padding:16px;color:#ff8a7a">No se pudo cargar el Sensor. Recarga la página.</div>';
-        return function(){};
-      }
-      return window.renderSensorApp(body);
-    } },
-    'where-i-am': { title:'where i am?', icon:'📍', width:420, height:640, render: function(body){
-      if(typeof window.renderWhereApp !== 'function'){
-        body.innerHTML = '<div style="padding:16px;color:#ff8a7a">No se pudo cargar where i am?</div>';
-        return function(){};
-      }
-      return window.renderWhereApp(body);
-    } },
-    ask: { title:'Asistente', iconImg:'/static/assets/mega-logo.png', iconImgClass:'ai-logo', width:420, height:460, render: function(body){
-      if(typeof window.renderAskApp !== 'function'){
-        body.innerHTML = '<div style="padding:16px;color:#ff8a7a">No se pudo cargar Asistente.</div>';
-        return function(){};
-      }
-      return window.renderAskApp(body);
-    } },
-    coder: { title:'Coder', icon:'>_', width:460, height:520, render: function(body){
-      if(typeof window.renderCoderApp !== 'function'){
-        body.innerHTML = '<div style="padding:16px;color:#ff8a7a">No se pudo cargar Coder.</div>';
-        return function(){};
-      }
-      return window.renderCoderApp(body);
-    } },
-    matrix: {
-      title: 'Matriz LED',
-      icon: '🔴',
-      width: 420,
-      height: 640,
-      render: function(body){
-        if (typeof window.renderMatrixApp !== 'function') {
-          body.innerHTML = '<p>App no disponible</p>';
-          return function(){};
-        }
-        return window.renderMatrixApp(body);
-      }
-    }
   };
 
   window.APPS = APPS;

@@ -4122,6 +4122,23 @@ def metaverse_party_status():
     return {"party": _metaverse_party_on()}
 
 
+@app.get("/api/metaverse/party-cycle")
+def metaverse_party_cycle(user=Depends(require_user)):
+    """Contador 1 h → fiesta 10 min (misma fase que el servidor)."""
+    _ = user
+    if _metaverse_ai_bots is None:
+        return {
+            "phase": "hour",
+            "secondsLeft": 3600,
+            "party": _metaverse_party_on(),
+            "hourSeconds": 3600,
+            "partySeconds": 600,
+        }
+    info = _metaverse_ai_bots.party_cycle_info()
+    info["party"] = _metaverse_party_on() or bool(info.get("party"))
+    return info
+
+
 @app.get("/api/metaverse/online")
 def metaverse_online(
     world: str | None = Query(None),
@@ -4978,6 +4995,41 @@ async def metaverse_ws(websocket: WebSocket):
                 {"type": "leave", "email": email},
                 world=left.get("world"),
             )
+
+
+import snake_racing
+
+
+@app.websocket("/api/snake-racing/ws")
+async def snake_racing_ws(websocket: WebSocket):
+    await websocket.accept()
+    sid = websocket.cookies.get(COOKIE_NAME)
+    user_row = user_from_session(sid)
+    if not user_row:
+        await websocket.send_text(
+            json.dumps({"type": "error", "detail": "Inicia sesión para jugar"}, ensure_ascii=False)
+        )
+        await websocket.close(code=4401)
+        return
+    pub = db.user_public(user_row)
+    email = str(pub["email"]).strip().lower()
+    name = str(pub.get("name") or email.split("@")[0])
+    await snake_racing.racing_hub.connect(websocket, email, name)
+    try:
+        while True:
+            raw = await websocket.receive_text()
+            try:
+                msg = json.loads(raw)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(msg, dict):
+                await snake_racing.racing_hub.handle(websocket, msg)
+    except WebSocketDisconnect:
+        pass
+    finally:
+        await snake_racing.racing_hub.disconnect(websocket)
+
+
 # ===== DOGANIERO CHAT + NOTIFICATIONS =====
 
 class ChatHub:

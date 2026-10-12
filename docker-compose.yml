@@ -1,13 +1,13 @@
 services:
   web:
     build: .
-    container_name: snake-os
+    container_name: snake-os-vp
     restart: unless-stopped
     ports:
-      - "8987:8000"
+      - "8988:8000"
     volumes:
       - .:/app
-      - snakeos-data:/app/data
+      - snakeos-vp-data:/app/data
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
       - /etc/os-release:/host/os-release:ro
@@ -19,7 +19,7 @@ services:
       - PYTHONUNBUFFERED=1
       - OS_GATE_PASSWORD=${OS_GATE_PASSWORD:-}
       - SNAKEOS_LAN_IP=${SNAKEOS_LAN_IP:-}
-      - SNAKEOS_LAN_PORT=${SNAKEOS_LAN_PORT:-8987}
+      - SNAKEOS_LAN_PORT=${SNAKEOS_LAN_PORT:-8988}
       - SNAKEOS_PVE_SSH_HOST=${SNAKEOS_PVE_SSH_HOST:-}
       - SNAKEOS_PVE_SSH_USER=${SNAKEOS_PVE_SSH_USER:-}
       - SNAKEOS_PVE_SSH_KEY=/run/secrets/pve_ssh_key
@@ -31,7 +31,7 @@ services:
 
   cloudflared:
     image: cloudflare/cloudflared:latest
-    container_name: snake-os-cloudflared
+    container_name: snake-os-vp-cloudflared
     restart: unless-stopped
     command: tunnel --no-autoupdate run --token ${TUNNEL_TOKEN}
     environment:
@@ -40,4 +40,4 @@ services:
       - web
 
 volumes:
-  snakeos-data:
+  snakeos-vp-data:
