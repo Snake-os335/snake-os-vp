@@ -505,7 +505,8 @@
   }
   function banner(ctx){
     ctx.println('Snake OS ' + VERSION + ' · kernel ' + KERNEL, 'term-ok');
-    ctx.println('Escribe help para ver los comandos. Tab autocompleta, ↑ ↓ para el historial.', 'term-muted');
+    try{ C.help().forEach(function(l, i){ ctx.println(l, i === 0 ? "term-ok" : "term-muted"); }); }catch(e){}
+    ctx.println("Tab autocompleta, ↑ ↓ para el historial. Escribe help para volver a ver esta lista.", "term-muted");
   }
   window.SnakeTerminal = { handle: handle, mount: mount, banner: banner, prompt: prompt, setPrompt: setPrompt };
 })();
