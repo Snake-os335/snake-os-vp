@@ -2533,6 +2533,52 @@ def api_translate(
 
 
 
+@app.get("/api/frame-check")
+def api_frame_check(u: str = Query("", max_length=2000), user=Depends(require_user)):
+    """Navegador: dice si una web se deja mostrar dentro de Snake OS (X-Frame-Options / CSP).
+    No manda cookies ni datos del usuario; solo mira las cabeceras de la pagina publica."""
+    _ = user
+    raw = (u or "").strip()
+    try:
+        parsed = urlparse(raw)
+    except Exception:
+        return {"ok": False, "embeddable": False, "reason": "invalid"}
+    host = (parsed.hostname or "").lower()
+    if parsed.scheme not in ("http", "https") or not host:
+        return {"ok": False, "embeddable": False, "reason": "invalid"}
+    try:
+        port = parsed.port or (443 if parsed.scheme == "https" else 80)
+        try:
+            infos = socket.getaddrinfo(host, port)
+        except OSError:
+            time.sleep(0.3)
+            infos = socket.getaddrinfo(host, port)
+        for info in infos:
+            ip = ipaddress.ip_address(info[4][0])
+            if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast:
+                return {"ok": False, "embeddable": False, "reason": "private"}
+    except Exception:
+        return {"ok": False, "embeddable": False, "reason": "dns"}
+    try:
+        req = UrlRequest(raw, method="GET", headers={"User-Agent": "Mozilla/5.0 (SnakeOS Navegador)", "Accept": "text/html"})
+        with urlopen(req, timeout=6) as resp:
+            xfo = (resp.headers.get("X-Frame-Options") or "").lower()
+            csp = (resp.headers.get("Content-Security-Policy") or "").lower()
+            final = resp.geturl()
+    except Exception as e:
+        code = getattr(e, "code", None)
+        if code:
+            hdrs = getattr(e, "headers", None)
+            xfo = ((hdrs.get("X-Frame-Options") if hdrs else "") or "").lower()
+            return {"ok": True, "embeddable": not ("deny" in xfo or "sameorigin" in xfo), "status": int(code)}
+        return {"ok": False, "embeddable": False, "reason": "unreachable"}
+    blocked = "deny" in xfo or "sameorigin" in xfo
+    m = re.search(r"frame-ancestors([^;]*)", csp)
+    if m and "*" not in m.group(1).split():
+        blocked = True
+    return {"ok": True, "embeddable": not blocked, "final": final}
+
+
 @app.get("/api/gembed")
 def api_gembed(
     u: str = Query("", max_length=2000),

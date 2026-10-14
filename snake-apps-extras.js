@@ -1211,7 +1211,11 @@
     }
     function list() {
       var q = query.trim().toLowerCase();
-      var arr = filesArr().filter(function (e) { return !q || String(e.name || '').toLowerCase().indexOf(q) >= 0; });
+      var arr = filesArr().filter(function (e) {
+        var n = String(e.name || '');
+        if (/(^|\/)\.keep$/.test(n)) return false; // marcador interno de carpeta vacía
+        return !q || n.toLowerCase().indexOf(q) >= 0;
+      });
       var withIdx = arr.map(function (e, i) { return { e: e, i: i }; });
       withIdx.sort(function (a, b) {
         if (sort === 'recent') return (+b.e.id || 0) - (+a.e.id || 0);
@@ -1226,8 +1230,11 @@
     function paint() {
       bar.querySelectorAll('[data-v]').forEach(function (b) { b.classList.toggle('on', b.dataset.v === view); });
       holder.innerHTML = '';
-      var items = list();
       var q = query.trim();
+      // Cuadrícula sin búsqueda: se usa la vista original con carpetas (abrir, arrastrar, clic derecho).
+      if (view === 'grid' && !q) { origGrid.style.display = ''; paintDet(); return; }
+      origGrid.style.display = 'none';
+      var items = list();
       if (view === 'grid') {
         var g = document.createElement('div');
         g.className = 'explorer-grid';

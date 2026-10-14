@@ -49,7 +49,7 @@ window.addEventListener('error', function(e){
 <script src="/static/doganiero-tv.js?v=202610091150" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/prism.js?v=202610080900" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/doganiero-phone.js?v=202610140830" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
-<script src="/static/snake-apps-extras.js?v=202610141830" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
+<script src="/static/snake-apps-extras.js?v=202610141900" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-cursor.js?v=202610111448" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-emoji-data.js?v=202610100831" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-emoji.js?v=202610140900" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
@@ -7173,7 +7173,8 @@ function buildIcons(){
     try { if(typeof window.snkToast === 'function') return window.snkToast(t); } catch(e){}
     try { const el = document.getElementById('shotToast'); if(el){ el.textContent = t; el.classList.add('show'); clearTimeout(showShotToastSafe._t); showShotToastSafe._t = setTimeout(function(){ el.classList.remove('show'); }, 2200); } } catch(e2){}
   }
-  window.snkCreateFolder = function(dir){ return snkCreateFolder(dir || ''); };
+  const snkCreateFolderImpl = snkCreateFolder;
+  window.snkCreateFolder = function(dir){ return snkCreateFolderImpl(dir || ''); };
   // Mueve un archivo o carpeta (item = {kind:'file', id} | {kind:'dir', path}) a la carpeta dest ('' = inicio).
   function snkMoveItem(item, dest){
     dest = dest || '';
@@ -7574,6 +7575,17 @@ function buildIcons(){
               '</div>' +
             '</div>' +
           '</div>' +
+          '<div class="snk-br-session" id="browserBlocked-x" hidden>' +
+            '<div class="snk-br-session-card">' +
+              '<div class="snk-br-session-ico">🚧</div>' +
+              '<h3 id="browserBlockedTitle-x">Esta web no se puede mostrar dentro de Snake OS</h3>' +
+              '<p id="browserBlockedText-x"></p>' +
+              '<div class="snk-br-session-actions">' +
+                '<button type="button" class="snk-br-go" id="browserOpenTab-x">Abrir en pestaña nueva</button>' +
+                '<button type="button" class="snk-br-btn" id="browserBlockedSearch-x">Buscar en Google</button>' +
+              '</div>' +
+            '</div>' +
+          '</div>' +
           '<div class="snk-br-toast" id="browserToast-x" hidden></div>' +
         '</div>' +
       '</div>';
@@ -7587,6 +7599,33 @@ function buildIcons(){
     var sessionEl = container.querySelector('#browserSession-x');
     var loginBtn = container.querySelector('#browserLogin-x');
     var toastEl = container.querySelector('#browserToast-x');
+    var blockedEl = container.querySelector('#browserBlocked-x');
+    var blockedUrl = '';
+    var navSeq = 0;
+    var authStartedAt = 0;
+    var returnUrl = '';
+    function isGoogleHost(u){ try{ return /(^|\.)google\.[a-z.]+$/i.test(new URL(u).hostname); }catch(e){ return false; } }
+    function showBlocked(url, kind){
+      blockedUrl = url;
+      var t = container.querySelector('#browserBlockedTitle-x'), x = container.querySelector('#browserBlockedText-x');
+      if(kind === 'unreachable' || kind === 'dns'){ t.textContent = 'No se ha podido abrir esta web'; x.textContent = 'Puede que la dirección esté mal escrita o que la web no responda. Prueba a abrirla en una pestaña nueva o búscala en Google.'; }
+      else if(kind === 'invalid' || kind === 'private'){ t.textContent = 'Esta dirección no se puede abrir aquí'; x.textContent = 'Revisa que la dirección esté bien escrita.'; }
+      else { t.textContent = 'Esta web no se puede mostrar dentro de Snake OS'; x.textContent = 'La página no deja que otras webs la muestren dentro (lo decide ella por seguridad). Puedes abrirla en una pestaña nueva.'; }
+      blockedEl.hidden = false;
+      frame.style.visibility = 'hidden';
+    }
+    function hideBlocked(){ blockedEl.hidden = true; blockedUrl = ''; }
+    // No sabemos si la web se dejará mostrar: aviso que se puede tocar para abrirla fuera.
+    function openTabHint(url){
+      if(!toastEl) return;
+      toastEl.hidden = false;
+      toastEl.textContent = 'Si la web no se ve, toca aquí para abrirla en una pestaña nueva';
+      toastEl.style.cursor = 'pointer';
+      toastEl.style.pointerEvents = 'auto';
+      toastEl.onclick = function(){ window.open(url, '_blank', 'noopener'); toastEl.hidden = true; };
+      clearTimeout(toast._t);
+      toast._t = setTimeout(function(){ toastEl.hidden = true; toastEl.onclick = null; }, 9000);
+    }
     var hist = [];
     var histIdx = -1;
     var passTimer = null;
@@ -7628,7 +7667,8 @@ function buildIcons(){
       mode = next;
       var session = mode === 'session';
       sessionEl.hidden = !session;
-      frame.style.visibility = session ? 'hidden' : 'visible';
+      if(session) hideBlocked();
+      frame.style.visibility = (session || !blockedEl.hidden) ? 'hidden' : 'visible';
       loginBtn.textContent = waitingAuth ? 'Esperando…' : (loggedIn ? 'Cambiar cuenta' : 'Iniciar sesión');
       syncShield();
     }
@@ -7643,7 +7683,9 @@ function buildIcons(){
       loggedIn = true;
       var win = aliveWin();
       // Si la ventana 2 ya está en Google con sesión, cópiala al iframe y ciérrala
-      var dest = HOME + (HOME.indexOf('?') >= 0 ? '&' : '?') + '_snk=' + Date.now();
+      var base = returnUrl && isGoogleHost(returnUrl) ? returnUrl : HOME;
+      var dest = base + (base.indexOf('?') >= 0 ? '&' : '?') + '_snk=' + Date.now();
+      returnUrl = '';
       if(win){
         try{
           var href = String(win.location.href || '');
@@ -7659,7 +7701,8 @@ function buildIcons(){
       }
       googleWin = null;
       setMode('embed');
-      input.value = 'Google';
+      input.value = displayUrl(base);
+      hideBlocked();
       container.querySelector('#browserBack-x').disabled = histIdx <= 0;
       try{ frame.src = 'about:blank'; }catch(e3){}
       setTimeout(function(){ frame.src = dest; }, 30);
@@ -7700,10 +7743,24 @@ function buildIcons(){
       }
       input.value = displayUrl(url);
       container.querySelector('#browserBack-x').disabled = histIdx <= 0;
+      hideBlocked();
       setMode('embed');
-      frame.src = url;
+      var seq = ++navSeq;
+      if(isGoogleHost(url)){ frame.src = url; return; }
+      // Webs que no son Google: antes miramos si se dejan mostrar dentro de Snake OS.
+      frame.src = 'about:blank';
+      toast('Abriendo ' + displayUrl(url) + '…');
+      api('/api/frame-check?u=' + encodeURIComponent(url)).then(function(r){
+        if(seq !== navSeq) return;
+        // Si el servidor no llega a la web (DNS/red), probamos igualmente en el navegador del usuario.
+        if(!r || r.embeddable){ frame.src = url; return; }
+        if(r.reason === 'dns' || r.reason === 'unreachable'){ frame.src = url; openTabHint(url); return; }
+        showBlocked(url, r && r.reason);
+      }).catch(function(){ if(seq === navSeq){ frame.src = url; openTabHint(url); } });
     }
     function startGoogleLogin(){
+      if(!waitingAuth) returnUrl = hist[histIdx] || '';
+      authStartedAt = Date.now();
       waitingAuth = true;
       setMode('session');
       input.value = 'Iniciar sesión en Google';
@@ -7755,6 +7812,13 @@ function buildIcons(){
       if(histIdx <= 0) return; histIdx--; navigate(hist[histIdx], false);
     });
     loginBtn.addEventListener('click', function(){ startGoogleLogin(); });
+    container.querySelector('#browserOpenTab-x').addEventListener('click', function(){
+      if(blockedUrl) window.open(blockedUrl, '_blank', 'noopener');
+    });
+    container.querySelector('#browserBlockedSearch-x').addEventListener('click', function(){
+      var q = blockedUrl; try{ q = new URL(blockedUrl).hostname.replace(/^www\./, ''); }catch(e){}
+      navigate(googleSearchUrl(q), true);
+    });
     container.querySelector('#browserFocus-x').addEventListener('click', function(){
       var win = aliveWin();
       if(win){ try{ win.focus(); }catch(e){} } else startGoogleLogin();
@@ -7771,11 +7835,16 @@ function buildIcons(){
         if(href && /google\./i.test(href) && !/accounts\.google\./i.test(href)){
           returnToBrowserWithSession();
         }
-      }catch(e){}
+      }catch(e){
+        // La ventana de Google es de otro dominio y no se puede leer. Si el usuario vuelve
+        // a Snake OS pasado un rato, damos el login por terminado: cerramos la ventana y recargamos aquí.
+        if(Date.now() - authStartedAt > 6000) returnToBrowserWithSession();
+      }
     }
     function onMsg(ev){
       if(ev.origin !== location.origin) return;
       if(ev.data && ev.data.type === 'snk-google-need-login') startGoogleLogin();
+      else if(ev.data && ev.data.type === 'snk-google-auth-done' && waitingAuth) returnToBrowserWithSession();
     }
     window.addEventListener('focus', onFocus);
     window.addEventListener('message', onMsg);
