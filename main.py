@@ -37,6 +37,7 @@ import added_accounts
 import chat_extras
 import store_extras
 import calendar_extras
+import bots_extras
 import askbox_client
 import matrix_api
 from askbox_client import AskboxError
@@ -8044,6 +8045,9 @@ class _PublicStaticFiles(StaticFiles):
             raise _StarletteHTTPException(status_code=404)
         return await super().get_response(path, scope)
 
+
+# Doganiero Bots (2026-10-14)
+app.include_router(bots_extras.build_router(require_user, bots_extras.own_key, web_search_results))
 
 app.mount("/static", _PublicStaticFiles(directory="."), name="static")
 # ===== END /static seguro =====
