@@ -321,6 +321,10 @@
     var callBtn = el('button', 'dph-call', '📞 Llamar');
     callBtn.type = 'button';
     callBtn.addEventListener('click', function () { dial(); });
+    var vidBtn = el('button', 'dph-call dph-vid', '🎥 Vídeo');
+    vidBtn.type = 'button';
+    vidBtn.title = 'Videollamada';
+    vidBtn.addEventListener('click', function () { dial(null, true); });
     var ansBtn = el('button', 'dph-ans', 'Contestar');
     ansBtn.type = 'button';
     ansBtn.hidden = true;
@@ -335,6 +339,7 @@
       else if (typeof global.hangupDoganieroCall === 'function') global.hangupDoganieroCall();
     });
     actions.appendChild(callBtn);
+    actions.appendChild(vidBtn);
     actions.appendChild(ansBtn);
     actions.appendChild(hangBtn);
     padPane.appendChild(actions);
@@ -359,7 +364,7 @@
     var addRow = el('form', 'dph-add');
     var addInp = el('input', 'dph-search');
     addInp.type = 'text';
-    addInp.placeholder = 'Dogaemail o DOG-123456';
+    addInp.placeholder = 'correo@dogaemail.com o DOG-123456';
     addInp.maxLength = 120;
     addInp.setAttribute('aria-label', 'Añadir cuenta');
     var addBtn = el('button', 'dph-add-btn', 'Añadir');
@@ -470,10 +475,12 @@
       var num = s.peerNumber ? ' · ' + s.peerNumber : '';
       var idle = !s.phase || s.phase === 'idle';
       callBtn.disabled = !idle || state.busy;
+      vidBtn.disabled = !idle || state.busy;
       hangBtn.disabled = idle;
       var incoming = s.phase === 'ringing' && s.role === 'callee';
       ansBtn.hidden = !incoming;
       callBtn.hidden = incoming;
+      vidBtn.hidden = incoming;
       hangBtn.textContent = incoming ? 'Rechazar' : 'Colgar';
       if (s.phase === 'ringing' && s.role === 'caller') setStatus('Llamando a ' + name + num + '…', 'live');
       else if (incoming) setStatus(name + num + ' te está llamando', 'live');
@@ -481,7 +488,7 @@
       else if (statusEl.classList.contains('live')) setStatus('Llamada terminada');
     }
 
-    function dial(numberOverride) {
+    function dial(numberOverride, asVideo) {
       var d = digitsOf(numberOverride != null ? numberOverride : state.digits);
       if (numberOverride != null) setDigits(d);
       if (d.length !== 6) {
@@ -545,7 +552,7 @@
             name: peer.name,
             avatar: peer.avatar,
             number: peer.number || target
-          }, false);
+          }, !!asVideo);
           paintCall();
         });
       }).catch(function (err) {

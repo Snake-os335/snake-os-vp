@@ -41,12 +41,13 @@ window.addEventListener('error', function(e){
 </script>
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1">
 <script src="/static/metaverse.js?v=202610121930"></script onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1">
-<script src="/static/doganiero-chat.js?v=202610120945"></script onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1">
+<script src="/static/doganiero-chat.js?v=202610140830"></script onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1">
 <script src="/static/doganiero-desk.js?v=202610072130"></script onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1">
-<script src="/static/desktop-extras.js?v=202610101610"></script onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1">
+<script src="/static/desktop-extras.js?v=202610140830"></script onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1">
+<script src="/static/snake-win-resize.js?v=202610140830"></script>
 <script src="/static/doganiero-tv.js?v=202610091150"></script onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1">
 <script src="/static/prism.js?v=202610080900"></script onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1">
-<script src="/static/doganiero-phone.js?v=202610111930"></script onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1">
+<script src="/static/doganiero-phone.js?v=202610140830"></script onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1">
 <script src="/static/snake-apps-extras.js?v=202610111535"></script onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1">
 <script src="/static/snake-cursor.js?v=202610111448"></script onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1">
 <script src="/static/snake-emoji-data.js?v=202610100831"></script onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1">
@@ -1210,6 +1211,13 @@ window.addEventListener('error', function(e){
     font-size:0.68rem; line-height:1.1; font-weight:700; cursor:pointer; touch-action:manipulation;
   }
   .dc-video-stage.is-minimized .dc-video-toggle{ right:5px; top:5px; padding:3px 6px; font-size:0.64rem; }
+  .dc-video-stage .dc-video-ctrls{ position:absolute; left:8px; bottom:8px; z-index:4; display:flex; gap:6px; }
+  .dc-video-stage.is-minimized .dc-video-ctrls{ display:none; }
+  .dc-video-stage .dc-vc-btn{ margin:0; width:34px; height:34px; min-height:0; padding:0; border-radius:50%;
+    border:1px solid rgba(255,255,255,0.42); background:rgba(8,24,16,0.86); color:#eafff0;
+    font-size:1rem; line-height:1; cursor:pointer; box-shadow:none; touch-action:manipulation; }
+  .dc-video-stage .dc-vc-btn.on{ background:#ff4d5e; border-color:#ff4d5e; color:#fff; }
+  .dc-video-stage .dc-vc-btn.share-on{ background:#34d17a; border-color:#34d17a; color:#053018; }
 
   .dc-compose{
     display:flex; align-items:stretch; gap:8px; padding:10px;
@@ -3350,7 +3358,7 @@ window.addEventListener('error', function(e){
       <p class="sub">powered by Doganiero OS! 3 — inicia sesión para continuar.</p>
       <form id="loginForm">
         <label for="login_email">Correo</label>
-        <input type="email" id="login_email" placeholder="tu@correo.com" required autocomplete="username">
+        <input type="email" id="login_email" placeholder="Tu correo@dogaemail.com" required autocomplete="username">
         <label for="login_password">Contraseña</label>
         <input type="password" id="login_password" placeholder="Tu contraseña" required autocomplete="current-password">
         <button type="submit">Iniciar sesión</button>
@@ -3368,7 +3376,7 @@ window.addEventListener('error', function(e){
         <label for="signup_name">Tu nombre</label>
         <input type="text" id="signup_name" placeholder="Tu nombre" required autocomplete="name">
         <label for="signup_email">Correo</label>
-        <input type="email" id="signup_email" placeholder="tu@correo.com" required autocomplete="email">
+        <input type="email" id="signup_email" placeholder="Tu correo@dogaemail.com" required autocomplete="email">
         <label>Elige una imagen</label>
         <div class="avatar-grid" id="avatarGrid"></div>
         <label for="signup_password">Contraseña</label>
@@ -6616,7 +6624,7 @@ function buildIcons(){
         '<label>Tu nombre</label>' +
         '<input type="text" id="name-x" placeholder="Ej: Juan Pérez" required>' +
         '<label>Tu correo (para respuesta)</label>' +
-        '<input type="email" id="email-x" placeholder="tucorreo@correo.com" required>' +
+        '<input type="email" id="email-x" placeholder="Tu correo@dogaemail.com" required>' +
         '<label>Asunto</label>' +
         '<input type="text" id="subject-x" placeholder="Asunto del mensaje" required>' +
         '<label>Mensaje</label>' +

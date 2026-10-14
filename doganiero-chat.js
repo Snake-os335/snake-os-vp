@@ -425,6 +425,45 @@
     }).catch(function () { return false; });
   }
 
+  /** Una vez por perfil: ofrece activar avisos para recibir llamadas con Snake OS cerrado. */
+  function dcMaybeOfferCallPush(email) {
+    try {
+      var me = currentUser();
+      var em = String(email || '').toLowerCase();
+      if (!em || !me || String(me.email || '').toLowerCase() !== em) return;
+      if (typeof Notification === 'undefined' || !('serviceWorker' in navigator) || !('PushManager' in window)) return;
+      if (Notification.permission !== 'default') return;
+      var key = 'snakeos_callpush_offer_v1:' + em;
+      try { if (localStorage.getItem(key)) return; } catch (eLs) { return; }
+      if (document.getElementById('dcPushOffer')) return;
+      var box = document.createElement('div');
+      box.id = 'dcPushOffer';
+      box.setAttribute('role', 'dialog');
+      box.setAttribute('aria-label', 'Avisos de llamadas');
+      box.style.cssText = 'position:fixed;left:50%;bottom:86px;transform:translateX(-50%);z-index:12000;' +
+        'width:min(380px,calc(100vw - 24px));box-sizing:border-box;padding:14px 16px;border-radius:18px;' +
+        'background:rgba(10,26,18,0.95);color:#eafff0;border:1px solid rgba(52,209,122,0.55);' +
+        'box-shadow:0 14px 40px rgba(0,0,0,0.45);font-size:0.85rem;line-height:1.35;';
+      box.innerHTML =
+        '<div style="font-weight:800;margin-bottom:4px">📞 Recibir llamadas con Snake OS cerrado</div>' +
+        '<div style="opacity:.85;margin-bottom:10px">Activa los avisos y te saldrá una notificación cuando te llamen, aunque no tengas Snake OS abierto.</div>' +
+        '<div style="display:flex;gap:8px;justify-content:flex-end">' +
+          '<button type="button" data-po="no" style="margin:0;width:auto">Ahora no</button>' +
+          '<button type="button" data-po="yes" style="margin:0;width:auto;background:#34d17a;color:#053018;font-weight:800">Activar</button>' +
+        '</div>';
+      var done = function () {
+        try { localStorage.setItem(key, String(Date.now())); } catch (e1) {}
+        if (box.parentNode) box.parentNode.removeChild(box);
+      };
+      box.querySelector('[data-po="yes"]').addEventListener('click', function () {
+        done();
+        ensureNativeNotifPermission(true);
+      });
+      box.querySelector('[data-po="no"]').addEventListener('click', done);
+      document.body.appendChild(box);
+    } catch (e) {}
+  }
+
   function unsubscribePushForLogout() {
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) return Promise.resolve();
     return navigator.serviceWorker.ready.then(function (reg) {
@@ -1352,6 +1391,7 @@ function handleRealtimePayload(msg) {
     if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
       ensureNativeNotifPermission(false);
     }
+    setTimeout(function () { dcMaybeOfferCallPush(email); }, 4000);
     connectChatWs();
     syncMetaverseEventNotifications().then(function () { return refreshNotifications(); });
     if (notifState.pollTimer) clearInterval(notifState.pollTimer);
@@ -2460,6 +2500,7 @@ function handleRealtimePayload(msg) {
     var audio = dcCall.remoteAudio;
     if (dcCall.ringTimer) clearTimeout(dcCall.ringTimer);
     dcStopVideoFallback();
+    dcCleanupVideoExtras();
     dcStopPcmSend();
     dcDropPcmPlay();
     dcCall.media = 'audio';
@@ -2840,6 +2881,24 @@ function handleRealtimePayload(msg) {
       stage.appendChild(local);
       stage.appendChild(note);
       stage.appendChild(toggle);
+      var ctr = document.createElement('div');
+      ctr.className = 'dc-video-ctrls';
+      [['cam', '📷', 'Apagar cámara'], ['flip', '🔄', 'Girar cámara'], ['screen', '🖥️', 'Compartir pantalla']].forEach(function (b) {
+        var cb = document.createElement('button');
+        cb.type = 'button';
+        cb.className = 'dc-vc-btn';
+        cb.setAttribute('data-vc', b[0]);
+        cb.textContent = b[1];
+        cb.title = b[2];
+        cb.setAttribute('aria-label', b[2]);
+        cb.addEventListener('click', function (ev) {
+          ev.preventDefault();
+          ev.stopPropagation();
+          dcVideoCtrl(b[0]);
+        });
+        ctr.appendChild(cb);
+      });
+      stage.appendChild(ctr);
       document.body.appendChild(stage);
       dcCall.remoteVideo = remote;
       dcCall.fallbackImg = img;
@@ -2853,6 +2912,7 @@ function handleRealtimePayload(msg) {
       toggleEl.setAttribute('aria-label', minimized ? 'Ampliar vídeo' : 'Minimizar vídeo');
       toggleEl.title = minimized ? 'Ampliar' : 'Minimizar';
     }
+    dcPaintVideoCtrls(stage);
     var noteEl = stage.querySelector('.dc-video-note');
     if (noteEl) {
       var t = dcCall.cameraNote || '';
@@ -2877,6 +2937,144 @@ function handleRealtimePayload(msg) {
       } else {
         local.style.display = 'none';
       }
+    }
+  }
+  function dcIsMobileUa() {
+    return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '');
+  }
+  function dcCanScreenShare() {
+    return !!(navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) && !dcIsMobileUa();
+  }
+  function dcLiveVideoTrack() {
+    var s = dcCall.localStream;
+    if (!s) return null;
+    var v = s.getVideoTracks();
+    for (var i = 0; i < v.length; i++) if (v[i] && v[i].readyState === 'live') return v[i];
+    return null;
+  }
+  function dcVideoSender() {
+    var pc = dcCall.pc;
+    if (!pc || !pc.getSenders) return null;
+    var ss = pc.getSenders();
+    for (var i = 0; i < ss.length; i++) if (ss[i].track && ss[i].track.kind === 'video') return ss[i];
+    if (pc.getTransceivers) {
+      var ts = pc.getTransceivers();
+      for (var j = 0; j < ts.length; j++) {
+        var t = ts[j];
+        if (t && t.sender && t.receiver && t.receiver.track && t.receiver.track.kind === 'video') return t.sender;
+      }
+    }
+    return null;
+  }
+  /** Cambia la pista de vídeo local (cámara ↔ pantalla) sin renegociar. */
+  function dcSwapLocalVideo(newTrack, stopOld) {
+    var s = dcCall.localStream;
+    if (s) {
+      s.getVideoTracks().forEach(function (t) {
+        try { s.removeTrack(t); } catch (e0) {}
+        if (stopOld) { try { t.stop(); } catch (e1) {} }
+      });
+      try { s.addTrack(newTrack); } catch (e2) {}
+    }
+    var snd = dcVideoSender();
+    var p = snd && snd.replaceTrack ? snd.replaceTrack(newTrack) : Promise.resolve();
+    var lp = dcCall.localPreview;
+    if (lp && s) {
+      try { lp.srcObject = null; lp.srcObject = s; } catch (e3) {}
+    }
+    dcSyncVideoStage();
+    return Promise.resolve(p).catch(function (e) { console.warn('dc replaceTrack', e); });
+  }
+  function dcStopScreenShare() {
+    var scr = dcCall.screenTrack;
+    var cam = dcCall.camSaved;
+    dcCall.screenTrack = null;
+    dcCall.camSaved = null;
+    if (scr) { try { scr.onended = null; scr.stop(); } catch (e0) {} }
+    if (cam && cam.readyState === 'live' && dcCall.phase !== 'idle') {
+      cam.enabled = !dcCall.camOff;
+      dcSwapLocalVideo(cam, true);
+    } else if (cam) {
+      try { cam.stop(); } catch (e1) {}
+      dcSyncVideoStage();
+    }
+  }
+  function dcCleanupVideoExtras() {
+    if (dcCall.screenTrack) { try { dcCall.screenTrack.onended = null; dcCall.screenTrack.stop(); } catch (e0) {} }
+    if (dcCall.camSaved) { try { dcCall.camSaved.stop(); } catch (e1) {} }
+    dcCall.screenTrack = null;
+    dcCall.camSaved = null;
+    dcCall.camOff = false;
+    dcCall.facing = 'user';
+  }
+  function dcVideoNote(t) {
+    dcCall.cameraNote = t || '';
+    dcSyncVideoStage();
+    if (t) setTimeout(function () { if (dcCall.cameraNote === t) { dcCall.cameraNote = ''; dcSyncVideoStage(); } }, 3500);
+  }
+  function dcVideoCtrl(what) {
+    if (!dcIsVideo() || dcCall.phase === 'idle') return;
+    if (what === 'cam') {
+      dcCall.camOff = !dcCall.camOff;
+      var cam = dcCall.screenTrack ? dcCall.camSaved : dcLiveVideoTrack();
+      if (cam) cam.enabled = !dcCall.camOff;
+      dcVideoNote(dcCall.camOff ? 'Cámara apagada' : '');
+      return;
+    }
+    if (what === 'flip') {
+      if (dcCall.screenTrack) { dcVideoNote('Deja de compartir pantalla para girar la cámara'); return; }
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
+      var next = dcCall.facing === 'environment' ? 'user' : 'environment';
+      var old = dcLiveVideoTrack();
+      // En muchos móviles hay que soltar la cámara actual antes de abrir la otra.
+      if (old && dcIsMobileUa()) { try { old.stop(); } catch (e0) {} }
+      navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: next } } }).then(function (st) {
+        var t = st.getVideoTracks()[0];
+        if (!t) return;
+        if (dcCall.phase === 'idle') { try { t.stop(); } catch (e1) {} return; }
+        dcCall.facing = next;
+        t.enabled = !dcCall.camOff;
+        return dcSwapLocalVideo(t, true);
+      }).catch(function () {
+        dcVideoNote('No se pudo cambiar de cámara');
+      });
+      return;
+    }
+    if (what === 'screen') {
+      if (dcCall.screenTrack) { dcStopScreenShare(); return; }
+      if (!dcCanScreenShare()) { dcVideoNote('Compartir pantalla solo funciona en el ordenador'); return; }
+      if (dcCall.phase !== 'active') { dcVideoNote('Espera a que contesten para compartir pantalla'); return; }
+      navigator.mediaDevices.getDisplayMedia({ video: true, audio: false }).then(function (ds) {
+        var t = ds.getVideoTracks()[0];
+        if (!t) return;
+        if (dcCall.phase !== 'active') { try { t.stop(); } catch (e1) {} return; }
+        dcCall.camSaved = dcLiveVideoTrack();
+        dcCall.screenTrack = t;
+        t.onended = function () { if (dcCall.screenTrack === t) dcStopScreenShare(); };
+        dcSwapLocalVideo(t, false);
+        dcVideoNote('Compartiendo pantalla');
+      }).catch(function () {});
+    }
+  }
+  function dcPaintVideoCtrls(stage) {
+    if (!stage) return;
+    var cam = stage.querySelector('[data-vc="cam"]');
+    var flip = stage.querySelector('[data-vc="flip"]');
+    var scr = stage.querySelector('[data-vc="screen"]');
+    if (cam) {
+      cam.classList.toggle('on', !!dcCall.camOff);
+      cam.textContent = dcCall.camOff ? '🚫' : '📷';
+      var ct = dcCall.camOff ? 'Encender cámara' : 'Apagar cámara';
+      cam.title = ct;
+      cam.setAttribute('aria-label', ct);
+    }
+    if (flip) flip.hidden = !dcIsMobileUa() || !!dcCall.screenTrack;
+    if (scr) {
+      scr.hidden = !dcCanScreenShare() || dcCall.phase !== 'active';
+      scr.classList.toggle('share-on', !!dcCall.screenTrack);
+      var st = dcCall.screenTrack ? 'Dejar de compartir pantalla' : 'Compartir pantalla';
+      scr.title = st;
+      scr.setAttribute('aria-label', st);
     }
   }
   function dcStopVideoFallback() {
@@ -3192,7 +3390,7 @@ function handleRealtimePayload(msg) {
           '<div class="dc-side-head">' +
             '<div class="dc-title">💬 Doganiero Chat</div>' +
             '<form class=\"dc-add\" data-dc=\"add-form\">' +
-              '<input type=\"text\" class=\"dc-search\" placeholder=\"Dogaemail o DOG-123456\" data-dc=\"add-input\" autocomplete=\"off\" maxlength=\"120\" aria-label=\"Añadir cuenta\">' +
+              '<input type=\"text\" class=\"dc-search\" placeholder=\"correo@dogaemail.com o DOG-123456\" data-dc=\"add-input\" autocomplete=\"off\" maxlength=\"120\" aria-label=\"Añadir cuenta\">' +
               '<button type=\"submit\">Añadir</button>' +
             '</form>' +
             '<input type=\"search\" class=\"dc-search\" placeholder=\"Buscar cuentas añadidas…\" data-dc=\"search\" autocomplete=\"off\">' +

@@ -1949,7 +1949,7 @@
     return {
       layerLeft: lr.left, layerTop: lr.top,
       left: zone === 'right' ? lr.width - half : 0,
-      top: 0, width: half, height: Math.round(lr.height)
+      top: 0, width: zone === 'top' ? Math.round(lr.width) : half, height: Math.round(lr.height)
     };
   }
   function showPreview(zone) {
@@ -1982,6 +1982,7 @@
       var zone = null;
       if (e.clientX <= EDGE) zone = 'left';
       else if (e.clientX >= window.innerWidth - EDGE) zone = 'right';
+      else if (e.clientY <= EDGE) zone = 'top';
       if (zone !== snap.zone) { snap.zone = zone; showPreview(zone); }
     });
     function finish() {
@@ -1991,6 +1992,11 @@
       showPreview(null);
       if (!s.moved || !s.zone || !s.win.isConnected || phoneMode()) return;
       if (s.win.classList.contains('maximized') || s.win.classList.contains('minimized')) return;
+      if (s.zone === 'top') {
+        var maxBtn = s.win.querySelector('.win-btn.max');
+        if (maxBtn) maxBtn.click();
+        return;
+      }
       var r = zoneRect(s.zone);
       geoAnimate(s.win);
       s.win.style.left = r.left + 'px';
