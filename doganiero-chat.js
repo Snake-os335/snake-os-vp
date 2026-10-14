@@ -449,7 +449,7 @@
         'box-shadow:0 14px 40px rgba(0,0,0,0.45);font-size:0.85rem;line-height:1.35;';
       box.innerHTML =
         '<div style="font-weight:800;margin-bottom:4px">📞 Recibir llamadas con Snake OS cerrado</div>' +
-        '<div style="opacity:.85;margin-bottom:10px">Activa los avisos y te saldrá una notificación cuando te llamen, aunque no tengas Snake OS abierto.</div>' +
+        '<div style="opacity:.85;margin-bottom:10px">Activa los avisos y te saldrá una notificación con el tono de llamada cuando te llamen, aunque no tengas Snake OS abierto. En iPhone, primero añade Snake OS a la pantalla de inicio.</div>' +
         '<div style="display:flex;gap:8px;justify-content:flex-end">' +
           '<button type="button" data-po="no" style="margin:0;width:auto">Ahora no</button>' +
           '<button type="button" data-po="yes" style="margin:0;width:auto;background:#34d17a;color:#053018;font-weight:800">Activar</button>' +
@@ -577,7 +577,7 @@
       return Promise.resolve(null);
     }
     // Cache-bust: CF a veces cachea el SW; la query no cambia el scope (/)
-    var swUrl = '/snake-os-sw.js?v=202610080830';
+    var swUrl = '/snake-os-sw.js?v=202610141730';
     return navigator.serviceWorker.register(swUrl, { scope: '/' })
       .then(function (reg) {
         notifState.swReady = true;
@@ -599,6 +599,8 @@
     notifState._swMsgWired = true;
     navigator.serviceWorker.addEventListener('message', function (ev) {
       var data = ev.data || {};
+      if (data.type === 'snakeos-push-ring') { try { dcPushRing(data); } catch (ePr) {} return; }
+      if (data.type === 'snakeos-push-stop') { try { dcPushRingStop(data.callId || ''); } catch (ePs) {} return; }
       if (data.type !== 'snakeos-notif-click') return;
       var action = data.action || '';
       // Body tap has no action. Incoming calls answer; Rechazar stays decline.
@@ -797,7 +799,7 @@
       renotify: callKind !== 'incoming',
       silent: false,
       requireInteraction: callKind === 'incoming',
-      sound: '/static/ringtone.mp3?v=202610031731',
+      sound: '/static/ringtone.mp3?v=202610141730',
       data: {
         peerEmail: data.peerEmail || null,
         openApp: data.app || 'chat',
@@ -1619,7 +1621,7 @@ function handleRealtimePayload(msg) {
       dcCall.listeners = dcCall.listeners.filter(function (x) { return x !== fn; });
     };
   }
-  var DC_RING_SRC = '/static/ringtone.mp3?v=202610031731';
+  var DC_RING_SRC = '/static/ringtone.mp3?v=202610141730';
   var DC_CALL_END_SRC = '/static/call-end.mp3?v=202610031746';
   var DC_CALL_ERROR_SRC = '/static/call-error.mp3?v=202610031750';
   var DC_CALL_NO_ANSWER_SRC = '/static/call-no-answer.mp3?v=202610082006';
@@ -1681,6 +1683,7 @@ function handleRealtimePayload(msg) {
     document.addEventListener('keydown', once, true);
   }
   function dcStartRingtone() {
+    if (dcCall.pushRing) dcPushRingStop('');
     if (!(dcCall.phase === 'ringing' && dcCall.role === 'callee' && !dcCall.answering)) return;
     var a = dcCall.ringAudio;
     if (!a) {
@@ -1697,6 +1700,41 @@ function handleRealtimePayload(msg) {
     } catch (eP) {
       dcArmRingUnlock();
     }
+  }
+  // Web Push con Snake OS en segundo plano: el SW avisa a esta pestaña y suena el
+  // mismo ringtone.mp3 que con Snake OS abierto, aunque el WebSocket esté dormido.
+  function dcPushRingStop(callId) {
+    var pr = dcCall.pushRing;
+    if (!pr) return;
+    if (callId && pr.callId && String(callId) !== String(pr.callId)) return;
+    dcCall.pushRing = null;
+    if (pr.timer) clearTimeout(pr.timer);
+    try { pr.audio.pause(); } catch (e0) {}
+  }
+  function dcPushRing(data) {
+    var callId = String((data && data.callId) || '');
+    if (dcCall.phase === 'ringing' && dcCall.role === 'callee') {
+      if (!callId || dcCall.callId === callId) dcStartRingtone();
+      return;
+    }
+    if (dcCall.phase !== 'idle') return;
+    if (dcCall.pushRing && dcCall.pushRing.callId === callId) return;
+    dcPushRingStop('');
+    var a = new Audio(DC_RING_SRC);
+    a.loop = true;
+    a.preload = 'auto';
+    try { a.setAttribute('playsinline', 'true'); } catch (eA) {}
+    var pr = { callId: callId, audio: a, timer: setTimeout(function () { dcPushRingStop(callId); }, 45000) };
+    dcCall.pushRing = pr;
+    try {
+      var pp = a.play();
+      if (pp && typeof pp.catch === 'function') pp.catch(function () {});
+    } catch (eP) {}
+    // Despertar el WebSocket: al reconectar llega call_invite y la llamada sigue normal.
+    try {
+      var ws = notifState.ws;
+      if (!ws || ws.readyState > 1) connectChatWs();
+    } catch (eW) {}
   }
   function dcSyncRingtone() {
     // Incoming only. Outgoing ("Llamando a…") stays silent. Lives outside the chat window.
@@ -2497,6 +2535,7 @@ function handleRealtimePayload(msg) {
     if (dcCall.role === 'caller') dcMakeOffer();
   }
   function dcReset(reason) {
+    dcPushRingStop('');
     dcCall.gen += 1;
     dcCall.phase = 'idle';
     var stream = dcCall.localStream;
@@ -3257,6 +3296,7 @@ function handleRealtimePayload(msg) {
         id: msg.from.id,
         number: msg.from.number ? String(msg.from.number) : ''
       };
+      dcPushRingStop('');
       if (dcTakePendingCallAction(msg.callId)) return true;
       emitDcCall();
       dcNoteCall('incoming', dcCall.peer, dcCall.callId);

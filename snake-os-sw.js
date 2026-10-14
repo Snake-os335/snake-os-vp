@@ -1,29 +1,27 @@
 /* Snake OS — Service Worker (avisos nativos + Web Push de llamadas)
  *
  * Qué puede sonar:
- * - Pestaña abierta: la página reproduce /static/ringtone.mp3?v=202610031731 en bucle.
- * - Pestaña cerrada o pantalla bloqueada, con red y el navegador no forzado
- *   a parar: un Web Push despierta este SW y muestra UNA notificación por llamada.
- *   No se vuelve a mostrar en bucle: Android trata los reavisos cada pocos
- *   segundos como spam. Chrome usa el sonido de notificación del sistema.
- * - Teléfono apagado, sin red, o Chrome cerrado a la fuerza: no puede sonar.
+ * - Pestaña abierta (aunque en segundo plano): la página reproduce
+ *   /static/ringtone.mp3?v=202610141730 en bucle. Al recibir el Web Push,
+ *   este SW despierta los clientes abiertos (postMessage) para que arranquen
+ *   ese mismo tono.
+ * - Pestaña cerrada (sin clientes): UNA notificación rica (Contestar /
+ *   Rechazar, vibración). Chrome/Android usan el sonido del sistema; el
+ *   ringtone.mp3 propio suena al tocar el aviso y abrirse Snake OS.
+ * - Teléfono apagado, sin red, o navegador cerrado a la fuerza: no suena.
+ * - iOS: hace falta «Añadir a pantalla de inicio» para recibir push.
  */
 'use strict';
 
 var ringStops = Object.create(null);
+var RING_SRC = '/static/ringtone.mp3?v=202610141730';
+var CALL_ICON = '/static/assets/phone-icon.png';
 
-self.addEventListener('install', function (event) {
-  self.skipWaiting();
-});
-
-self.addEventListener('activate', function (event) {
-  event.waitUntil(self.clients.claim());
-});
+self.addEventListener('install', function () { self.skipWaiting(); });
+self.addEventListener('activate', function (event) { event.waitUntil(self.clients.claim()); });
 
 function showSnakeNotification(title, opts) {
-  function attempt(options) {
-    return self.registration.showNotification(title, options);
-  }
+  function attempt(options) { return self.registration.showNotification(title, options); }
   return attempt(opts).catch(function () {
     var copy = {};
     Object.keys(opts || {}).forEach(function (k) {
@@ -43,6 +41,35 @@ function closeTagged(tag) {
   });
 }
 
+/** Despierta pestañas/PWA abiertas (aunque estén en segundo plano). */
+function wakeClients(payload) {
+  return self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (list) {
+    var n = 0;
+    for (var i = 0; i < list.length; i++) {
+      try {
+        if (list[i].url && list[i].url.indexOf(self.location.origin) === 0) {
+          list[i].postMessage(payload);
+          n += 1;
+        }
+      } catch (e) {}
+    }
+    return n;
+  }).catch(function () { return 0; });
+}
+
+function callData(data, kind, tag) {
+  return {
+    peerEmail: data.peerEmail || null,
+    peerName: data.peerName || null,
+    openApp: data.openApp || 'chat',
+    url: data.url || '/',
+    callKind: kind,
+    callId: data.callId || '',
+    media: data.media === 'video' ? 'video' : 'audio',
+    tag: tag
+  };
+}
+
 function showIncoming(data) {
   var tag = data.tag || 'snakeos-call';
   if (ringStops[tag]) return Promise.resolve();
@@ -52,20 +79,15 @@ function showIncoming(data) {
     renotify: false,
     silent: false,
     requireInteraction: true,
-    vibrate: [280, 120, 280],
-    sound: data.sound || '/static/ringtone.mp3?v=202610031731',
+    vibrate: [400, 200, 400, 200, 400, 200, 400],
+    sound: data.sound || RING_SRC,
+    icon: data.icon || CALL_ICON,
+    badge: CALL_ICON,
     actions: [
       { action: 'answer', title: 'Contestar' },
       { action: 'decline', title: 'Rechazar' }
     ],
-    data: {
-      peerEmail: data.peerEmail || null,
-      openApp: 'chat',
-      url: data.url || '/',
-      callKind: 'incoming',
-      callId: data.callId || '',
-      tag: tag
-    }
+    data: callData(data, 'incoming', tag)
   };
   return showSnakeNotification(data.title || 'Llamada entrante', opts).then(function () {
     if (ringStops[tag]) return closeTagged(tag);
@@ -82,15 +104,9 @@ function showOnce(data) {
     silent: false,
     requireInteraction: false,
     vibrate: [180, 80, 180],
-    sound: data.sound || '/static/ringtone.mp3?v=202610031731',
-    data: {
-      peerEmail: data.peerEmail || null,
-      openApp: data.openApp || 'chat',
-      url: data.url || '/',
-      callKind: data.callKind || '',
-      callId: data.callId || '',
-      tag: tag
-    }
+    icon: data.icon || CALL_ICON,
+    badge: CALL_ICON,
+    data: callData(data, data.callKind || '', tag)
   };
   return showSnakeNotification(data.title || 'Snake OS', opts);
 }
@@ -107,13 +123,8 @@ function showLiveNotice(data) {
     requireInteraction: false,
     vibrate: [120, 60, 120],
     data: {
-      peerEmail: null,
-      openApp: 'doganiero-book',
-      liveId: data.liveId || '',
-      url: data.url || '/',
-      callKind: '',
-      callId: '',
-      tag: tag
+      peerEmail: null, openApp: 'doganiero-book', liveId: data.liveId || '',
+      url: data.url || '/', callKind: '', callId: '', tag: tag
     }
   };
   return showSnakeNotification(data.title || '🔴 Direct™ en Doganiero Book', opts);
@@ -121,40 +132,45 @@ function showLiveNotice(data) {
 
 self.addEventListener('push', function (event) {
   var data = {};
-  try {
-    data = event.data ? event.data.json() : {};
-  } catch (e) {
-    data = {};
-  }
+  try { data = event.data ? event.data.json() : {}; } catch (e) { data = {}; }
   if (data.kind === 'book-live') {
     event.waitUntil(showLiveNotice(data));
     return;
   }
   var action = data.action || 'ring';
   var tag = data.tag || 'snakeos-call';
+  var stopMsg = { type: 'snakeos-push-stop', tag: tag, callId: data.callId || '' };
   if (action === 'stop') {
     ringStops[tag] = true;
-    event.waitUntil(closeTagged(tag));
+    event.waitUntil(Promise.all([closeTagged(tag), wakeClients(stopMsg)]));
     return;
   }
   if (action === 'missed') {
     ringStops[tag] = true;
-    event.waitUntil(showOnce(data));
+    event.waitUntil(Promise.all([closeTagged(tag).then(function () { return showOnce(data); }), wakeClients(stopMsg)]));
     return;
   }
   if (ringStops[tag]) return;
-  event.waitUntil(showIncoming(data));
+  event.waitUntil(Promise.all([
+    wakeClients({
+      type: 'snakeos-push-ring',
+      callId: data.callId || '',
+      peerEmail: data.peerEmail || '',
+      peerName: data.peerName || '',
+      media: data.media === 'video' ? 'video' : 'audio'
+    }),
+    showIncoming(data)
+  ]));
 });
 
 self.addEventListener('message', function (event) {
   var data = event.data || {};
   if (data.type === 'snakeos-show-notif') {
-    var title = data.title || 'Doganiero Chat';
     var opts = data.options || {};
     if (!opts.sound && opts.data && (opts.data.callKind === 'incoming' || opts.data.callKind === 'missed')) {
-      opts.sound = '/static/ringtone.mp3?v=202610031731';
+      opts.sound = RING_SRC;
     }
-    event.waitUntil(showSnakeNotification(title, opts));
+    event.waitUntil(showSnakeNotification(data.title || 'Doganiero Chat', opts));
   }
 });
 
@@ -163,36 +179,31 @@ self.addEventListener('notificationclick', function (event) {
   var nd = event.notification.data || {};
   if (nd.tag) ringStops[nd.tag] = true;
   var peerEmail = nd.peerEmail || null;
-  var openApp = nd.openApp || 'chat';
   var targetUrl = nd.url || '/';
   var action = event.action || '';
   var callId = nd.callId || '';
-  // Tap on the notification body answers an incoming call. Rechazar stays decline. Contestar stays answer.
+  // Tocar el cuerpo de una llamada entrante = Contestar. Rechazar sigue siendo rechazar.
   if ((!action || action === 'default') && nd.callKind === 'incoming') action = 'answer';
   var payload = {
     type: 'snakeos-notif-click',
     peerEmail: peerEmail,
-    openApp: openApp,
+    openApp: nd.openApp || 'chat',
     action: action,
     callId: callId,
     callKind: nd.callKind || '',
     liveId: nd.liveId || ''
   };
-
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (clientList) {
-      function focusClient(client) {
-        return client.focus().then(function (c) {
-          var target = c || client;
-          if (target && target.postMessage) target.postMessage(payload);
-          return target;
-        });
-      }
       for (var i = 0; i < clientList.length; i++) {
         var client = clientList[i];
         try {
           if (client.url && client.url.indexOf(self.location.origin) === 0) {
-            return focusClient(client);
+            return client.focus().then(function (c) {
+              var target = c || client;
+              if (target && target.postMessage) target.postMessage(payload);
+              return target;
+            });
           }
         } catch (e) {}
       }

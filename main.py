@@ -6535,6 +6535,8 @@ def _call_push_payload(
     body: str = "",
     peer_email: str = "",
     call_kind: str = "",
+    peer_name: str = "",
+    media: str = "audio",
 ) -> dict[str, Any]:
     kind = call_kind or ("incoming" if action == "ring" else "")
     return {
@@ -6544,9 +6546,12 @@ def _call_push_payload(
         "tag": "call-" + str(call_id),
         "callId": str(call_id),
         "callKind": kind,
-        "sound": "/static/ringtone.mp3?v=202610031731",
+        "sound": "/static/ringtone.mp3?v=202610141730",
         "url": "/",
         "peerEmail": peer_email or "",
+        "peerName": (peer_name or "")[:80],
+        "media": "video" if media == "video" else "audio",
+        "icon": "/static/assets/phone-icon.png",
         "requireInteraction": action == "ring",
         "renotify": False,
     }
@@ -6962,6 +6967,8 @@ async def _persist_call_notice(
                     body=notif_body,
                     peer_email=peer_email,
                     call_kind="incoming",
+                    peer_name=str(peer_for_notif.get("name") or ""),
+                    media=media,
                 ),
             )
         )
@@ -6976,6 +6983,8 @@ async def _persist_call_notice(
                     body=notif_body,
                     peer_email=peer_email,
                     call_kind="missed",
+                    peer_name=str(peer_for_notif.get("name") or ""),
+                    media=media,
                 ),
             )
         )

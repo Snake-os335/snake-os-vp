@@ -29,3 +29,13 @@
 | Pantalla bloqueada, proceso del navegador/PWA vivo | Suele sí (Android) |
 | Navegador/PWA **matado** por el SO | **No** — haría falta push remoto |
 | iOS Safari sin «Añadir a pantalla de inicio» | Limitado / no fiable |
+
+
+## Llamadas con Snake OS cerrado o en segundo plano (v2026.11)
+| Situación | Notificación | Tono |
+|-----------|--------------|------|
+| Snake OS en segundo plano (pestaña/PWA abierta) | Sí, con Contestar / Rechazar | Sí: el SW despierta la pestaña y suena `ringtone.mp3` en bucle (mismo tono que con Snake OS abierto) |
+| Snake OS cerrado (navegador vivo) | Sí, con Contestar / Rechazar, vibración, se queda fija | Sonido de notificación del sistema (un navegador no deja reproducir un MP3 propio sin pestaña). Al tocar el aviso se abre Snake OS y contesta |
+| Navegador matado por el sistema / sin red | No | No |
+| iPhone | Solo si Snake OS está en la pantalla de inicio (PWA) | Sonido del sistema |
+- El aviso único «Activar» / «Ahora no» (30 días) por perfil sigue igual.
