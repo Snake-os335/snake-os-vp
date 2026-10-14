@@ -101,6 +101,15 @@ def _clean_bot(raw: dict[str, Any], old: dict[str, Any] | None = None) -> dict[s
         b["theme"] = t if t in THEMES else "selva"
     if "avatar" in raw or not old:
         b["avatar"] = str(raw.get("avatar") or "🤖")[:8]
+    if "fig" in raw or not old:
+        try:
+            b["fig"] = max(0, min(11, int(raw.get("fig") or 0)))
+        except (TypeError, ValueError):
+            b["fig"] = 0
+    if "color" in raw:
+        c = str(raw.get("color") or "")
+        if re.match(r"^#[0-9a-fA-F]{6}$", c):
+            b["color"] = c.lower()
     if "memory" in raw:
         mem = raw.get("memory") or []
         if isinstance(mem, str):
@@ -149,6 +158,8 @@ class BotsBody(BaseModel):
     theme: str | None = None
     avatar: str | None = None
     memory: list[str] | None = None
+    fig: int | None = None
+    color: str | None = None
 
 
 class ChatBody(BaseModel):
