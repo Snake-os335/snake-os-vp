@@ -74,6 +74,7 @@
 
   var _customWpMem = Object.create(null); /* key -> Blob|string */
   var _customWpObjectUrl = '';
+  var _customWpObjectBlob = null;
 
   function customWpIdb() {
     return new Promise(function (resolve, reject) {
@@ -187,6 +188,7 @@
       try { URL.revokeObjectURL(_customWpObjectUrl); } catch (eR) {}
       _customWpObjectUrl = '';
     }
+    _customWpObjectBlob = null;
     var b = document.body;
     if (b) b.style.removeProperty('--wp-custom');
   }
@@ -195,6 +197,9 @@
     if (!blobOrDataUrl) return '';
     if (typeof blobOrDataUrl === 'string') return blobOrDataUrl;
     if (typeof Blob !== 'undefined' && blobOrDataUrl instanceof Blob) {
+      // Reusar la URL si es el mismo archivo: revocarla deja el <img> del fondo en negro
+      if (_customWpObjectUrl && _customWpObjectBlob === blobOrDataUrl) return _customWpObjectUrl;
+      _customWpObjectBlob = blobOrDataUrl;
       if (_customWpObjectUrl) {
         try { URL.revokeObjectURL(_customWpObjectUrl); } catch (eR) {}
       }
