@@ -1196,6 +1196,7 @@ def normalize_desktop_prefs(value: Any) -> dict[str, Any]:
     allowed_wp = {
         "mint", "ocean", "sunset", "nebula",
         "snake-pixel", "snake-vivid", "custom",
+        "snake-real-python-verde", "snake-real-vibora-desierto", "snake-real-coralillo", "snake-real-piton-dorada",
     }
     wp = value.get("wallpaper")
     if not isinstance(wp, str) or wp not in allowed_wp:

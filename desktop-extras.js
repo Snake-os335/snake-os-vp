@@ -17,7 +17,11 @@
     { id: 'sunset', label: 'Atardecer', swatch: 'linear-gradient(135deg,#2a1020,#ff8a4c)' },
     { id: 'nebula', label: 'Nebulosa', swatch: 'linear-gradient(135deg,#12081f,#b388ff)' },
     { id: 'snake-pixel', label: 'Snake pixel', swatch: '#000 url(/static/assets/wallpaper-snake-pixel.png?v=2) center / contain no-repeat' },
-    { id: 'snake-vivid', label: 'Snake neón', swatch: '#1a0a2e url(/static/assets/wallpaper-snake-vivid.png?v=4) center / cover no-repeat' }
+    { id: 'snake-vivid', label: 'Snake neón', swatch: '#1a0a2e url(/static/assets/wallpaper-snake-vivid.png?v=4) center / cover no-repeat' },
+    { id: 'snake-real-python-verde', label: 'Pitón verde', swatch: '#0a1e0e url(/static/assets/wallpaper-snake-real-python-verde.jpg?v=1) center / cover no-repeat' },
+    { id: 'snake-real-vibora-desierto', label: 'Víbora del desierto', swatch: '#a07040 url(/static/assets/wallpaper-snake-real-vibora-desierto.jpg?v=1) center / cover no-repeat' },
+    { id: 'snake-real-coralillo', label: 'Coralillo', swatch: '#101014 url(/static/assets/wallpaper-snake-real-coralillo.jpg?v=1) center / cover no-repeat' },
+    { id: 'snake-real-piton-dorada', label: 'Pitón dorada', swatch: '#1a2a0c url(/static/assets/wallpaper-snake-real-piton-dorada.jpg?v=1) center / cover no-repeat' }
   ];
 
   var desktopPrefs = { theme: 'auto', wallpaper: 'snake-vivid' };
@@ -962,7 +966,7 @@
     chip.setAttribute('aria-label', 'Fondo subido');
     chip.hidden = true;
     chip.addEventListener('click', function () {
-      if (!readCustomWallpaper(profileWallpaperKey())) {
+      if (!readCustomWallpaper(profileWallpaperKey()) && !_serverCustomUrl) {
         showShotToast('Sube primero una imagen o GIF');
         return;
       }
@@ -1038,10 +1042,18 @@
 
   function bindWallpaperUpload() {
     if (bindWallpaperUpload._done) return;
-    bindWallpaperUpload._done = true;
     var input = document.getElementById('wpUploadInput');
     var btn = document.getElementById('wpUploadBtn');
     var clearBtn = document.getElementById('wpClearCustomBtn');
+    // Este script se carga en <head>: si el panel aún no existe, se reintenta al abrirlo.
+    if (!input || !btn) {
+      if (!bindWallpaperUpload._wait) {
+        bindWallpaperUpload._wait = true;
+        document.addEventListener('DOMContentLoaded', function () { bindWallpaperUpload(); });
+      }
+      return;
+    }
+    bindWallpaperUpload._done = true;
     if (btn && input) {
       btn.addEventListener('click', function () {
         if (!profileWallpaperKey()) {
@@ -1083,6 +1095,7 @@
   function toggleWpPanel() {
     var p = document.getElementById('wpPanel');
     if (!p) return;
+    bindWallpaperUpload();
     buildWallpaperChips();
     syncQsUi();
     var open = !p.classList.contains('open');
@@ -1778,6 +1791,7 @@
     }, 100);
   }
 
+  try { window.snkToast = showShotToast; } catch (eTo) {}
   try { applyTheme(desktopPrefs.theme); paintWallpaper(desktopPrefs.wallpaper || 'snake-vivid'); bindWallpaperUpload(); } catch (e) {}
   setInterval(function () {
     syncWallpaperForProfile();
@@ -2330,6 +2344,7 @@
       list.push({ ico: '🔀', lab: 'Ordenar iconos', run: function () { if (window.snakeArrangeDesktopIcons()) toast('Iconos ordenados'); } });
     }
     list.push({ sep: true });
+    list.push({ ico: '📁', lab: 'Nueva carpeta', run: function () { if (window.snkCreateFolder) window.snkCreateFolder(''); } });
     list.push({ ico: '📝', lab: 'Nueva nota', run: function () { if (window.openApp) window.openApp('notes'); } });
     list.push({ ico: '🗂️', lab: 'Abrir Explorador', run: function () { if (window.openApp) window.openApp('explorer'); } });
     list.push({ ico: '🔎', lab: 'Buscar apps', run: function () { var b = $('tbSearchBtn'); if (b) b.click(); } });

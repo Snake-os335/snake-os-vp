@@ -370,7 +370,7 @@
       '<div class="snk-maps snk-noemoji">' +
         '<div class="snk-maps-bar">' +
           '<form id="snkMapsForm">' +
-            '<input type="text" id="snkMapsQ" class="snk-noemoji" placeholder="¿A dónde quieres ir? (ciudad, calle, sitio…)" autocomplete="off" enterkeyhint="search" spellcheck="false">' +
+            '<input type="text" id="snkMapsQ" class="snk-noemoji" placeholder="¿A dónde vas? Lugar o correo de un contacto" autocomplete="off" enterkeyhint="search" spellcheck="false">' +
             '<button type="submit" class="snk-maps-go">Ir</button>' +
           '</form>' +
           '<div class="snk-maps-modes" role="group" aria-label="Tipo de ruta">' +
@@ -380,6 +380,7 @@
           '</div>' +
           '<button type="button" class="snk-maps-loc" id="snkMapsLoc" title="Mi ubicación">📍</button>' +
           '<button type="button" class="snk-maps-route" id="snkMapsRoute" disabled title="Ruta hasta el destino">Llévame</button>' +
+          '<button type="button" class="snk-maps-fs" id="snkMapsShare" title="Compartir mi ubicación con mis contactos">📡</button>' +
           '<button type="button" class="snk-maps-fs" id="snkMapsFs" title="Pantalla completa">⛶</button>' +
         '</div>' +
         '<div class="snk-maps-status" id="snkMapsStatus">Escribe un lugar real y pulsa Ir</div>' +
@@ -682,7 +683,60 @@
     }
 
     var searching = false;
+    var shareBtn = container.querySelector('#snkMapsShare');
+    var contactMarker = null;
+    function syncShareBtn() {
+      var v = !!(window.snkLocShare && window.snkLocShare.isOn());
+      if (!shareBtn) return;
+      shareBtn.classList.toggle('on', v);
+      shareBtn.title = v ? 'Compartiendo tu ubicación con tus contactos (pulsa para dejar de compartir)' : 'Compartir mi ubicación con mis contactos';
+    }
+    if (shareBtn) {
+      syncShareBtn();
+      document.addEventListener('snk-locshare', syncShareBtn);
+      shareBtn.addEventListener('click', function () {
+        if (!window.snkLocShare) return;
+        var want = !window.snkLocShare.isOn();
+        if (want && !window.confirm('¿Compartir tu ubicación con tus contactos? Solo la verán tus contactos, y solo mientras Snake OS esté abierto.')) return;
+        window.snkLocShare.set(want).then(function (v) {
+          syncShareBtn();
+          setStatus(v ? 'Compartiendo tu ubicación con tus contactos 📡' : 'Ya no compartes tu ubicación', 'ok');
+        }).catch(function (err) { setStatus((err && err.message) || 'No se pudo cambiar', 'err'); });
+      });
+    }
+    function ago(ts) {
+      var s = Math.max(0, Math.round(Date.now() / 1000 - ts));
+      if (s < 90) return 'ahora mismo';
+      if (s < 3600) return 'hace ' + Math.round(s / 60) + ' min';
+      if (s < 86400) return 'hace ' + Math.round(s / 3600) + ' h';
+      return 'hace ' + Math.round(s / 86400) + ' días';
+    }
+    function locateContact(email) {
+      closeSuggest();
+      if (!window.snkLocShare) { setStatus('No disponible', 'err'); return Promise.resolve(); }
+      setStatus('Buscando a ' + email + '…');
+      return window.snkLocShare.contact(email).then(function (d) {
+        if (destroyed) return;
+        if (!d || !d.ok) { setStatus((d && d.name ? d.name + ': ' : '') + ((d && d.detail) || 'Sin ubicación'), 'err'); return; }
+        if (!map || !window.L) { setStatus('El mapa aún no está listo', 'err'); return; }
+        var ll = [d.lat, d.lng];
+        if (contactMarker) { try { contactMarker.remove(); } catch (e0) {} }
+        var nm = String(d.name || email).replace(/</g, '&lt;');
+        var ic = window.L.divIcon({ className: '', iconSize: [40, 40], iconAnchor: [20, 20],
+          html: '<div style="width:36px;height:36px;border-radius:50%;background:#1f9e57;border:3px solid #fff;box-shadow:0 3px 10px rgba(0,0,0,.5);display:grid;place-items:center;color:#fff;font-weight:800;font-size:15px">' + nm.charAt(0).toUpperCase() + '</div>' });
+        contactMarker = window.L.marker(ll, { icon: ic, zIndexOffset: 900 }).addTo(map).bindPopup('<b>' + nm + '</b><br>' + ago(d.at));
+        map.setView(ll, 16);
+        try { contactMarker.openPopup(); } catch (e1) {}
+        dest = { lat: d.lat, lon: d.lng, name: d.name || email };
+        try { routeBtn.disabled = false; } catch (e2) {}
+        setStatus('📍 ' + (d.name || email) + ' · ' + ago(d.at) + ' · pulsa Llévame para ir', 'ok');
+      }).catch(function (err) { setStatus((err && err.message) || 'No se pudo buscar el contacto', 'err'); });
+    }
     function doSearch(q, fromSuggestOnly) {
+      if (/^\s*[^\s@]+@[^\s@]+\.[^\s@]+\s*$/.test(String(q || ''))) {
+        if (fromSuggestOnly) { closeSuggest(); return Promise.resolve(); }
+        return locateContact(String(q).trim().toLowerCase());
+      }
       q = String(q || '').trim();
       if (!q) { setStatus('Escribe un lugar', 'err'); return Promise.resolve(); }
       if (searching && !fromSuggestOnly) return Promise.resolve();
@@ -1159,6 +1213,7 @@
     return function cleanup() {
       destroyed = true;
       clearTimeout(searchT);
+      try { document.removeEventListener('snk-locshare', syncShareBtn); } catch (eS) {}
       stopNav(false);
       try { exitMapsFs(); } catch (eFs) {}
       try { document.removeEventListener('click', onDoc); } catch (eD) {}

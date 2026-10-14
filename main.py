@@ -1301,6 +1301,89 @@ def delete_me(body: DeleteMeBody, request: Request, response: Response, user=Dep
     return {"ok": True}
 
 
+
+# ===== Borrados sincronizados entre dispositivos (lápidas) =====
+# Si un dispositivo con datos viejos vuelve a guardar algo que ya se borró en otro,
+# el servidor no lo deja volver a aparecer.
+_TOMB_TTL = 60 * 60 * 24 * 60
+_tomb_lock = threading.Lock()
+
+
+def _tomb_path(uid: int):
+    return db.user_files_dir(int(uid)) / "_deleted.json"
+
+
+def _tomb_load(uid: int) -> dict:
+    try:
+        data = json.loads(_tomb_path(uid).read_text(encoding="utf-8"))
+        if not isinstance(data, dict):
+            data = {}
+    except Exception:
+        data = {}
+    now = time.time()
+    for kind in ("notes", "files"):
+        cur = data.get(kind)
+        if not isinstance(cur, dict):
+            cur = {}
+        data[kind] = {k: v for k, v in cur.items() if isinstance(v, (int, float)) and now - v < _TOMB_TTL}
+    return data
+
+
+def _tomb_save(uid: int, data: dict) -> None:
+    try:
+        tmp = _tomb_path(uid).with_suffix(".tmp")
+        tmp.write_text(json.dumps(data), encoding="utf-8")
+        tmp.replace(_tomb_path(uid))
+    except Exception:
+        pass
+
+
+def _note_key(item):
+    if isinstance(item, dict) and item.get("id") not in (None, ""):
+        return str(item.get("id"))
+    return None
+
+
+def _file_key(item):
+    if isinstance(item, dict) and item.get("id") is not None:
+        return "%s|%s" % (item.get("id"), item.get("name") or "")
+    return None
+
+
+def _tomb_notes(uid: int, payload):
+    if not isinstance(payload, list):
+        return payload
+    with _tomb_lock:
+        data = _tomb_load(uid)
+        old = db.get_json_field(uid, "notes", []) or []
+        old_keys = {k for k in (_note_key(n) for n in old) if k}
+        new_keys = {k for k in (_note_key(n) for n in payload) if k}
+        now = time.time()
+        for k in old_keys - new_keys:
+            data["notes"][k] = now
+        out = [n for n in payload if not (_note_key(n) and _note_key(n) in data["notes"] and _note_key(n) not in old_keys)]
+        _tomb_save(uid, data)
+    return out
+
+
+def _tomb_files(uid: int, field: str, payload):
+    if not isinstance(payload, list):
+        return payload
+    other = "trash" if field == "files" else "files"
+    with _tomb_lock:
+        data = _tomb_load(uid)
+        cur = db.list_file_meta(uid, field) or []
+        oth = db.list_file_meta(uid, other) or []
+        before = {k for k in (_file_key(x) for x in cur + oth) if k}
+        payload = [x for x in payload if not (_file_key(x) and _file_key(x) in data["files"] and _file_key(x) not in before)]
+        after = {k for k in (_file_key(x) for x in payload + oth) if k}
+        now = time.time()
+        for k in before - after:
+            data["files"][k] = now
+        _tomb_save(uid, data)
+    return payload
+
+
 @app.get("/api/notes")
 def get_notes(user=Depends(require_user)):
     return db.get_json_field(int(user["id"]), "notes", [])
@@ -1308,6 +1391,7 @@ def get_notes(user=Depends(require_user)):
 
 @app.put("/api/notes")
 def put_notes(payload: list[Any], user=Depends(require_user)):
+    payload = _tomb_notes(int(user["id"]), payload)
     db.set_json_field(int(user["id"]), "notes", payload)
     return payload
 
@@ -1320,7 +1404,7 @@ def get_files(user=Depends(require_user)):
 @app.put("/api/files")
 def put_files(payload: list[Any], user=Depends(require_user)):
     try:
-        return db.sync_file_meta_list(int(user["id"]), "files", payload)
+        return db.sync_file_meta_list(int(user["id"]), "files", _tomb_files(int(user["id"]), "files", payload))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
 
@@ -1369,7 +1453,7 @@ def get_trash(user=Depends(require_user)):
 @app.put("/api/trash")
 def put_trash(payload: list[Any], user=Depends(require_user)):
     try:
-        return db.sync_file_meta_list(int(user["id"]), "trash", payload)
+        return db.sync_file_meta_list(int(user["id"]), "trash", _tomb_files(int(user["id"]), "trash", payload))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
 
@@ -1692,7 +1776,7 @@ def import_local(body: ImportBody, user=Depends(require_user)):
     uid = int(user["id"])
     db.import_user_data(
         uid,
-        notes=body.notes,
+        notes=_tomb_notes(uid, body.notes) if isinstance(body.notes, list) else body.notes,
         files=None,
         trash=None,
         iconpos=body.iconpos,
@@ -1702,9 +1786,9 @@ def import_local(body: ImportBody, user=Depends(require_user)):
     )
     try:
         if body.files is not None:
-            db.sync_file_meta_list(uid, "files", body.files)
+            db.sync_file_meta_list(uid, "files", _tomb_files(uid, "files", body.files))
         if body.trash is not None:
-            db.sync_file_meta_list(uid, "trash", body.trash)
+            db.sync_file_meta_list(uid, "trash", _tomb_files(uid, "trash", body.trash))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
     refreshed = db.get_user_by_id(uid)
@@ -5916,6 +6000,85 @@ def save_my_location(body: ProfileLocation, user=Depends(require_user)):
         raise HTTPException(status_code=400, detail="Coordenadas no válidas")
     db.set_user_location(int(user["id"]), float(body.lat), float(body.lng))
     return {"ok": True}
+
+
+# ===== Mapas: ver la ubicación de un contacto que la comparte =====
+class LocShareToggle(BaseModel):
+    on: bool
+
+
+def _locshare_ensure(conn):
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS location_share ("
+        "user_id INTEGER PRIMARY KEY, sharing INTEGER NOT NULL DEFAULT 0, "
+        "lat REAL, lng REAL, at REAL)"
+    )
+
+
+def _locshare_get(uid: int):
+    with db.get_conn() as conn:
+        _locshare_ensure(conn)
+        return conn.execute("SELECT * FROM location_share WHERE user_id = ?", (int(uid),)).fetchone()
+
+
+@app.get("/api/me/location-share")
+def get_location_share(user=Depends(require_user)):
+    row = _locshare_get(int(user["id"]))
+    return {"on": bool(row and row["sharing"])}
+
+
+@app.post("/api/me/location-share")
+def set_location_share(body: LocShareToggle, user=Depends(require_user)):
+    uid = int(user["id"])
+    with db.get_conn() as conn:
+        _locshare_ensure(conn)
+        if body.on:
+            conn.execute(
+                "INSERT INTO location_share (user_id, sharing) VALUES (?, 1) "
+                "ON CONFLICT(user_id) DO UPDATE SET sharing = 1",
+                (uid,),
+            )
+        else:
+            # Al desactivar se borra también la última posición guardada.
+            conn.execute(
+                "INSERT INTO location_share (user_id, sharing) VALUES (?, 0) "
+                "ON CONFLICT(user_id) DO UPDATE SET sharing = 0, lat = NULL, lng = NULL, at = NULL",
+                (uid,),
+            )
+    return {"on": bool(body.on)}
+
+
+@app.post("/api/me/location-share/ping")
+def ping_location_share(body: ProfileLocation, user=Depends(require_user)):
+    lat, lng = float(body.lat), float(body.lng)
+    if not (-90.0 <= lat <= 90.0 and -180.0 <= lng <= 180.0):
+        raise HTTPException(status_code=400, detail="Coordenadas no válidas")
+    uid = int(user["id"])
+    with db.get_conn() as conn:
+        _locshare_ensure(conn)
+        cur = conn.execute(
+            "UPDATE location_share SET lat = ?, lng = ?, at = ? WHERE user_id = ? AND sharing = 1",
+            (lat, lng, time.time(), uid),
+        )
+        ok = cur.rowcount > 0
+    return {"ok": ok}
+
+
+@app.get("/api/maps/contact-location")
+def contact_location(email: str, user=Depends(require_user)):
+    me = int(user["id"])
+    target = db.get_user_by_email(str(email or "").strip().lower())
+    if not target or int(target["id"]) == me:
+        raise HTTPException(status_code=404, detail="No tienes ningún contacto con ese correo.")
+    tid = int(target["id"])
+    if not added_accounts.has(me, tid):
+        raise HTTPException(status_code=404, detail="No tienes ningún contacto con ese correo.")
+    row = _locshare_get(tid)
+    if not row or not row["sharing"]:
+        return {"ok": False, "reason": "off", "name": target["name"], "detail": "Este contacto no comparte su ubicación."}
+    if row["lat"] is None or row["lng"] is None:
+        return {"ok": False, "reason": "nofix", "name": target["name"], "detail": "Comparte su ubicación, pero aún no hay posición."}
+    return {"ok": True, "name": target["name"], "lat": float(row["lat"]), "lng": float(row["lng"]), "at": float(row["at"] or 0)}
 
 
 def _haversine_meters(lat1: float, lon1: float, lat2: float, lon2: float) -> int:
