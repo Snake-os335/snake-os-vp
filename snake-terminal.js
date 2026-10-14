@@ -210,7 +210,7 @@
     date:'date — fecha y hora', uname:'uname [-a] — sistema y kernel', uptime:'uptime — tiempo encendido', ps:'ps — apps abiertas', kill:'kill <app> — cierra una app',
     open:'open <app|archivo> — abre una app o un archivo', neofetch:'neofetch — información del sistema', nano:'nano <archivo> — editor (Ctrl+S guarda, Esc sale)',
     edit:'edit <archivo> — igual que nano', man:'man <comando> — ayuda de un comando', exit:'exit — cierra la Terminal',
-    ssh:'ssh <host> — conexión SSH (hosts para ver la lista)', placa:'placa <texto> — envía texto a la placa Arduino'
+    ssh:'ssh <host> — conexión SSH (hosts para ver la lista)'
   };
   var CMDS = Object.keys(HELP).concat(['hosts','connect']);
   /* ---- Comandos ---- */
@@ -435,9 +435,7 @@
     var line = String(raw || '').trim(); if(!line) return true;
     var first = line.split(/\s+/)[0].toLowerCase();
     if(PASS[first]) { ctx.println(prompt() + ' ' + line, 'term-cmd'); return 'NOECHO:' + line; }
-    if(first === 'placa'){ ctx.println(prompt() + ' ' + line, 'term-cmd'); return 'NOECHO:' + line.replace(/^\S+\s*/, ''); }
     var plain = line; try{ plain = line.normalize('NFD').replace(/[\u0300-\u036f]/g, ''); }catch(e){}
-    if(/^(?:llama|llamar|llamale|llamad|call)\b\s+(?:a|con|to)\s+\S/i.test(plain)){ ctx.println(prompt() + ' ' + line, 'term-cmd'); return 'NOECHO:' + line; }
     ctx.println(prompt() + ' ' + line, 'term-cmd');
     queue = queue.then(function(){ return exec(line, ctx); }).catch(function(e){ ctx.println(String(e && e.message || e), 'term-err'); }).then(function(){ setPrompt(ctx); });
     return true;

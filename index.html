@@ -44,7 +44,7 @@ window.addEventListener('error', function(e){
 <script src="/static/doganiero-chat.js?v=202610141730" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/doganiero-desk.js?v=202610072130" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/desktop-extras.js?v=202610141840" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
-<script src="/static/snake-terminal.js?v=20261014173049" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
+<script src="/static/snake-terminal.js?v=20261014202000" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-win-resize.js?v=202610140845"></script>
 <script src="/static/doganiero-tv.js?v=202610091150" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/prism.js?v=202610080900" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
@@ -14291,93 +14291,11 @@ function renderStoreApp(container){
         }
         return;
       }
-      var callPlain = cmd;
-      try { callPlain = cmd.normalize('NFD').replace(/[\u0300-\u036f]/g, ''); } catch (eFold) {}
-      if (/\b(?:llama|llamar|llamale|llamad|call)\b\s+(?:a|con|to)\s+\S/i.test(callPlain)) {
-        println('La placa esta pensando.', 'term-muted');
-        fetch('/api/board/ask', {
-          method: 'POST',
-          credentials: 'same-origin',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text: cmd.slice(0, 140) })
-        }).then(function(r){
-          return r.text().then(function(text){
-            var body = String(text || '').trim();
-            if (!body || body.charAt(0) === '<') throw new Error('La respuesta no era JSON.');
-            var d;
-            try { d = JSON.parse(body); }
-            catch (eJson) { throw new Error('La respuesta no era JSON.'); }
-            if (!r.ok) throw new Error((d && d.detail) || 'No se pudo preguntar');
-            return d;
-          });
-        }).then(function(d){
-          var tries = 0;
-          var iv = setInterval(function(){
-            tries += 1;
-            fetch('/api/board/ask/result?id=' + d.id, { credentials: 'same-origin', cache: 'no-store' })
-              .then(function(r){ return r.text().then(function(text){
-                var body = String(text || '').trim();
-                if (!body || body.charAt(0) === '<') throw new Error('La respuesta no era JSON.');
-                return JSON.parse(body);
-              }); })
-              .then(function(job){
-                if (job && job.status === 'done') {
-                  clearInterval(iv);
-                  println(job.reply || 'Sin respuesta.', 'term-ok');
-                  if (job.call && (job.call.email || job.call.number) && typeof startDoganieroBoardCall === 'function') {
-                    try { startDoganieroBoardCall(job.call); } catch (eCall) {}
-                  }
-                } else if (tries > 80) {
-                  clearInterval(iv);
-                  println('La placa no contesto.', 'term-err');
-                }
-              }).catch(function(){});
-          }, 500);
-        }).catch(function(err){
-          println((err && err.message) || 'No se pudo preguntar', 'term-err');
-        });
-        return;
-      }
-      fetch('/api/board/say', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: cmd })
-      }).then(function(r){
-        if(!r.ok) println('No pude enviarlo a la placa.', 'term-err');
-      }).catch(function(){
-        println('No pude enviarlo a la placa.', 'term-err');
-      });
+      println('Comando no reconocido. Escribe help para ver la lista.', 'term-err');
     }
 
-    var liteLast = 0;
-    var liteBoot = false;
-    function pullLite(){
-      fetch('/api/board/chat?after=' + (liteBoot ? liteLast : 0), { cache: 'no-store' })
-        .then(function(r){ return r.json(); })
-        .then(function(data){
-          var lines = (data && data.lines) || [];
-          var start = 0;
-          if(!liteBoot){
-            liteBoot = true;
-            if(!lines.length){
-              if(window.SnakeTerminal) window.SnakeTerminal.banner(termCtx);
-              return;
-            }
-            for(var i = lines.length - 1; i >= 0; i--){
-              if(String(lines[i].text || '') === 'Snake OS Lite'){ start = i; break; }
-            }
-          }
-          for(var j = start; j < lines.length; j++){
-            var item = lines[j];
-            if(item.id > liteLast) liteLast = item.id;
-            if(!item.text || item.who === 'tu') continue;
-            if(String(item.text).indexOf('~d ') === 0 || String(item.text).indexOf('~h ') === 0) continue;
-            println(item.text, item.text === 'Snake OS Lite' ? 'term-ok' : '');
-          }
-        }).catch(function(){});
-    }
-    pullLite();
-    var liteTimer = setInterval(pullLite, 500);
+    var liteTimer = null;
+    if(window.SnakeTerminal) window.SnakeTerminal.banner(termCtx);
 
     form.addEventListener('submit', function(e){
       e.preventDefault();

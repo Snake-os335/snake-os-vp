@@ -1,5 +1,5 @@
 /* Snake OS VP · Doganiero Bots (2026-10-14). Bots por perfil con tareas en paralelo,
-   terminal estilo Snake OS Lite (local, NO va a la placa) y búsqueda con AskBox. */
+   terminal estilo Snake OS Lite (local) y búsqueda con AskBox. */
 (function () {
   if (window.__dbotsLoaded) return; window.__dbotsLoaded = 1;
   var THEMES = {
@@ -190,7 +190,7 @@
         el.onclick = function () { api('/api/dbots/tasks/' + el.getAttribute('data-cancel') + '/cancel', { method: 'POST' }).then(poll); };
       });
     }
-    // ---- Terminal del bot (local; jamás se envía a la placa Arduino) ----
+    // ---- Terminal del bot (local) ----
     var term = null;
     function line(txt, cls) { if (!term) return; var d = document.createElement('div'); d.className = 'term-line ' + (cls || ''); d.textContent = txt; term.out.appendChild(d); term.out.scrollTop = term.out.scrollHeight; }
     function setupTerm(b) {
