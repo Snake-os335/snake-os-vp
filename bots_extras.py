@@ -16,7 +16,8 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Callable
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 import askbox_client
@@ -163,7 +164,199 @@ class BotsBody(BaseModel):
 
 
 class ChatBody(BaseModel):
-    text: str = Field(..., min_length=1, max_length=2000)
+    text: str = Field("", max_length=2000)
+    attachments: list[str] = Field(default_factory=list, max_length=6)
+
+
+# ---- Adjuntos del chat (por perfil y bot; solo los sirve al dueño vía API autenticada) ----
+MAX_FILE_BYTES = 20 * 1024 * 1024
+MAX_FILES_PER_USER = 300
+_FILES_DIR = db.DATA_DIR / "dbots_files"
+_SAFE_TYPES = {
+    "image/png", "image/jpeg", "image/gif", "image/webp",
+    "application/pdf", "text/plain", "text/markdown", "text/csv", "application/json",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "application/msword", "application/vnd.ms-excel", "application/zip",
+}
+_EXT_TYPES = {
+    "png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg", "gif": "image/gif", "webp": "image/webp",
+    "pdf": "application/pdf", "txt": "text/plain", "md": "text/markdown", "csv": "text/csv", "json": "application/json",
+    "log": "text/plain", "py": "text/plain", "js": "text/plain", "html": "text/plain", "css": "text/plain",
+    "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "doc": "application/msword", "xls": "application/vnd.ms-excel", "zip": "application/zip",
+}
+_TEXT_TYPES = {"text/plain", "text/markdown", "text/csv", "application/json"}
+
+
+# ---- Lectura de páginas web (protección SSRF: solo http/https públicos, sin cookies ni credenciales) ----
+import html as _html
+import ipaddress
+import socket
+from urllib.parse import urljoin, urlparse
+from urllib.request import HTTPRedirectHandler, HTTPHandler, HTTPSHandler, Request as _UReq, build_opener
+
+URL_RE = re.compile(r"https?://[^\s<>\"'«»]+", re.I)
+MAX_PAGE_BYTES = 2 * 1024 * 1024
+MAX_REDIRECTS = 4
+FETCH_TIMEOUT = 10
+_fetch_rate: dict[int, list[float]] = {}
+
+
+class UrlBlocked(Exception):
+    pass
+
+
+def _check_host(url: str) -> None:
+    u = urlparse(url)
+    if u.scheme not in ("http", "https") or not u.hostname:
+        raise UrlBlocked("Solo se pueden abrir enlaces http o https")
+    if u.username or u.password:
+        raise UrlBlocked("No se permiten enlaces con usuario o contraseña")
+    host = u.hostname.strip(".").lower()
+    if host == "localhost" or host.endswith((".local", ".internal", ".localhost", ".lan", ".home", ".arpa")):
+        raise UrlBlocked("No se pueden abrir direcciones internas")
+    try:
+        port = u.port or (443 if u.scheme == "https" else 80)
+    except ValueError:
+        raise UrlBlocked("Puerto no válido")
+    if port not in (80, 443, 8080, 8443):
+        raise UrlBlocked("Puerto no permitido")
+    infos = None
+    for attempt in range(3):
+        try:
+            infos = socket.getaddrinfo(host, port, proto=socket.IPPROTO_TCP)
+            break
+        except socket.gaierror as exc:
+            if exc.errno != socket.EAI_AGAIN or attempt == 2:
+                raise UrlBlocked("No existe esa dirección" if exc.errno != socket.EAI_AGAIN else "No se pudo resolver la dirección; prueba otra vez")
+            time.sleep(0.6)
+        except UnicodeError:
+            raise UrlBlocked("No existe esa dirección")
+    for info in infos:
+        ip = ipaddress.ip_address(info[4][0].split("%")[0])
+        if getattr(ip, "ipv4_mapped", None):
+            ip = ip.ipv4_mapped
+        if not ip.is_global or ip.is_multicast:
+            raise UrlBlocked("No se pueden abrir direcciones privadas o internas")
+
+
+class _SafeRedirect(HTTPRedirectHandler):
+    max_redirections = MAX_REDIRECTS
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        newurl = urljoin(req.full_url, newurl)
+        _check_host(newurl)
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+_opener = build_opener(HTTPHandler, HTTPSHandler, _SafeRedirect)
+_opener.addheaders = []
+
+
+def _strip_html(page: str, base: str):
+    m = re.search(r"<title[^>]*>([\s\S]*?)</title>", page, re.I)
+    title = _html.unescape(re.sub(r"\s+", " ", m.group(1))).strip()[:200] if m else ""
+    links: list[dict[str, str]] = []
+    for href, label in re.findall(r"<a\b[^>]*href=[\"']([^\"'#]+)[\"'][^>]*>([\s\S]*?)</a>", page[:600000], re.I)[:400]:
+        full = urljoin(base, _html.unescape(href.strip()))
+        if not full.startswith(("http://", "https://")):
+            continue
+        txt = _html.unescape(re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", label))).strip()[:80]
+        if txt and all(l["url"] != full for l in links):
+            links.append({"text": txt, "url": full[:400]})
+        if len(links) >= 25:
+            break
+    body = re.sub(r"<(script|style|noscript|svg|iframe|template|head)\b[\s\S]*?</\1>", " ", page, flags=re.I)
+    body = re.sub(r"<!--[\s\S]*?-->", " ", body)
+    body = re.sub(r"<(br|p|div|li|h[1-6]|tr|section|article)\b[^>]*>", "\n", body, flags=re.I)
+    body = _html.unescape(re.sub(r"<[^>]+>", " ", body))
+    body = re.sub(r"[ \t\r\f\v]+", " ", body)
+    body = re.sub(r"\n\s*\n+", "\n", body).strip()
+    return title, body, links
+
+
+def fetch_page(url: str, max_chars: int = 7000) -> dict[str, Any]:
+    url = url.strip().rstrip(".,;:!?)»]")
+    _check_host(url)
+    req = _UReq(url, headers={
+        "User-Agent": "Mozilla/5.0 (compatible; DoganieroBots/1.0)",
+        "Accept": "text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.5",
+        "Accept-Language": "es-ES,es;q=0.9,en;q=0.7",
+    })
+    try:
+        with _opener.open(req, timeout=FETCH_TIMEOUT) as resp:
+            final = resp.geturl()
+            _check_host(final)
+            ctype = (resp.headers.get("Content-Type") or "").lower()
+            raw = resp.read(MAX_PAGE_BYTES + 1)[:MAX_PAGE_BYTES]
+    except UrlBlocked:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        code = getattr(exc, "code", None)
+        raise UrlBlocked(f"La página respondió {code}" if code else "No se pudo abrir la página (tiempo agotado o sin conexión)")
+    if ctype and not any(t in ctype for t in ("html", "text/", "xml", "json")):
+        raise UrlBlocked("Ese enlace no es una página de texto (" + ctype.split(";")[0] + ")")
+    m = re.search(r"charset=([\w-]+)", ctype)
+    try:
+        page = raw.decode(m.group(1) if m else "utf-8", errors="replace")
+    except LookupError:
+        page = raw.decode("utf-8", errors="replace")
+    if "html" in ctype or "<html" in page[:2000].lower():
+        title, text, links = _strip_html(page, final)
+    else:
+        title, text, links = "", page, []
+    dom = (urlparse(final).hostname or "").removeprefix("www.")
+    return {"url": final, "domain": dom, "title": title or dom, "text": text[:max_chars], "links": links}
+
+
+def _page_context(pg: dict[str, Any]) -> str:
+    links = "\n".join(f"- {l['text']}: {l['url']}" for l in pg.get("links", [])[:15])
+    return (f"[Página abierta: {pg['url']}]\nTítulo: {pg['title']}\nTexto (recortado):\n{pg['text']}\n"
+            + (f"Enlaces de la página:\n{links}\n" if links else ""))
+
+
+def _ensure_files(conn) -> None:
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS dbots_files (id TEXT PRIMARY KEY, user_id INTEGER NOT NULL, bot_id TEXT NOT NULL, "
+        "name TEXT NOT NULL, type TEXT NOT NULL, size INTEGER NOT NULL, created_at REAL NOT NULL)"
+    )
+
+
+def _file_meta(uid: int, fid: str) -> dict[str, Any] | None:
+    if not _ID_RE.match(fid or ""):
+        return None
+    with db.get_conn() as conn:
+        _ensure_files(conn)
+        r = conn.execute("SELECT id,bot_id,name,type,size FROM dbots_files WHERE id=? AND user_id=?", (fid, uid)).fetchone()
+    return {"id": r[0], "bot_id": r[1], "name": r[2], "type": r[3], "size": r[4]} if r else None
+
+
+def _file_path(uid: int, fid: str):
+    return _FILES_DIR / str(int(uid)) / fid
+
+
+def _attachment_context(uid: int, meta: dict[str, Any]) -> str:
+    head = f"[Adjunto: {meta['name']} · {meta['type']} · {meta['size'] // 1024} KB]"
+    path = _file_path(uid, meta["id"])
+    try:
+        if meta["type"] in _TEXT_TYPES:
+            with open(path, "rb") as fh:
+                txt = fh.read(12000).decode("utf-8", errors="replace")
+            return head + "\nContenido (puede estar recortado):\n" + txt[:6000]
+        if meta["type"] == "application/pdf":
+            import subprocess
+            out = subprocess.run(["pdftotext", "-l", "5", str(path), "-"], capture_output=True, timeout=15)
+            if out.returncode == 0 and out.stdout.strip():
+                return head + "\nTexto del PDF (recortado):\n" + out.stdout.decode("utf-8", errors="replace")[:6000]
+    except Exception:
+        pass
+    if meta["type"].startswith("image/"):
+        return head + "\n(Es una imagen. No puedes verla: AskBox no tiene visión; usa solo su nombre y tipo.)"
+    return head + "\n(No se puede leer el contenido de este tipo de archivo; usa su nombre y tipo.)"
 
 
 MAX_CHAT_MSGS = 200
@@ -410,6 +603,10 @@ def build_router(
             _ensure_chat(conn)
             conn.execute("DELETE FROM dbots_chat WHERE user_id=? AND bot_id=?", (uid, bot_id))
             conn.commit()
+        try:
+            _drop_files(uid, bot_id)
+        except NameError:
+            pass
         return {"ok": True}
 
     @r.get("/api/dbots/tasks")
@@ -425,6 +622,86 @@ def build_router(
     def _enqueue(uid: int, bot_id: str, kind: str, text: str) -> str:
         return add_task(TaskBody(bot_id=bot_id, kind=kind, input=text[:1000]), user={"id": uid})["id"]
 
+    @r.post("/api/dbots/fetch")
+    def fetch_endpoint(body: dict, user=Depends(require_user)):
+        uid = int(user["id"])
+        now = time.monotonic()
+        calls = [t for t in _fetch_rate.get(uid, []) if t > now - 60]
+        if len(calls) >= 10:
+            raise HTTPException(429, "Demasiadas páginas seguidas; espera un minuto.")
+        calls.append(now)
+        _fetch_rate[uid] = calls
+        url = str((body or {}).get("url") or "").strip()[:2000]
+        try:
+            pg = fetch_page(url, max_chars=4000)
+        except UrlBlocked as exc:
+            raise HTTPException(422, str(exc))
+        return pg
+
+    @r.post("/api/dbots/upload/{bot_id}")
+    def upload(bot_id: str, file: UploadFile = File(...), user=Depends(require_user)):
+        uid = int(user["id"])
+        if not any(b.get("id") == bot_id for b in _load_bots(uid)):
+            raise HTTPException(404, "Bot no encontrado")
+        name = re.sub(r"[\\/\x00-\x1f]", "_", (file.filename or "archivo").strip())[:120] or "archivo"
+        ext = name.rsplit(".", 1)[-1].lower() if "." in name else ""
+        ctype = _EXT_TYPES.get(ext) or ""
+        if not ctype or ctype not in _SAFE_TYPES:
+            raise HTTPException(415, "Tipo de archivo no permitido. Usa imágenes, PDF, texto, Office o ZIP.")
+        with db.get_conn() as conn:
+            _ensure_files(conn)
+            n = conn.execute("SELECT COUNT(*) FROM dbots_files WHERE user_id=?", (uid,)).fetchone()[0]
+        if n >= MAX_FILES_PER_USER:
+            raise HTTPException(429, "Has llegado al máximo de archivos; borra el chat de algún bot.")
+        fid = "f" + uuid.uuid4().hex[:16]
+        d = _FILES_DIR / str(uid)
+        d.mkdir(parents=True, exist_ok=True)
+        path = d / fid
+        size = 0
+        try:
+            with open(path, "wb") as out:
+                while True:
+                    chunk = file.file.read(1024 * 256)
+                    if not chunk:
+                        break
+                    size += len(chunk)
+                    if size > MAX_FILE_BYTES:
+                        raise HTTPException(413, "El archivo pasa de 20 MB")
+                    out.write(chunk)
+        except HTTPException:
+            path.unlink(missing_ok=True)
+            raise
+        with db.get_conn() as conn:
+            _ensure_files(conn)
+            conn.execute("INSERT INTO dbots_files(id,user_id,bot_id,name,type,size,created_at) VALUES(?,?,?,?,?,?,?)",
+                         (fid, uid, bot_id, name, ctype, size, time.time()))
+            conn.commit()
+        return {"file": {"id": fid, "bot_id": bot_id, "name": name, "type": ctype, "size": size}}
+
+    @r.get("/api/dbots/file/{fid}")
+    def get_file(fid: str, dl: int = 0, user=Depends(require_user)):
+        uid = int(user["id"])
+        m = _file_meta(uid, fid)
+        path = _file_path(uid, fid)
+        if not m or not path.exists():
+            raise HTTPException(404, "Archivo no encontrado")
+        inline = m["type"].startswith("image/") and not dl
+        return FileResponse(path, media_type=m["type"], filename=m["name"],
+                            content_disposition_type="inline" if inline else "attachment",
+                            headers={"X-Content-Type-Options": "nosniff", "Cache-Control": "private, max-age=3600"})
+
+    def _drop_files(uid: int, bot_id: str) -> None:
+        with db.get_conn() as conn:
+            _ensure_files(conn)
+            ids = [x[0] for x in conn.execute("SELECT id FROM dbots_files WHERE user_id=? AND bot_id=?", (uid, bot_id)).fetchall()]
+            conn.execute("DELETE FROM dbots_files WHERE user_id=? AND bot_id=?", (uid, bot_id))
+            conn.commit()
+        for f in ids:
+            try:
+                _file_path(uid, f).unlink(missing_ok=True)
+            except Exception:
+                pass
+
     @r.get("/api/dbots/chat/{bot_id}")
     def chat_get(bot_id: str, user=Depends(require_user)):
         return {"messages": _chat_load(int(user["id"]), bot_id)}
@@ -436,6 +713,7 @@ def build_router(
             _ensure_chat(conn)
             conn.execute("DELETE FROM dbots_chat WHERE user_id=? AND bot_id=?", (uid, bot_id))
             conn.commit()
+        _drop_files(uid, bot_id)
         return {"ok": True}
 
     @r.post("/api/dbots/chat/{bot_id}")
@@ -454,9 +732,25 @@ def build_router(
             raise HTTPException(429, "Vas muy rápido; espera un momento antes de escribir otra vez.")
         calls.append(now)
         _chat_rate[uid] = calls
-        text = body.text.strip()
+        text = (body.text or "").strip()
+        atts = [m for m in (_file_meta(uid, f) for f in (body.attachments or [])[:6]) if m and m["bot_id"] == bot_id]
+        if not text and not atts:
+            raise HTTPException(422, "Escribe un mensaje o adjunta un archivo")
         history = _chat_load(uid, bot_id)[-16:]
-        _chat_append(uid, bot_id, "user", text)
+        _chat_append(uid, bot_id, "user", text, **({"attachments": atts} if atts else {}))
+        pages: list[dict[str, Any]] = []
+        page_ctx = ""
+        for u in list(dict.fromkeys(URL_RE.findall(text)))[:2]:
+            try:
+                pg = fetch_page(u)
+                pages.append({"url": pg["url"], "title": pg["title"][:120], "domain": pg["domain"]})
+                page_ctx += "\n\n" + _page_context(pg)
+            except UrlBlocked as exc:
+                page_ctx += f"\n\n[No se pudo abrir {u}: {exc}]"
+        if page_ctx:
+            text = text + page_ctx + "\n(Contesta sobre esa página y cita su URL.)"
+        if atts:
+            text = (text or "Mira estos archivos.") + "\n\n" + "\n\n".join(_attachment_context(uid, m) for m in atts)
         convo = "\n".join(("Usuario: " if m.get("role") == "user" else "Bot: ") + str(m.get("text") or "")[:1500] for m in history)
         mem = "\n".join("- " + x for x in (bot.get("memory") or [])) or "(vacía)"
         system = (
@@ -464,9 +758,11 @@ def build_router(
             f"Tu memoria (notas que debes recordar):\n{mem}\n"
             f"Fecha de hoy: {time.strftime('%Y-%m-%d')}. Hablas en español, natural y breve.\n"
             "Responde SIEMPRE con un único objeto JSON: {\"reply\": texto para el usuario, "
-            "\"action\": \"none\"|\"search\"|\"task\", \"query\": consulta web corta si action=search, "
+            "\"action\": \"none\"|\"search\"|\"open\"|\"task\", \"query\": consulta web corta si action=search, \"url\": enlace exacto si action=open, "
             "\"task\": descripción si action=task, \"memory\": nota nueva para recordar o \"\"}. "
             "Usa search si necesitas información actual o de internet para contestar ahora. "
+            "Usa open para leer una página concreta (por ejemplo un enlace de la conversación o de resultados anteriores). "
+            "Si el mensaje ya incluye [Página abierta: ...], contesta directamente con action none citando la URL. "
             "Usa task para trabajos largos o que el usuario pide hacer en segundo plano (avisarás al terminar). "
             "Usa memory solo si el usuario te pide recordar algo o da un dato importante y duradero."
         )
@@ -478,6 +774,8 @@ def build_router(
             reply = str(d.get("reply") or "").strip()
             action = str(d.get("action") or "none")
             extra: dict[str, Any] = {}
+            if pages:
+                extra["pages"] = pages
             note = str(d.get("memory") or "").strip()[:200]
             if note:
                 bot.setdefault("memory", [])
@@ -498,6 +796,19 @@ def build_router(
                 reply = (res2.get("text") or reply).strip()
                 extra["search"] = q
                 extra["sources"] = [x.get("url", "")[:300] for x in results[:5] if x.get("url")]
+            elif action == "open" and URL_RE.match(str(d.get("url") or "").strip()):
+                try:
+                    pg = fetch_page(str(d.get("url")).strip())
+                    res2 = askbox_client.ask(
+                        (f"Conversación previa:\n{convo}\n\n" if convo else "") + f"Usuario: {text}\n\n" + _page_context(pg) +
+                        "\nContesta al usuario en español, natural y breve, sobre esa página y cita su URL. Solo texto, sin JSON.",
+                        system=f"Eres «{bot.get('name')}», bot de Doganiero Bots. Tu función: {bot.get('role') or 'asistente general'}. Memoria:\n{mem}",
+                        tier="balanced", max_output_tokens=900, api_key=key,
+                    )
+                    reply = (res2.get("text") or reply).strip()
+                    extra["pages"] = (extra.get("pages") or []) + [{"url": pg["url"], "title": pg["title"][:120], "domain": pg["domain"]}]
+                except UrlBlocked as exc:
+                    reply = (reply + "\n\n" if reply else "") + "⚠️ No pude abrir esa página: " + str(exc)
             elif action == "task" and str(d.get("task") or "").strip():
                 try:
                     tid = _enqueue(uid, bot_id, "tarea", str(d.get("task")).strip())
