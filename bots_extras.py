@@ -166,6 +166,41 @@ class BotsBody(BaseModel):
 class ChatBody(BaseModel):
     text: str = Field("", max_length=2000)
     attachments: list[str] = Field(default_factory=list, max_length=6)
+    ctx: dict[str, Any] = Field(default_factory=dict)  # apps/fondos disponibles en el escritorio del usuario
+
+
+# ---- Acciones del bot en el escritorio de Snake OS (lista blanca; las ejecuta el navegador del usuario) ----
+DESKTOP_OPS = {
+    "open_app": ("app",), "close_app": ("app",), "create_folder": ("name",), "create_note": ("text",),
+    "create_file": ("name", "text"), "set_wallpaper": ("id",), "move_window": ("app", "x", "y", "w", "h"),
+    "switch_desktop": ("n",), "delete_file": ("name",),
+}
+DESTRUCTIVE_OPS = {"delete_file"}
+BROWSE_OPS = {"search", "open", "click", "scroll", "read", "form"}
+
+
+def _clean_desktop(steps: Any) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for st in (steps if isinstance(steps, list) else [])[:10]:
+        if not isinstance(st, dict):
+            continue
+        op = str(st.get("op") or "")
+        if op not in DESKTOP_OPS:
+            continue
+        clean: dict[str, Any] = {"op": op}
+        for k in DESKTOP_OPS[op]:
+            v = st.get(k)
+            if k in ("x", "y", "w", "h", "n"):
+                try:
+                    clean[k] = max(0, min(4000, int(v))) if v is not None else None
+                except (TypeError, ValueError):
+                    clean[k] = None
+            else:
+                clean[k] = str(v or "")[:4000 if k == "text" else 120]
+        if op in DESTRUCTIVE_OPS:
+            clean["confirm"] = True
+        out.append(clean)
+    return out
 
 
 # ---- Adjuntos del chat (por perfil y bot; solo los sirve al dueño vía API autenticada) ----
@@ -276,7 +311,18 @@ def _strip_html(page: str, base: str):
     body = _html.unescape(re.sub(r"<[^>]+>", " ", body))
     body = re.sub(r"[ \t\r\f\v]+", " ", body)
     body = re.sub(r"\n\s*\n+", "\n", body).strip()
-    return title, body, links
+    forms = []
+    for fm in re.finditer(r"<form\b([^>]*)>([\s\S]*?)</form>", page[:600000], re.I):
+        attrs, inner = fm.group(1), fm.group(2)
+        if re.search(r"method=[\"']?post", attrs, re.I):
+            continue
+        am = re.search(r"action=[\"']([^\"']*)[\"']", attrs, re.I)
+        im = re.search(r"<input\b[^>]*type=[\"']?(?:search|text)[\"']?[^>]*name=[\"']([^\"']+)[\"']|<input\b[^>]*name=[\"']([^\"']+)[\"'][^>]*type=[\"']?(?:search|text)", inner, re.I)
+        if im:
+            forms.append({"action": urljoin(base, _html.unescape(am.group(1)) if am else base)[:400], "field": (im.group(1) or im.group(2))[:60]})
+        if len(forms) >= 3:
+            break
+    return title, body, links, forms
 
 
 def fetch_page(url: str, max_chars: int = 7000) -> dict[str, Any]:
@@ -306,11 +352,77 @@ def fetch_page(url: str, max_chars: int = 7000) -> dict[str, Any]:
     except LookupError:
         page = raw.decode("utf-8", errors="replace")
     if "html" in ctype or "<html" in page[:2000].lower():
-        title, text, links = _strip_html(page, final)
+        title, text, links, forms = _strip_html(page, final)
     else:
-        title, text, links = "", page, []
+        title, text, links, forms = "", page, [], []
     dom = (urlparse(final).hostname or "").removeprefix("www.")
-    return {"url": final, "domain": dom, "title": title or dom, "text": text[:max_chars], "links": links}
+    return {"url": final, "domain": dom, "title": title or dom, "text": text[:max_chars], "links": links, "forms": forms}
+
+
+def run_browse(steps: Any, web_search: Callable[[str, int], list[dict[str, str]]]) -> list[dict[str, Any]]:
+    """Ejecuta un plan de navegación en el servidor (sin cookies) y devuelve la traza para mostrarla en el mini navegador."""
+    trace: list[dict[str, Any]] = []
+    cur: dict[str, Any] | None = None
+    results: list[dict[str, str]] = []
+    for st in (steps if isinstance(steps, list) else [])[:6]:
+        if not isinstance(st, dict):
+            continue
+        op = str(st.get("op") or "")
+        if op not in BROWSE_OPS:
+            continue
+        try:
+            if op == "search":
+                q = str(st.get("q") or "").strip()[:150]
+                if not q:
+                    continue
+                results = web_search(q, 6) or []
+                trace.append({"op": "search", "q": q, "results": [{"title": r.get("title", "")[:150], "url": r.get("url", "")[:400], "snippet": r.get("snippet", "")[:300]} for r in results[:6]]})
+                cur = None
+            elif op == "open":
+                u = str(st.get("url") or "").strip()
+                if not u and results:
+                    try:
+                        u = results[max(0, int(st.get("index") or 1) - 1)]["url"]
+                    except (ValueError, IndexError, TypeError):
+                        u = results[0]["url"]
+                cur = fetch_page(u, max_chars=5000)
+                trace.append({"op": "open", "url": cur["url"], "view": cur})
+            elif op == "click":
+                pool = (cur or {}).get("links") or [{"text": r.get("title", ""), "url": r.get("url", "")} for r in results]
+                want = str(st.get("text") or "").strip().lower()
+                hit = next((l for l in pool if want and want in l["text"].lower()), None) or (pool[0] if pool and not want else None)
+                if not hit:
+                    trace.append({"op": "click", "text": want, "error": "No encontré ese enlace"})
+                    continue
+                cur = fetch_page(hit["url"], max_chars=5000)
+                trace.append({"op": "click", "text": hit["text"], "url": cur["url"], "view": cur})
+            elif op == "form":
+                q = str(st.get("q") or "").strip()[:150]
+                fm = ((cur or {}).get("forms") or [None])[0]
+                if not fm or not q:
+                    trace.append({"op": "form", "q": q, "error": "No hay buscador en esta página"})
+                    continue
+                from urllib.parse import urlencode
+                sep = "&" if "?" in fm["action"] else "?"
+                cur = fetch_page(fm["action"] + sep + urlencode({fm["field"]: q}), max_chars=5000)
+                trace.append({"op": "form", "q": q, "url": cur["url"], "view": cur})
+            else:
+                trace.append({"op": op})
+        except UrlBlocked as exc:
+            trace.append({"op": op, "url": str(st.get("url") or "")[:300], "error": str(exc)})
+    return trace
+
+
+def _trace_context(trace: list[dict[str, Any]]) -> str:
+    parts = []
+    for t in trace:
+        if t.get("error"):
+            parts.append(f"[{t['op']}] error: {t['error']}")
+        elif t["op"] == "search":
+            parts.append(f"[búsqueda «{t['q']}»]\n" + "\n".join(f"- {r['title']}: {r['snippet']} ({r['url']})" for r in t["results"]))
+        elif t.get("view"):
+            parts.append(_page_context(t["view"]))
+    return "\n\n".join(parts)[:14000]
 
 
 def _page_context(pg: dict[str, Any]) -> str:
@@ -622,6 +734,32 @@ def build_router(
     def _enqueue(uid: int, bot_id: str, kind: str, text: str) -> str:
         return add_task(TaskBody(bot_id=bot_id, kind=kind, input=text[:1000]), user={"id": uid})["id"]
 
+    def _rl(uid: int) -> None:
+        now = time.monotonic()
+        calls = [t for t in _fetch_rate.get(uid, []) if t > now - 60]
+        if len(calls) >= 30:
+            raise HTTPException(429, "Demasiadas páginas seguidas; espera un minuto.")
+        calls.append(now)
+        _fetch_rate[uid] = calls
+
+    @r.post("/api/dbots/browse")
+    def browse_endpoint(body: dict, user=Depends(require_user)):
+        _rl(int(user["id"]))
+        url = str((body or {}).get("url") or "").strip()[:2000]
+        try:
+            return fetch_page(url, max_chars=6000)
+        except UrlBlocked as exc:
+            raise HTTPException(422, str(exc))
+
+    @r.post("/api/dbots/search")
+    def search_endpoint(body: dict, user=Depends(require_user)):
+        _rl(int(user["id"]))
+        q = str((body or {}).get("q") or "").strip()[:150]
+        if not q:
+            raise HTTPException(422, "Escribe qué buscar")
+        res = web_search(q, 8) or []
+        return {"q": q, "results": [{"title": r.get("title", "")[:150], "url": r.get("url", "")[:400], "snippet": r.get("snippet", "")[:300]} for r in res]}
+
     @r.post("/api/dbots/fetch")
     def fetch_endpoint(body: dict, user=Depends(require_user)):
         uid = int(user["id"])
@@ -753,6 +891,9 @@ def build_router(
             text = (text or "Mira estos archivos.") + "\n\n" + "\n\n".join(_attachment_context(uid, m) for m in atts)
         convo = "\n".join(("Usuario: " if m.get("role") == "user" else "Bot: ") + str(m.get("text") or "")[:1500] for m in history)
         mem = "\n".join("- " + x for x in (bot.get("memory") or [])) or "(vacía)"
+        _ctx = body.ctx if isinstance(body.ctx, dict) else {}
+        ctx_apps = ", ".join(f"{str(a.get('id'))[:30]}={str(a.get('title'))[:30]}" for a in (_ctx.get("apps") or [])[:60] if isinstance(a, dict)) or "(desconocidas)"
+        ctx_walls = ", ".join(str(w)[:40] for w in (_ctx.get("wallpapers") or [])[:30]) or "(desconocidos)"
         system = (
             f"Eres «{bot.get('name')}», un bot de Doganiero Bots dentro de Snake OS. Tu función: {bot.get('role') or 'asistente general'}.\n"
             f"Tu memoria (notas que debes recordar):\n{mem}\n"
@@ -764,7 +905,14 @@ def build_router(
             "Usa open para leer una página concreta (por ejemplo un enlace de la conversación o de resultados anteriores). "
             "Si el mensaje ya incluye [Página abierta: ...], contesta directamente con action none citando la URL. "
             "Usa task para trabajos largos o que el usuario pide hacer en segundo plano (avisarás al terminar). "
-            "Usa memory solo si el usuario te pide recordar algo o da un dato importante y duradero."
+            "Usa memory solo si el usuario te pide recordar algo o da un dato importante y duradero.\n"
+            "Además puedes usar \"action\": \"browse\" con \"steps\": lista de pasos de navegador (máx. 6) entre "
+            "{\"op\":\"search\",\"q\":...}, {\"op\":\"open\",\"url\":... o \"index\": n del resultado}, {\"op\":\"click\",\"text\": texto del enlace}, "
+            "{\"op\":\"form\",\"q\": texto para el buscador de la página}, {\"op\":\"scroll\"}, {\"op\":\"read\"}. Úsalo cuando haya que navegar varias páginas.\n"
+            "Y \"action\": \"desktop\" con \"steps\" para hacer cosas en el escritorio Snake OS del usuario, solo con estas operaciones: "
+            "open_app{app}, close_app{app}, create_folder{name}, create_note{text}, create_file{name,text}, set_wallpaper{id}, "
+            "move_window{app,x,y,w,h}, switch_desktop{n 1-4}, delete_file{name} (este pide confirmación). Nunca cierres sesión, cambies contraseñas ni inicies sesión en webs. "
+            f"Apps disponibles: {ctx_apps}. Fondos disponibles: {ctx_walls}."
         )
         prompt = (f"Conversación previa:\n{convo}\n\n" if convo else "") + f"Usuario: {text}\nResponde con el JSON."
         try:
@@ -796,6 +944,28 @@ def build_router(
                 reply = (res2.get("text") or reply).strip()
                 extra["search"] = q
                 extra["sources"] = [x.get("url", "")[:300] for x in results[:5] if x.get("url")]
+            elif action == "browse" and isinstance(d.get("steps"), list):
+                trace = run_browse(d.get("steps"), web_search)
+                extra["browse"] = trace
+                if trace:
+                    res2 = askbox_client.ask(
+                        (f"Conversación previa:\n{convo}\n\n" if convo else "") + f"Usuario: {text}\n\nLo que has visto navegando:\n{_trace_context(trace)}\n\n"
+                        "Contesta al usuario en español, natural y breve, citando las URL que usaste. Solo texto, sin JSON.",
+                        system=f"Eres «{bot.get('name')}», bot de Doganiero Bots. Tu función: {bot.get('role') or 'asistente general'}. Memoria:\n{mem}",
+                        tier="balanced", max_output_tokens=900, api_key=key,
+                    )
+                    reply = (res2.get("text") or reply).strip()
+                    pg = [{"url": t["view"]["url"], "title": t["view"]["title"][:120], "domain": t["view"]["domain"]} for t in trace if t.get("view")]
+                    if pg:
+                        extra["pages"] = (extra.get("pages") or []) + pg[-3:]
+            elif action == "desktop":
+                steps = _clean_desktop(d.get("steps"))
+                if steps:
+                    extra["desktop"] = steps
+                    if any(st.get("confirm") for st in steps):
+                        reply = (reply or "Voy a hacerlo en tu escritorio.") + "\n\n⚠️ Hay acciones que borran cosas: confírmalo abajo antes de que las haga."
+                else:
+                    reply = (reply or "") + "\n\n(No puedo hacer esa acción en el escritorio por seguridad.)"
             elif action == "open" and URL_RE.match(str(d.get("url") or "").strip()):
                 try:
                     pg = fetch_page(str(d.get("url")).strip())

@@ -104,7 +104,7 @@
     '.dbx-menu{position:absolute;left:8px;bottom:52px;background:#fff;border:1px solid #333;border-radius:18px;padding:6px;display:none;flex-direction:column;gap:2px;z-index:5;box-shadow:0 8px 24px rgba(0,0,0,.18)}',
     '.dbx-menu.open{display:flex}.dbx .dbx-menu button{background:none !important;color:#111 !important;border:0 !important;justify-content:flex-start !important;padding:7px 12px !important;border-radius:12px !important;cursor:pointer}',
     '.dbx .dbx-menu button:hover{background:#f0f0f0 !important}',
-    '.dbx .dbots-aside{width:230px;flex-shrink:0;background:linear-gradient(135deg,#8b3dff 0%,#6c7cf5 50%,#48d6e8 100%);color:#111;display:flex;flex-direction:column;align-items:center;padding:16px 12px;gap:10px;overflow:auto;min-height:0}',
+    '.dbx .dbots-aside{width:340px;flex-shrink:0;background:linear-gradient(135deg,#8b3dff 0%,#6c7cf5 50%,#48d6e8 100%);color:#111;display:flex;flex-direction:column;align-items:center;padding:16px 12px;gap:10px;overflow:auto;min-height:0}',
     '.dbx .dbots-aside .dbx-avname{font-weight:800;font-size:1.25rem;text-align:center}',
     '.dbx .dbots-aside .dbx-role{font-size:.8rem;text-align:center;opacity:.85;max-height:4.2em;overflow:hidden}',
     '.dbx .dbots-aside .term-wrap{width:100%;flex:1 1 auto;min-height:160px;margin:0 !important;background:#000 !important;border:0 !important;border-radius:26px !important;color:#e8e8e8}',
@@ -118,6 +118,9 @@
     '.dbx .dbots-form label{font-weight:700}.dbx .dbots-pick span{background:#f4f4f4}.dbx .dbots-pick span.on{border-color:#111}',
     '.dbx .dbots-empty{color:#111}',
     '.dbx .dbots-main input::placeholder,.dbx .dbots-main textarea::placeholder{color:#777 !important;opacity:1}',
+    '.dbx .dbots-aside .mos .term-wrap{border-radius:0 !important;min-height:0 !important;flex:1 1 auto;margin:0 !important}.dbx .dbots-aside .dbx-mini{display:flex;align-items:center;gap:10px;align-self:stretch}.dbx .dbots-aside .dbx-mini .dbx-avname{text-align:left}',
+    '.dbx-acts{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}.dbx .dbx-acts button{background:#fff !important;color:#111 !important;border:0 !important;border-radius:999px !important;padding:4px 12px !important;font-size:.8rem !important;cursor:pointer}.dbx .dbx-acts button.no{background:#333 !important;color:#fff !important}',
+    '.dbx-steps{margin:6px 0 0;padding-left:16px;font-size:.8rem;opacity:.85}',
     '.dbots.dbx .dbx-asidebtn,.dbots.dbx .dbots-aside .dbx-close{display:none !important}',
     '.dbx .dbots-head .dbx-hbtn{gap:4px !important}.dbx .dbx-hbtn button{width:32px !important;height:32px !important;min-width:32px;padding:0 !important;border-radius:50% !important;background:#fff !important;color:#111 !important;border:1px solid #bbb !important;font-size:.95rem !important}',
     '.dbx .dbx-hbtn button:hover{border-color:#111 !important}.dbx .dbx-hbtn button.on{background:#111 !important;color:#fff !important;border-color:#111 !important}.dbx .dbx-hbtn button.red{color:#b3261e !important;border-color:#e2a29d !important}',
@@ -272,13 +275,14 @@
         '</div>' +
         '<div class="dbots-pane" data-pane="term"><div class="term-wrap"><div class="term-out"></div><div class="term-in-row"><span class="term-prompt">' + esc(b.name.toLowerCase().replace(/\s+/g, '-')) + '@snake-os-lite:~$</span><input class="term-input" placeholder="help" autocomplete="off" spellcheck="false"></div></div></div>';
       main.querySelector('[data-pane="tasks"]').insertAdjacentHTML('beforeend', '<div style="display:flex;align-items:center;margin:0 12px 6px"><b style="flex:1">Tareas</b><button class="dbots-btn alt" data-clear>🧹 Borrar historial</button></div><div class="dbots-tasks"></div>');
-      aside.innerHTML = star(botFig(b, 96), 140) + '<div class="dbx-avname">' + esc(b.name) + '</div><div class="dbx-role">' + esc(b.role || 'Asistente general') + '</div>';
+      aside.innerHTML = '<div class="dbx-mini">' + star(botFig(b, 40), 60) + '<div><div class="dbx-avname">' + esc(b.name) + '</div><div class="dbx-role" style="text-align:left">' + esc(b.role || 'Asistente general') + '</div></div></div>';
+      S.mos = window.DogBotsOS ? window.DogBotsOS.mount(aside, b, b.color || th(b)[2]) : null;
       aside.insertAdjacentHTML('afterbegin', '<button class="dbx-close" data-closeaside title="Cerrar">✕</button>');
       aside.querySelector('[data-closeaside]').onclick = function () { root.classList.remove('aside-open'); };
-      var tp = main.querySelector('[data-pane="term"]'), tw = tp.querySelector('.term-wrap'); aside.appendChild(tw); tp.remove();
+      var tp = main.querySelector('[data-pane="term"]'), tw = tp.querySelector('.term-wrap'); (S.mos ? S.mos.termHost : aside).appendChild(tw); tp.remove();
       emo(main); emo(aside);
       main.querySelectorAll('[data-hb]').forEach(function (x) { x.onclick = function (e) { e.stopPropagation(); var v = x.getAttribute('data-hb');
-        if (v === 'term') { root.classList.toggle('aside-open'); var ti = aside.querySelector('.term-input'); if (ti) ti.focus(); return; }
+        if (v === 'term') { if (S.mos) S.mos.show('term'); root.classList.toggle('aside-open'); var ti = aside.querySelector('.term-input'); if (ti) ti.focus(); return; }
         tab(S.tab === v ? 'chat' : v); }; });
       main.querySelectorAll('[data-back]').forEach(function (x) { x.onclick = function () { tab('chat'); }; });
       main.querySelector('.dbots-chat').addEventListener('click', function () { root.classList.remove('aside-open'); });
@@ -319,6 +323,40 @@
     function fmtTime(at) { try { return new Date(at * 1000).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }); } catch (e) { return ''; } }
     function fileIcon(type, name) { type = type || ''; if (/^image\//.test(type)) return '🖼️'; if (/pdf/.test(type) || /\.pdf$/i.test(name || '')) return '📕'; if (/sheet|excel|csv/.test(type)) return '📊'; if (/presentation/.test(type)) return '📽️'; if (/zip/.test(type)) return '🗜️'; if (/word/.test(type)) return '📘'; return '📄'; }
     function fmtSize(n) { n = +n || 0; return n < 1024 ? n + ' B' : n < 1048576 ? (n / 1024).toFixed(0) + ' KB' : (n / 1048576).toFixed(1).replace('.', ',') + ' MB'; }
+    var DESK_LABEL = { open_app: 'Abrir app', close_app: 'Cerrar app', create_folder: 'Crear carpeta', create_note: 'Escribir nota', create_file: 'Crear archivo', set_wallpaper: 'Cambiar fondo', move_window: 'Mover ventana', switch_desktop: 'Cambiar de escritorio', delete_file: '🗑️ Borrar archivo' };
+    function stepTxt(s) { return (DESK_LABEL[s.op] || s.op) + ' ' + esc(s.app || s.name || s.id || (s.n != null ? s.n : '') || (s.text ? '«' + String(s.text).slice(0, 40) + '»' : '')); }
+    S.ran = S.ran || {};
+    function actHtml(m) {
+      var h = '';
+      if (m.desktop && m.desktop.length) {
+        h += '<ul class="dbx-steps">' + m.desktop.map(function (s) { return '<li>' + stepTxt(s) + '</li>'; }).join('') + '</ul>';
+        var conf = m.desktop.some(function (s) { return s.confirm; });
+        if (S.ran[m.id]) h += '<div class="dbx-acts"><button data-redo="' + esc(m.id) + '">↻ Repetir en el escritorio</button></div>';
+        else if (conf) h += '<div class="dbx-acts"><button data-yes="' + esc(m.id) + '">✅ Sí, hazlo</button><button class="no" data-no="' + esc(m.id) + '">✖ No</button></div>';
+        else h += '<div class="dbx-acts"><button data-redo="' + esc(m.id) + '">▶ Hacerlo en el escritorio</button></div>';
+      }
+      if (m.browse && m.browse.length) h += '<div class="dbx-acts"><button data-replay="' + esc(m.id) + '">🌐 Ver navegación (' + m.browse.length + ' pasos)</button></div>';
+      return h;
+    }
+    function findMsg(id) { return (S.msgs[S.chatBot] || []).filter(function (x) { return x.id === id; })[0]; }
+    function runDesk(b, m) {
+      if (!window.DogBotsOS || !m || !m.desktop) return;
+      S.ran[m.id] = 1; if (S.paintChat) S.paintChat();
+      var col = b.color || th(b)[2];
+      if (window.matchMedia('(max-width:640px)').matches || document.body.classList.contains('phone-mode')) { var w = document.getElementById('win-dbots'); if (w && typeof window.minimizeApp === 'function') window.minimizeApp('dbots'); }
+      window.DogBotsOS.runDesktop(m.desktop, b, col, function (t) { line('[escritorio] ' + t, /✅/.test(t) ? 'term-ok' : 'term-err'); })
+        .then(function (res) { (S.msgs[b.id] = S.msgs[b.id] || []).push({ id: 'local' + Date.now(), role: 'bot', text: (res.stopped ? '⏹ Me has parado.\n' : '🖱️ Hecho en tu escritorio:\n') + res.done.join('\n'), at: Date.now() / 1000 }); if (S.paintChat) S.paintChat(); });
+    }
+    function handleBot(b, m) {
+      if (!m) return;
+      if (m.browse && m.browse.length && S.mos) { root.classList.add('aside-open'); S.mos.replay(m.browse); }
+      if (m.desktop && m.desktop.length && !m.desktop.some(function (s) { return s.confirm; })) runDesk(b, m);
+    }
+    function wireActs(box, b) {
+      box.querySelectorAll('[data-yes],[data-redo]').forEach(function (x) { x.onclick = function () { runDesk(b, findMsg(x.getAttribute('data-yes') || x.getAttribute('data-redo'))); }; });
+      box.querySelectorAll('[data-no]').forEach(function (x) { x.onclick = function () { S.ran[x.getAttribute('data-no')] = 1; (S.msgs[b.id] = S.msgs[b.id] || []).push({ id: 'local' + Date.now(), role: 'bot', text: 'Vale, no lo hago.', at: Date.now() / 1000 }); S.paintChat(); }; });
+      box.querySelectorAll('[data-replay]').forEach(function (x) { x.onclick = function () { var m = findMsg(x.getAttribute('data-replay')); if (m && S.mos) { root.classList.add('aside-open'); S.mos.replay(m.browse); } }; });
+    }
     function pageHtml(list) {
       if (!list || !list.length) return '';
       return list.map(function (pg) { return '<a class="dbx-page" href="' + esc(pg.url) + '" target="_blank" rel="noopener noreferrer"><b>🌐 ' + esc(pg.title || pg.domain) + '</b><small>' + esc(pg.domain) + ' · página leída</small></a>'; }).join('');
@@ -341,11 +379,12 @@
           var meta = fmtTime(m.at) + (m.search ? ' · 🔎 ' + esc(m.search) : '') + (m.task ? ' · 📋 tarea ' + esc(String(m.task).slice(-4)) : '') + (m.memory ? ' · 🧠 recordado' : '');
           var att = attHtml(m.attachments) + pageHtml(m.pages), txt = m.text ? linkify(m.text) : '';
           if (m.role === 'user') h += '<div class="dbots-msg user">' + att + txt + '<small>' + meta + '</small></div>';
-          else h += '<div class="dbots-row">' + botFig(b, 30) + '<div class="dbots-msg bot">' + att + txt + '<small>' + meta + '</small></div></div>';
+          else h += '<div class="dbots-row">' + botFig(b, 30) + '<div class="dbots-msg bot">' + att + txt + actHtml(m) + '<small>' + meta + '</small></div></div>';
         });
         if (S.sending) h += '<div class="dbots-row">' + botFig(b, 30) + '<div class="dbots-msg bot dbots-typing"><span></span><span></span><span></span></div></div>';
-        box.innerHTML = h; emo(box); box.scrollTop = box.scrollHeight;
+        box.innerHTML = h; emo(box); wireActs(box, b); box.scrollTop = box.scrollHeight;
       }
+      S.paintChat = paint;
       function refresh() { return api('/api/dbots/chat/' + encodeURIComponent(b.id)).then(function (r) { S.msgs[b.id] = r.messages || []; if (S.chatBot === b.id && box.isConnected) paint(); }); }
       S.refreshChat = refresh;
       paint(); refresh().catch(function () {});
@@ -388,8 +427,8 @@
         var ids = ready.map(function (f) { return f.id; });
         (S.msgs[b.id] = S.msgs[b.id] || []).push({ role: 'user', text: v, at: Date.now() / 1000, attachments: ready.map(function (f) { return { id: f.id, name: f.name, type: f.type, size: f.size }; }) });
         S.pending = []; drawChips(); paint();
-        api('/api/dbots/chat/' + encodeURIComponent(b.id), { method: 'POST', body: { text: v, attachments: ids } })
-          .then(function () { S.sending = false; return refresh(); })
+        api('/api/dbots/chat/' + encodeURIComponent(b.id), { method: 'POST', body: { text: v, attachments: ids, ctx: window.DogBotsOS ? window.DogBotsOS.context() : {} } })
+          .then(function (r) { S.sending = false; var m = r && r.message; return refresh().then(function () { handleBot(b, m); }); })
           .then(function () { poll(); })
           .catch(function (e) { S.sending = false; S.msgs[b.id].push({ role: 'bot', text: '❌ ' + errMsg(e), at: Date.now() / 1000 }); paint(); });
       }
@@ -466,6 +505,7 @@
         if (url && !/^https?:\/\//i.test(url)) url = 'https://' + url;
         if (!url) return line('Uso: abrir <url>', 'term-err');
         line('Abriendo ' + url + '…', 'term-muted');
+        if (S.mos) S.mos.open(url, true);
         api('/api/dbots/fetch', { method: 'POST', body: { url: url } }).then(function (pg) {
           line('🌐 ' + (pg.title || pg.domain) + '  (' + pg.url + ')', 'term-ok');
           line(String(pg.text || '').slice(0, 1500) + (String(pg.text || '').length > 1500 ? '…' : ''));
@@ -514,7 +554,7 @@
 
   function install() {
     var apps = window.APPS; if (!apps) return false;
-    if (!apps.dbots) apps.dbots = { title: 'Doganiero Bots', icon: '🤖', width: 780, height: 600, render: render };
+    if (!apps.dbots) apps.dbots = { title: 'Doganiero Bots', icon: '🤖', width: 1120, height: 700, render: render };
     try {
       if (document.querySelector('#iconLayer .desktop-icon') && typeof buildIcons === 'function') buildIcons();
       if (typeof buildStartMenu === 'function' && document.querySelector('#startMenu .start-item')) buildStartMenu();
