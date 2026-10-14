@@ -6024,7 +6024,8 @@ def _locshare_get(uid: int):
 @app.get("/api/me/location-share")
 def get_location_share(user=Depends(require_user)):
     row = _locshare_get(int(user["id"]))
-    return {"on": bool(row and row["sharing"])}
+    # decided: ya eligió (o ya se le mostró el aviso). Si lo desactivó, no se vuelve a activar solo.
+    return {"on": bool(row and row["sharing"]), "decided": row is not None}
 
 
 @app.post("/api/me/location-share")
