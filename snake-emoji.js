@@ -161,7 +161,7 @@
 
   /* ---- Sustitución en el DOM ---- */
   var SKIP_TAGS = { INPUT: 1, TEXTAREA: 1, SELECT: 1, OPTION: 1, OPTGROUP: 1, SCRIPT: 1, STYLE: 1, NOSCRIPT: 1, TEMPLATE: 1, CANVAS: 1, IFRAME: 1, CODE: 1, PRE: 1, KBD: 1, SAMP: 1, TITLE: 1, HEAD: 1, VIDEO: 1, AUDIO: 1, OBJECT: 1 };
-  var SKIP_SEL = '#clock,.snk-ew,.snk-noemoji,[contenteditable]:not([contenteditable="false"]),.xterm,svg,#win-code,#win-terminal,.CodeMirror,.cm-editor,.monaco-editor,.leaflet-container,.snk-maps-frame,.snk-maps,#win-phone,.dph';
+  var SKIP_SEL = '#clock,.snk-ew,.snk-noemoji,[contenteditable]:not([contenteditable="false"]),.xterm,svg,#win-code,#win-terminal,.CodeMirror,.cm-editor,.monaco-editor,.leaflet-container,.snk-maps-frame,.snk-maps,.dph-display';
   var MAX_LEN = 20000;
   var on = false;
   function skipEl(el) {
@@ -304,13 +304,21 @@ function processText(node) {
     if (!on) return;
     for (var i = 0; i < muts.length; i++) {
       var m = muts[i];
-      if (m.type === 'characterData') continue; /* caro y casi innecesario */
+      if (m.type === 'characterData') {
+        /* Texto cambiado en sitio (nodeValue = …): solo si trae emoji y no es ya un snakemoji */
+        var tn = m.target, tp = tn && tn.parentNode;
+        if (tn && tn.nodeType === 3 && tn.nodeValue && PRE.test(tn.nodeValue) && tp && tp.nodeType === 1) {
+          try { if (tp.closest && tp.closest('.snk-ew,.snk-e,.snk-ei-wrap,.snk-noemoji')) continue; } catch (eC) {}
+          queue.add(tn);
+        }
+        continue;
+      }
       for (var j = 0; j < m.addedNodes.length; j++) {
         var a = m.addedNodes[j];
         if (a.nodeType === 1) {
           if (a.classList && (a.classList.contains('snk-ew') || a.classList.contains('snk-e') || a.classList.contains('snk-ei-wrap') || a.classList.contains('snk-ei-layer') || a.classList.contains('snk-ei-caret'))) continue;
           try {
-            if (a.closest && a.closest('.snk-ei-wrap,.snk-noemoji,#win-terminal,#win-code,.xterm,.leaflet-container,.snk-maps,#win-metaverse,#win-doganiero-tv,.mv-root,.prism-wrap,#win-phone,.dph')) continue;
+            if (a.closest && a.closest('.snk-ei-wrap,.snk-noemoji,#win-terminal,#win-code,.xterm,.leaflet-container,.snk-maps,.prism-wrap,.dph-display')) continue;
           } catch (e0) {}
           queue.add(a);
         } else if (a.nodeType === 3) {
@@ -697,7 +705,7 @@ function processText(node) {
     document.documentElement.classList.toggle('snk-emoji-on', on);
     if (on) {
       if (document.body) {
-        mo.observe(document.body, { childList: true, subtree: true });
+        mo.observe(document.body, { childList: true, subtree: true, characterData: true });
         queue.add(document.body);
         schedule();
         try {

@@ -51,7 +51,7 @@ window.addEventListener('error', function(e){
 <script src="/static/snake-apps-extras.js?v=202610140825" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-cursor.js?v=202610111448" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-emoji-data.js?v=202610100831" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
-<script src="/static/snake-emoji.js?v=202610111102" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
+<script src="/static/snake-emoji.js?v=202610140900" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-maps.js?v=202610101610" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-bluetooth.js?v=202610111725" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-keypad.js?v=202610111201" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
@@ -600,6 +600,7 @@ window.addEventListener('error', function(e){
     content:'🤚'; position:absolute; left:0; right:0; top:0; bottom:0;
     display:flex; align-items:center; justify-content:center; font-size:22px; pointer-events:none;
   }
+  html.snk-emoji-on .mv-arm-stick-knob::after{ content:''; background:url('/static/assets/snk-emoji-1f91a.svg?v=202610100849') center/24px 24px no-repeat; }
   .mv-arm-stick.active .mv-arm-stick-knob{ box-shadow:0 0 0 3px rgba(255,70,70,0.55), 0 2px 10px rgba(0,0,0,0.5); }
   body.phone-mode .mv-arm-stick,
   .mv-root.mv-arm-stick-on .mv-arm-stick{ width:128px; height:128px; right:8px; bottom:8px; }
@@ -4768,6 +4769,7 @@ window.addEventListener('error', function(e){
     const email = document.getElementById('signup_email').value.trim().toLowerCase();
     const password = document.getElementById('signup_password').value;
     const password2 = document.getElementById('signup_password2').value;
+    if(/@(gmail|googlemail)\.com\.?$/i.test(email)){ showSignupStatus('No se pueden crear cuentas nuevas con Gmail. Usa otro correo, por ejemplo tu correo@dogaemail.com.', false); return; }
     if(password !== password2){ showSignupStatus('Las contraseñas no coinciden.', false); return; }
     if(password.length < 4){ showSignupStatus('La contraseña debe tener al menos 4 caracteres.', false); return; }
     if(typeof primeOsTutorialSpeech === 'function') primeOsTutorialSpeech();

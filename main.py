@@ -322,6 +322,9 @@ def os_gate_unlock(body: OsGateBody, response: Response):
     set_os_gate_cookie(response)
     return {"unlocked": True}
 
+BLOCKED_SIGNUP_DOMAINS = {"gmail.com", "googlemail.com"}
+
+
 @app.post("/api/signup")
 def signup(body: SignupBody, response: Response, _gate: None = Depends(require_os_gate)):
     email = body.email.strip().lower()
@@ -331,6 +334,9 @@ def signup(body: SignupBody, response: Response, _gate: None = Depends(require_o
 
     if not email or "@" not in email:
         raise HTTPException(status_code=400, detail="Correo no válido")
+    # Solo cuentas NUEVAS: las de Gmail que ya existen siguen entrando con /api/login.
+    if email.rsplit("@", 1)[1].strip().rstrip(".") in BLOCKED_SIGNUP_DOMAINS:
+        raise HTTPException(status_code=400, detail="No se pueden crear cuentas nuevas con Gmail. Usa otro correo, por ejemplo tu correo@dogaemail.com.")
     if not name:
         raise HTTPException(status_code=400, detail="El nombre no puede estar vacío")
     if len(password) < 4:
