@@ -1979,6 +1979,8 @@
       if (!snap) return;
       if (!snap.moved && Math.abs(e.clientX - snap.x) + Math.abs(e.clientY - snap.y) < 10) return;
       snap.moved = true;
+      snap.lastX = e.clientX;
+      snap.lastY = e.clientY;
       var zone = null;
       if (e.clientX <= EDGE) zone = 'left';
       else if (e.clientX >= window.innerWidth - EDGE) zone = 'right';
@@ -1993,6 +1995,7 @@
       if (!s.moved || !s.zone || !s.win.isConnected || phoneMode()) return;
       if (s.win.classList.contains('maximized') || s.win.classList.contains('minimized')) return;
       if (s.zone === 'top') {
+        if (Math.abs(s.lastX - s.x) + Math.abs(s.lastY - s.y) < 20) return;
         var maxBtn = s.win.querySelector('.win-btn.max');
         if (maxBtn) maxBtn.click();
         return;

@@ -39,24 +39,24 @@ window.addEventListener('error', function(e){
   if(typeof window.revealSnakeBootError === 'function') window.revealSnakeBootError();
 }, true);
 </script>
-<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1">
-<script src="/static/metaverse.js?v=202610121930"></script onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1">
-<script src="/static/doganiero-chat.js?v=202610140830"></script onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1">
-<script src="/static/doganiero-desk.js?v=202610072130"></script onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1">
-<script src="/static/desktop-extras.js?v=202610140830"></script onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1">
-<script src="/static/snake-win-resize.js?v=202610140830"></script>
-<script src="/static/doganiero-tv.js?v=202610091150"></script onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1">
-<script src="/static/prism.js?v=202610080900"></script onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1">
-<script src="/static/doganiero-phone.js?v=202610140830"></script onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1">
-<script src="/static/snake-apps-extras.js?v=202610140825"></script onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1">
-<script src="/static/snake-cursor.js?v=202610111448"></script onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1">
-<script src="/static/snake-emoji-data.js?v=202610100831"></script onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1">
-<script src="/static/snake-emoji.js?v=202610111102"></script onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1">
-<script src="/static/snake-maps.js?v=202610101610"></script onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1">
-<script src="/static/snake-bluetooth.js?v=202610111725"></script onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1">
-<script src="/static/snake-keypad.js?v=202610111201"></script onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1">
-<script src="/static/snake-game-matrix.js?v=202610112000"></script onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1">
-<script src="/static/snake-racing.js?v=202610122130"></script onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1">
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+<script src="/static/metaverse.js?v=202610121930" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
+<script src="/static/doganiero-chat.js?v=202610140845" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
+<script src="/static/doganiero-desk.js?v=202610072130" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
+<script src="/static/desktop-extras.js?v=202610140845" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
+<script src="/static/snake-win-resize.js?v=202610140845"></script>
+<script src="/static/doganiero-tv.js?v=202610091150" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
+<script src="/static/prism.js?v=202610080900" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
+<script src="/static/doganiero-phone.js?v=202610140830" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
+<script src="/static/snake-apps-extras.js?v=202610140825" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
+<script src="/static/snake-cursor.js?v=202610111448" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
+<script src="/static/snake-emoji-data.js?v=202610100831" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
+<script src="/static/snake-emoji.js?v=202610111102" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
+<script src="/static/snake-maps.js?v=202610101610" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
+<script src="/static/snake-bluetooth.js?v=202610111725" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
+<script src="/static/snake-keypad.js?v=202610111201" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
+<script src="/static/snake-game-matrix.js?v=202610112000" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
+<script src="/static/snake-racing.js?v=202610122130" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <style>
   :root{
     --text:#ffffff; --muted:rgba(255,255,255,0.82);
@@ -1198,6 +1198,7 @@ window.addEventListener('error', function(e){
     position:absolute; right:8px; bottom:8px; width:96px; height:72px; z-index:2;
     object-fit:cover; border-radius:8px; border:1px solid rgba(255,255,255,0.45); background:#111;
   }
+  .dc-video-stage.is-sharing .dc-local-video{ transform:none !important; object-fit:contain; }
   .dc-video-stage.is-minimized .dc-local-video{ right:5px; bottom:5px; width:52px; height:39px; border-radius:6px; }
   .dc-video-stage .dc-video-note{
     position:absolute; left:8px; top:8px; right:8px; z-index:2;
@@ -6624,7 +6625,7 @@ function buildIcons(){
         '<label>Tu nombre</label>' +
         '<input type="text" id="name-x" placeholder="Ej: Juan Pérez" required>' +
         '<label>Tu correo (para respuesta)</label>' +
-        '<input type="email" id="email-x" placeholder="Tu correo@dogaemail.com" required>' +
+        '<input type="email" id="email-x" placeholder="Tu correo electrónico" required>' +
         '<label>Asunto</label>' +
         '<input type="text" id="subject-x" placeholder="Asunto del mensaje" required>' +
         '<label>Mensaje</label>' +

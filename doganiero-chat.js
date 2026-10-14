@@ -434,7 +434,10 @@
       if (typeof Notification === 'undefined' || !('serviceWorker' in navigator) || !('PushManager' in window)) return;
       if (Notification.permission !== 'default') return;
       var key = 'snakeos_callpush_offer_v1:' + em;
-      try { if (localStorage.getItem(key)) return; } catch (eLs) { return; }
+      try {
+        var seen = parseInt(localStorage.getItem(key) || '0', 10) || 0;
+        if (seen && Date.now() - seen < 30 * 24 * 3600 * 1000) return;
+      } catch (eLs) { return; }
       if (document.getElementById('dcPushOffer')) return;
       var box = document.createElement('div');
       box.id = 'dcPushOffer';
@@ -1390,6 +1393,8 @@ function handleRealtimePayload(msg) {
     // Si ya había permiso, no pedimos de nuevo; si no, el usuario lo activa con la campana
     if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
       ensureNativeNotifPermission(false);
+      // Permiso dado pero sin suscripción (p. ej. caducada): volver a suscribir en silencio.
+      setTimeout(function () { subscribeWebPush(); }, 6000);
     }
     setTimeout(function () { dcMaybeOfferCallPush(email); }, 4000);
     connectChatWs();
@@ -3005,6 +3010,7 @@ function handleRealtimePayload(msg) {
     dcCall.screenTrack = null;
     dcCall.camSaved = null;
     dcCall.camOff = false;
+    dcCall.flipping = false;
     dcCall.facing = 'user';
   }
   function dcVideoNote(t) {
@@ -3023,27 +3029,49 @@ function handleRealtimePayload(msg) {
     }
     if (what === 'flip') {
       if (dcCall.screenTrack) { dcVideoNote('Deja de compartir pantalla para girar la cámara'); return; }
+      if (dcCall.flipping) return;
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
-      var next = dcCall.facing === 'environment' ? 'user' : 'environment';
+      var prevFacing = dcCall.facing === 'environment' ? 'environment' : 'user';
+      var next = prevFacing === 'environment' ? 'user' : 'environment';
       var old = dcLiveVideoTrack();
-      // En muchos móviles hay que soltar la cámara actual antes de abrir la otra.
-      if (old && dcIsMobileUa()) { try { old.stop(); } catch (e0) {} }
-      navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: next } } }).then(function (st) {
-        var t = st.getVideoTracks()[0];
-        if (!t) return;
+      var gumCam = function (facing) {
+        return navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: facing } } }).then(function (st) {
+          var t = st.getVideoTracks()[0];
+          if (!t) throw new Error('sin vídeo');
+          return t;
+        });
+      };
+      var adoptCam = function (t, facing) {
         if (dcCall.phase === 'idle') { try { t.stop(); } catch (e1) {} return; }
-        dcCall.facing = next;
+        dcCall.facing = facing;
         t.enabled = !dcCall.camOff;
         return dcSwapLocalVideo(t, true);
+      };
+      dcCall.flipping = true;
+      // En muchos móviles hay que soltar la cámara actual antes de abrir la otra.
+      var released = false;
+      if (old && dcIsMobileUa()) { try { old.stop(); released = true; } catch (e0) {} }
+      gumCam(next).then(function (t) {
+        return adoptCam(t, next);
       }).catch(function () {
         dcVideoNote('No se pudo cambiar de cámara');
-      });
+        // Si soltamos la cámara anterior, la volvemos a abrir para no quedarnos sin vídeo.
+        if (released && dcCall.phase !== 'idle') {
+          return gumCam(prevFacing).then(function (t) { return adoptCam(t, prevFacing); }).catch(function () {
+            dcVideoNote('Se ha perdido la cámara. Pulsa 🔄 para reintentar');
+          });
+        }
+      }).then(function () { dcCall.flipping = false; }, function () { dcCall.flipping = false; });
       return;
     }
     if (what === 'screen') {
       if (dcCall.screenTrack) { dcStopScreenShare(); return; }
       if (!dcCanScreenShare()) { dcVideoNote('Compartir pantalla solo funciona en el ordenador'); return; }
       if (dcCall.phase !== 'active') { dcVideoNote('Espera a que contesten para compartir pantalla'); return; }
+      if (!dcVideoSender()) {
+        dcVideoNote('No se puede compartir pantalla: la llamada no tiene vídeo. Cuelga y haz una videollamada.');
+        return;
+      }
       navigator.mediaDevices.getDisplayMedia({ video: true, audio: false }).then(function (ds) {
         var t = ds.getVideoTracks()[0];
         if (!t) return;
@@ -3058,6 +3086,7 @@ function handleRealtimePayload(msg) {
   }
   function dcPaintVideoCtrls(stage) {
     if (!stage) return;
+    stage.classList.toggle('is-sharing', !!dcCall.screenTrack);
     var cam = stage.querySelector('[data-vc="cam"]');
     var flip = stage.querySelector('[data-vc="flip"]');
     var scr = stage.querySelector('[data-vc="screen"]');
