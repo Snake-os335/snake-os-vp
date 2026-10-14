@@ -7087,7 +7087,7 @@ function buildIcons(){
       '<input type="file" id="fileInput-x" multiple style="display:none">' +
       '<div class="explorer-grid" id="explorerGrid-x"></div>' +
       '<p class="sub" id="explorerMsg-x">Pulsa una carpeta o un archivo subido para abrirlo. Tus archivos son privados de tu cuenta y se guardan aunque reinicies Snake OS.</p>' +
-      '<p class="note" id="explorerStorage-x">' + usedText + '. Consigue memoria infinita en ☁️ Doganiero Cloud.</p>';
+      '<p class="note" id="explorerStorage-x">' + usedText + '. Consigue memoria infinita gratis en ☁️ Doganiero Cloud.</p>';
 
     const grid = container.querySelector('#explorerGrid-x');
     const msg = container.querySelector('#explorerMsg-x');
@@ -7684,10 +7684,10 @@ function buildIcons(){
       '<div class="cloud-bar-wrap"><div class="cloud-bar-fill" style="width:' + pct + '%"></div></div>' +
       '<p class="sub">' + formatBytes(used) + ' usados de ' + (subscribed ? 'memoria infinita ♾️' : '128 GB') + '</p>' +
       (subscribed
-        ? '<p class="note">Tienes Doganiero Cloud activo: memoria infinita. ¡Gracias por tu HUESITO! 🦴</p>' +
+        ? '<p class="note">Tienes Doganiero Cloud activo: memoria infinita. ¡Es gratis! 🎉</p>' +
           '<button type="button" id="cloudToggleBtn-x">Cancelar suscripción</button>'
-        : '<p class="note">Consigue memoria infinita por solo <strong>1 🦴 HUESITO al mes</strong>.</p>' +
-          '<button type="button" id="cloudToggleBtn-x">Suscribirse por 1 🦴 HUESITO/mes</button>'
+        : '<p class="note">Consigue memoria infinita <strong>Gratis</strong>.</p>' +
+          '<button type="button" id="cloudToggleBtn-x">Suscribirse Gratis</button>'
       ) +
       '<div class="status" id="cloudStatus-x"></div>';
 
@@ -7697,7 +7697,7 @@ function buildIcons(){
         currentUser = updated;
         window.currentUser = currentUser;
         const msgText = currentUser.cloudSub
-          ? '¡Gracias por tu HUESITO! Ahora tienes memoria infinita ✅'
+          ? '¡Listo! Ahora tienes memoria infinita gratis ✅'
           : 'Suscripción cancelada. Vuelves a tener 128 GB.';
         reRenderIfOpen('cloud');
         const rec = openApps['cloud'];
@@ -7890,7 +7890,7 @@ function buildIcons(){
     '- 🌐 Navegador: app con Google embebido dentro de Snake OS (sin abrir pestaña nueva del ordenador; solo úsala si piden abrir el Navegador; las búsquedas «busca X» las hace Doganiero AI en el chat).\n' +
     '- 🗺️ Mapas: busca un lugar real, márcalo en el mapa y pulsa «Llévame» para la ruta en coche o a pie desde tu ubicación.\n' +
     '- 👤 Mi perfil: cambiar nombre, avatar (emoji) y contraseña; también permite importar datos antiguos del navegador.\n' +
-    '- ☁️ Doganiero Cloud: suscripción que da almacenamiento ilimitado por "1 🦴 HUESITO al mes" (moneda del sistema); se activa o cancela con un botón desde esa app.\n' +
+    '- ☁️ Doganiero Cloud: suscripción que da almacenamiento ilimitado Gratis (sin coste); se activa o cancela con un botón desde esa app.\n' +
     '- 🌐 Doganiero Metaverse: mundo 2D multijugador (Plaza, Parque, Ciudad) con chat público/privado, salas de eventos, recolección de huesitos, emotes y highfive; solo entre usuarios de este servidor.\n' +
     '- ℹ️ Acerca de: información de la versión del sistema.\n' +
     'Las cuentas se crean desde la pantalla de registro con nombre, correo y contraseña (mínimo 4 caracteres). Todos los ' +
