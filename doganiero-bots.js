@@ -69,6 +69,90 @@
     '@media (max-width:640px){.dbots-main.chatmode .dbots-head{padding:8px}.dbots-main.chatmode .dbots-head .av{font-size:1.4rem}.dbots-main.chatmode .dbots-role{display:none}.dbots-side{max-height:64px}}';
   document.head.appendChild(css);
 
+  /* ===== Diseño según plantilla «bots_creados» (2026-10-14): 3 columnas, blanco + panel degradado ===== */
+  var css2 = document.createElement('style');
+  css2.textContent = [
+    '.dbots.dbx{background:#fff;color:#111;font-family:"Open Sans","Segoe UI",ui-sans-serif,system-ui,sans-serif;font-size:.92rem}',
+    '.dbx .dbots-side{width:240px;background:#fff;border-right:1px solid #9a9a9a;padding:10px 0 10px;position:relative}',
+    '.dbx .dbots-side h3{margin:14px 16px 10px;font-size:1.35rem;font-weight:800;color:#111;padding-right:64px}',
+    '.dbx-star{display:inline-grid;place-items:center;position:relative;flex-shrink:0}',
+    '.dbx-star>svg.st{position:absolute;inset:0;width:100%;height:100%}',
+    '.dbx-star>.in{position:relative;display:grid;place-items:center;line-height:0}',
+    '.dbx .dbx-new{position:absolute;top:8px;right:10px;width:58px;height:58px;background:none !important;border:0 !important;padding:0 !important;cursor:pointer;color:#111;font-size:2rem;font-weight:300}',
+    '.dbx .dbots-bot{background:#fff !important;border:1.5px solid #cfcfcf;border-radius:22px;margin:6px 12px;padding:8px 12px;color:#111}',
+    '.dbx .dbots-bot b{font-weight:700}.dbx .dbots-bot small{color:#666;opacity:1}',
+    '.dbx .dbots-bot.on{border-color:#111;box-shadow:0 0 0 1px #111}',
+    '.dbx .dbots-bot:hover{border-color:#777}',
+    '.dbx .dbots-main{background:#fff;color:#111;position:relative}',
+    '.dbx .dbots-head{background:none !important;justify-content:center;padding:8px 12px !important;gap:12px}',
+    '.dbx .dbots-head h2{flex:0 1 auto !important;font-size:1.4rem;font-weight:500;color:#111}',
+    '.dbx .dbots-head .dbx-hbtn{position:absolute;right:10px;top:12px;display:flex;gap:6px}',
+    '.dbx .dbots-role,.dbx .dbots-tabs{display:none !important}',
+    '.dbx .dbots-warn{background:#fff7e0;color:#5a4300;border:1px solid #f1d27a;border-radius:16px}',
+    '.dbx .dbots-chat{padding:8px 4px;gap:14px}',
+    '.dbx .dbots-msg{border-radius:28px;padding:14px 22px;max-width:72%;font-size:.95rem;line-height:1.45}',
+    '.dbx .dbots-msg.bot{background:#000 !important;color:#fff;border:0 !important}',
+    '.dbx .dbots-msg.user{background:#fff !important;color:#111;border:1px solid #777;align-self:flex-end}',
+    '.dbx .dbots-msg small{color:inherit;opacity:.55}.dbx .dbots-msg.bot a{color:#7fd1ff}.dbx .dbots-msg.user a{color:#2457d6}',
+    '.dbx .dbots-row{max-width:80%}.dbx .dbots-row .dbots-msg{max-width:100%}',
+    '.dbx .dbots-typing span{background:#fff}',
+    '.dbx .dbots-chatin{background:#fff !important;border:1px solid #333;border-radius:999px;padding:6px 8px !important;margin:6px 12px 10px !important;align-items:center !important;gap:8px;position:relative}',
+    '.dbx .dbots .dbots-chatin textarea,.dbx .dbots-chatin textarea{background:transparent !important;border:0 !important;color:#111 !important;text-align:center;font-size:1.05rem;height:38px !important;min-height:38px !important;padding:8px 4px !important;outline:none;box-shadow:none !important}',
+    '.dbx .dbots-chatin textarea::placeholder{color:#222;opacity:.85}',
+    '.dbx .dbx-plus{width:34px !important;height:34px !important;min-width:34px !important;padding:0 !important;border-radius:50% !important;border:0 !important;background:linear-gradient(135deg,#2bd4e6,#2a4bd8) !important;color:#111 !important;font-size:1.3rem !important;cursor:pointer}',
+    '.dbx .dbx-send{width:40px !important;min-width:40px !important;height:38px !important;padding:0 !important;background:none !important;border:0 !important;cursor:pointer}',
+    '.dbx-menu{position:absolute;left:8px;bottom:52px;background:#fff;border:1px solid #333;border-radius:18px;padding:6px;display:none;flex-direction:column;gap:2px;z-index:5;box-shadow:0 8px 24px rgba(0,0,0,.18)}',
+    '.dbx-menu.open{display:flex}.dbx .dbx-menu button{background:none !important;color:#111 !important;border:0 !important;justify-content:flex-start !important;padding:7px 12px !important;border-radius:12px !important;cursor:pointer}',
+    '.dbx .dbx-menu button:hover{background:#f0f0f0 !important}',
+    '.dbx .dbots-aside{width:230px;flex-shrink:0;background:linear-gradient(135deg,#8b3dff 0%,#6c7cf5 50%,#48d6e8 100%);color:#111;display:flex;flex-direction:column;align-items:center;padding:16px 12px;gap:10px;overflow:auto;min-height:0}',
+    '.dbx .dbots-aside .dbx-avname{font-weight:800;font-size:1.25rem;text-align:center}',
+    '.dbx .dbots-aside .dbx-role{font-size:.8rem;text-align:center;opacity:.85;max-height:4.2em;overflow:hidden}',
+    '.dbx .dbots-aside .term-wrap{width:100%;flex:1 1 auto;min-height:160px;margin:0 !important;background:#000 !important;border:0 !important;border-radius:26px !important;color:#e8e8e8}',
+    '.dbx .dbots-aside .term-out{padding:12px 14px 4px;font-size:.74rem}.dbx .dbots-aside .term-in-row{background:transparent;border-top:1px solid #222;font-size:.74rem;padding:6px 12px 10px}',
+    '.dbx .dbots-aside .term-prompt{color:#fff}.dbx .dbots-aside .term-input{color:#fff}',
+    '.dbx .dbots-pane[data-pane="tasks"],.dbx .dbots-pane[data-pane="mem"]{padding-top:4px}',
+    '.dbx .dbx-back{margin:0 12px 8px;align-self:flex-start}',
+    '.dbx .dbots-btn{background:#111;color:#fff;border-radius:999px}.dbx .dbots-btn.alt{background:#fff;color:#111;border:1px solid #777}.dbx .dbots-btn.red{background:#fff;color:#b3261e;border:1px solid #b3261e}',
+    '.dbx input,.dbx textarea,.dbx select{background:#fff;color:#111;border:1px solid #888;border-radius:14px}',
+    '.dbx .dbots-task{background:#fafafa;border:1px solid #ddd;border-left:4px solid #111;border-radius:16px;color:#111}',
+    '.dbx .dbots-form label{font-weight:700}.dbx .dbots-pick span{background:#f4f4f4}.dbx .dbots-pick span.on{border-color:#111}',
+    '.dbx .dbots-empty{color:#111}',
+    '.dbx .dbots-main input::placeholder,.dbx .dbots-main textarea::placeholder{color:#777 !important;opacity:1}',
+    '.dbx .dbx-asidebtn,.dbx .dbx-close{display:none}',
+    '.dbx .dbots-aside .term-input,.dbx .dbots-aside input.term-input{background:transparent !important;border:0 !important;border-radius:0 !important;color:#fff !important;padding:0 !important;box-shadow:none !important}',
+    '.dbx .dbx-send,.dbx .dbx-plus{box-shadow:none !important}',
+    '.dbx .dbots-aside .dbx-close{position:absolute;top:8px;right:8px;width:34px !important;height:34px !important;padding:0 !important;border-radius:50% !important;background:rgba(255,255,255,.85) !important;color:#111 !important;border:0 !important}',
+    '@media (max-width:640px){',
+    ' .dbx{flex-direction:column}',
+    ' .dbx .dbots-side{width:auto;border-right:0;border-bottom:1px solid #9a9a9a;padding:6px 64px 6px 0;max-height:72px !important;flex-direction:row;overflow-x:auto}',
+    ' .dbx .dbx-new{width:48px;height:48px;top:10px}',
+    ' .dbx .dbots-bot{margin:4px 0 4px 8px;padding:4px 10px}',
+    ' .dbx .dbots-aside{position:absolute;right:0;top:0;bottom:0;width:78%;max-width:300px;z-index:6;transform:translateX(105%);transition:transform .2s;box-shadow:-6px 0 20px rgba(0,0,0,.25)}',
+    ' .dbx.aside-open .dbots-aside{transform:none}',
+    ' .dbx .dbx-asidebtn,.dbx .dbots-aside .dbx-close{display:inline-flex !important}',
+    ' .dbx .dbots-head{justify-content:flex-start !important}.dbx .dbots-head .dbx-hbtn{position:static;margin-left:auto}',
+    ' .dbx .dbots-msg{max-width:85%;padding:11px 16px}',
+    ' .dbx .dbots-head h2{font-size:1.15rem}',
+    '}',
+    '.app-window .win-body:has(> .dbots.dbx){container-type:inline-size;container-name:dbwin}',
+    '@container dbwin (max-width:760px){',
+    ' .dbx{flex-direction:column}',
+    ' .dbx .dbots-side{width:auto;border-right:0;border-bottom:1px solid #9a9a9a;padding:6px 64px 6px 0;max-height:72px !important;flex-direction:row;overflow-x:auto}',
+    ' .dbx .dbx-new{width:48px;height:48px;top:10px}',
+    ' .dbx .dbots-bot{margin:4px 0 4px 8px;padding:4px 10px}',
+    ' .dbx .dbots-aside{position:absolute;right:0;top:0;bottom:0;width:78%;max-width:300px;z-index:6;transform:translateX(105%);transition:transform .2s;box-shadow:-6px 0 20px rgba(0,0,0,.25)}',
+    ' .dbx.aside-open .dbots-aside{transform:none}',
+    ' .dbx .dbx-asidebtn,.dbx .dbots-aside .dbx-close{display:inline-flex !important}',
+    ' .dbx .dbots-head{justify-content:flex-start !important}.dbx .dbots-head .dbx-hbtn{position:static;margin-left:auto}',
+    ' .dbx .dbots-msg{max-width:85%;padding:11px 16px}',
+    ' .dbx .dbots-head h2{font-size:1.15rem}',
+    '}'
+  ].join('');
+  document.head.appendChild(css2);
+  var STAR_PTS = (function () { var p = [], n = 12; for (var i = 0; i < n * 2; i++) { var a = Math.PI * i / n - Math.PI / 2, r = i % 2 ? 41 : 48; p.push((50 + r * Math.cos(a)).toFixed(1) + ',' + (50 + r * Math.sin(a)).toFixed(1)); } return p.join(' '); })();
+  function star(inner, size) { return '<span class="dbx-star" style="width:' + size + 'px;height:' + size + 'px"><svg class="st" viewBox="0 0 100 100"><polygon points="' + STAR_PTS + '" fill="#fff" stroke="#333" stroke-width="1.6"/></svg><span class="in">' + inner + '</span></span>'; }
+  var PLANE = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="#111" stroke-width="1.3" stroke-linejoin="round"><path d="M22 2 2 10.5l7 2.5 2.5 7L22 2z"/><path d="M9 13 22 2M11.5 20l-1-5.5"/></svg>';
+
   function api(path, opts) { return window.api ? window.api(path, opts) : Promise.reject(new Error('api')); }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function emo(el) { try { if (window.snakeEmoji) window.snakeEmoji.parse(el); } catch (e) {} }
@@ -118,8 +202,8 @@
 
   function render(body) {
     var S = { bots: [], tasks: [], hasKey: true, sel: null, timer: 0, alive: true, logs: {} };
-    body.innerHTML = '<div class="dbots"><div class="dbots-side"></div><div class="dbots-main"></div></div>';
-    var side = body.querySelector('.dbots-side'), main = body.querySelector('.dbots-main');
+    body.innerHTML = '<div class="dbots dbx"><div class="dbots-side"></div><div class="dbots-main"></div><div class="dbots-aside"></div></div>';
+    var side = body.querySelector('.dbots-side'), main = body.querySelector('.dbots-main'), aside = body.querySelector('.dbots-aside'), root = body.querySelector('.dbots');
 
     function load() {
       return Promise.all([api('/api/dbots/bots'), api('/api/dbots/tasks')]).then(function (r) {
@@ -143,13 +227,12 @@
 
     function botTasks(id) { return S.tasks.filter(function (t) { return t.bot_id === id; }); }
     function drawSide() {
-      var h = '<h3>🤖 Mis bots</h3>';
+      var h = '<button class="dbx-new" data-new title="Nuevo bot">' + star('<span style="font-size:30px;line-height:1">+</span>', 58) + '</button><h3>Bots creados</h3>';
       S.bots.forEach(function (b) {
         var t = th(b), act = botTasks(b.id).filter(function (x) { return x.status === 'trabajando' || x.status === 'en cola'; }).length;
         h += '<div class="dbots-bot' + (b.id === S.sel ? ' on' : '') + '" data-id="' + esc(b.id) + '" style="background:' + t[1] + ';--ac:' + t[2] + '">' +
-          '<span class="av">' + botFig(b, 38) + '</span><div><b>' + esc(b.name) + '</b><small>' + (act ? '⚙️ ' + act + ' activas' : 'Libre') + '</small></div></div>';
+          '<span class="av">' + star(botFig(b, 30), 44) + '</span><div><b>' + esc(b.name) + '</b><small>' + (act ? '⚙️ ' + act + ' activas' : 'Libre') + '</small></div></div>';
       });
-      h += '<div style="padding:8px"><button class="dbots-btn" data-new>➕ Nuevo bot</button></div>';
       side.innerHTML = h; emo(side);
       side.querySelectorAll('.dbots-bot').forEach(function (el) { el.onclick = function () { S.sel = el.getAttribute('data-id'); drawSide(); drawMain(); }; });
       side.querySelector('[data-new]').onclick = function () { form(null); };
@@ -157,23 +240,37 @@
     function cur() { return S.bots.find(function (b) { return b.id === S.sel; }); }
     function drawMain() {
       var b = cur();
-      if (!b) { main.classList.remove('chatmode'); main.innerHTML = '<div class="dbots-empty">🤖<br><br>Aún no tienes bots.<br>Crea uno, dale una función y ponlo a trabajar.<br><br><button class="dbots-btn" data-new>➕ Crear mi primer bot</button></div>'; main.querySelector('[data-new]').onclick = function () { form(null); }; emo(main); return; }
+      if (!b) { aside.innerHTML = star(botFig({ fig: 0, color: '#8b3dff' }, 96), 140) + '<div class="dbx-avname">Tu bot</div>'; main.classList.remove('chatmode'); main.innerHTML = '<div class="dbots-empty">🤖<br><br>Aún no tienes bots.<br>Crea uno, dale una función y ponlo a trabajar.<br><br><button class="dbots-btn" data-new>➕ Crear mi primer bot</button></div>'; main.querySelector('[data-new]').onclick = function () { form(null); }; emo(main); return; }
       var t = th(b);
       main.style.setProperty('--ac', t[2]);
       main.innerHTML =
-        '<div class="dbots-head" style="background:linear-gradient(90deg,' + t[1] + ',transparent)"><span class="av">' + botFig(b, 52) + '</span><h2>' + esc(b.name) + '</h2>' +
-        '<button class="dbots-btn alt" data-edit>✏️ Editar</button><button class="dbots-btn red" data-del>🗑️ Borrar</button></div>' +
+        '<div class="dbots-head"><span class="av">' + star(botFig(b, 44), 66) + '</span><h2>' + esc(b.name) + '</h2>' +
+        '<span class="dbx-hbtn"><button class="dbots-btn alt dbx-asidebtn" data-aside title="Terminal">🖥️</button><button class="dbots-btn alt" data-edit title="Editar">✏️</button><button class="dbots-btn red" data-del title="Borrar">🗑️</button></span></div>' +
         '<div class="dbots-role"><b>Función:</b> ' + esc(b.role || 'Sin función (asistente general)') + '</div>' +
         (S.hasKey ? '' : '<div class="dbots-warn">⚠️ Para que los bots busquen en internet necesitas tu propia clave de AskBox. Añádela en <b>Ajustes → IA → Key de AskBox</b>.</div>') +
         '<div class="dbots-tabs"><button data-tab="chat">💬 Chat</button><button data-tab="term">🖥️ Terminal</button><button data-tab="tasks">📋 Tareas</button><button data-tab="mem">🧠 Memoria</button></div>' +
-        '<div class="dbots-pane" data-pane="chat"><div class="dbots-chat"></div><div class="dbots-chatin"><textarea data-msg maxlength="2000" placeholder="Escríbele a ' + esc(b.name) + '…"></textarea><button class="dbots-btn" data-send>Enviar ➤</button></div></div>' +
-        '<div class="dbots-pane" data-pane="mem"><div class="dbots-form" style="padding:0 12px 12px"><p style="margin:0;opacity:.8">Cosas que el bot recuerda siempre (una por línea). También las apunta él solo cuando le pides que recuerde algo.</p><textarea data-memtxt style="min-height:160px">' + esc((b.memory || []).join('\n')) + '</textarea><div><button class="dbots-btn" data-memsave>Guardar memoria</button></div></div></div>' +
-        '<div class="dbots-pane" data-pane="tasks">' +
+        '<div class="dbots-pane" data-pane="chat"><div class="dbots-chat"></div><div class="dbots-chatin"><button class="dbx-plus" data-plus title="Más">+</button><div class="dbx-menu" data-menu><button data-mtab="tasks">📋 Tareas</button><button data-mtab="mem">🧠 Memoria</button><button data-mtab="term">🖥️ Terminal</button><button data-mtab="edit">✏️ Editar bot</button></div><textarea data-msg maxlength="2000" placeholder="Escribir"></textarea><button class="dbx-send" data-send title="Enviar">' + PLANE + '</button></div></div>' +
+        '<div class="dbots-pane" data-pane="mem"><button class="dbots-btn alt dbx-back" data-back>← Volver al chat</button><div class="dbots-form" style="padding:0 12px 12px"><p style="margin:0;opacity:.8">Cosas que el bot recuerda siempre (una por línea). También las apunta él solo cuando le pides que recuerde algo.</p><textarea data-memtxt style="min-height:160px">' + esc((b.memory || []).join('\n')) + '</textarea><div><button class="dbots-btn" data-memsave>Guardar memoria</button></div></div></div>' +
+        '<div class="dbots-pane" data-pane="tasks"><button class="dbots-btn alt dbx-back" data-back>← Volver al chat</button>' +
         '<div class="dbots-new"><input data-in placeholder="Nueva tarea, p. ej. «Busca noticias de Dogalandia»" maxlength="1000"><button class="dbots-btn" data-go>▶️ Hacer</button></div>' +
         '</div>' +
         '<div class="dbots-pane" data-pane="term"><div class="term-wrap"><div class="term-out"></div><div class="term-in-row"><span class="term-prompt">' + esc(b.name.toLowerCase().replace(/\s+/g, '-')) + '@snake-os-lite:~$</span><input class="term-input" placeholder="help" autocomplete="off" spellcheck="false"></div></div></div>';
       main.querySelector('[data-pane="tasks"]').insertAdjacentHTML('beforeend', '<div style="display:flex;align-items:center;margin:0 12px 6px"><b style="flex:1">Tareas</b><button class="dbots-btn alt" data-clear>🧹 Borrar historial</button></div><div class="dbots-tasks"></div>');
-      emo(main);
+      aside.innerHTML = star(botFig(b, 96), 140) + '<div class="dbx-avname">' + esc(b.name) + '</div><div class="dbx-role">' + esc(b.role || 'Asistente general') + '</div>';
+      aside.insertAdjacentHTML('afterbegin', '<button class="dbx-close" data-closeaside title="Cerrar">✕</button>');
+      aside.querySelector('[data-closeaside]').onclick = function () { root.classList.remove('aside-open'); };
+      var tp = main.querySelector('[data-pane="term"]'), tw = tp.querySelector('.term-wrap'); aside.appendChild(tw); tp.remove();
+      emo(main); emo(aside);
+      var menu = main.querySelector('[data-menu]');
+      main.querySelector('[data-plus]').onclick = function (e) { e.stopPropagation(); menu.classList.toggle('open'); };
+      main.addEventListener('click', function () { menu.classList.remove('open'); });
+      menu.querySelectorAll('[data-mtab]').forEach(function (x) { x.onclick = function () { var v = x.getAttribute('data-mtab'); menu.classList.remove('open');
+        if (v === 'edit') return form(b);
+        if (v === 'term') { root.classList.add('aside-open'); var ti = aside.querySelector('.term-input'); if (ti) ti.focus(); return; }
+        tab(v); }; });
+      main.querySelectorAll('[data-back]').forEach(function (x) { x.onclick = function () { tab('chat'); }; });
+      main.querySelector('[data-aside]').onclick = function (e) { e.stopPropagation(); root.classList.toggle('aside-open'); };
+      main.querySelector('.dbots-chat').addEventListener('click', function () { root.classList.remove('aside-open'); });
       var inp = main.querySelector('[data-in]');
       function go() { var v = inp.value.trim(); if (!v) return; inp.value = ''; addTask(b, 'tarea', v); }
       main.querySelector('[data-go]').onclick = go;
@@ -199,6 +296,7 @@
       tab(S.tab || 'chat');
     }
     function tab(n) {
+      if (n === 'term') { root.classList.add('aside-open'); n = 'chat'; }
       S.tab = n;
       main.classList.toggle('chatmode', n === 'chat' || n === 'term');
       main.querySelectorAll('[data-tab]').forEach(function (x) { x.classList.toggle('on', x.getAttribute('data-tab') === n); });
@@ -256,7 +354,7 @@
     var term = null;
     function line(txt, cls) { if (!term) return; var d = document.createElement('div'); d.className = 'term-line ' + (cls || ''); d.textContent = txt; term.out.appendChild(d); term.out.scrollTop = term.out.scrollHeight; }
     function setupTerm(b) {
-      var wrap = main.querySelector('.term-wrap');
+      var wrap = aside.querySelector('.term-wrap') || main.querySelector('.term-wrap');
       term = { out: wrap.querySelector('.term-out'), inp: wrap.querySelector('.term-input'), bot: b, seen: {} };
       line('Snake OS Lite · terminal de ' + b.name + '. Escribe «help».', 'term-muted');
       syncLog();
