@@ -34,6 +34,19 @@
     '.dbots-form{padding:14px;display:flex;flex-direction:column;gap:8px}.dbots-form textarea{min-height:80px}' +
     '.dbots-pick{display:flex;flex-wrap:wrap;gap:6px}.dbots-pick span{cursor:pointer;padding:5px 8px;border-radius:9px;border:2px solid transparent;background:rgba(255,255,255,.06)}.dbots-pick span.on{border-color:#7CFC9A}' +
     '@media (max-width:640px){.dbots{flex-direction:column}.dbots-side{width:auto;flex-direction:row;border-right:0;border-bottom:1px solid rgba(157,255,194,.15);flex-shrink:0;overflow-x:auto}.dbots-side h3{display:none}.dbots-bot{flex-shrink:0}.dbots-bot small{display:none}}';
+  css.textContent +=
+    '.dbots-tabs{display:flex;gap:4px;margin:0 12px 8px;flex-wrap:wrap}.dbots-tabs button{background:rgba(255,255,255,.07);color:#eafff0;border:0;border-radius:9px;padding:6px 10px;cursor:pointer;font:inherit}.dbots-tabs button.on{background:var(--ac);color:#06130b;font-weight:700}' +
+    '.dbots-pane{display:none;flex-direction:column;min-height:0}.dbots-pane.on{display:flex}' +
+    '.dbots-chat{flex:1;min-height:200px;overflow:auto;margin:0 12px;padding:6px 2px;display:flex;flex-direction:column;gap:8px}' +
+    '.dbots-msg{max-width:82%;padding:8px 11px;border-radius:14px;white-space:pre-wrap;word-break:break-word;line-height:1.4}' +
+    '.dbots-msg.user{align-self:flex-end;background:#1d6b41;border-bottom-right-radius:4px}' +
+    '.dbots-msg.bot{align-self:flex-start;background:rgba(255,255,255,.08);border-left:3px solid var(--ac);border-bottom-left-radius:4px}' +
+    '.dbots-msg small{display:block;opacity:.6;font-size:.72rem;margin-top:4px}.dbots-msg a{color:var(--ac)}' +
+    '.dbots-typing span{display:inline-block;width:7px;height:7px;margin:0 2px;border-radius:50%;background:var(--ac);animation:dbotsDot 1s infinite}' +
+    '.dbots-typing span:nth-child(2){animation-delay:.15s}.dbots-typing span:nth-child(3){animation-delay:.3s}' +
+    '@keyframes dbotsDot{0%,80%,100%{opacity:.25;transform:translateY(0)}40%{opacity:1;transform:translateY(-4px)}}' +
+    '.dbots-chatin{display:flex;gap:6px;margin:8px 12px 12px}.dbots-chatin textarea{flex:1;min-width:0;resize:none;height:42px}' +
+    '.dbots-main.chatmode{overflow:hidden}.dbots-main.chatmode .dbots-pane.on{flex:1}';
   document.head.appendChild(css);
 
   function api(path, opts) { return window.api ? window.api(path, opts) : Promise.reject(new Error('api')); }
@@ -59,7 +72,7 @@
       if (!body.isConnected) { S.alive = false; clearInterval(S.timer); return; }
       api('/api/dbots/tasks').then(function (r) {
         var old = JSON.stringify(S.tasks); S.tasks = r.tasks || [];
-        if (old !== JSON.stringify(S.tasks)) { drawSide(); drawTasks(); syncLog(); }
+        if (old !== JSON.stringify(S.tasks)) { drawSide(); drawTasks(); syncLog(); if (S.refreshChat && !S.sending) S.refreshChat().catch(function () {}); }
       }).catch(function () {});
     }
     S.timer = setInterval(function () {
@@ -91,10 +104,14 @@
         '<button class="dbots-btn alt" data-edit>✏️ Editar</button><button class="dbots-btn red" data-del>🗑️ Borrar</button></div>' +
         '<div class="dbots-role"><b>Función:</b> ' + esc(b.role || 'Sin función (asistente general)') + '</div>' +
         (S.hasKey ? '' : '<div class="dbots-warn">⚠️ Para que los bots busquen en internet necesitas tu propia clave de AskBox. Añádela en <b>Ajustes → IA → Key de AskBox</b>.</div>') +
+        '<div class="dbots-tabs"><button data-tab="chat">💬 Chat</button><button data-tab="term">🖥️ Terminal</button><button data-tab="tasks">📋 Tareas</button><button data-tab="mem">🧠 Memoria</button></div>' +
+        '<div class="dbots-pane" data-pane="chat"><div class="dbots-chat"></div><div class="dbots-chatin"><textarea data-msg maxlength="2000" placeholder="Escríbele a ' + esc(b.name) + '…"></textarea><button class="dbots-btn" data-send>➤</button></div></div>' +
+        '<div class="dbots-pane" data-pane="mem"><div class="dbots-form" style="padding:0 12px 12px"><p style="margin:0;opacity:.8">Cosas que el bot recuerda siempre (una por línea). También las apunta él solo cuando le pides que recuerde algo.</p><textarea data-memtxt style="min-height:160px">' + esc((b.memory || []).join('\n')) + '</textarea><div><button class="dbots-btn" data-memsave>Guardar memoria</button></div></div></div>' +
+        '<div class="dbots-pane" data-pane="tasks">' +
         '<div class="dbots-new"><input data-in placeholder="Nueva tarea, p. ej. «Busca noticias de Dogalandia»" maxlength="1000"><button class="dbots-btn" data-go>▶️ Hacer</button></div>' +
-        '<div class="term-wrap"><div class="term-out"></div><div class="term-in-row"><span class="term-prompt">' + esc(b.name.toLowerCase().replace(/\s+/g, '-')) + '@snake-os-lite:~$</span><input class="term-input" placeholder="help" autocomplete="off" spellcheck="false"></div></div>' +
-        '<div style="display:flex;align-items:center;margin:0 12px 6px"><b style="flex:1">Tareas</b><button class="dbots-btn alt" data-clear>🧹 Borrar historial</button></div>' +
-        '<div class="dbots-tasks"></div>';
+        '</div>' +
+        '<div class="dbots-pane" data-pane="term"><div class="term-wrap"><div class="term-out"></div><div class="term-in-row"><span class="term-prompt">' + esc(b.name.toLowerCase().replace(/\s+/g, '-')) + '@snake-os-lite:~$</span><input class="term-input" placeholder="help" autocomplete="off" spellcheck="false"></div></div></div>';
+      main.querySelector('[data-pane="tasks"]').insertAdjacentHTML('beforeend', '<div style="display:flex;align-items:center;margin:0 12px 6px"><b style="flex:1">Tareas</b><button class="dbots-btn alt" data-clear>🧹 Borrar historial</button></div><div class="dbots-tasks"></div>');
       emo(main);
       var inp = main.querySelector('[data-in]');
       function go() { var v = inp.value.trim(); if (!v) return; inp.value = ''; addTask(b, 'tarea', v); }
@@ -110,6 +127,53 @@
       };
       setupTerm(b);
       drawTasks();
+      setupChat(b);
+      main.querySelectorAll('[data-tab]').forEach(function (bt) { bt.onclick = function () { tab(bt.getAttribute('data-tab')); }; });
+      main.querySelector('[data-memsave]').onclick = function () {
+        var mem = main.querySelector('[data-memtxt]').value.split('\n').map(function (x) { return x.trim(); }).filter(Boolean);
+        api('/api/dbots/bots/' + encodeURIComponent(b.id), { method: 'PUT', body: { memory: mem } }).then(function (r) {
+          S.bots = S.bots.map(function (x) { return x.id === b.id ? r.bot : x; }); b.memory = r.bot.memory; alert('Memoria guardada 🧠');
+        }).catch(function (e) { alert(errMsg(e)); });
+      };
+      tab(S.tab || 'chat');
+    }
+    function tab(n) {
+      S.tab = n;
+      main.classList.toggle('chatmode', n === 'chat' || n === 'term');
+      main.querySelectorAll('[data-tab]').forEach(function (x) { x.classList.toggle('on', x.getAttribute('data-tab') === n); });
+      main.querySelectorAll('[data-pane]').forEach(function (x) { x.classList.toggle('on', x.getAttribute('data-pane') === n); });
+      if (n === 'chat') { var c = main.querySelector('.dbots-chat'); if (c) c.scrollTop = c.scrollHeight; var t = main.querySelector('[data-msg]'); if (t && !window.matchMedia('(pointer:coarse)').matches) t.focus(); }
+    }
+    function linkify(t) { return esc(t).replace(/https?:\/\/[^\s<)\]]+/g, function (u) { return '<a href="' + u + '" target="_blank" rel="noopener">' + u + '</a>'; }); }
+    function fmtTime(at) { try { return new Date(at * 1000).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }); } catch (e) { return ''; } }
+    function setupChat(b) {
+      var box = main.querySelector('.dbots-chat'), ta = main.querySelector('[data-msg]'), btn = main.querySelector('[data-send]');
+      S.chatBot = b.id; S.msgs = S.msgs || {}; S.sending = false;
+      function paint() {
+        var list = S.msgs[b.id] || [];
+        var h = list.length ? '' : '<div style="opacity:.7;text-align:center;margin-top:20px">' + esc(b.avatar) + ' Hola, soy ' + esc(b.name) + '. Háblame con normalidad: puedo buscar en internet y hacer tareas en segundo plano.</div>';
+        list.forEach(function (m) {
+          var meta = fmtTime(m.at) + (m.search ? ' · 🔎 ' + esc(m.search) : '') + (m.task ? ' · 📋 tarea ' + esc(String(m.task).slice(-4)) : '') + (m.memory ? ' · 🧠 recordado' : '');
+          h += '<div class="dbots-msg ' + (m.role === 'user' ? 'user' : 'bot') + '">' + linkify(m.text) + '<small>' + meta + '</small></div>';
+        });
+        if (S.sending) h += '<div class="dbots-msg bot dbots-typing"><span></span><span></span><span></span></div>';
+        box.innerHTML = h; emo(box); box.scrollTop = box.scrollHeight;
+      }
+      function refresh() { return api('/api/dbots/chat/' + encodeURIComponent(b.id)).then(function (r) { S.msgs[b.id] = r.messages || []; if (S.chatBot === b.id && box.isConnected) paint(); }); }
+      S.refreshChat = refresh;
+      paint(); refresh().catch(function () {});
+      function send() {
+        var v = ta.value.trim(); if (!v || S.sending) return;
+        if (!S.hasKey) { alert('Para hablar con tus bots necesitas tu clave de AskBox. Añádela en Ajustes → IA → Key de AskBox.'); return; }
+        ta.value = ''; S.sending = true;
+        (S.msgs[b.id] = S.msgs[b.id] || []).push({ role: 'user', text: v, at: Date.now() / 1000 }); paint();
+        api('/api/dbots/chat/' + encodeURIComponent(b.id), { method: 'POST', body: { text: v } })
+          .then(function () { S.sending = false; return refresh(); })
+          .then(function () { poll(); })
+          .catch(function (e) { S.sending = false; S.msgs[b.id].push({ role: 'bot', text: '❌ ' + errMsg(e), at: Date.now() / 1000 }); paint(); });
+      }
+      btn.onclick = send;
+      ta.onkeydown = function (e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } };
     }
     function drawTasks() {
       var box = main.querySelector('.dbots-tasks'); if (!box) return;

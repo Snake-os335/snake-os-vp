@@ -101,6 +101,11 @@ def _clean_bot(raw: dict[str, Any], old: dict[str, Any] | None = None) -> dict[s
         b["theme"] = t if t in THEMES else "selva"
     if "avatar" in raw or not old:
         b["avatar"] = str(raw.get("avatar") or "🤖")[:8]
+    if "memory" in raw:
+        mem = raw.get("memory") or []
+        if isinstance(mem, str):
+            mem = [x for x in mem.splitlines()]
+        b["memory"] = [str(x).strip()[:200] for x in mem if str(x).strip()][:30]
     return b
 
 
@@ -143,6 +148,67 @@ class BotsBody(BaseModel):
     role: str | None = None
     theme: str | None = None
     avatar: str | None = None
+    memory: list[str] | None = None
+
+
+class ChatBody(BaseModel):
+    text: str = Field(..., min_length=1, max_length=2000)
+
+
+MAX_CHAT_MSGS = 200
+MAX_CHAT_PER_MIN = 12
+_chat_rate: dict[int, list[float]] = {}
+
+
+def _ensure_chat(conn) -> None:
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS dbots_chat (user_id INTEGER NOT NULL, bot_id TEXT NOT NULL, "
+        "data TEXT NOT NULL, updated_at REAL NOT NULL, PRIMARY KEY(user_id, bot_id))"
+    )
+
+
+def _chat_load(uid: int, bot_id: str) -> list[dict[str, Any]]:
+    with db.get_conn() as conn:
+        _ensure_chat(conn)
+        row = conn.execute("SELECT data FROM dbots_chat WHERE user_id=? AND bot_id=?", (uid, bot_id)).fetchone()
+    try:
+        d = json.loads(row[0]) if row else []
+        return d if isinstance(d, list) else []
+    except Exception:
+        return []
+
+
+_chat_lock = threading.Lock()
+
+
+def _chat_append(uid: int, bot_id: str, role: str, text: str, **extra: Any) -> dict[str, Any]:
+    msg = {"id": "m" + uuid.uuid4().hex[:10], "role": role, "text": str(text)[:8000], "at": time.time()}
+    msg.update(extra)
+    with _chat_lock:
+        msgs = _chat_load(uid, bot_id)
+        msgs.append(msg)
+        msgs = msgs[-MAX_CHAT_MSGS:]
+        with db.get_conn() as conn:
+            _ensure_chat(conn)
+            conn.execute(
+                "INSERT INTO dbots_chat(user_id,bot_id,data,updated_at) VALUES(?,?,?,?) "
+                "ON CONFLICT(user_id,bot_id) DO UPDATE SET data=excluded.data, updated_at=excluded.updated_at",
+                (uid, bot_id, json.dumps(msgs, ensure_ascii=False), time.time()),
+            )
+            conn.commit()
+    return msg
+
+
+def _parse_json(text: str) -> dict[str, Any] | None:
+    t = (text or "").strip()
+    m = re.search(r"\{[\s\S]*\}", t)
+    if not m:
+        return None
+    try:
+        d = json.loads(m.group(0))
+        return d if isinstance(d, dict) else None
+    except Exception:
+        return None
 
 
 class TaskBody(BaseModel):
@@ -232,16 +298,22 @@ def build_router(
                 raise RuntimeError("CANCEL")
             say("Hecho ✅")
             _update_task(tid, status="hecho", result=out[:8000])
+            if bot.get("id"):
+                _chat_append(uid, bot["id"], "bot", "✅ Terminé la tarea «" + text[:120] + "»:\n\n" + out[:6000], task=tid)
         except RuntimeError as exc:
             if str(exc) == "NOKEY":
                 say("Falta tu clave de AskBox")
                 _update_task(tid, status="error", result="No tienes clave de AskBox. Añádela en Ajustes → IA → Key de AskBox.")
+                if bot.get("id"):
+                    _chat_append(uid, bot["id"], "bot", "❌ No pude hacer «" + text[:120] + "»: falta tu clave de AskBox.", task=tid)
             else:
                 say("Cancelada")
                 _update_task(tid, status="cancelada")
         except AskboxError as exc:
             say("AskBox: " + exc.message[:200])
             _update_task(tid, status="error", result="AskBox respondió un error: " + exc.message[:300])
+            if bot.get("id"):
+                _chat_append(uid, bot["id"], "bot", "❌ La tarea «" + text[:120] + "» falló: " + exc.message[:200], task=tid)
         except Exception as exc:  # noqa: BLE001
             say("Error: " + type(exc).__name__)
             _update_task(tid, status="error", result="La tarea falló. Prueba otra vez.")
@@ -323,6 +395,10 @@ def build_router(
             conn.execute("UPDATE dbots_tasks SET status='cancelada' WHERE user_id=? AND bot_id=? AND status='en cola'", (uid, bot_id))
             conn.commit()
         _cancel.update(ids)
+        with _chat_lock, db.get_conn() as conn:
+            _ensure_chat(conn)
+            conn.execute("DELETE FROM dbots_chat WHERE user_id=? AND bot_id=?", (uid, bot_id))
+            conn.commit()
         return {"ok": True}
 
     @r.get("/api/dbots/tasks")
@@ -334,6 +410,97 @@ def build_router(
                 "SELECT * FROM dbots_tasks WHERE user_id=? ORDER BY created_at DESC LIMIT 120", (uid,)
             ).fetchall()
         return {"tasks": [_task_row(x) for x in rows]}
+
+    def _enqueue(uid: int, bot_id: str, kind: str, text: str) -> str:
+        return add_task(TaskBody(bot_id=bot_id, kind=kind, input=text[:1000]), user={"id": uid})["id"]
+
+    @r.get("/api/dbots/chat/{bot_id}")
+    def chat_get(bot_id: str, user=Depends(require_user)):
+        return {"messages": _chat_load(int(user["id"]), bot_id)}
+
+    @r.delete("/api/dbots/chat/{bot_id}")
+    def chat_clear(bot_id: str, user=Depends(require_user)):
+        uid = int(user["id"])
+        with _chat_lock, db.get_conn() as conn:
+            _ensure_chat(conn)
+            conn.execute("DELETE FROM dbots_chat WHERE user_id=? AND bot_id=?", (uid, bot_id))
+            conn.commit()
+        return {"ok": True}
+
+    @r.post("/api/dbots/chat/{bot_id}")
+    def chat_send(bot_id: str, body: ChatBody, user=Depends(require_user)):
+        uid = int(user["id"])
+        bots = _load_bots(uid)
+        bot = next((b for b in bots if b.get("id") == bot_id), None)
+        if not bot:
+            raise HTTPException(404, "Bot no encontrado")
+        key = own_askbox_key(uid)
+        if not key:
+            raise HTTPException(422, "No tienes clave de AskBox. Añádela en Ajustes → IA → Key de AskBox.")
+        now = time.monotonic()
+        calls = [t for t in _chat_rate.get(uid, []) if t > now - 60]
+        if len(calls) >= MAX_CHAT_PER_MIN:
+            raise HTTPException(429, "Vas muy rápido; espera un momento antes de escribir otra vez.")
+        calls.append(now)
+        _chat_rate[uid] = calls
+        text = body.text.strip()
+        history = _chat_load(uid, bot_id)[-16:]
+        _chat_append(uid, bot_id, "user", text)
+        convo = "\n".join(("Usuario: " if m.get("role") == "user" else "Bot: ") + str(m.get("text") or "")[:1500] for m in history)
+        mem = "\n".join("- " + x for x in (bot.get("memory") or [])) or "(vacía)"
+        system = (
+            f"Eres «{bot.get('name')}», un bot de Doganiero Bots dentro de Snake OS. Tu función: {bot.get('role') or 'asistente general'}.\n"
+            f"Tu memoria (notas que debes recordar):\n{mem}\n"
+            f"Fecha de hoy: {time.strftime('%Y-%m-%d')}. Hablas en español, natural y breve.\n"
+            "Responde SIEMPRE con un único objeto JSON: {\"reply\": texto para el usuario, "
+            "\"action\": \"none\"|\"search\"|\"task\", \"query\": consulta web corta si action=search, "
+            "\"task\": descripción si action=task, \"memory\": nota nueva para recordar o \"\"}. "
+            "Usa search si necesitas información actual o de internet para contestar ahora. "
+            "Usa task para trabajos largos o que el usuario pide hacer en segundo plano (avisarás al terminar). "
+            "Usa memory solo si el usuario te pide recordar algo o da un dato importante y duradero."
+        )
+        prompt = (f"Conversación previa:\n{convo}\n\n" if convo else "") + f"Usuario: {text}\nResponde con el JSON."
+        try:
+            res = askbox_client.ask(prompt, system=system, tier="balanced", max_output_tokens=900, api_key=key)
+            raw = res.get("text") or ""
+            d = _parse_json(raw) or {"reply": raw, "action": "none"}
+            reply = str(d.get("reply") or "").strip()
+            action = str(d.get("action") or "none")
+            extra: dict[str, Any] = {}
+            note = str(d.get("memory") or "").strip()[:200]
+            if note:
+                bot.setdefault("memory", [])
+                if note not in bot["memory"]:
+                    bot["memory"] = (bot["memory"] + [note])[-30:]
+                    _save_bots(uid, [bot if b.get("id") == bot_id else b for b in bots])
+                    extra["memory"] = note
+            if action == "search" and str(d.get("query") or "").strip():
+                q = str(d.get("query")).strip()[:150]
+                results = web_search(q, 5) or []
+                ctx = "\n".join(f"[{i+1}] {x.get('title','')}: {x.get('snippet','')} ({x.get('url','')})" for i, x in enumerate(results[:5])) or "(sin resultados)"
+                res2 = askbox_client.ask(
+                    (f"Conversación previa:\n{convo}\n\n" if convo else "") + f"Usuario: {text}\n\nResultados de búsqueda para «{q}»:\n{ctx}\n\n"
+                    "Contesta al usuario en español, natural y breve, citando fuentes como [n]. Solo texto, sin JSON.",
+                    system=f"Eres «{bot.get('name')}», bot de Doganiero Bots. Tu función: {bot.get('role') or 'asistente general'}. Memoria:\n{mem}",
+                    tier="balanced", max_output_tokens=900, api_key=key,
+                )
+                reply = (res2.get("text") or reply).strip()
+                extra["search"] = q
+                extra["sources"] = [x.get("url", "")[:300] for x in results[:5] if x.get("url")]
+            elif action == "task" and str(d.get("task") or "").strip():
+                try:
+                    tid = _enqueue(uid, bot_id, "tarea", str(d.get("task")).strip())
+                    extra["task"] = tid
+                    reply = (reply or "Vale, me pongo con ello.") + "\n\n⏳ Tarea en cola; te aviso aquí cuando termine."
+                except HTTPException as exc:
+                    reply = (reply + "\n\n" if reply else "") + "⚠️ No pude crear la tarea: " + str(exc.detail)
+            if not reply:
+                reply = "🤔 No sé qué decir. ¿Me lo explicas de otra forma?"
+        except AskboxError as exc:
+            msg = _chat_append(uid, bot_id, "bot", "❌ AskBox respondió un error: " + exc.message[:200], error=True)
+            return {"message": msg}
+        msg = _chat_append(uid, bot_id, "bot", reply, **extra)
+        return {"message": msg}
 
     @r.post("/api/dbots/tasks")
     def add_task(body: TaskBody, user=Depends(require_user)):

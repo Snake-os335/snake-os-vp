@@ -47,7 +47,8 @@
     return out;
   }
   var TEXTSEL = 'input:not([type=button]):not([type=submit]):not([type=reset]):not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]):not([type=file]):not([type=image]):not([type=hidden]),textarea,[contenteditable]:not([contenteditable=false]),.xterm';
-  var NOFP = ':not(.mv-root.mv-fp *):not(.mv-root.mv-fp)';
+  /* Navegador: dentro de su ventana se usa el cursor normal del sistema */
+  var NOFP = ':not(.mv-root.mv-fp *):not(.mv-root.mv-fp):not(#win-browser .win-body *):not(#win-browser .win-body)';
   function staticCss() {
     var bigU = 'html.snk-cur.snk-cur-big body.snk-bigcursor';
     var s = varsCss();
@@ -59,6 +60,8 @@
     s += 'html.snk-cur .xterm.enable-mouse-events{cursor:var(--snkc-arrow);}\n';
     s += 'html.snk-cur .xterm .xterm-cursor-pointer,html.snk-cur .xterm.xterm-cursor-pointer{cursor:var(--snkc-hand);}\n';
     s += ':where(html.snk-cur) .mv-root.mv-fp{cursor:auto;}\n';
+    s += 'html.snk-cur #win-browser .win-body{cursor:auto;}\n';
+    s += 'html.snk-cur #win-browser .win-body :is(a:any-link,button,summary,select,label[for]){cursor:pointer;}html.snk-cur #win-browser .win-body :is(' + TEXTSEL + '){cursor:text;}\n';
     /* Cursor grande: sustituye la flecha negra de 40 px por la versión Snake de 48 px */
     s += bigU + '{cursor:var(--snkc-arrow) !important;}\n';
     s += bigU + ' *' + NOFP + ':not([data-snkc]){cursor:inherit !important;}\n';
