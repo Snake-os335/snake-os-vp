@@ -44,6 +44,7 @@ window.addEventListener('error', function(e){
 <script src="/static/doganiero-chat.js?v=202610140845" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/doganiero-desk.js?v=202610072130" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/desktop-extras.js?v=202610140845" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
+<script src="/static/snake-terminal.js?v=202610140930" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-win-resize.js?v=202610140845"></script>
 <script src="/static/doganiero-tv.js?v=202610091150" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/prism.js?v=202610080900" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
@@ -5723,6 +5724,7 @@ function buildIcons(){
     layer.querySelectorAll('.desktop-file-icon').forEach(function(el){ el.remove(); });
     let idx = typeof startIdx === 'number' ? startIdx : Object.keys(APPS).length;
     uploadedFiles.forEach(function(entry){
+      if(/(^|\/)\.keep$/.test(String(entry.name || ''))) return;
       const div = document.createElement('div');
       div.className = 'desktop-icon desktop-file-icon';
       div.dataset.iconKey = 'file:' + entry.id;
@@ -7152,6 +7154,7 @@ function buildIcons(){
       grid.appendChild(item);
     });
     uploadedFiles.forEach(function(entry){
+      if(/(^|\/)\.keep$/.test(String(entry.name || ''))) return;
       const item = document.createElement('div'); item.className = 'explorer-item';
       const icSpan = document.createElement('span'); icSpan.className = 'ic'; icSpan.textContent = fileIcon(entry.name, entry.type || '');
       const lbSpan = document.createElement('span'); lbSpan.className = 'lb'; lbSpan.textContent = entry.name;
@@ -13610,13 +13613,31 @@ function renderStoreApp(container){
 
 
 
+  window.SnakeTermBridge = {
+    user: function(){ return currentUser; },
+    files: function(){ return uploadedFiles; },
+    notes: function(){ return userNotes; },
+    saveNotes: function(){ return api('/api/notes', { method: 'PUT', body: userNotes }); },
+    newFileId: function(){ return ++fileIdCounter; },
+    upload: function(e){ return uploadFileToServer(e, false); },
+    persistFiles: function(){ return persistFiles(); },
+    readData: function(e){ return ensureFileDataUrl(e); },
+    trash: function(id){ moveFileToTrash(id); },
+    refresh: function(){ refreshFileUI(true); },
+    rerender: function(id){ try{ reRenderIfOpen(id); }catch(e){} },
+    apps: function(){ return APPS; },
+    openApps: function(){ return openApps; },
+    openApp: function(id){ openApp(id); },
+    closeApp: function(id){ closeApp(id); },
+    openFile: function(e){ openFileViewerWindow(e); }
+  };
   function renderTerminalApp(container){
     container.innerHTML =
       '<div class="term-wrap">' +
         '<div class="term-out" data-term="out" aria-live="polite"></div>' +
         '<div class="term-ssh-host hidden" data-term="sshHost"></div>' +
         '<form class="term-in-row" data-term="form" autocomplete="off">' +
-          '<span class="term-prompt" data-term="prompt">lite:~$</span>' +
+          '<span class="term-prompt" data-term="prompt">$</span>' +
           '<input class="term-input" data-term="input" type="text" spellcheck="false" autocomplete="off" autocapitalize="off" placeholder="escribe un comando…" aria-label="Comando de terminal">' +
         '</form>' +
       '</div>';
@@ -13630,6 +13651,8 @@ function renderStoreApp(container){
     var histIdx = -1;
     var ssh = { ws: null, term: null, fitObs: null, connected: false, target: '' };
     try{ if(window.SnakeTermStyles) window.SnakeTermStyles.mount(container.querySelector('.term-wrap'), function(){ return ssh.term; }); }catch(eTs){}
+    var termCtx = { container: container, out: out, input: input, promptEl: promptEl, history: history, println: function(t, c){ println(t, c); } };
+    try{ if(window.SnakeTerminal) window.SnakeTerminal.mount(termCtx); }catch(eTm){}
 
     function scrollBottom(){
       if(out) out.scrollTop = out.scrollHeight;
@@ -13695,7 +13718,7 @@ function renderStoreApp(container){
       }
       if(out) out.classList.remove('hidden');
       if(form) form.classList.remove('hidden');
-      if(promptEl) promptEl.textContent = 'lite:~$';
+      if(promptEl) promptEl.textContent = window.SnakeTerminal ? window.SnakeTerminal.prompt() : '$';
       if(msg) println(msg, 'term-muted');
       try{ input.focus(); }catch(e4){}
     }
@@ -13831,7 +13854,14 @@ function renderStoreApp(container){
     function runCommand(raw){
       var cmd = String(raw || '').trim().replace(/\s+/g, ' ');
       if(!cmd) return;
-      println('lite:~$ ' + cmd, 'term-cmd');
+      var termEchoed = false;
+      if(window.SnakeTerminal){
+        var hT = null;
+        try{ hT = window.SnakeTerminal.handle(String(raw || ''), termCtx); }catch(eT){ println('Error: ' + (eT && eT.message), 'term-err'); return; }
+        if(hT === true) return;
+        if(typeof hT === 'string'){ termEchoed = hT.indexOf('NOECHO:') === 0; cmd = hT.replace(/^NOECHO:/, '').trim().replace(/\s+/g, ' '); if(!cmd) return; }
+      }
+      if(!termEchoed) println('$ ' + cmd, 'term-cmd');
       var key = cmd.toLowerCase();
       var parts = key.split(' ');
 
@@ -13925,9 +13955,9 @@ function renderStoreApp(container){
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: cmd })
       }).then(function(r){
-        if(!r.ok) println('No pude enviarlo a Snake OS Lite.', 'term-err');
+        if(!r.ok) println('No pude enviarlo a la placa.', 'term-err');
       }).catch(function(){
-        println('No pude enviarlo a Snake OS Lite.', 'term-err');
+        println('No pude enviarlo a la placa.', 'term-err');
       });
     }
 
@@ -13942,9 +13972,7 @@ function renderStoreApp(container){
           if(!liteBoot){
             liteBoot = true;
             if(!lines.length){
-              println('Snake OS Lite', 'term-ok');
-              println('RTOS exclusivo de la Arduino Mega 2560.');
-              println('Escribe ayuda o rtos.', 'term-muted');
+              if(window.SnakeTerminal) window.SnakeTerminal.banner(termCtx);
               return;
             }
             for(var i = lines.length - 1; i >= 0; i--){
