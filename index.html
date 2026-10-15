@@ -2155,21 +2155,38 @@ window.addEventListener('error', function(e){
   .snk-br-bar .snk-br-btn:disabled{ opacity:0.35; cursor:default; }
   .snk-br-bar .snk-br-btn:not(:disabled):hover,
   .snk-br-bar .snk-br-go:hover{ border-color:rgba(52,209,122,0.55); background:rgba(52,209,122,0.16); }
-  .snk-br-bar .snk-br-url{
-    all:unset; box-sizing:border-box; flex:1 1 auto; min-width:0;
-    height:34px; padding:0 12px; border-radius:10px; font-size:0.85rem;
-    background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.2); color:#eafff1;
+  .snk-br-bar{
+    position:relative; z-index:5; pointer-events:auto !important;
   }
-  .snk-br-bar .snk-br-url:focus{ border-color:#34d17a; }
+  .snk-br-bar .snk-br-url{
+    /* NO all:unset — rompe editabilidad / copy-paste en inputs */
+    -webkit-appearance:none; appearance:none;
+    box-sizing:border-box; flex:1 1 auto; min-width:0; display:block; margin:0;
+    height:34px; padding:0 12px; border-radius:10px; font:inherit; font-size:0.85rem; line-height:34px;
+    background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.2); color:#eafff1;
+    pointer-events:auto !important; user-select:text !important; -webkit-user-select:text !important;
+    -moz-user-select:text !important; cursor:text !important; caret-color:#eafff1;
+    -webkit-user-drag:auto; -webkit-touch-callout:default;
+    position:relative; z-index:20; touch-action:manipulation;
+    outline:none; field-sizing:fixed;
+  }
+  .snk-br-bar{ position:relative; z-index:15; pointer-events:auto !important; }
+  .snk-browser .snk-br-frame, .snk-browser iframe.snk-br-frame{
+    pointer-events:auto; position:relative; z-index:1;
+  }
+  .snk-br-bar .snk-br-url:focus{ border-color:#34d17a; outline:none; }
+  .snk-br-bar .snk-br-btn, .snk-br-bar .snk-br-go{ pointer-events:auto !important; position:relative; z-index:6; }
   .snk-br-frame-wrap{ flex:1 1 auto; min-height:0; position:relative; background:#fff; }
   .snk-br-frame{ position:absolute; inset:0; width:100%; height:100%; border:0; background:#fff; }
   .snk-br-shield{ position:absolute; inset:0; z-index:3; pointer-events:none; background:transparent; cursor:none; }
   /* Cursor naranja claro nativo (CSS): fluido, sin puntero JS encima del iframe */
   .snk-browser, .snk-br-frame-wrap, .snk-br-frame{ cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath d='M3 2l15 9-6.5 1.5L8 19z' fill='%23FFB347' stroke='%23fff' stroke-width='1.4' stroke-linejoin='round'/%3E%3C/svg%3E") 3 2, auto !important; }
-  .snk-br-bar, .snk-br-bar *{ cursor: auto; }
-  .snk-br-bar button, .snk-br-go, .snk-br-login{ cursor: pointer; }
-  .snk-br-url{ cursor: text; }
+  .snk-br-bar{ cursor: auto !important; }
+  .snk-br-bar .snk-br-btn, .snk-br-bar .snk-br-go, .snk-br-bar .snk-br-login{ cursor: pointer !important; }
+  .snk-br-bar .snk-br-url{ cursor: text !important; }
   .snk-br-frame-wrap.snk-br-cur-on .snk-br-shield{ pointer-events:none !important; display:none !important; }
+  .snk-br-shield{ pointer-events:none !important; }
+  .snk-br-bar input.snk-br-url{ -webkit-user-modify:read-write !important; user-modify:read-write; }
   .snk-br-fake-cur{
     position:absolute; left:0; top:0; width:32px; height:32px; z-index:4;
     pointer-events:none; display:none; background-repeat:no-repeat; background-size:32px 32px;
@@ -7514,10 +7531,27 @@ function buildIcons(){
     var CUR_ARROW = '/static/assets/snk-cur-arrow.svg?v=20261009';
 
     function googleSearchUrl(q){
+      q = String(q || '').trim();
+      try{ q = decodeURIComponent(q.replace(/\+/g, ' ')); }catch(e){}
+      q = String(q || '').trim();
+      if(!q || /^doganiero\s*search$/i.test(q) || q === SEARCH_HOME || q === HOME
+          || /^\/?api\/dbots\/serp\/?$/i.test(q) || /^https?:\/\/[^/]+\/api\/dbots\/serp\/?$/i.test(q)){
+        return SEARCH_HOME;
+      }
       return SEARCH_HOME + '?q=' + encodeURIComponent(q);
     }
     function isSearchUrl(u){
-      try{ return /\/api\/dbots\/serp/.test(String(u||'')); }catch(e){ return false; }
+      try{
+        var s = String(u || '');
+        if(/\/api\/dbots\/serp(\?|$)/.test(s)) return true;
+        var x = new URL(s, location.origin);
+        return x.pathname === '/api/dbots/serp';
+      }catch(e){ return /\/api\/dbots\/serp/.test(String(u||'')); }
+    }
+    function isSearchHomeLabel(t){
+      t = String(t || '').trim();
+      return !t || /^doganiero\s*search$/i.test(t) || t === SEARCH_HOME || t === HOME
+        || /^https?:\/\/[^/]+\/api\/dbots\/serp\/?$/i.test(t);
     }
     function isGoogleAccounts(u){
       try{
@@ -7528,7 +7562,15 @@ function buildIcons(){
     }
     function toUrl(raw){
       var t = String(raw || '').trim();
-      if(!t) return HOME;
+      if(isSearchHomeLabel(t)) return SEARCH_HOME;
+      // Ya es la ruta del buscador (con o sin ?q=): no volver a envolverla como consulta
+      if(isSearchUrl(t) || t.indexOf('/api/dbots/serp') === 0){
+        try{
+          var su = new URL(t, location.origin);
+          var qq = (su.searchParams.get('q') || '').trim();
+          return qq ? googleSearchUrl(qq) : SEARCH_HOME;
+        }catch(e){ return SEARCH_HOME; }
+      }
       if(/^https?:\/\/(www\.)?google\.[^\/]+/i.test(t)){
         try{
           var u = new URL(t);
@@ -7541,20 +7583,31 @@ function buildIcons(){
       if(/^https?:\/\//i.test(t) || /^\/\//.test(t)){
         return t.indexOf('//') === 0 ? ('https:' + t) : t;
       }
+      if(t.charAt(0) === '/') return t; // rutas mismas origen
       if(/^[a-z0-9.-]+\.[a-z]{2,}(\/.*)?$/i.test(t) && t.indexOf(' ') < 0){
         return 'https://' + t;
       }
+      // Barra: si muestra "Doganiero Search · consulta", extraer la consulta
+      var m = t.match(/^doganiero\s*search\s*[·\-]\s*(.+)$/i);
+      if(m) return googleSearchUrl(m[1]);
       return googleSearchUrl(t);
     }
     function displayUrl(u){
       try{
-        var x = new URL(u);
+        var x = new URL(String(u || ''), location.origin);
+        if(isSearchUrl(x.href) || x.pathname === '/api/dbots/serp'){
+          var dq = (x.searchParams.get('q') || '').trim();
+          try{ dq = decodeURIComponent(dq.replace(/\+/g, ' ')); }catch(e){}
+          dq = String(dq || '').trim();
+          if(!dq || /^doganiero\s*search$/i.test(dq) || dq === SEARCH_HOME || dq === HOME
+              || /^\/?api\/dbots\/serp\/?$/i.test(dq)) return '';
+          return dq;
+        }
         if(/accounts\.google\./i.test(x.hostname)) return x.hostname;
         if(/google\./i.test(x.hostname)){
           var q = x.searchParams.get('q');
           if(q) return q;
-          if(isSearchUrl(x.href)){ var qq=x.searchParams.get('q'); return qq ? ('Doganiero Search · ' + qq) : 'Doganiero Search'; }
-          if(/webhp/i.test(x.pathname) || x.pathname === '/' || x.pathname === '') return 'Google';
+          if(/webhp/i.test(x.pathname) || x.pathname === '/' || x.pathname === '') return '';
         }
         return u;
       }catch(e){ return u; }
@@ -7610,6 +7663,15 @@ function buildIcons(){
     var fakeCur = container.querySelector('#browserFakeCur-x');
     var sessionEl = container.querySelector('#browserSession-x');
     var loginBtn = container.querySelector('#browserLogin-x'); // puede ser null (login eliminado)
+    input.removeAttribute('readonly'); input.removeAttribute('disabled');
+    input.readOnly = false; input.disabled = false;
+    input.tabIndex = 0;
+    input.style.pointerEvents = 'auto'; input.style.userSelect = 'text';
+    input.style.webkitUserSelect = 'text';
+    input.style.cursor = 'text';
+    // Evitar que un hijo/overlay capture el foco: el input debe recibir clicks
+    input.addEventListener('mousedown', function(ev){ ev.stopPropagation(); }, true);
+    input.addEventListener('click', function(ev){ ev.stopPropagation(); input.focus(); }, true);
     var toastEl = container.querySelector('#browserToast-x');
     var blockedEl = container.querySelector('#browserBlocked-x');
     var blockedUrl = '';
