@@ -14,7 +14,7 @@
     '.mos-screen{position:relative;flex:1;min-height:0;background:radial-gradient(circle at 30% 20%,#2f9e5b 0,#0b3d22 45%,#05140c 100%);overflow:hidden}',
     '.mos-screen::after{content:"🐍";position:absolute;right:10px;bottom:6px;font-size:42px;opacity:.15;pointer-events:none}',
     '.mos-win{position:absolute;inset:8px 8px 8px 8px;background:#fff;border-radius:12px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,.45)}',
-    '.mos-win[hidden]{display:none !important}',
+    '.mos-win[hidden]{display:none !important}','.mos-tb .tb-dots{display:inline-flex;gap:6px;align-items:center}','.mos-tb .tb-close,.mos-tb .tb-min,.mos-tb .tb-max{width:12px;height:12px;border-radius:50%;border:0;padding:0;cursor:pointer}','.mos-tb .tb-close{background:#ff5f57}.mos-tb .tb-min{background:#febc2e}.mos-tb .tb-max{background:#28c840}',
     '.mos-tb{display:flex;align-items:center;gap:6px;padding:4px 8px;background:#efefef;font-size:.72rem;color:#333;flex-shrink:0}.mos-tb b{flex:1;font-weight:600}',
     '.mos-tb i{width:9px;height:9px;border-radius:50%;display:inline-block}',
     '.mos-tool{display:flex;align-items:center;gap:4px;padding:5px 6px;border-bottom:1px solid #e3e3e3;flex-shrink:0;background:#fff}',
@@ -83,11 +83,11 @@
     host.insertAdjacentHTML('beforeend',
       '<div class="mos" data-mos>' +
         '<div class="mos-screen">' +
-          '<div class="mos-win" data-w="web"><div class="mos-tb"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i><b>🌐 Navegador de ' + esc(bot.name) + '</b></div>' +
+          '<div class="mos-win" data-w="web">' + '<div class="mos-tb"><span class="tb-dots"><button type="button" class="tb-close" data-close title="Cerrar"></button><button type="button" class="tb-min" tabindex="-1"></button><button type="button" class="tb-max" tabindex="-1"></button></span><b>🌐 Navegador de ' + esc(bot.name) + '</b></div>' +
             '<div class="mos-tool"><button data-back title="Atrás">◀</button><button data-home title="Inicio">⌂</button><button data-reader title="Vista de lectura (si la página no carga)">📄</button><div class="mos-bar-in"><span style="font-weight:700;color:#4285f4">G</span><input data-q placeholder="Buscar en Doganiero Search o pegar una URL" spellcheck="false"></div></div>' +
             '<div class="mos-page" data-page></div></div>' +
-          '<div class="mos-win mos-term" data-w="term" hidden><div class="mos-tb"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i><b>🖥️ Terminal</b></div><div data-termhost style="flex:1;min-height:0;display:flex;flex-direction:column"></div></div>' +
-          '<div class="mos-win mos-code" data-w="code" hidden><div class="mos-tb"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i><b>💻 Código de ' + esc(bot.name) + '</b></div>' +
+          '<div class="mos-win mos-term" data-w="term" hidden><div class="mos-tb"><span class="tb-dots"><button type="button" class="tb-close" data-close title="Cerrar"></button><button type="button" class="tb-min" tabindex="-1"></button><button type="button" class="tb-max" tabindex="-1"></button></span><b>🖥️ Terminal</b></div><div data-termhost style="flex:1;min-height:0;display:flex;flex-direction:column"></div></div>' +
+          '<div class="mos-win mos-code" data-w="code" hidden><div class="mos-tb"><span class="tb-dots"><button type="button" class="tb-close" data-close title="Cerrar"></button><button type="button" class="tb-min" tabindex="-1"></button><button type="button" class="tb-max" tabindex="-1"></button></span><b>💻 Código de ' + esc(bot.name) + '</b></div>' +
             '<div class="mos-tool"><select data-lang><option value="js">JavaScript</option><option value="py">Python</option></select><button data-run title="Ejecutar">▶</button><button data-tocl title="Copiar a mi Code Lab">📋</button><span class="mos-ch" data-chint>Aislado: sin red ni cookies</span></div>' +
             '<textarea data-code spellcheck="false" placeholder="// El bot escribe aquí su código"></textarea><iframe data-out sandbox="allow-scripts" title="Salida"></iframe></div>' +
           '<div class="mos-status" data-status></div>' +
@@ -109,7 +109,9 @@
     function tick() { if (!el.isConnected) return clearInterval(ti); clk.textContent = new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }); }
     var ti = setInterval(tick, 20000); tick();
     function show(w) { el.querySelectorAll('.mos-win').forEach(function (x) { x.hidden = x.getAttribute('data-w') !== w; }); el.querySelectorAll('.mos-bar [data-app]').forEach(function (b) { b.classList.toggle('on', b.getAttribute('data-app') === w); }); }
-    el.querySelectorAll('.mos-bar [data-app]').forEach(function (b) { b.onclick = function () { show(b.getAttribute('data-app')); }; });
+    function closeMosWin(w) { var win = el.querySelector('.mos-win[data-w="' + w + '"]'); if (win) win.hidden = true; var btn = el.querySelector('.mos-bar [data-app="' + w + '"]'); if (btn) btn.classList.remove('on'); }
+    el.querySelectorAll('.mos-bar [data-app]').forEach(function (b) { b.onclick = function () { var id = b.getAttribute('data-app'); var win = el.querySelector('.mos-win[data-w="' + id + '"]'); if (win && !win.hidden && b.classList.contains('on')) { closeMosWin(id); return; } show(id); }; });
+    el.querySelectorAll('[data-close]').forEach(function (btn) { btn.onclick = function (e) { e.preventDefault(); e.stopPropagation(); var win = btn.closest('.mos-win'); if (win) closeMosWin(win.getAttribute('data-w')); }; });
     var menu = el.querySelector('[data-menu]'), off = el.querySelector('[data-off]'), sleepEl = el.querySelector('[data-sleep]');
     var IDLE_MS = 150000; // 2,5 min
     var idleT = null;
