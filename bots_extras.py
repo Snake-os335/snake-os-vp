@@ -1373,12 +1373,15 @@ def build_router(
                 hist.append(f"- {str(h.get('action') or '')[:8]} {str(h.get('id') or '')[:5]} «{str(h.get('label') or '')[:50]}» {str(h.get('text') or '')[:80]} → {str(h.get('result') or '')[:80]}")
         page = body.get("page") if isinstance(body.get("page"), dict) else {}
         page_s = " ".join(f"{k}={str(v)[:150]}" for k, v in page.items() if v) if page else ""
-        where = ("tu propio mini OS (Snake OS Lite): barra inferior con 🐍 menú y las apps 🌐 Navegador, 🖥️ Terminal, 💻 Código, 📝 Notas y 📁 Archivos; "
-                 "la barra del Navegador acepta una URL o una búsqueda y se envía con la tecla Enter")
+        where = ("tu propio mini OS (Snake OS Lite): barra inferior con 🐍 menú y las apps 🌐 Navegador, 🖥️ Terminal, 💻 Código, 📝 Notas, 📁 Archivos y 📅 Calendario; "
+                 "la barra del Navegador acepta una URL o una búsqueda y se envía con la tecla Enter. "
+                 "📅 Calendario guarda en el calendario REAL del usuario: escribe Título, Fecha en formato AAAA-MM-DD y Hora HH:MM (opcional) y pulsa «➕ Añadir al calendario» (el usuario confirma). "
+                 "Cuando el estado 'calendario' diga ✅ Evento añadido, el objetivo está cumplido: done")
         if surface == "user":
             where = "el escritorio Snake OS del usuario: iconos de apps (doble uso: un clic abre la app), ventanas abiertas y barra de tareas"
         system = (
             f"Eres {bot.get('name') or 'un bot'}, un agente que maneja una interfaz con puntero y teclado. Estás en {where}. "
+            f"Hoy es {__import__('datetime').datetime.now(__import__('zoneinfo').ZoneInfo('Europe/Madrid')).strftime('%A %Y-%m-%d %H:%M')} (hora de Madrid); calcula tú las fechas relativas (mañana, el viernes…). "
             "Cada vez ves la lista de elementos visibles (id|tipo|texto|ventana|x,y,ancho,alto|valor). Razona paso a paso y decide SOLO el siguiente paso. "
             "Responde SOLO con JSON: {\"thought\": razonamiento breve, \"say\": frase corta en español para el usuario, "
             "\"action\": \"click\"|\"type\"|\"key\"|\"scroll\"|\"wait\"|\"done\"|\"fail\", \"id\": id del elemento, "
@@ -1468,6 +1471,7 @@ def build_router(
             "Además puedes usar \"action\": \"browse\" con \"steps\": lista de pasos de navegador (máx. 6) entre "
             "{\"op\":\"search\",\"q\":...}, {\"op\":\"open\",\"url\":... o \"index\": n del resultado}, {\"op\":\"click\",\"text\": texto del enlace}, "
             "{\"op\":\"form\",\"q\": texto para el buscador de la página}, {\"op\":\"scroll\"}, {\"op\":\"read\"}. Úsalo cuando haya que navegar varias páginas.\n"
+            "Para crear eventos o recordatorios del calendario usa también action ui (target mini) con un goal que incluya título, fecha exacta AAAA-MM-DD y hora. "
             "Para CUALQUIER tarea de manejar apps (abrir, hacer clic, escribir, navegar, crear notas o archivos) usa \"action\": \"ui\" con \"goal\": objetivo claro y completo, y \"target\": \"mini\" (por defecto: tu propio mini OS) o \"user\" (solo si el usuario pide hacerlo en SU escritorio). NO escribas listas de pasos: después verás la pantalla y decidirás cada clic y cada tecla tú mismo. "
             "(Obsoleto, evítalo) \"action\": \"desktop\" con \"steps\" para hacer cosas con tu puntero. POR DEFECTO las haces DENTRO DE TU PROPIO mini OS (Snake OS Lite del bot: Navegador, Terminal, Código, Notas y Archivos); añade \"target\": \"user\" SOLO si el usuario pide expresamente hacerlo en SU escritorio (o para llamar por su Teléfono). Operaciones: "
             "open_app{app}, close_app{app}, create_folder{name}, create_note{text}, create_file{name,text}, set_wallpaper{id}, "

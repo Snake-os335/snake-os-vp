@@ -756,6 +756,19 @@
     }, 60000);
     return function () { clearInterval(iv); };
   }
+  // Para los bots: añade un evento al Calendario real del usuario (mismo guardado/sincronización que la app)
+  window.snakeCalAdd = function (day, title, hm) {
+    day = String(day || '').trim(); title = String(title || '').trim().slice(0, 80); hm = String(hm || '').trim();
+    var m = day.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})$/); if (m) day = m[3] + '-' + ('0' + m[2]).slice(-2) + '-' + ('0' + m[1]).slice(-2);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || isNaN(new Date(day + 'T00:00:00').getTime())) throw new Error('Fecha no válida (usa AAAA-MM-DD)');
+    if (!title) throw new Error('Falta el título');
+    var hm2 = hm.match(/^(\d{1,2})[:.h](\d{2})$/); hm = hm2 ? ('0' + hm2[1]).slice(-2) + ':' + hm2[2] : '';
+    var all = calEvents(); (all[day] = all[day] || []).push({ id: 'e' + Date.now(), t: title, h: hm, c: EV_COLORS[0] });
+    saveCal(all);
+    try { if (typeof window.reRenderIfOpen === 'function') window.reRenderIfOpen('calendario'); } catch (e) {}
+    return { day: day, t: title, h: hm };
+  };
+  window.snakeCalList = function () { var all = calEvents(), out = []; Object.keys(all).sort().forEach(function (d) { (all[d] || []).forEach(function (e) { out.push({ day: d, t: e.t, h: e.h }); }); }); return out; };
   registerApp('calendario', { title: 'Calendario', icon: '📅', width: 400, height: 560, render: renderCalendarApp });
 
   /* Ajustes y el Calendario: eventos de hoy en la pantalla de bloqueo (ver más abajo) */

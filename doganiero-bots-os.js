@@ -94,6 +94,7 @@
             '<textarea data-code spellcheck="false" placeholder="// El bot escribe aquí su código"></textarea><iframe data-out sandbox="allow-scripts" title="Salida"></iframe></div>' +
           '<div class="mos-win mos-notes" data-w="notes" hidden><div class="mos-tb"><span class="tb-dots"><button type="button" class="tb-close" data-close title="Cerrar"></button><button type="button" class="tb-min" tabindex="-1"></button><button type="button" class="tb-max" tabindex="-1"></button></span><b>📝 Notas de ' + esc(bot.name) + '</b></div><textarea data-notes spellcheck="false" placeholder="Notas del bot"></textarea></div>' +
           '<div class="mos-win mos-files" data-w="files" hidden><div class="mos-tb"><span class="tb-dots"><button type="button" class="tb-close" data-close title="Cerrar"></button><button type="button" class="tb-min" tabindex="-1"></button><button type="button" class="tb-max" tabindex="-1"></button></span><b>📁 Archivos de ' + esc(bot.name) + '</b></div><div class="fin"><input data-fname placeholder="Nombre" spellcheck="false"><button data-fadd title="Crear">＋</button></div><div class="fl" data-flist></div></div>' +
+          '<div class="mos-win mos-files mos-cal" data-w="cal" hidden><div class="mos-tb"><span class="tb-dots"><button type="button" class="tb-close" data-close title="Cerrar"></button><button type="button" class="tb-min" tabindex="-1"></button><button type="button" class="tb-max" tabindex="-1"></button></span><b>📅 Calendario (tu calendario real)</b></div><div class="fin"><input data-ctitle placeholder="Título del evento" spellcheck="false"></div><div class="fin"><input data-cdate placeholder="Fecha AAAA-MM-DD" spellcheck="false"><input data-ctime placeholder="Hora HH:MM (opcional)" spellcheck="false"></div><div class="fin"><button data-cadd>➕ Añadir al calendario</button><span data-cmsg style="font-size:.75rem;color:#5f6368"></span></div><div class="fl" data-clist></div></div>' +
           '<div class="mos-status" data-status></div>' +
           '<div class="mos-menu" data-menu role="menu"><div class="hd">🐍 Snake OS Lite · ' + esc(bot.name) + '</div>' +
             '<button data-m="web">🌐 Navegador</button><button data-m="term">🖥️ Terminal</button><button data-m="code">💻 Código</button>' +
@@ -103,7 +104,7 @@
           '<div class="mos-sleep" data-sleep><div class="av" data-sleepav></div><div class="zzz">Z z z</div><div style="font-size:.9rem;font-weight:600">La computadora está dormida</div><button data-wake>☀️ Despertar</button></div>' +
           '<div class="mos-cur" data-cur style="color:' + color + '">' + cursorSvg(color, 16) + '</div>' +
         '</div>' +
-        '<div class="mos-bar"><button data-start title="Snake OS Lite">🐍</button><button data-app="web" class="on">🌐 Navegador</button><button data-app="term">🖥️ Terminal</button><button data-app="code">💻 Código</button><button data-app="notes">📝 Notas</button><button data-app="files">📁 Archivos</button>' + (opts.fig ? '<span class="mos-fig">' + opts.fig + '</span>' : '') + '<span class="clk" data-clk></span></div>' +
+        '<div class="mos-bar"><button data-start title="Snake OS Lite">🐍</button><button data-app="web" class="on">🌐 Navegador</button><button data-app="term">🖥️ Terminal</button><button data-app="code">💻 Código</button><button data-app="notes">📝 Notas</button><button data-app="files">📁 Archivos</button><button data-app="cal">📅 Calendario</button>' + (opts.fig ? '<span class="mos-fig">' + opts.fig + '</span>' : '') + '<span class="clk" data-clk></span></div>' +
       '</div>');
     var el = host.querySelector('[data-mos]:last-child');
     var page = el.querySelector('[data-page]'), q = el.querySelector('[data-q]'), bar = el.querySelector('.mos-bar-in');
@@ -183,12 +184,30 @@
     var mfiles = [];
     function paintFiles() { flist.innerHTML = mfiles.length ? mfiles.map(function (x) { return '<div>' + (x.dir ? '📁 ' : '📄 ') + esc(x.name) + '</div>'; }).join('') : '<div style="color:#5f6368">Vacío</div>'; }
     paintFiles();
+    var cTitle = el.querySelector('[data-ctitle]'), cDate = el.querySelector('[data-cdate]'), cTime = el.querySelector('[data-ctime]'), cAdd = el.querySelector('[data-cadd]'), cMsg = el.querySelector('[data-cmsg]'), cList = el.querySelector('[data-clist]');
+    function paintCal() {
+      var ev = []; try { ev = window.snakeCalList ? window.snakeCalList() : []; } catch (e) {}
+      var today = new Date().toISOString().slice(0, 10);
+      ev = ev.filter(function (x) { return x.day >= today; }).slice(0, 12);
+      cList.innerHTML = ev.length ? ev.map(function (x) { return '<div>📅 ' + esc(x.day.split('-').reverse().join('/')) + (x.h ? ' ' + esc(x.h) : '') + ' · ' + esc(x.t) + '</div>'; }).join('') : '<div style="color:#5f6368">Sin eventos próximos</div>';
+    }
+    paintCal();
+    cAdd.onclick = function () {
+      if (!window.snakeCalAdd) { cMsg.textContent = '⚠️ Calendario no disponible'; return Promise.resolve(); }
+      var t = cTitle.value.trim(), d = cDate.value.trim(), h = cTime.value.trim();
+      if (!t || !d) { cMsg.textContent = '⚠️ Falta título o fecha'; return Promise.resolve(); }
+      return confirmBox('¿Añado «' + t + '» el ' + d + (h ? ' a las ' + h : '') + ' a tu Calendario?', bot).then(function (ok) {
+        if (!ok) { cMsg.textContent = '🛑 No añadido (sin permiso)'; return; }
+        try { var r = window.snakeCalAdd(d, t, h); cMsg.textContent = '✅ Evento añadido: ' + r.t + ' · ' + r.day + (r.h ? ' ' + r.h : ''); cTitle.value = ''; cDate.value = ''; cTime.value = ''; paintCal(); }
+        catch (e) { cMsg.textContent = '⚠️ ' + errMsg(e); }
+      });
+    };
     fadd.onclick = function () { var v = fname.value.trim(); if (!v) return; mfiles.push({ name: v, dir: !/\.\w{1,5}$/.test(v) }); fname.value = ''; paintFiles(); };
     function typeEl(inp, text, append) {
       text = String(text || ''); if (!append) inp.value = ''; inp.classList.add('typing');
       var i = 0; return new Promise(function (res) { (function step() { if (i >= text.length) { inp.classList.remove('typing'); return res(); } inp.value += text[i++]; try { inp.scrollTop = inp.scrollHeight; } catch (e) {} setTimeout(step, Math.max(45, Math.min(110, 4000 / Math.max(1, text.length)))); })(); });
     }
-    var MINI_APP = { browser: 'web', web: 'web', navegador: 'web', chrome: 'web', terminal: 'term', term: 'term', code: 'code', codelab: 'code', notes: 'notes', notas: 'notes', explorer: 'files', files: 'files', archivos: 'files', cloud: 'files' };
+    var MINI_APP = { calendario: 'cal', calendar: 'cal', agenda: 'cal', browser: 'web', web: 'web', navegador: 'web', chrome: 'web', terminal: 'term', term: 'term', code: 'code', codelab: 'code', notes: 'notes', notas: 'notes', explorer: 'files', files: 'files', archivos: 'files', cloud: 'files' };
     function miniWin(w) { return el.querySelector('.mos-win[data-w="' + w + '"]'); }
     function runMini(steps, log) {
       log = log || function () {};
@@ -227,7 +246,7 @@
       };
       function snap() {
         var s = snapshot(el, screen, '.mos-status,.mos-cur');
-        s.page = { url: curUrl || '', mode: frameMode || (page.innerHTML ? 'resultados' : ''), win: (el.querySelector('.mos-win:not([hidden]) .mos-tb b') || {}).textContent || '' };
+        s.page = { url: curUrl || '', mode: frameMode || (page.innerHTML ? 'resultados' : ''), win: (el.querySelector('.mos-win:not([hidden]) .mos-tb b') || {}).textContent || '', calendario: (!el.querySelector('[data-w="cal"]').hidden ? (cMsg.textContent || '') : '') };
         return s;
       }
       return agentLoop(bot, goal, 'mini', snap, function (a, e, it) { return agentExec(a, e, it, ui, bot); }, log, function () { return stop; })
@@ -424,7 +443,7 @@
   function confirmBox(text, bot) {
     return new Promise(function (res) {
       var m = document.createElement('div'); m.className = 'dbp-modal';
-      m.innerHTML = '<div class="box" role="dialog" aria-modal="true"><div style="font-size:28px">📞</div><b>' + esc(text) + '</b><div style="font-size:12px;color:#555;margin:-8px 0 14px">Lo pide ' + esc(bot.name) + '. La llamada solo empieza si aceptas.</div><button class="n" data-n>Cancelar</button><button class="y" data-y>Llamar</button></div>';
+      m.innerHTML = '<div class="box" role="dialog" aria-modal="true"><div style="font-size:28px">' + (/llam/i.test(text) ? '📞' : /calendario/i.test(text) ? '📅' : '❓') + '</div><b>' + esc(text) + '</b><div style="font-size:12px;color:#555;margin:-8px 0 14px">Lo pide ' + esc(bot.name) + '. La llamada solo empieza si aceptas.</div><button class="n" data-n>Cancelar</button><button class="y" data-y>Llamar</button></div>';
       document.body.appendChild(m);
       function done(v) { m.remove(); res(v); }
       m.querySelector('[data-y]').onclick = function () { done(true); }; m.querySelector('[data-n]').onclick = function () { done(false); };
@@ -640,12 +659,12 @@
   function agentExec(a, el, it, ui, bot) {
     var lbl = (it ? it.label + ' ' + (it.win || '') : '') + ' ' + (a.text || '');
     function guard() {
-      if (!RISKY.test(lbl)) return Promise.resolve(true);
+      if (!RISKY.test(lbl) || (el && el.hasAttribute && el.hasAttribute('data-cadd'))) return Promise.resolve(true);
       return confirmBox('¿Dejo que ' + bot.name + ' haga «' + (it ? it.label : a.action) + '»?', bot);
     }
     if (a.action === 'wait') return wait(900).then(function () { return 'esperé'; });
     if (!el && a.action !== 'key') return Promise.reject(new Error('Ese elemento ya no está en pantalla'));
-    if (a.action === 'click') return guard().then(function (ok) { if (!ok) return 'el usuario no lo permitió'; return ui.move(el).then(ui.click).then(function () { el.click(); try { el.focus({ preventScroll: true }); } catch (e) {} return 'clic hecho'; }); });
+    if (a.action === 'click') return guard().then(function (ok) { if (!ok) return 'el usuario no lo permitió'; return ui.move(el).then(ui.click).then(function () { var pr = (typeof el.onclick === 'function') ? el.onclick({ stopPropagation: function () {}, preventDefault: function () {}, target: el }) : (el.click(), null); try { el.focus({ preventScroll: true }); } catch (e) {} return Promise.resolve(pr).then(function () { return 'clic hecho'; }); }); });
     if (a.action === 'type') {
       if (el.type === 'password') return Promise.reject(new Error('No escribo contraseñas'));
       if (!/^(INPUT|TEXTAREA)$/.test(el.tagName)) return Promise.reject(new Error('Eso no es un campo de texto'));
