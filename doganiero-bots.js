@@ -95,7 +95,23 @@
     '.dbx .dbots-msg.user{background:#fff !important;color:#111;border:1px solid #777;align-self:flex-end}',
     '.dbx .dbots-msg small{color:inherit;opacity:.55}.dbx .dbots-msg.bot a{color:#7fd1ff}.dbx .dbots-msg.user a{color:#2457d6}',
     '.dbx .dbots-row{max-width:80%}.dbx .dbots-row .dbots-msg{max-width:100%}',
-    '.dbx .dbots-typing span{background:#fff}',
+    '.dbx .dbots-typing span{background:#fff}' +
+    '.dbots-fig .dbf-face *{transform-box:fill-box;transform-origin:center}.dbots-fig .dbf-brow,.dbots-fig .dbf-o,.dbots-fig .dbf-q,.dbots-fig .dbf-ex{opacity:0}' +
+    '.dbots-fig .dbf-body{transform-box:fill-box;transform-origin:50% 100%}' +
+    '.dbf-think .dbf-pu{animation:dbfLook 6s ease-in-out infinite}.dbf-think .dbf-el{animation:dbfWink 6s ease-in-out infinite}.dbf-think .dbf-er{animation:dbfBlink 6s ease-in-out infinite}' +
+    '.dbf-think .dbf-q{animation:dbfQ 6s ease-in-out infinite}.dbf-think .dbf-brow{animation:dbfBrow 6s ease-in-out infinite}.dbf-think .dbf-mouth{animation:dbfMouth 6s ease-in-out infinite}.dbf-think .dbf-o{animation:dbfO 6s ease-in-out infinite}' +
+    '.dbf-think .dbf-body{animation:dbfBob 2s ease-in-out infinite}' +
+    '.dbf-happy .dbf-body{animation:dbfJump .6s ease-out 2}.dbf-happy .dbf-ex{opacity:1}.dbf-happy .dbf-mouth{transform:scale(1.6,2)}.dbf-happy .dbf-el,.dbf-happy .dbf-er{transform:scaleY(.55)}' +
+    '@keyframes dbfLook{0%,8%{transform:translate(0,0)}14%,24%{transform:translate(-1.4px,-.6px)}30%,40%{transform:translate(1.4px,-.6px)}46%,100%{transform:translate(0,0)}}' +
+    '@keyframes dbfWink{0%,48%,54%,100%{transform:scaleY(1)}51%{transform:scaleY(.1)}}' +
+    '@keyframes dbfBlink{0%,4%,8%,100%{transform:scaleY(1)}6%{transform:scaleY(.1)}}' +
+    '@keyframes dbfQ{0%,4%{opacity:0}8%,44%{opacity:1}48%,100%{opacity:0}}' +
+    '@keyframes dbfBrow{0%,56%{opacity:0}60%,82%{opacity:1}86%,100%{opacity:0}}' +
+    '@keyframes dbfMouth{0%,56%{transform:scale(1)}60%,82%{transform:scale(.6,.3)}86%,88%{opacity:1}90%,96%{opacity:0}100%{opacity:1}}' +
+    '@keyframes dbfO{0%,88%{opacity:0}90%,96%{opacity:1}100%{opacity:0}}' +
+    '@keyframes dbfBob{0%,100%{transform:translateY(0)}50%{transform:translateY(-1.5px)}}' +
+    '@keyframes dbfJump{0%,100%{transform:translateY(0) scale(1)}40%{transform:translateY(-4px) scale(1.04,.97)}}' +
+    '@media (prefers-reduced-motion:reduce){.dbots-fig *{animation:none !important}.dbf-think .dbf-q{opacity:1}}',
     '.dbx .dbots-chatin{background:#fff !important;border:1px solid #333;border-radius:999px;padding:6px 8px !important;margin:6px 12px 10px !important;align-items:center !important;gap:8px;position:relative}',
     '.dbx .dbots .dbots-chatin textarea,.dbx .dbots-chatin textarea{background:transparent !important;border:0 !important;color:#111 !important;text-align:center;font-size:1.05rem;height:38px !important;min-height:38px !important;padding:8px 4px !important;outline:none;box-shadow:none !important}',
     '.dbx .dbots-chatin textarea::placeholder{color:#222;opacity:.85}',
@@ -185,38 +201,52 @@
     function c(v) { v = f >= 0 ? v + (255 - v) * f : v * (1 + f); return Math.max(0, Math.min(255, Math.round(v))); }
     return '#' + ((1 << 24) + (c(r) << 16) + (c(g) << 8) + c(b)).toString(16).slice(1);
   }
-  var FIGS = ['Robot', 'Serpiente', 'Perro', 'Búho', 'Pulpo', 'Dragón', 'Cohete', 'Fantasma', 'Cubo', 'Seta', 'Gato', 'Astronauta'];
+  var FIGS = ['Cubo', 'Esfera', 'Pirámide', 'Octaedro', 'Cilindro', 'Toro', 'Prisma', 'Cono', 'Diamante', 'Cápsula', 'Hexágono', 'Icosaedro'];
   var figSeq = 0;
-  function figSvg(kind, color, size) {
-    var k = ((+kind || 0) % FIGS.length + FIGS.length) % FIGS.length, C = color || '#34d17a';
-    var L = shade(C, .35), D = shade(C, -.35), DD = shade(C, -.6), id = 'dbf' + (++figSeq);
-    var g = '<defs><radialGradient id="' + id + '" cx="35%" cy="30%" r="75%"><stop offset="0" stop-color="' + shade(C, .55) + '"/><stop offset=".55" stop-color="' + C + '"/><stop offset="1" stop-color="' + D + '"/></radialGradient></defs>';
-    var S = 'url(#' + id + ')';
-    function box(x, y, w, h, d, c1, c2, c3) { // caja isométrica: cara superior, izquierda, derecha
-      return '<path d="M' + x + ' ' + y + 'l' + w + ' ' + (-d) + 'l' + w + ' ' + d + 'l' + (-w) + ' ' + d + 'z" fill="' + (c1 || L) + '"/>' +
-        '<path d="M' + x + ' ' + y + 'l' + w + ' ' + d + 'v' + h + 'l' + (-w) + ' ' + (-d) + 'z" fill="' + (c2 || C) + '"/>' +
-        '<path d="M' + (x + w) + ' ' + (y + d) + 'l' + w + ' ' + (-d) + 'v' + h + 'l' + (-w) + ' ' + d + 'z" fill="' + (c3 || D) + '"/>';
-    }
-    function ball(cx, cy, r, f) { return '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="' + (f || S) + '"/>'; }
-    function eyes(x1, x2, y, r) { return '<circle cx="' + x1 + '" cy="' + y + '" r="' + r + '" fill="#fff"/><circle cx="' + x2 + '" cy="' + y + '" r="' + r + '" fill="#fff"/><circle cx="' + (x1 + r * .3) + '" cy="' + (y + r * .2) + '" r="' + r * .5 + '" fill="#111"/><circle cx="' + (x2 + r * .3) + '" cy="' + (y + r * .2) + '" r="' + r * .5 + '" fill="#111"/>'; }
-    var shadow = '<ellipse cx="32" cy="58" rx="20" ry="5" fill="rgba(0,0,0,.35)"/>', b = '';
-    switch (k) {
-      case 0: b = box(14, 34, 18, 16, 9) + box(18, 16, 14, 14, 7) + '<rect x="31" y="4" width="2" height="8" fill="' + DD + '"/>' + ball(32, 4, 3) + eyes(24, 30, 25, 2.6); break;
-      case 1: b = '<path d="M10 50c0-10 20-6 22-14s-16-8-14-18 18-10 22-2" fill="none" stroke="' + D + '" stroke-width="11" stroke-linecap="round"/><path d="M10 50c0-10 20-6 22-14s-16-8-14-18 18-10 22-2" fill="none" stroke="' + C + '" stroke-width="8" stroke-linecap="round"/>' + ball(41, 18, 8) + eyes(38, 44, 16, 2.2) + '<path d="M48 21l6 2-6 1" stroke="#e33" stroke-width="1.5" fill="none"/>'; break;
-      case 2: b = box(12, 38, 20, 12, 8) + ball(32, 26, 12) + '<ellipse cx="21" cy="22" rx="5" ry="9" fill="' + D + '"/><ellipse cx="43" cy="22" rx="5" ry="9" fill="' + D + '"/>' + eyes(27, 36, 24, 2.6) + '<ellipse cx="32" cy="31" rx="3.5" ry="2.5" fill="#222"/>'; break;
-      case 3: b = '<ellipse cx="32" cy="38" rx="17" ry="19" fill="' + S + '"/><ellipse cx="32" cy="44" rx="10" ry="11" fill="' + L + '"/><path d="M17 22l5 8M47 22l-5 8" stroke="' + D + '" stroke-width="5" stroke-linecap="round"/>' + '<circle cx="25" cy="31" r="6" fill="#fff"/><circle cx="39" cy="31" r="6" fill="#fff"/><circle cx="26" cy="32" r="3" fill="#111"/><circle cx="40" cy="32" r="3" fill="#111"/><path d="M30 36l2 4 2-4z" fill="#f5a623"/>'; break;
-      case 4: b = [14, 22, 30, 38, 46].map(function (x, i) { return '<path d="M' + (x + 2) + ' 38q' + (i % 2 ? 4 : -4) + ' 10 ' + (i - 2) * 2 + ' 18" stroke="' + D + '" stroke-width="5" fill="none" stroke-linecap="round"/>'; }).join('') + ball(32, 28, 16) + eyes(26, 36, 28, 3); break;
-      case 5: b = '<path d="M10 30l10 8-2-14z" fill="' + D + '"/><path d="M54 30l-10 8 2-14z" fill="' + D + '"/>' + box(16, 40, 16, 10, 8) + ball(32, 26, 13) + '<path d="M24 14l3 6M40 14l-3 6" stroke="' + DD + '" stroke-width="4" stroke-linecap="round"/>' + eyes(27, 36, 25, 2.6) + '<path d="M27 33q5 3 10 0" stroke="#fff" stroke-width="1.5" fill="none"/>'; break;
-      case 6: b = '<path d="M32 4c10 8 12 22 10 36H22C20 26 22 12 32 4z" fill="' + S + '"/><path d="M22 40l-7 10 9-3zM42 40l7 10-9-3z" fill="' + D + '"/><circle cx="32" cy="22" r="6" fill="#bff" stroke="' + DD + '" stroke-width="2"/><path d="M27 42h10l-5 10z" fill="#ff9f1c"/>'; break;
-      case 7: b = '<path d="M14 54V30a18 18 0 0 1 36 0v24l-6-5-6 5-6-5-6 5-6-5z" fill="' + S + '"/>' + '<ellipse cx="26" cy="30" rx="3.5" ry="5" fill="#111"/><ellipse cx="38" cy="30" rx="3.5" ry="5" fill="#111"/><ellipse cx="32" cy="40" rx="3" ry="2" fill="' + DD + '"/>'; break;
-      case 8: b = box(12, 26, 20, 24, 11) + eyes(19, 27, 34, 2.4) + '<path d="M18 42l8 4" stroke="' + DD + '" stroke-width="2"/>'; break;
-      case 9: b = box(24, 40, 8, 12, 4, '#f3e6d0', '#e8d6b8', '#cdb895') + '<path d="M8 36a24 20 0 0 1 48 0q-24 8-48 0z" fill="' + S + '"/><circle cx="22" cy="26" r="4" fill="#fff" opacity=".85"/><circle cx="38" cy="22" r="3" fill="#fff" opacity=".85"/><circle cx="44" cy="31" r="2.5" fill="#fff" opacity=".85"/>' + eyes(28, 35, 47, 1.6); break;
-      case 10: b = box(14, 40, 18, 10, 8) + '<path d="M18 22l2-12 8 8zM46 22l-2-12-8 8z" fill="' + D + '"/>' + ball(32, 28, 14) + '<ellipse cx="26" cy="27" rx="2.5" ry="4" fill="#ffd23f"/><ellipse cx="38" cy="27" rx="2.5" ry="4" fill="#ffd23f"/><path d="M26 27v0M38 27v0" stroke="#111" stroke-width="1.5" stroke-linecap="round"/><path d="M14 32h8M42 32h8" stroke="#fff" stroke-width="1"/>'; break;
-      default: b = box(16, 40, 16, 12, 8) + ball(32, 26, 15) + '<path d="M21 22h22a4 4 0 0 1 0 10H21a4 4 0 0 1 0-10z" fill="#123" /><path d="M24 25h8" stroke="#8ff" stroke-width="2" stroke-linecap="round"/><rect x="47" y="38" width="5" height="10" rx="2" fill="' + DD + '"/>';
-    }
-    return '<svg class="dbots-fig" viewBox="0 0 64 64" width="' + (size || 40) + '" height="' + (size || 40) + '" aria-hidden="true">' + g + shadow + b + '</svg>';
+  function faceSvg(x, y, sc) {
+    return '<g class="dbf-face" transform="translate(' + x + ' ' + y + ') scale(' + (sc || 1) + ')">' +
+      '<g class="dbf-eyes"><g class="dbf-el"><ellipse cx="-5" cy="0" rx="2.4" ry="2.9" fill="#fff"/><circle class="dbf-pu" cx="-4.6" cy=".4" r="1.35" fill="#111"/></g>' +
+      '<g class="dbf-er"><ellipse cx="5" cy="0" rx="2.4" ry="2.9" fill="#fff"/><circle class="dbf-pu" cx="5.4" cy=".4" r="1.35" fill="#111"/></g></g>' +
+      '<path class="dbf-brow" d="M-8 -5.5l5 1.3M8 -5.5l-5 1.3" stroke="#111" stroke-width="1.3" stroke-linecap="round"/>' +
+      '<path class="dbf-mouth" d="M-3 5q3 2.6 6 0" stroke="#111" stroke-width="1.3" fill="none" stroke-linecap="round"/>' +
+      '<ellipse class="dbf-o" cx="0" cy="5.6" rx="1.8" ry="2.2" fill="#111"/>' +
+      '<text class="dbf-q" x="9" y="-6" font-size="8" font-weight="800" fill="#fff" stroke="#111" stroke-width=".6">?</text>' +
+      '<text class="dbf-ex" x="9" y="-6" font-size="8" font-weight="800" fill="#ffd23f" stroke="#111" stroke-width=".6">!</text></g>';
   }
-  function botFig(b, size) { return (b && b.fig != null) ? figSvg(b.fig, b.color || th(b)[2], size) : figSvg(0, th(b)[2], size); }
+  function figSvg(kind, color, size, botId) {
+    var k = ((+kind || 0) % FIGS.length + FIGS.length) % FIGS.length, C = color || '#34d17a';
+    var L = shade(C, .4), D = shade(C, -.3), DD = shade(C, -.55), id = 'dbf' + (++figSeq);
+    var g = '<defs><radialGradient id="' + id + '" cx="35%" cy="30%" r="75%"><stop offset="0" stop-color="' + shade(C, .6) + '"/><stop offset=".55" stop-color="' + C + '"/><stop offset="1" stop-color="' + DD + '"/></radialGradient>' +
+      '<linearGradient id="' + id + 'v" x1="0" x2="1"><stop offset="0" stop-color="' + D + '"/><stop offset=".35" stop-color="' + L + '"/><stop offset="1" stop-color="' + DD + '"/></linearGradient></defs>';
+    var S = 'url(#' + id + ')', V = 'url(#' + id + 'v)';
+    function P(d, f) { return '<path d="' + d + '" fill="' + f + '" stroke="' + DD + '" stroke-width=".6" stroke-linejoin="round"/>'; }
+    var shadow = '<ellipse cx="32" cy="58" rx="19" ry="4.5" fill="rgba(0,0,0,.3)"/>', b = '', fc = [32, 34, 1];
+    switch (k) {
+      case 0: b = P('M32 8L52 18L32 28L12 18Z', L) + P('M12 18L32 28V52L12 42Z', C) + P('M32 28L52 18V42L32 52Z', D); fc = [22, 34, .8]; break;
+      case 1: b = '<circle cx="32" cy="30" r="21" fill="' + S + '"/><ellipse cx="25" cy="21" rx="6" ry="4" fill="#fff" opacity=".35"/>'; fc = [32, 32, 1.05]; break;
+      case 2: b = P('M32 6L12 46L32 54Z', C) + P('M32 6L52 46L32 54Z', D); fc = [25, 40, .75]; break;
+      case 3: b = P('M32 4L12 30L32 38Z', L) + P('M32 4L52 30L32 38Z', C) + P('M12 30L32 38L32 56Z', D) + P('M52 30L32 38L32 56Z', DD); fc = [24, 28, .7]; break;
+      case 4: b = '<path d="M12 16V46A20 7 0 0 0 52 46V16Z" fill="' + V + '"/><ellipse cx="32" cy="16" rx="20" ry="7" fill="' + L + '" stroke="' + DD + '" stroke-width=".6"/>'; fc = [32, 34, 1]; break;
+      case 5: b = '<ellipse cx="32" cy="32" rx="24" ry="15" fill="' + S + '"/><ellipse cx="32" cy="29" rx="9" ry="4.5" fill="' + DD + '"/><ellipse cx="32" cy="30.5" rx="9" ry="3.5" fill="rgba(0,0,0,.25)"/>'; fc = [32, 40, .75]; break;
+      case 6: b = P('M14 14L32 8L50 14L32 20Z', L) + P('M14 14L32 20V54L14 46Z', C) + P('M32 20L50 14V46L32 54Z', D); fc = [23, 33, .75]; break;
+      case 7: b = '<path d="M32 4L12 46A20 7 0 0 0 52 46Z" fill="' + V + '"/>'; fc = [32, 38, .9]; break;
+      case 8: b = P('M18 12H46L56 24L32 56L8 24Z', C) + P('M8 24H56L32 56Z', D) + P('M18 12L24 24H40L46 12Z', L) + P('M24 24L32 56L40 24Z', C); fc = [32, 31, .75]; break;
+      case 9: b = '<rect x="15" y="6" width="34" height="50" rx="17" fill="' + V + '"/><ellipse cx="26" cy="16" rx="4" ry="6" fill="#fff" opacity=".3"/>'; fc = [32, 30, 1]; break;
+      case 10: b = P('M18 12L46 12L54 20L46 28L18 28L10 20Z', L) + P('M10 20L18 28V50L10 42Z', DD) + P('M18 28H46V50H18Z', C) + P('M46 28L54 20V42L46 50Z', D); fc = [32, 38, .9]; break;
+      default: b = P('M32 4L54 18L54 42L32 56L10 42L10 18Z', D) + P('M32 4L10 18L32 22Z', L) + P('M32 4L54 18L32 22Z', C) + P('M10 18L32 22L20 44L10 42Z', C) + P('M54 18L32 22L44 44L54 42Z', DD) + P('M32 22L20 44H44Z', L) + P('M20 44L32 56L44 44Z', D); fc = [32, 34, .8];
+    }
+    var cls = 'dbots-fig' + (botId && S_mood[botId] ? ' dbf-' + S_mood[botId] : '');
+    return '<svg class="' + cls + '"' + (botId ? ' data-fb="' + esc(botId) + '"' : '') + ' viewBox="0 0 64 64" width="' + (size || 40) + '" height="' + (size || 40) + '" aria-hidden="true">' + g + '<g class="dbf-body">' + shadow + b + faceSvg(fc[0], fc[1], fc[2]) + '</g></svg>';
+  }
+  var S_mood = {}, moodT = {};
+  function setMood(id, m) {
+    if (!id) return; clearTimeout(moodT[id]);
+    if (m) S_mood[id] = m; else delete S_mood[id];
+    document.querySelectorAll('svg[data-fb="' + String(id).replace(/"/g, '') + '"]').forEach(function (x) { x.classList.remove('dbf-think', 'dbf-happy'); if (m) x.classList.add('dbf-' + m); });
+    if (m === 'happy') moodT[id] = setTimeout(function () { setMood(id, null); }, 1800);
+  }
+  window.DogBotsMood = setMood;
+  function botFig(b, size) { return figSvg(b && b.fig != null ? b.fig : 0, (b && b.color) || th(b)[2], size, b && b.id); }
   window.dogBotsFig = figSvg;
 
   function render(body) {
@@ -276,7 +306,7 @@
         '<div class="dbots-pane" data-pane="term"><div class="term-wrap"><div class="term-out"></div><div class="term-in-row"><span class="term-prompt">' + esc(b.name.toLowerCase().replace(/\s+/g, '-')) + '@snake-os-lite:~$</span><input class="term-input" placeholder="help" autocomplete="off" spellcheck="false"></div></div></div>';
       main.querySelector('[data-pane="tasks"]').insertAdjacentHTML('beforeend', '<div style="display:flex;align-items:center;margin:0 12px 6px"><b style="flex:1">Tareas</b><button class="dbots-btn alt" data-clear>🧹 Borrar historial</button></div><div class="dbots-tasks"></div>');
       aside.innerHTML = '<div class="dbx-mini">' + star(botFig(b, 40), 60) + '<div><div class="dbx-avname">' + esc(b.name) + '</div><div class="dbx-role" style="text-align:left">' + esc(b.role || 'Asistente general') + '</div></div></div>';
-      S.mos = window.DogBotsOS ? window.DogBotsOS.mount(aside, b, b.color || th(b)[2]) : null;
+      S.mos = window.DogBotsOS ? window.DogBotsOS.mount(aside, b, b.color || th(b)[2], { notes: function () { root.classList.remove('aside-open'); tab('mem'); }, settings: function () { root.classList.remove('aside-open'); var ed = main.querySelector('[data-edit]'); if (ed) ed.click(); }, fig: botFig(b, 20) }) : null;
       aside.insertAdjacentHTML('afterbegin', '<button class="dbx-close" data-closeaside title="Cerrar">✕</button>');
       aside.querySelector('[data-closeaside]').onclick = function () { root.classList.remove('aside-open'); };
       var tp = main.querySelector('[data-pane="term"]'), tw = tp.querySelector('.term-wrap'); (S.mos ? S.mos.termHost : aside).appendChild(tw); tp.remove();
@@ -323,7 +353,7 @@
     function fmtTime(at) { try { return new Date(at * 1000).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }); } catch (e) { return ''; } }
     function fileIcon(type, name) { type = type || ''; if (/^image\//.test(type)) return '🖼️'; if (/pdf/.test(type) || /\.pdf$/i.test(name || '')) return '📕'; if (/sheet|excel|csv/.test(type)) return '📊'; if (/presentation/.test(type)) return '📽️'; if (/zip/.test(type)) return '🗜️'; if (/word/.test(type)) return '📘'; return '📄'; }
     function fmtSize(n) { n = +n || 0; return n < 1024 ? n + ' B' : n < 1048576 ? (n / 1024).toFixed(0) + ' KB' : (n / 1048576).toFixed(1).replace('.', ',') + ' MB'; }
-    var DESK_LABEL = { open_app: 'Abrir app', close_app: 'Cerrar app', create_folder: 'Crear carpeta', create_note: 'Escribir nota', create_file: 'Crear archivo', set_wallpaper: 'Cambiar fondo', move_window: 'Mover ventana', switch_desktop: 'Cambiar de escritorio', delete_file: '🗑️ Borrar archivo' };
+    var DESK_LABEL = { open_app: 'Abrir app', close_app: 'Cerrar app', create_folder: 'Crear carpeta', create_note: 'Escribir nota', create_file: 'Crear archivo', set_wallpaper: 'Cambiar fondo', move_window: 'Mover ventana', switch_desktop: 'Cambiar de escritorio', delete_file: '🗑️ Borrar archivo', call_contact: '📞 Llamar a' };
     function stepTxt(s) { return (DESK_LABEL[s.op] || s.op) + ' ' + esc(s.app || s.name || s.id || (s.n != null ? s.n : '') || (s.text ? '«' + String(s.text).slice(0, 40) + '»' : '')); }
     S.ran = S.ran || {};
     function actHtml(m) {
@@ -335,6 +365,7 @@
         else if (conf) h += '<div class="dbx-acts"><button data-yes="' + esc(m.id) + '">✅ Sí, hazlo</button><button class="no" data-no="' + esc(m.id) + '">✖ No</button></div>';
         else h += '<div class="dbx-acts"><button data-redo="' + esc(m.id) + '">▶ Hacerlo en el escritorio</button></div>';
       }
+      if (m.code && m.code.code) h += '<div class="dbx-acts"><button data-codeview="' + esc(m.id) + '">💻 Ver y ejecutar el código</button></div>';
       if (m.browse && m.browse.length) h += '<div class="dbx-acts"><button data-replay="' + esc(m.id) + '">🌐 Ver navegación (' + m.browse.length + ' pasos)</button></div>';
       return h;
     }
@@ -344,17 +375,20 @@
       S.ran[m.id] = 1; if (S.paintChat) S.paintChat();
       var col = b.color || th(b)[2];
       if (window.matchMedia('(max-width:640px)').matches || document.body.classList.contains('phone-mode')) { var w = document.getElementById('win-dbots'); if (w && typeof window.minimizeApp === 'function') window.minimizeApp('dbots'); }
+      setMood(b.id, 'think');
       window.DogBotsOS.runDesktop(m.desktop, b, col, function (t) { line('[escritorio] ' + t, /✅/.test(t) ? 'term-ok' : 'term-err'); })
-        .then(function (res) { (S.msgs[b.id] = S.msgs[b.id] || []).push({ id: 'local' + Date.now(), role: 'bot', text: (res.stopped ? '⏹ Me has parado.\n' : '🖱️ Hecho en tu escritorio:\n') + res.done.join('\n'), at: Date.now() / 1000 }); if (S.paintChat) S.paintChat(); });
+        .then(function (res) { setMood(b.id, 'happy'); (S.msgs[b.id] = S.msgs[b.id] || []).push({ id: 'local' + Date.now(), role: 'bot', text: (res.stopped ? '⏹ Me has parado.\n' : '🖱️ Hecho en tu escritorio:\n') + res.done.join('\n'), at: Date.now() / 1000 }); if (S.paintChat) S.paintChat(); });
     }
     function handleBot(b, m) {
       if (!m) return;
-      if (m.browse && m.browse.length && S.mos) { root.classList.add('aside-open'); S.mos.replay(m.browse); }
+      if (m.browse && m.browse.length && S.mos) { root.classList.add('aside-open'); setMood(b.id, 'think'); S.mos.replay(m.browse).then(function () { setMood(b.id, 'happy'); }); }
+      if (m.code && m.code.code && S.mos) { root.classList.add('aside-open'); S.mos.code(m.code); }
       if (m.desktop && m.desktop.length && !m.desktop.some(function (s) { return s.confirm; })) runDesk(b, m);
     }
     function wireActs(box, b) {
       box.querySelectorAll('[data-yes],[data-redo]').forEach(function (x) { x.onclick = function () { runDesk(b, findMsg(x.getAttribute('data-yes') || x.getAttribute('data-redo'))); }; });
       box.querySelectorAll('[data-no]').forEach(function (x) { x.onclick = function () { S.ran[x.getAttribute('data-no')] = 1; (S.msgs[b.id] = S.msgs[b.id] || []).push({ id: 'local' + Date.now(), role: 'bot', text: 'Vale, no lo hago.', at: Date.now() / 1000 }); S.paintChat(); }; });
+      box.querySelectorAll('[data-codeview]').forEach(function (x) { x.onclick = function () { var m = findMsg(x.getAttribute('data-codeview')); if (m && S.mos) { root.classList.add('aside-open'); S.mos.code(m.code); } }; });
       box.querySelectorAll('[data-replay]').forEach(function (x) { x.onclick = function () { var m = findMsg(x.getAttribute('data-replay')); if (m && S.mos) { root.classList.add('aside-open'); S.mos.replay(m.browse); } }; });
     }
     function pageHtml(list) {
@@ -423,14 +457,14 @@
         var ready = S.pending.filter(function (f) { return f.state === 'ok'; });
         if (!v && !ready.length) return;
         if (!S.hasKey) { (S.msgs[b.id] = S.msgs[b.id] || []).push({ role: 'bot', text: '🔑 Para hablar conmigo necesitas tu propia clave de AskBox. Añádela en Ajustes → IA → Key de AskBox.', at: Date.now() / 1000 }); paint(); return; }
-        ta.value = ''; S.sending = true;
+        ta.value = ''; S.sending = true; setMood(b.id, 'think');
         var ids = ready.map(function (f) { return f.id; });
         (S.msgs[b.id] = S.msgs[b.id] || []).push({ role: 'user', text: v, at: Date.now() / 1000, attachments: ready.map(function (f) { return { id: f.id, name: f.name, type: f.type, size: f.size }; }) });
         S.pending = []; drawChips(); paint();
         api('/api/dbots/chat/' + encodeURIComponent(b.id), { method: 'POST', body: { text: v, attachments: ids, ctx: window.DogBotsOS ? window.DogBotsOS.context() : {} } })
-          .then(function (r) { S.sending = false; var m = r && r.message; return refresh().then(function () { handleBot(b, m); }); })
+          .then(function (r) { S.sending = false; setMood(b.id, 'happy'); var m = r && r.message; return refresh().then(function () { handleBot(b, m); }); })
           .then(function () { poll(); })
-          .catch(function (e) { S.sending = false; S.msgs[b.id].push({ role: 'bot', text: '❌ ' + errMsg(e), at: Date.now() / 1000 }); paint(); });
+          .catch(function (e) { S.sending = false; setMood(b.id, null); S.msgs[b.id].push({ role: 'bot', text: '❌ ' + errMsg(e), at: Date.now() / 1000 }); paint(); });
       }
       btn.onclick = send;
       ta.onkeydown = function (e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } };

@@ -42,6 +42,22 @@
     '.dbp-ptr{position:fixed;left:50vw;top:50vh;z-index:2147483600;pointer-events:none;transition:left .7s cubic-bezier(.3,.7,.3,1),top .7s cubic-bezier(.3,.7,.3,1);filter:drop-shadow(0 2px 3px rgba(0,0,0,.45))}',
     '.dbp-ptr .lab{position:absolute;left:20px;top:20px;white-space:nowrap;padding:2px 8px;border-radius:999px;color:#fff;font:600 12px/1.4 "Open Sans",system-ui,sans-serif}',
     '.dbp-stop{position:fixed;left:50%;top:14px;transform:translateX(-50%);z-index:2147483601;display:flex;align-items:center;gap:10px;background:#111;color:#fff;border-radius:999px;padding:6px 8px 6px 14px;font:13px "Open Sans",system-ui,sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.35)}',
+    '.mos-menu{position:absolute;left:6px;bottom:6px;z-index:6;width:min(230px,calc(100% - 12px));background:rgba(16,28,20,.97);color:#fff;border-radius:14px;padding:6px;box-shadow:0 10px 30px rgba(0,0,0,.5);display:none}.mos-menu.on{display:block}',
+    '.mos-menu .hd{padding:6px 8px 8px;font-weight:700;font-size:.78rem;border-bottom:1px solid rgba(255,255,255,.12);margin-bottom:4px}',
+    '.mos .mos-menu button{display:flex !important;align-items:center;gap:8px;width:100% !important;height:auto !important;min-height:34px;padding:6px 10px !important;border:0 !important;border-radius:9px !important;background:transparent !important;color:#fff !important;font-size:.8rem !important;text-align:left;cursor:pointer}',
+    '.mos .mos-menu button:hover,.mos .mos-menu button:focus{background:rgba(124,252,154,.18) !important}.mos-menu hr{border:0;border-top:1px solid rgba(255,255,255,.12);margin:4px 0}',
+    '.mos-off{position:absolute;inset:0;z-index:7;background:#000;color:#9f9;display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px;font-size:.8rem}.mos-off.on{display:flex}',
+    '.mos .mos-off button{width:auto !important;padding:8px 16px !important;border-radius:999px !important;border:1px solid #3c6 !important;background:#0b2 !important;color:#fff !important;cursor:pointer}',
+    '.mos-page.live{padding:0;overflow:hidden}.mos-page.live iframe{display:block;background:#fff}',
+    '.mos-fb{padding:6px 10px;font-size:.72rem;background:#fff8e1;color:#5d4200;border-bottom:1px solid #f0d78c}.mos-fb a{color:#1a0dab;cursor:pointer;text-decoration:underline}',
+    '.mos .mos-tool button.on{background:#d2e3fc !important}',
+    '.mos-code textarea{flex:1 1 55%;min-height:60px;border:0 !important;border-radius:0 !important;resize:none;background:#0d1117 !important;color:#c9f7d4 !important;font:12px/1.45 ui-monospace,Menlo,Consolas,monospace !important;padding:8px !important;outline:0}',
+    '.mos-code iframe{flex:1 1 45%;min-height:50px;border:0;border-top:1px solid #222;background:#0b1410}',
+    '.mos .mos-code select{height:24px;border-radius:8px;border:1px solid #ccc;font-size:.72rem;background:#fff;color:#222}.mos-ch{font-size:.62rem;color:#5f6368;margin-left:auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+    '.mos-fig{display:inline-flex;align-items:center;margin-left:4px}',
+    '.dbp-modal{position:fixed;inset:0;z-index:2147483602;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font-family:"Open Sans",system-ui,sans-serif}',
+    '.dbp-modal .box{background:#fff;color:#111;border-radius:18px;padding:18px 20px;max-width:min(340px,90vw);box-shadow:0 20px 50px rgba(0,0,0,.4);text-align:center}.dbp-modal .box b{display:block;font-size:1.05rem;margin:6px 0 14px}',
+    '.dbp-modal button{border:0;border-radius:999px;padding:8px 16px;margin:0 4px;cursor:pointer;font:600 13px system-ui;width:auto}.dbp-modal .y{background:#1e8e3e;color:#fff}.dbp-modal .n{background:#eee;color:#222}',
     '.dbp-stop button{background:#b3261e;color:#fff;border:0;border-radius:999px;padding:5px 12px;cursor:pointer;font:inherit;width:auto}'
   ].join('');
   document.head.appendChild(css);
@@ -49,19 +65,34 @@
   function cursorSvg(color, size) { return '<svg viewBox="0 0 24 24" width="' + (size || 16) + '" height="' + (size || 16) + '"><path d="M3 2l15 9-6.5 1.5L8 19z" fill="' + color + '" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/></svg>'; }
 
   // ---------------- Mini Snake OS Lite ----------------
-  function mount(host, bot, color) {
+  var TOK = { t: '', at: 0 };
+  function token() {
+    if (TOK.t && Date.now() - TOK.at < 2 * 3600 * 1000) return Promise.resolve(TOK.t);
+    return api('/api/dbots/proxy-token', { method: 'POST', body: {} }).then(function (r) { TOK = { t: r.t, at: Date.now() }; return r.t; });
+  }
+  function proxUrl(u, t) { return '/api/dbots/proxy?u=' + encodeURIComponent(u) + '&t=' + encodeURIComponent(t); }
+  function mount(host, bot, color, opts) {
+    opts = opts || {};
     color = color || '#34d17a';
     host.insertAdjacentHTML('beforeend',
       '<div class="mos" data-mos>' +
         '<div class="mos-screen">' +
           '<div class="mos-win" data-w="web"><div class="mos-tb"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i><b>🌐 Navegador de ' + esc(bot.name) + '</b></div>' +
-            '<div class="mos-tool"><button data-back title="Atrás">◀</button><button data-home title="Inicio">⌂</button><div class="mos-bar-in"><span style="font-weight:700;color:#4285f4">G</span><input data-q placeholder="Busca o escribe una dirección" spellcheck="false"></div></div>' +
+            '<div class="mos-tool"><button data-back title="Atrás">◀</button><button data-home title="Inicio">⌂</button><button data-reader title="Vista de lectura (si la página no carga)">📄</button><div class="mos-bar-in"><span style="font-weight:700;color:#4285f4">G</span><input data-q placeholder="Busca o escribe una dirección" spellcheck="false"></div></div>' +
             '<div class="mos-page" data-page></div></div>' +
           '<div class="mos-win mos-term" data-w="term" hidden><div class="mos-tb"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i><b>🖥️ Terminal</b></div><div data-termhost style="flex:1;min-height:0;display:flex;flex-direction:column"></div></div>' +
+          '<div class="mos-win mos-code" data-w="code" hidden><div class="mos-tb"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i><b>💻 Código de ' + esc(bot.name) + '</b></div>' +
+            '<div class="mos-tool"><select data-lang><option value="js">JavaScript</option><option value="py">Python</option></select><button data-run title="Ejecutar">▶</button><button data-tocl title="Copiar a mi Code Lab">📋</button><span class="mos-ch" data-chint>Aislado: sin red ni cookies</span></div>' +
+            '<textarea data-code spellcheck="false" placeholder="// El bot escribe aquí su código"></textarea><iframe data-out sandbox="allow-scripts" title="Salida"></iframe></div>' +
           '<div class="mos-status" data-status></div>' +
+          '<div class="mos-menu" data-menu role="menu"><div class="hd">🐍 Snake OS Lite · ' + esc(bot.name) + '</div>' +
+            '<button data-m="web">🌐 Navegador</button><button data-m="term">🖥️ Terminal</button><button data-m="code">💻 Código</button>' +
+            (opts.notes ? '<button data-m="notes">🧠 Notas del bot</button>' : '') + (opts.settings ? '<button data-m="settings">⚙️ Ajustes del bot</button>' : '') +
+            '<hr><button data-m="reboot">🔄 Reiniciar mini OS</button><button data-m="off">⏻ Apagar mini OS</button></div>' +
+          '<div class="mos-off" data-off><div style="font-size:30px">🐍</div><div>Snake OS Lite está apagado</div><button data-on>⏻ Encender</button></div>' +
           '<div class="mos-cur" data-cur style="color:' + color + '">' + cursorSvg(color, 16) + '</div>' +
         '</div>' +
-        '<div class="mos-bar"><button data-start title="Snake OS Lite">🐍</button><button data-app="web" class="on">🌐 Navegador</button><button data-app="term">🖥️ Terminal</button><span class="clk" data-clk></span></div>' +
+        '<div class="mos-bar"><button data-start title="Snake OS Lite">🐍</button><button data-app="web" class="on">🌐 Navegador</button><button data-app="term">🖥️ Terminal</button><button data-app="code">💻 Código</button>' + (opts.fig ? '<span class="mos-fig">' + opts.fig + '</span>' : '') + '<span class="clk" data-clk></span></div>' +
       '</div>');
     var el = host.querySelector('[data-mos]:last-child');
     var page = el.querySelector('[data-page]'), q = el.querySelector('[data-q]'), bar = el.querySelector('.mos-bar-in');
@@ -72,19 +103,102 @@
     var ti = setInterval(tick, 20000); tick();
     function show(w) { el.querySelectorAll('.mos-win').forEach(function (x) { x.hidden = x.getAttribute('data-w') !== w; }); el.querySelectorAll('.mos-bar [data-app]').forEach(function (b) { b.classList.toggle('on', b.getAttribute('data-app') === w); }); }
     el.querySelectorAll('.mos-bar [data-app]').forEach(function (b) { b.onclick = function () { show(b.getAttribute('data-app')); }; });
-    el.querySelector('[data-start]').onclick = function () { show('web'); home(); };
+    var menu = el.querySelector('[data-menu]'), off = el.querySelector('[data-off]');
+    function menuOn(v) { menu.classList.toggle('on', v); }
+    el.querySelector('[data-start]').onclick = function (e) { e.stopPropagation(); menuOn(!menu.classList.contains('on')); };
+    el.addEventListener('click', function (e) { if (!menu.contains(e.target) && !e.target.closest('[data-start]')) menuOn(false); });
+    function reboot() { off.classList.add('on'); off.querySelector('div:nth-child(2)').textContent = 'Reiniciando…'; off.querySelector('[data-on]').hidden = true;
+      setTimeout(function () { off.classList.remove('on'); off.querySelector('div:nth-child(2)').textContent = 'Snake OS Lite está apagado'; off.querySelector('[data-on]').hidden = false; hist = []; home(); show('web'); }, 900); }
+    menu.querySelectorAll('[data-m]').forEach(function (b) { b.onclick = function (e) { e.stopPropagation(); menuOn(false); var m = b.getAttribute('data-m');
+      if (m === 'web' || m === 'term' || m === 'code') show(m);
+      else if (m === 'notes') opts.notes();
+      else if (m === 'settings') opts.settings();
+      else if (m === 'reboot') reboot();
+      else if (m === 'off') { off.classList.add('on'); frame = null; page.innerHTML = ''; } }; });
+    off.querySelector('[data-on]').onclick = function () { reboot(); };
+    // ---- Editor de código del bot (como Code Lab, ejecución aislada) ----
+    var codeTa = el.querySelector('[data-code]'), langSel = el.querySelector('[data-lang]'), out = el.querySelector('[data-out]');
+    var CSPJS = "default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval'; style-src 'unsafe-inline'";
+    var PYB = 'https://cdn.jsdelivr.net/pyodide/v0.27.7/full/';
+    var CSPPY = "default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' https://cdn.jsdelivr.net; connect-src https://cdn.jsdelivr.net; style-src 'unsafe-inline'";
+    function js(s) { return JSON.stringify(String(s)).replace(/</g, '\\u003c'); }
+    var HEAD = '<style>body{margin:0;background:#0b1410;color:#9f9;font:12px/1.45 ui-monospace,Menlo,monospace}pre{margin:0;padding:8px;white-space:pre-wrap}.e{color:#ff8a80}</style>';
+    var W = 'var o=document.getElementById("o");function w(t,c){var s=document.createElement("span");if(c)s.className=c;s.textContent=t+"\\n";o.appendChild(s);}';
+    function runCode() {
+      var code = codeTa.value || '', lang = langSel.value, html;
+      if (lang === 'py') html = '<!doctype html><meta http-equiv="Content-Security-Policy" content="' + CSPPY + '">' + HEAD + '<pre id="o">Cargando Python…\n</pre><script src="' + PYB + 'pyodide.js"></' + 'script><script>' + W + '(async function(){try{var py=await loadPyodide({indexURL:"' + PYB + '",stdout:function(t){w(t)},stderr:function(t){w(t,"e")}});o.textContent="";await py.runPythonAsync(' + js(code) + ');w("— fin —","d")}catch(e){w(String(e&&e.message||e),"e")}})();</' + 'script>';
+      else html = '<!doctype html><meta http-equiv="Content-Security-Policy" content="' + CSPJS + '">' + HEAD + '<pre id="o"></pre><script>' + W + 'var f=function(c){return function(){w(Array.prototype.map.call(arguments,function(a){try{return typeof a==="object"?JSON.stringify(a):String(a)}catch(e){return String(a)}}).join(" "),c)}};console.log=f();console.info=f();console.warn=f("e");console.error=f("e");window.onerror=function(m){w(m,"e")};try{(0,eval)(' + js(code) + ');w("— fin —")}catch(e){w(String(e),"e")}</' + 'script>';
+      out.srcdoc = html;
+    }
+    el.querySelector('[data-run]').onclick = runCode;
+    el.querySelector('[data-tocl]').onclick = function () {
+      if (!window.openApp || !(window.APPS || {}).code) { el.querySelector('[data-chint]').textContent = 'Code Lab no disponible'; return; }
+      window.openApp('code');
+      setTimeout(function () { var ed = document.querySelector('#codeEditor-x'), lg = document.querySelector('#codeLang-x'), nm = document.querySelector('#codeName-x');
+        if (!ed) return; if (lg) { lg.value = langSel.value; lg.dispatchEvent(new Event('change', { bubbles: true })); } if (nm) nm.value = 'bot-' + String(bot.name || 'bot').toLowerCase().replace(/\W+/g, '-') + (langSel.value === 'py' ? '.py' : '.js');
+        ed.value = codeTa.value; ed.dispatchEvent(new Event('input', { bubbles: true })); el.querySelector('[data-chint]').textContent = '✅ Copiado a tu Code Lab'; }, 500);
+    };
+    function writeCode(c) {
+      show('code'); langSel.value = /^py/.test(c.lang || '') ? 'py' : 'js';
+      var txt = String(c.code || ''); codeTa.value = ''; say('⌨️ ' + bot.name + ' está programando…');
+      var i = 0, step = Math.max(1, Math.ceil(txt.length / 120));
+      return new Promise(function (res) { (function go() { if (i >= txt.length) return res(); codeTa.value += txt.slice(i, i + step); i += step; codeTa.scrollTop = codeTa.scrollHeight; setTimeout(go, 16); })(); })
+        .then(function () { return curTo(el.querySelector('[data-run]')); }).then(click).then(function () { say(''); cur.classList.remove('on'); runCode(); });
+    }
+    // ---- iframe real (directo o por el proxy del servidor) ----
+    var frame = null, frameMode = '', curUrl = '', pend = {}, seq = 0, onLoaded = null;
+    window.addEventListener('message', function (e) {
+      if (!frame || e.source !== frame.contentWindow) return;
+      var m = e.data || {}; if (!m.__dbp) return;
+      if (m.type === 'loaded') {
+        if (m.url) { curUrl = m.url; q.value = m.url; }
+        if (m.error) showFallback(m.error); else hideFallback();
+        if (onLoaded) { var f = onLoaded; onLoaded = null; f(m); }
+      } else if (m.type === 'nav') { if (m.url) { hist.push({ t: 'u', v: m.url }); q.value = m.url; } }
+      else if (m.type === 'note') say(m.text);
+      else if (m.id && pend[m.id]) { pend[m.id](m); delete pend[m.id]; }
+    });
+    function cmd(c, extra, ms) {
+      if (!frame || frameMode !== 'proxy') return Promise.resolve({ ok: false });
+      var id = 'c' + (++seq), msg = Object.assign({ cmd: c, id: id }, extra || {});
+      return new Promise(function (res) { pend[id] = res; try { frame.contentWindow.postMessage(msg, '*'); } catch (e) { res({ ok: false }); } setTimeout(function () { if (pend[id]) { delete pend[id]; res({ ok: false, timeout: true }); } }, ms || 4000); });
+    }
+    function waitLoaded(ms) { return new Promise(function (res) { onLoaded = res; setTimeout(function () { if (onLoaded === res) { onLoaded = null; res({ timeout: true }); } }, ms || 12000); }); }
+    function showFallback(msg) {
+      var fb = page.querySelector('.mos-fb'); if (fb) fb.remove();
+      page.insertAdjacentHTML('afterbegin', '<div class="mos-fb">⚠️ ' + esc(msg) + ' · <a data-rd>Ver en vista de lectura</a></div>');
+      page.querySelector('[data-rd]').onclick = function () { reader(curUrl); };
+    }
+    function hideFallback() { var fb = page.querySelector('.mos-fb'); if (fb) fb.remove(); }
+    function setFrame(src, mode) {
+      page.classList.add('live'); frameMode = mode;
+      page.innerHTML = '<iframe sandbox="allow-scripts allow-forms" referrerpolicy="no-referrer" src="' + esc(src) + '"></iframe>';
+      frame = page.querySelector('iframe');
+      if (mode === 'direct') frame.onerror = function () { showFallback('No cargó'); };
+    }
+    function clearFrame() { page.classList.remove('live'); frame = null; frameMode = ''; }
+    function proxyOpen(url) { return token().then(function (t) { var w = waitLoaded(); setFrame(proxUrl(url, t), 'proxy'); return w; }); }
+    function reader(url) {
+      clearFrame(); el.querySelector('[data-reader]').classList.add('on');
+      page.innerHTML = '<div class="mos-err" style="color:#5f6368">Abriendo vista de lectura…</div>';
+      return api('/api/dbots/browse', { method: 'POST', body: { url: url } }).then(renderView).catch(function (e) { page.innerHTML = '<div class="mos-err">' + esc(errMsg(e)) + '</div>'; });
+    }
+    el.querySelector('[data-reader]').onclick = function () { if (!curUrl) return; if (frame) reader(curUrl); else { el.querySelector('[data-reader]').classList.remove('on'); proxyOpen(curUrl); } };
     function say(t) { status.textContent = t; status.classList.toggle('on', !!t); }
     function home() {
+      clearFrame(); curUrl = '';
       page.innerHTML = '<div class="mos-home"><div class="mos-logo"><span>D</span><span>o</span><span>g</span><span>g</span><span>l</span><span>e</span></div><div style="color:#5f6368;font-size:.72rem">El buscador de ' + esc(bot.name) + '</div></div>';
       q.value = '';
     }
     function renderResults(qq, results) {
+      clearFrame();
       page.innerHTML = '<div style="color:#5f6368;font-size:.7rem;margin-bottom:8px">Resultados de «' + esc(qq) + '»</div>' + (results.length ? results.map(function (r, i) {
         return '<div class="mos-res"><div class="u">' + esc(r.url) + '</div><a data-go="' + esc(r.url) + '" data-i="' + i + '">' + esc(r.title || r.url) + '</a><p>' + esc(r.snippet || '') + '</p></div>';
       }).join('') : '<div class="mos-err">Sin resultados</div>');
       page.scrollTop = 0; wire();
     }
     function renderView(v) {
+      clearFrame(); curUrl = v.url;
       var paras = String(v.text || '').split('\n').filter(function (x) { return x.trim().length > 1; }).slice(0, 80);
       page.innerHTML = '<div class="mos-pg"><h3>' + esc(v.title) + '</h3><div class="dom">🔒 ' + esc(v.domain) + ' · vista de lectura</div>' +
         (v.forms && v.forms.length ? '<div class="mos-bar-in" style="margin:0 0 8px"><span>🔎</span><input data-form placeholder="Buscar en ' + esc(v.domain) + '"></div>' : '') +
@@ -95,23 +209,26 @@
       if (f) f.onkeydown = function (e) { if (e.key === 'Enter' && f.value.trim()) { var fm = v.forms[0]; open(fm.action + (fm.action.indexOf('?') >= 0 ? '&' : '?') + encodeURIComponent(fm.field) + '=' + encodeURIComponent(f.value.trim())); } };
     }
     function wire() { page.querySelectorAll('[data-go]').forEach(function (a) { a.onclick = function () { open(a.getAttribute('data-go')); }; }); }
-    function search(qq) {
-      hist.push({ t: 'q', v: qq }); q.value = qq; page.innerHTML = '<div class="mos-err" style="color:#5f6368">Buscando…</div>';
-      return api('/api/dbots/search', { method: 'POST', body: { q: qq } }).then(function (r) { renderResults(qq, r.results || []); }).catch(function (e) { page.innerHTML = '<div class="mos-err">' + esc(errMsg(e)) + '</div>'; });
+    function search(qq, fallbackResults) {
+      hist.push({ t: 'q', v: qq }); q.value = qq; clearFrame(); page.innerHTML = '<div class="mos-err" style="color:#5f6368">Buscando…</div>';
+      return api('/api/dbots/gsearch', { method: 'POST', body: { q: qq } }).then(function (r) {
+        if (r.ok && r.url) { TOK = { t: r.t, at: Date.now() }; curUrl = r.url; el.querySelector('[data-reader]').classList.remove('on'); var w = waitLoaded(); setFrame(proxUrl(r.url, r.t), 'proxy'); return w.then(function () { return 'google'; }); }
+        renderResults(qq, (r.results && r.results.length) ? r.results : (fallbackResults || [])); return 'doggle';
+      }).catch(function (e) { if (fallbackResults) { renderResults(qq, fallbackResults); return 'doggle'; } page.innerHTML = '<div class="mos-err">' + esc(errMsg(e)) + '</div>'; });
     }
     function open(url, readerOnly) {
       if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
-      hist.push({ t: 'u', v: url }); q.value = url; page.innerHTML = '<div class="mos-err" style="color:#5f6368">Abriendo…</div>';
-      var chk = readerOnly ? Promise.resolve({ embeddable: false }) : api('/api/frame-check?u=' + encodeURIComponent(url)).catch(function () { return { embeddable: false }; });
-      return chk.then(function (fc) {
-        if (fc && fc.embeddable) {
-          page.innerHTML = '<iframe sandbox="allow-scripts allow-forms allow-popups" referrerpolicy="no-referrer" src="' + esc(url) + '"></iframe>';
-          return;
-        }
-        return api('/api/dbots/browse', { method: 'POST', body: { url: url } }).then(renderView);
-      }).catch(function (e) { page.innerHTML = '<div class="mos-err">' + esc(errMsg(e)) + '</div>'; });
+      hist.push({ t: 'u', v: url }); q.value = url; curUrl = url; clearFrame(); el.querySelector('[data-reader]').classList.remove('on');
+      page.innerHTML = '<div class="mos-err" style="color:#5f6368">Abriendo…</div>';
+      if (readerOnly) return reader(url);
+      return api('/api/frame-check?u=' + encodeURIComponent(url)).catch(function () { return { embeddable: false }; }).then(function (fc) {
+        if (fc && fc.embeddable && !opts.forceProxy) { setFrame(url, 'direct'); return; }
+        return proxyOpen(url).then(function (m) { if (m && m.timeout) showFallback('La página tarda en cargar'); });
+      }).catch(function (e) { reader(url); });
     }
-    q.onkeydown = function (e) { if (e.key !== 'Enter') return; var v = q.value.trim(); if (!v) return; if (/^(https?:\/\/|www\.)|^[\w-]+\.[a-z]{2,}(\/|$)/i.test(v)) open(v); else search(v); };
+    function live() { return frame && frameMode === 'proxy'; }
+    function frameXY(rc) { var fr = frame.getBoundingClientRect(); return { getBoundingClientRect: function () { return { left: fr.left + rc.x, top: fr.top + rc.y - 6, width: 12, height: 12 }; } }; }
+    q.onkeydown = function (e) { if (e.key !== 'Enter') return; var v = q.value.trim(); if (!v) return; if (/^(https?:\/\/|www\.)|^[\w-]+(\.[\w-]+)*\.[a-z]{2,}(\/|$)/i.test(v)) open(v); else search(v); };
     el.querySelector('[data-home]').onclick = home;
     el.querySelector('[data-back]').onclick = function () { hist.pop(); var h = hist.pop(); if (!h) return home(); if (h.t === 'q') search(h.v); else open(h.v); };
     // ---- animación de las acciones del bot ----
@@ -138,23 +255,37 @@
       var p = Promise.resolve();
       trace.forEach(function (t) {
         p = p.then(function () {
-          if (t.op === 'search') { say('🔎 Buscando «' + t.q + '»'); return curTo(bar).then(click).then(function () { return typeInto(q, t.q); }).then(function () { hist.push({ t: 'q', v: t.q }); renderResults(t.q, t.results || []); return wait(700); }); }
+          if (t.op === 'search') { say('🔎 Buscando «' + t.q + '»'); return curTo(bar).then(click).then(function () { return typeInto(q, t.q); }).then(function () { return search(t.q, t.results || []); }).then(function () { return wait(700); }); }
           if (t.error) { say('⚠️ ' + t.error); return wait(900); }
           if ((t.op === 'open' || t.op === 'click' || t.op === 'form') && t.view) {
-            var a = findLink(t);
             say((t.op === 'form' ? '⌨️ Buscando en la página: ' + t.q : t.op === 'click' ? '👆 Abriendo «' + (t.text || '') + '»' : '🌐 Abriendo ' + t.view.domain));
-            var pre = a ? (a.scrollIntoView({ block: 'center' }), a.classList.add('mos-hl'), curTo(a).then(click)) : curTo(bar).then(click).then(function () { return typeInto(q, t.url || t.view.url); });
-            return pre.then(function () { hist.push({ t: 'u', v: t.view.url }); renderView(t.view); return wait(800); });
+            var target = t.view.url;
+            if (live() && t.op === 'click') {
+              return cmd('locate', { text: t.text, url: t.url }).then(function (r) {
+                if (!r.ok) return curTo(bar).then(click).then(function () { return typeInto(q, target); }).then(function () { hist.push({ t: 'u', v: target }); return proxyOpen(target); });
+                return curTo(frameXY(r.rect)).then(click).then(function () { var w = waitLoaded(); cmd('click', { text: t.text, url: t.url }); hist.push({ t: 'u', v: target }); return w; });
+              }).then(function () { return wait(700); });
+            }
+            if (live() && t.op === 'form') {
+              return cmd('type', { text: t.q, submit: false }, 8000).then(function (r) {
+                if (!r.ok) return proxyOpen(target);
+                return curTo(frameXY(r.rect)).then(click).then(function () { hist.push({ t: 'u', v: target }); return proxyOpen(target); });
+              }).then(function () { return wait(700); });
+            }
+            var a = !live() && findLink(t);
+            var pre = a ? (a.scrollIntoView({ block: 'center' }), a.classList.add('mos-hl'), curTo(a).then(click)) : curTo(bar).then(click).then(function () { return typeInto(q, t.url || target); });
+            return pre.then(function () { hist.push({ t: 'u', v: target }); curUrl = target; return proxyOpen(target); }).then(function (m) { if (!m || m.timeout || m.error) { renderView(t.view); showFallback((m && m.error) || 'La página no cargó; muestro la vista de lectura'); } return wait(800); });
           }
-          if (t.op === 'scroll') { say('📜 Desplazando'); page.scrollTop += page.clientHeight * 0.8; return wait(700); }
-          if (t.op === 'read') { say('📖 Leyendo'); var ps = page.querySelectorAll('.mos-pg p'); var k = 0; return (function hl() { if (k >= Math.min(4, ps.length)) return Promise.resolve(); var el2 = ps[k++]; el2.classList.add('mos-hl'); return curTo(el2).then(function () { return wait(250); }).then(function () { el2.classList.remove('mos-hl'); return hl(); }); })(); }
+          if (t.op === 'scroll') { say('📜 Desplazando'); if (live()) return cmd('scroll', {}).then(function () { return wait(700); }); page.scrollTop += page.clientHeight * 0.8; return wait(700); }
+          if (t.op === 'read') { say('📖 Leyendo'); if (live()) return curTo(frame).then(function () { return cmd('read', {}, 4000); });
+            var ps = page.querySelectorAll('.mos-pg p'); var k = 0; return (function hl() { if (k >= Math.min(4, ps.length)) return Promise.resolve(); var el2 = ps[k++]; el2.classList.add('mos-hl'); return curTo(el2).then(function () { return wait(250); }).then(function () { el2.classList.remove('mos-hl'); return hl(); }); })(); }
           return wait(200);
         });
       });
       return p.then(function () { say(''); cur.classList.remove('on'); busy = false; }, function () { say(''); busy = false; });
     }
     home();
-    return { el: el, termHost: el.querySelector('[data-termhost]'), show: show, search: search, open: open, replay: replay, say: say, curTo: curTo, click: click };
+    return { el: el, termHost: el.querySelector('[data-termhost]'), show: show, search: search, open: open, replay: replay, say: say, curTo: curTo, click: click, cmd: cmd, menu: menuOn, reader: reader, code: writeCode };
   }
 
   // ---------------- Control del escritorio real ----------------
@@ -168,6 +299,16 @@
   function bridge() { return window.SnakeTermBridge || null; }
   function b64(t) { try { return btoa(unescape(encodeURIComponent(t))); } catch (e) { return ''; } }
   function vis(el) { if (!el) return null; var r = el.getBoundingClientRect(); return (r.width > 0 && r.height > 0 && r.bottom > 0 && r.right > 0 && r.top < innerHeight && r.left < innerWidth) ? el : null; }
+  function confirmBox(text, bot) {
+    return new Promise(function (res) {
+      var m = document.createElement('div'); m.className = 'dbp-modal';
+      m.innerHTML = '<div class="box" role="dialog" aria-modal="true"><div style="font-size:28px">📞</div><b>' + esc(text) + '</b><div style="font-size:12px;color:#555;margin:-8px 0 14px">Lo pide ' + esc(bot.name) + '. La llamada solo empieza si aceptas.</div><button class="n" data-n>Cancelar</button><button class="y" data-y>Llamar</button></div>';
+      document.body.appendChild(m);
+      function done(v) { m.remove(); res(v); }
+      m.querySelector('[data-y]').onclick = function () { done(true); }; m.querySelector('[data-n]').onclick = function () { done(false); };
+      m.onclick = function (e) { if (e.target === m) done(false); };
+    });
+  }
   function runDesktop(steps, bot, color, log) {
     if (running) running.stop();
     log = log || function () {};
@@ -245,6 +386,28 @@
       switch_desktop: function (s) {
         var b = document.querySelector('[data-vd="' + (s.n || 1) + '"]'); if (!b) throw new Error('No hay escritorios virtuales aquí');
         return moveTo(vis(b) || null).then(clk).then(function () { b.click(); return 'Cambié al escritorio ' + s.n; });
+      },
+      call_contact: function (s) {
+        var want = String(s.name || '').trim(), wd = want.replace(/\D/g, '');
+        if (!want) throw new Error('¿A quién llamo?');
+        return api('/api/phone/contacts').then(function (d) {
+          var cs = (d && d.contacts) || [], lw = want.toLowerCase();
+          var c = cs.filter(function (x) { var n = String(x.number || '').replace(/\D/g, ''); return wd.length === 6 && n === wd; })[0] ||
+            cs.filter(function (x) { return String(x.name || '').toLowerCase() === lw; })[0] ||
+            cs.filter(function (x) { return String(x.name || '').toLowerCase().indexOf(lw) >= 0; })[0];
+          if (!c) throw new Error('«' + want + '» no está entre tus contactos; solo llamo a tus contactos');
+          var label = (c.name || 'contacto') + ' (' + c.number + ')';
+          return confirmBox('¿Llamar a ' + label + '?', bot).then(function (ok) {
+            if (!ok) return 'No llamé a ' + label + ' (cancelado)';
+            if (!(window.APPS || {}).phone) throw new Error('Teléfono no disponible');
+            return moveTo(appIcon('phone')).then(clk).then(function () { window.openApp('phone'); return wait(700); }).then(function () {
+              var w = win('phone'), disp = w && w.querySelector('.dph-display'), btn = w && w.querySelector('.dph-call');
+              if (!disp || !btn) throw new Error('No encontré el marcador del Teléfono');
+              return moveTo(disp).then(clk).then(function () { disp.value = String(c.number); disp.dispatchEvent(new Event('input', { bubbles: true })); return wait(400); })
+                .then(function () { return moveTo(btn); }).then(clk).then(function () { btn.click(); return 'Llamando a ' + label + ' (yo no hablo en la llamada)'; });
+            });
+          });
+        });
       },
       delete_file: function (s) {
         if (!B) throw new Error('Archivos no disponible');

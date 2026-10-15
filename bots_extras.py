@@ -16,8 +16,8 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Callable
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
+from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel, Field
 
 import askbox_client
@@ -173,9 +173,9 @@ class ChatBody(BaseModel):
 DESKTOP_OPS = {
     "open_app": ("app",), "close_app": ("app",), "create_folder": ("name",), "create_note": ("text",),
     "create_file": ("name", "text"), "set_wallpaper": ("id",), "move_window": ("app", "x", "y", "w", "h"),
-    "switch_desktop": ("n",), "delete_file": ("name",),
+    "switch_desktop": ("n",), "delete_file": ("name",), "call_contact": ("name",),
 }
-DESTRUCTIVE_OPS = {"delete_file"}
+DESTRUCTIVE_OPS = {"delete_file", "call_contact"}
 BROWSE_OPS = {"search", "open", "click", "scroll", "read", "form"}
 
 
@@ -357,6 +357,102 @@ def fetch_page(url: str, max_chars: int = 7000) -> dict[str, Any]:
         title, text, links, forms = "", page, [], []
     dom = (urlparse(final).hostname or "").removeprefix("www.")
     return {"url": final, "domain": dom, "title": title or dom, "text": text[:max_chars], "links": links, "forms": forms}
+
+
+# ---- Proxy del navegador embebido del bot ----
+# Sirve la página real dentro de un iframe aislado (CSP sandbox, sin allow-same-origin):
+# sin cookies ni credenciales del usuario, sin Set-Cookie, sin X-Frame-Options/CSP de la web original.
+import hashlib
+import hmac
+import os
+import secrets
+from urllib.parse import quote, urlencode
+
+_PROXY_SECRET = secrets.token_bytes(32)
+PROXY_TOKEN_TTL = 3 * 3600
+PROXY_PER_MIN = 60
+_proxy_rate: dict[int, list[float]] = {}
+_proxy_cache: dict[str, tuple[float, str, str]] = {}
+PROXY_CSP = "sandbox allow-scripts allow-forms; frame-ancestors 'self'"
+
+
+def proxy_token(uid: int) -> str:
+    exp = int(time.time()) + PROXY_TOKEN_TTL
+    msg = f"{int(uid)}.{exp}"
+    sig = hmac.new(_PROXY_SECRET, msg.encode(), hashlib.sha256).hexdigest()[:32]
+    return f"{msg}.{sig}"
+
+
+def _proxy_uid(tok: str) -> int | None:
+    try:
+        uid, exp, sig = tok.split(".")
+        good = hmac.new(_PROXY_SECRET, f"{uid}.{exp}".encode(), hashlib.sha256).hexdigest()[:32]
+        if hmac.compare_digest(good, sig) and int(exp) > time.time():
+            return int(uid)
+    except Exception:
+        pass
+    return None
+
+
+def _fetch_raw(url: str) -> tuple[str, str, bytes]:
+    _check_host(url)
+    req = _UReq(url, headers={
+        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,*/*;q=0.8",
+        "Accept-Language": "es-ES,es;q=0.9,en;q=0.7",
+    })
+    try:
+        with _opener.open(req, timeout=FETCH_TIMEOUT) as resp:
+            final = resp.geturl()
+            _check_host(final)
+            ctype = (resp.headers.get("Content-Type") or "").lower()
+            raw = resp.read(MAX_PAGE_BYTES + 1)
+    except UrlBlocked:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        code = getattr(exc, "code", None)
+        raise UrlBlocked(f"La página respondió {code}" if code else "No se pudo abrir la página (tiempo agotado o sin conexión)")
+    if len(raw) > MAX_PAGE_BYTES:
+        raise UrlBlocked("La página pasa de 2 MB")
+    return final, ctype, raw
+
+
+def _decode(raw: bytes, ctype: str) -> str:
+    m = re.search(r"charset=([\w-]+)", ctype) or re.search(rb"<meta[^>]+charset=[\"']?([\w-]+)", raw[:3000], re.I)
+    cs = m.group(1) if m else "utf-8"
+    if isinstance(cs, bytes):
+        cs = cs.decode("ascii", "ignore")
+    try:
+        return raw.decode(cs, errors="replace")
+    except LookupError:
+        return raw.decode("utf-8", errors="replace")
+
+
+def _proxy_doc(origin: str, tok: str, final: str, page: str) -> str:
+    page = re.sub(r"<meta[^>]+http-equiv=[\"']?(content-security-policy|x-frame-options|refresh|set-cookie)[^>]*>", "", page, flags=re.I)
+    page = re.sub(r"<base\b[^>]*>", "", page, flags=re.I)
+    cfg = json.dumps({"p": origin + "/api/dbots/proxy", "t": tok, "u": final, "o": origin})
+    inject = (f'<base href="{_html.escape(final, quote=True)}">'
+              f'<script>window.__DBP={cfg};</script>'
+              f'<script src="{origin}/static/dbots-proxy-helper.js?v=20261015"></script>')
+    m = re.search(r"<head\b[^>]*>", page, re.I)
+    if m:
+        return page[:m.end()] + inject + page[m.end():]
+    return "<!doctype html><html><head>" + inject + "</head><body>" + page + "</body></html>"
+
+
+def _proxy_error(origin: str, msg: str, url: str) -> str:
+    cfg = json.dumps({"p": origin + "/api/dbots/proxy", "t": "", "u": url, "o": origin, "error": msg})
+    return ("<!doctype html><html><head><meta charset=utf-8><script>window.__DBP=" + cfg + ";</script>"
+            f'<script src="{origin}/static/dbots-proxy-helper.js?v=20261015"></script></head>'
+            "<body style=\"font-family:system-ui;padding:24px;color:#333;text-align:center\"><p style=\"font-size:40px\">🚧</p>"
+            f"<p>No se pudo mostrar la página.</p><p style=\"color:#b3261e\">{_html.escape(msg)}</p></body></html>")
+
+
+def _google_blocked(final: str, page: str) -> bool:
+    low = page[:200000].lower()
+    return ("consent.google" in final or "/sorry/" in final or "unusual traffic" in low or "tráfico inusual" in low
+            or "recaptcha" in low or "<h3" not in low)
 
 
 def run_browse(steps: Any, web_search: Callable[[str, int], list[dict[str, str]]]) -> list[dict[str, Any]]:
@@ -742,6 +838,72 @@ def build_router(
         calls.append(now)
         _fetch_rate[uid] = calls
 
+    def _origin(request: Request) -> str:
+        proto = (request.headers.get("x-forwarded-proto") or request.url.scheme or "https").split(",")[0].strip()
+        host = request.headers.get("host") or request.url.netloc
+        return f"{proto}://{host}"
+
+    @r.post("/api/dbots/proxy-token")
+    def proxy_token_ep(user=Depends(require_user)):
+        return {"t": proxy_token(int(user["id"])), "ttl": PROXY_TOKEN_TTL}
+
+    def _proxy_rl(uid: int) -> bool:
+        now = time.monotonic()
+        calls = [x for x in _proxy_rate.get(uid, []) if x > now - 60]
+        if len(calls) >= PROXY_PER_MIN:
+            return False
+        calls.append(now)
+        _proxy_rate[uid] = calls
+        return True
+
+    def _resp(html_text: str, status: int = 200) -> HTMLResponse:
+        return HTMLResponse(html_text, status_code=status, headers={
+            "Content-Security-Policy": PROXY_CSP, "X-Content-Type-Options": "nosniff",
+            "Referrer-Policy": "no-referrer", "Cache-Control": "private, no-store",
+        })
+
+    @r.get("/api/dbots/proxy")
+    def proxy_ep(request: Request, u: str = Query("", max_length=3000), t: str = Query("", max_length=200)):
+        origin = _origin(request)
+        uid = _proxy_uid(t)
+        if uid is None:
+            return _resp(_proxy_error(origin, "Enlace caducado; vuelve a abrir la página desde el bot.", u), 403)
+        if not _proxy_rl(uid):
+            return _resp(_proxy_error(origin, "Demasiadas páginas seguidas; espera un minuto.", u), 429)
+        try:
+            hit = _proxy_cache.get(u)
+            if hit and hit[0] > time.time() - 90:
+                final, page = hit[1], hit[2]
+            else:
+                final, ctype, raw = _fetch_raw(u)
+                if ctype and "html" not in ctype and "xml" not in ctype:
+                    raise UrlBlocked("Este enlace no es una página web (" + ctype.split(";")[0] + ")")
+                page = _decode(raw, ctype)
+            return _resp(_proxy_doc(origin, t, final, page))
+        except UrlBlocked as exc:
+            return _resp(_proxy_error(origin, str(exc), u), 200)
+
+    @r.post("/api/dbots/gsearch")
+    def gsearch_ep(body: dict, user=Depends(require_user)):
+        uid = int(user["id"])
+        _rl(uid)
+        q = str((body or {}).get("q") or "").strip()[:150]
+        if not q:
+            raise HTTPException(422, "Escribe qué buscar")
+        url = "https://www.google.com/search?" + urlencode({"q": q, "hl": "es", "gl": "es"})
+        try:
+            final, ctype, raw = _fetch_raw(url)
+            page = _decode(raw, ctype)
+            if not _google_blocked(final, page):
+                _proxy_cache[url] = (time.time(), final, page)
+                for k in [k for k, v in _proxy_cache.items() if v[0] < time.time() - 90][:50]:
+                    _proxy_cache.pop(k, None)
+                return {"ok": True, "url": url, "t": proxy_token(uid)}
+        except UrlBlocked:
+            pass
+        res = web_search(q, 8) or []
+        return {"ok": False, "q": q, "results": [{"title": x.get("title", "")[:150], "url": x.get("url", "")[:400], "snippet": x.get("snippet", "")[:300]} for x in res]}
+
     @r.post("/api/dbots/browse")
     def browse_endpoint(body: dict, user=Depends(require_user)):
         _rl(int(user["id"]))
@@ -911,7 +1073,9 @@ def build_router(
             "{\"op\":\"form\",\"q\": texto para el buscador de la página}, {\"op\":\"scroll\"}, {\"op\":\"read\"}. Úsalo cuando haya que navegar varias páginas.\n"
             "Y \"action\": \"desktop\" con \"steps\" para hacer cosas en el escritorio Snake OS del usuario, solo con estas operaciones: "
             "open_app{app}, close_app{app}, create_folder{name}, create_note{text}, create_file{name,text}, set_wallpaper{id}, "
-            "move_window{app,x,y,w,h}, switch_desktop{n 1-4}, delete_file{name} (este pide confirmación). Nunca cierres sesión, cambies contraseñas ni inicies sesión en webs. "
+            "move_window{app,x,y,w,h}, switch_desktop{n 1-4}, delete_file{name} (pide confirmación), call_contact{name: nombre o número DOG- de un contacto del usuario} (llama por el Teléfono; siempre pide confirmación; tú no hablas en la llamada). "
+            "También \"action\": \"code\" con \"lang\": \"js\" o \"python\" y \"code\": el programa completo, cuando el usuario te pida programar algo: lo escribes y ejecutas en tu editor (aislado, sin red; usa console.log/print para mostrar la salida). "
+            "Nunca cierres sesión, cambies contraseñas ni inicies sesión en webs. "
             f"Apps disponibles: {ctx_apps}. Fondos disponibles: {ctx_walls}."
         )
         prompt = (f"Conversación previa:\n{convo}\n\n" if convo else "") + f"Usuario: {text}\nResponde con el JSON."
@@ -963,9 +1127,13 @@ def build_router(
                 if steps:
                     extra["desktop"] = steps
                     if any(st.get("confirm") for st in steps):
-                        reply = (reply or "Voy a hacerlo en tu escritorio.") + "\n\n⚠️ Hay acciones que borran cosas: confírmalo abajo antes de que las haga."
+                        reply = (reply or "Voy a hacerlo en tu escritorio.") + "\n\n⚠️ Hay acciones que necesitan tu permiso (borrar o llamar): confírmalo abajo antes de que las haga."
                 else:
                     reply = (reply or "") + "\n\n(No puedo hacer esa acción en el escritorio por seguridad.)"
+            elif action == "code" and str(d.get("code") or "").strip():
+                lang = "py" if str(d.get("lang") or "").lower().startswith("py") else "js"
+                extra["code"] = {"lang": lang, "code": str(d.get("code"))[:20000]}
+                reply = reply or "Te lo programo en mi editor y lo ejecuto."
             elif action == "open" and URL_RE.match(str(d.get("url") or "").strip()):
                 try:
                     pg = fetch_page(str(d.get("url")).strip())
