@@ -6509,7 +6509,7 @@ async def chat_send(body: ChatSendBody, user=Depends(require_user)):
     notif = db.create_notification(
         user_id=peer_id,
         kind="chat",
-        title=f"{user['avatar']} {user['name']}",
+        title=(f"{user['avatar']} {user['name']}" if (user['avatar'] and not db._is_image_avatar_str(str(user['avatar']))) else str(user['name'])),
         body=preview,
         data={
             "app": "chat",

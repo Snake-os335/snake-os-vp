@@ -1,6 +1,7 @@
 """SQLite persistence for Snake OS users and sessions."""
 from __future__ import annotations
 
+import re
 import json
 import secrets
 import sqlite3
@@ -2411,12 +2412,26 @@ def create_notification(
     return _notification_dict(row)
 
 
+def _is_image_avatar_str(a: str) -> bool:
+    a = str(a or "")
+    return a.startswith("/api/avatars/") or a.startswith("data:image/") or a.startswith("http://") or a.startswith("https://")
+
+
+_AVATAR_URL_RE = re.compile(r"(?:/api/avatars/\S*|data:image/\S*|https?://\S+)\s*")
+
+
+def _clean_notif_title(title: Any) -> str:
+    t = str(title or "")
+    cleaned = _AVATAR_URL_RE.sub("", t).strip()
+    return cleaned or t
+
+
 def _notification_dict(row: sqlite3.Row) -> dict[str, Any]:
     return {
         "id": int(row["id"]),
         "userId": int(row["user_id"]),
         "kind": row["kind"],
-        "title": row["title"],
+        "title": _clean_notif_title(row["title"]),
         "body": row["body"],
         "data": _parse_json(row["data"], {}),
         "read": bool(row["read"]),
