@@ -175,7 +175,8 @@
         if (!ed) return; if (lg) { lg.value = langSel.value; lg.dispatchEvent(new Event('change', { bubbles: true })); } if (nm) nm.value = 'bot-' + String(bot.name || 'bot').toLowerCase().replace(/\W+/g, '-') + (langSel.value === 'py' ? '.py' : '.js');
         ed.value = codeTa.value; ed.dispatchEvent(new Event('input', { bubbles: true })); el.querySelector('[data-chint]').textContent = '✅ Copiado a tu Code Lab'; }, 500);
     };
-    function writeCode(c) {
+    function writeCode(c) { return launch('code').then(function () { return writeCode0(c); }); }
+    function writeCode0(c) {
       show('code'); langSel.value = /^py/.test(c.lang || '') ? 'py' : 'js';
       var txt = String(c.code || ''); codeTa.value = ''; say('⌨️ ' + bot.name + ' está programando…');
       var i = 0, step = Math.max(1, Math.ceil(txt.length / 120));
@@ -293,6 +294,16 @@
       return wait(600);
     }
     function click() { cur.classList.remove('click'); void cur.offsetWidth; cur.classList.add('click'); return wait(350); }
+    // El bot abre las apps de su mini OS con el puntero: va al icono exacto de la barra, hace clic y abre la ventana
+    function launch(w) {
+      try { if (typeof wake === 'function' && sleepEl && sleepEl.classList.contains('on')) wake(); } catch (e) {}
+      try { if (off && off.classList.contains('on')) off.classList.remove('on'); } catch (e) {}
+      var btn = el.querySelector('.mos-bar [data-app="' + w + '"]');
+      var win = el.querySelector('.mos-win[data-w="' + w + '"]');
+      if (!btn) { show(w); return wait(150); }
+      if (win && !win.hidden && btn.classList.contains('on')) return Promise.resolve();
+      return curTo(btn).then(click).then(function () { show(w); return wait(400); });
+    }
     function typeInto(input, text) {
       bar.classList.add('typing'); input.value = '';
       var i = 0; return new Promise(function (res) { (function step() { if (i >= text.length) { bar.classList.remove('typing'); return res(); } input.value += text[i++]; try { input.focus({ preventScroll: true }); input.setSelectionRange(input.value.length, input.value.length); } catch (e) {} setTimeout(step, Math.max(55, Math.min(120, 4000 / Math.max(1, text.length)))); })(); });
@@ -304,8 +315,8 @@
     }
     function replay(trace) {
       if (!trace || !trace.length) return Promise.resolve();
-      busy = true; show('web');
-      var p = Promise.resolve();
+      busy = true;
+      var p = launch('web');
       trace.forEach(function (t) {
         p = p.then(function () {
           if (t.op === 'search') { say('🔎 Buscando «' + t.q + '»'); return curTo(bar).then(click).then(function () { return typeInto(q, t.q); }).then(function () { return search(t.q, t.results || []); }).then(function () { return wait(700); }); }
@@ -338,7 +349,7 @@
       return p.then(function () { say(''); cur.classList.remove('on'); busy = false; }, function () { say(''); busy = false; });
     }
     home();
-    return { el: el, termHost: el.querySelector('[data-termhost]'), show: show, search: search, open: open, replay: replay, say: say, curTo: curTo, click: click, cmd: cmd, menu: menuOn, reader: reader, code: writeCode };
+    return { el: el, termHost: el.querySelector('[data-termhost]'), show: show, search: search, open: open, replay: replay, say: say, curTo: curTo, click: click, cmd: cmd, menu: menuOn, reader: reader, code: writeCode, launch: launch };
   }
 
   // ---------------- Control del escritorio real ----------------
