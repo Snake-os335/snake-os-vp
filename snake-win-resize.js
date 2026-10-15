@@ -59,12 +59,11 @@
     if (e.button != null && e.button !== 0) return;
     var win = e.target && e.target.closest ? e.target.closest('.app-window') : null;
     lastPtr = e.pointerType || 'mouse';
+    if (e.target && e.target.closest && e.target.closest('.win-titlebar')) return;
     var d = dirFor(win, e.clientX, e.clientY, lastPtr);
     if (!d) return;
     if (e.target.closest('.win-btn')) return;
     e.preventDefault();
-    // En la barra de título evitamos que empiece a mover la ventana.
-    if (e.target.closest('.win-titlebar')) { e.stopPropagation(); topZ(win); }
     win.classList.remove('win-appear');
     win.style.opacity = '';
     win.style.transform = '';

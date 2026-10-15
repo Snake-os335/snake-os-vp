@@ -25,7 +25,7 @@
     '.mos-page{flex:1;min-height:0;overflow:auto;padding:10px 12px;color:#202124;font-size:.78rem;line-height:1.45;scroll-behavior:smooth}',
     '.mos-page iframe{border:0;width:100%;height:100%}',
     '.mos-home{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:10px}',
-    '.mos-logo{font-size:1.35rem;font-weight:800;letter-spacing:-.5px;color:#ff8a00}.mos-logo span{color:#ff8a00}',
+    '.mos-logo{font-size:1.35rem;font-weight:800;letter-spacing:-.5px;color:#ff8a00;display:flex;align-items:center;gap:8px;justify-content:center}.mos-logo span{color:#ff8a00}.mos-logo img,.mos-dsearch{width:22px;height:22px;object-fit:contain;border-radius:4px;flex-shrink:0}.mos-home .mos-logo img{width:64px;height:64px}',
     '.mos-res{margin:0 0 12px}.mos-res .u{color:#188038;font-size:.7rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.mos-res a,.mos-lk{color:#1a0dab;cursor:pointer;text-decoration:none;font-size:.86rem}.mos-res a:hover,.mos-lk:hover{text-decoration:underline}.mos-res p{margin:2px 0 0;color:#4d5156}',
     '.mos-pg h3{margin:0 0 2px;font-size:.95rem}.mos-pg .dom{color:#188038;font-size:.7rem;margin-bottom:8px}.mos-pg p{margin:0 0 6px}',
     '.mos-links{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px}.mos-links .mos-lk{font-size:.72rem;background:#f1f3f4;border-radius:999px;padding:2px 8px}',
@@ -48,8 +48,8 @@
     '.mos .mos-menu button:hover,.mos .mos-menu button:focus{background:rgba(124,252,154,.18) !important}.mos-menu hr{border:0;border-top:1px solid rgba(255,255,255,.12);margin:4px 0}',
     '.mos-off{position:absolute;inset:0;z-index:7;background:#000;color:#9f9;display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px;font-size:.8rem}.mos-off.on{display:flex}',
     '.mos-sleep{position:absolute;inset:0;z-index:8;background:radial-gradient(circle at 50% 40%,#1a2744 0,#070b14 70%);color:#cde;display:none;flex-direction:column;align-items:center;justify-content:center;gap:10px;text-align:center;padding:16px}',
-    '.mos-sleep.on{display:flex}.mos-sleep .zzz{font-size:1.1rem;opacity:.85;letter-spacing:2px;animation:mosZzz 2.2s ease-in-out infinite}',
-    '.mos-sleep .av{filter:drop-shadow(0 6px 12px rgba(0,0,0,.45))}.mos-sleep .av .dbf-el,.mos-sleep .av .dbf-er{transform:scaleY(.12)!important}',
+    '.mos-sleep .av{filter:drop-shadow(0 12px 32px rgba(0,0,0,.55));margin:0 0 12px;line-height:0;display:flex;align-items:center;justify-content:center}.mos-sleep .av svg,.mos-sleep .av .dbots-fig{width:168px!important;height:168px!important;max-width:none!important;display:block}.mos-sleep.on{display:flex}.mos-sleep .zzz{font-size:1.1rem;opacity:.85;letter-spacing:2px;animation:mosZzz 2.2s ease-in-out infinite}',
+    '.mos-sleep .av .dbf-el,.mos-sleep .av .dbf-er{transform:scaleY(.12)!important}',
     '.mos .mos-sleep button{width:auto !important;padding:8px 18px !important;border-radius:999px !important;border:1px solid #7cfc9a !important;background:#1e8e3e !important;color:#fff !important;cursor:pointer;font-size:.85rem !important}',
     '@keyframes mosZzz{0%,100%{transform:translateY(0);opacity:.55}50%{transform:translateY(-4px);opacity:1}}',
     '@media (prefers-reduced-motion:reduce){.mos-sleep .zzz{animation:none}}',
@@ -83,8 +83,8 @@
     host.insertAdjacentHTML('beforeend',
       '<div class="mos" data-mos>' +
         '<div class="mos-screen">' +
-          '<div class="mos-win" data-w="web">' + '<div class="mos-tb"><span class="tb-dots"><button type="button" class="tb-close" data-close title="Cerrar"></button><button type="button" class="tb-min" tabindex="-1"></button><button type="button" class="tb-max" tabindex="-1"></button></span><b>🌐 Navegador de ' + esc(bot.name) + '</b></div>' +
-            '<div class="mos-tool"><button data-back title="Atrás">◀</button><button data-home title="Inicio">⌂</button><button data-reader title="Vista de lectura (si la página no carga)">📄</button><div class="mos-bar-in"><span style="font-weight:700;color:#4285f4">G</span><input data-q placeholder="Buscar o pegar una URL" spellcheck="false"></div></div>' +
+          '<div class="mos-win" data-w="web">' + '<div class="mos-tb"><span class="tb-dots"><button type="button" class="tb-close" data-close title="Cerrar"></button><button type="button" class="tb-min" tabindex="-1"></button><button type="button" class="tb-max" tabindex="-1"></button></span><b>🔍 Doganiero Search · ' + esc(bot.name) + '</b></div>' +
+            '<div class="mos-tool"><button data-back title="Atrás">◀</button><button data-home title="Inicio · Doganiero Search">⌂</button><button data-reader title="Vista de lectura (si la página no carga)">📄</button><div class="mos-bar-in"><img class="mos-dsearch" src="/static/assets/doganiero-search-logo.png?v=20261015g" width="22" height="22" alt="Doganiero Search" title="Doganiero Search"><input data-q placeholder="Buscar en Doganiero Search o pegar una URL" spellcheck="false"></div></div>' +
             '<div class="mos-page" data-page></div></div>' +
           '<div class="mos-win mos-term" data-w="term" hidden><div class="mos-tb"><span class="tb-dots"><button type="button" class="tb-close" data-close title="Cerrar"></button><button type="button" class="tb-min" tabindex="-1"></button><button type="button" class="tb-max" tabindex="-1"></button></span><b>🖥️ Terminal</b></div><div data-termhost style="flex:1;min-height:0;display:flex;flex-direction:column"></div></div>' +
           '<div class="mos-win mos-code" data-w="code" hidden><div class="mos-tb"><span class="tb-dots"><button type="button" class="tb-close" data-close title="Cerrar"></button><button type="button" class="tb-min" tabindex="-1"></button><button type="button" class="tb-max" tabindex="-1"></button></span><b>💻 Código de ' + esc(bot.name) + '</b></div>' +
@@ -120,6 +120,7 @@
       if (opts.fig) box.innerHTML = opts.fig;
       else box.innerHTML = '<div style="font-size:42px">🤖</div>';
       // ojos cerrados: forzar escala Y baja en los óvalos blancos
+      var _svg = box.querySelector('svg'); if (_svg) { _svg.setAttribute('width','168'); _svg.setAttribute('height','168'); _svg.style.width='168px'; _svg.style.height='168px'; }
       box.querySelectorAll('.dbf-el,.dbf-er').forEach(function (x) { x.style.transform = 'scaleY(.12)'; });
       box.querySelectorAll('.dbf-q,.dbf-ex').forEach(function (x) { x.style.opacity = '0'; });
     }
@@ -222,9 +223,12 @@
     function say(t) { status.textContent = t; status.classList.toggle('on', !!t); }
     function home() {
       clearFrame(); curUrl = '';
-      // Doganiero Search solo en Snake OS Lite Navegador — no en el mini OS del bot
-      page.innerHTML = '<div class="mos-home"><div style="font-size:2.2rem">🌐</div><div class="mos-logo"><span>Navegador de ' + esc(bot.name) + '</span></div><div style="color:#5f6368;font-size:.72rem">Escribe una URL o un texto para buscar</div></div>';
       q.value = '';
+      el.querySelector('[data-reader]').classList.remove('on');
+      page.innerHTML = '<div class="mos-home"><div class="mos-logo"><img src="/static/assets/doganiero-search-logo.png?v=20261015g" alt=""><span>Doganiero Search</span></div><div style="color:#5f6368;font-size:.72rem">El buscador de ' + esc(bot.name) + '</div></div>';
+      token().then(function (t) {
+        setFrame('/api/dbots/serp?t=' + encodeURIComponent(t), 'proxy');
+      }).catch(function () {});
     }
     function renderResults(qq, results) {
       clearFrame();
@@ -263,9 +267,19 @@
         return proxyOpen(url).then(function (m) { if (m && m.timeout) showFallback('La página tarda en cargar'); });
       }).catch(function (e) { reader(url); });
     }
+
+    function looksLikeUrl(v) {
+      v = String(v || '').trim();
+      if (!v) return false;
+      if (/^https?:\/\//i.test(v)) return true;
+      if (/^www\./i.test(v)) return true;
+      if (/^(?:[\w-]+\.)+[a-z]{2,}(?:[\/:?#].*)?$/i.test(v)) return true;
+      if (/^(localhost|(?:\d{1,3}\.){3}\d{1,3})(?::\d+)?(?:\/.*)?$/i.test(v)) return true;
+      return false;
+    }
     function live() { return frame && frameMode === 'proxy'; }
     function frameXY(rc) { var fr = frame.getBoundingClientRect(); return { getBoundingClientRect: function () { return { left: fr.left + rc.x, top: fr.top + rc.y - 6, width: 12, height: 12 }; } }; }
-    q.onkeydown = function (e) { if (e.key !== 'Enter') return; var v = q.value.trim(); if (!v) return; if (/^(https?:\/\/|www\.)|^[\w-]+(\.[\w-]+)*\.[a-z]{2,}(\/|$)/i.test(v)) open(v); else search(v); };
+    q.onkeydown = function (e) { if (e.key !== 'Enter') return; var v = q.value.trim(); if (!v) return; if (looksLikeUrl(v)) open(v); else search(v); };
     el.querySelector('[data-home]').onclick = home;
     el.querySelector('[data-back]').onclick = function () { hist.pop(); var h = hist.pop(); if (!h) return home(); if (h.t === 'q') search(h.v); else open(h.v); };
     // ---- animación de las acciones del bot ----

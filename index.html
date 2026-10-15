@@ -45,7 +45,7 @@ window.addEventListener('error', function(e){
 <script src="/static/doganiero-desk.js?v=202610072130" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/desktop-extras.js?v=202610141840" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-terminal.js?v=20261014202000" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
-<script src="/static/snake-win-resize.js?v=202610140845"></script>
+<script src="/static/snake-win-resize.js?v=202610152140"></script>
 <script src="/static/doganiero-tv.js?v=202610091150" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/prism.js?v=202610080900" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/doganiero-phone.js?v=202610140830" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
@@ -55,8 +55,8 @@ window.addEventListener('error', function(e){
 <script src="/static/snake-emoji.js?v=202610140900" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-maps.js?v=202610141800" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-locshare.js?v=202610141830"></script>
-<script src="/static/doganiero-bots-os.js?v=202610152000"></script>
-<script src="/static/doganiero-bots.js?v=202610152000"></script>
+<script src="/static/doganiero-bots-os.js?v=202610152145"></script>
+<script src="/static/doganiero-bots.js?v=202610152145"></script>
 <script src="/static/snake-bluetooth.js?v=202610111725" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-keypad.js?v=202610111201" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-game-matrix.js?v=202610112000" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
@@ -2446,7 +2446,18 @@ window.addEventListener('error', function(e){
     box-shadow:inset 0 1px 0 rgba(255,255,255,0.75), 0 10px 24px rgba(0,0,0,0.16);
     backdrop-filter:blur(20px) saturate(180%); -webkit-backdrop-filter:blur(20px) saturate(180%);
   }
-  .desktop-icon.dragging{ opacity:0.82; z-index:50; cursor:grabbing; }
+  .desktop-icon.dragging{
+    opacity:0.92; z-index:50000 !important; cursor:grabbing;
+    transition:none !important; transform:none !important; pointer-events:auto !important;
+  }
+  body.snk-icon-dragging{ user-select:none !important; -webkit-user-select:none !important; }
+  body.snk-icon-dragging iframe, body.snk-icon-dragging embed, body.snk-icon-dragging object{ pointer-events:none !important; }
+  #iconLayer{ pointer-events:auto; }
+  .desktop-icon{ pointer-events:auto !important; z-index:5; }
+  .desktop-icon .ic, .desktop-icon .ic *, .desktop-icon .lb{ pointer-events:none !important; -webkit-user-drag:none; user-select:none; }
+  #deskSnapGhost{ position:absolute; z-index:4; pointer-events:none; box-sizing:border-box;
+    border:2px dashed rgba(157,255,194,0.95); border-radius:14px; background:rgba(52,209,122,0.18); display:none; }
+  #deskSnapGhost.on{ display:block; }
   .desktop-icon.trash-drop-target,
   .desktop-icon[data-app="trash"].trash-hot{
     background:rgba(255,80,80,0.28) !important;
@@ -4932,6 +4943,16 @@ window.addEventListener('error', function(e){
     }catch(err){}
     document.body.classList.remove('snk-win-dragging');
     if(ds.win){
+      try{
+        if(!ds.win.classList.contains('maximized') && !isPhoneMode()){
+          var GW=24, GH=24;
+          var left=parseFloat(ds.win.style.left)||0, top=parseFloat(ds.win.style.top)||0;
+          var sl=Math.round(left/GW)*GW, st=Math.round(top/GH)*GH;
+          sl=Math.max(0, Math.min(window.innerWidth-100, sl));
+          st=Math.max(0, Math.min(window.innerHeight-90, st));
+          ds.win.style.left=sl+'px'; ds.win.style.top=st+'px';
+        }
+      }catch(eSnapW){}
       ds.win.classList.remove('snk-dragging');
       ds.win.style.transition = '';
     }
@@ -5569,6 +5590,7 @@ window.addEventListener('error', function(e){
     if(!existing) layer.appendChild(pad);
   }
   function normalizeDesktopIconPositions(){
+    if(document.body.classList.contains('snk-icon-dragging')) return false;
     if(document.body.classList.contains('phone-mode')) return layoutPhoneIcons(false);
     ensureStoreAppsOnBothLayouts();
     const keys = desktopIconKeysInOrder();
@@ -5607,6 +5629,7 @@ window.addEventListener('error', function(e){
     return changed;
   }
   function reflowDesktopIcons(){
+    if(document.body.classList.contains('snk-icon-dragging')) return;
     const layer = document.getElementById('iconLayer');
     if(!layer) return;
     normalizeDesktopIconPositions();
@@ -5646,97 +5669,69 @@ window.addEventListener('error', function(e){
     renderDesktopFileIcons();
   }
 
+  function ensureDeskSnapGhost(){
+    var layer = document.getElementById('iconLayer'); if(!layer) return null;
+    var g = document.getElementById('deskSnapGhost');
+    if(!g){ g=document.createElement('div'); g.id='deskSnapGhost'; layer.appendChild(g); }
+    return g;
+  }
+  function showDeskSnapGhost(pos){
+    var g=ensureDeskSnapGhost(); if(!g||!pos) return;
+    var grid=iconGridConstants();
+    g.style.width=(grid.iconW||88)+'px'; g.style.height=(grid.iconH||100)+'px';
+    g.style.left=pos.left+'px'; g.style.top=pos.top+'px'; g.classList.add('on');
+  }
+  function hideDeskSnapGhost(){ var g=document.getElementById('deskSnapGhost'); if(g) g.classList.remove('on'); }
   function makeIconDraggable(div, key, onOpen, opts){
-    opts = opts || {};
-    let dragging = false, moved = false, startX, startY, origLeft, origTop;
-    function trashIconEl(){
-      return document.querySelector('.desktop-icon[data-app="trash"]');
+    opts=opts||{};
+    var dragging=false, moved=false, startX=0, startY=0, origLeft=0, origTop=0, ptrId=null;
+    function trashIconEl(){ return document.querySelector('.desktop-icon[data-app="trash"]'); }
+    function clearTrashHot(){ document.querySelectorAll('.desktop-icon.trash-hot, .desktop-icon.trash-drop-target').forEach(function(el){ el.classList.remove('trash-hot'); el.classList.remove('trash-drop-target'); }); }
+    function overTrash(x,y){ var tr=trashIconEl(); if(!tr) return false; var r=tr.getBoundingClientRect(), p=10; return x>=r.left-p&&x<=r.right+p&&y>=r.top-p&&y<=r.bottom+p; }
+    function onMove(e){
+      if(!dragging) return; if(ptrId!=null&&e.pointerId!==ptrId) return;
+      var dx=e.clientX-startX, dy=e.clientY-startY;
+      if(!moved&&(Math.abs(dx)>3||Math.abs(dy)>3)){ moved=true; div.classList.add('dragging'); document.body.classList.add('snk-icon-dragging'); div.style.transition='none'; div.style.zIndex='50000'; }
+      if(!moved) return; if(e.cancelable) try{e.preventDefault();}catch(err){}
+      var nl=origLeft+dx, nt=origTop+dy, gridNow=iconGridConstants(), limits=getIconDragLimits(gridNow.iconH||100);
+      var maxLeft=Math.max(0, limits.layerW-(gridNow.iconW||70)), maxTop=limits.maxTop;
+      nl=Math.max(0,Math.min(maxLeft,nl)); nt=Math.max(0,Math.min(maxTop,nt));
+      div.style.left=nl+'px'; div.style.top=nt+'px';
+      try{ showDeskSnapGhost(snapIconToGrid(nl,nt,key)); }catch(e1){}
+      if(opts.canTrash){ clearTrashHot(); var tr=trashIconEl(); if(tr&&overTrash(e.clientX,e.clientY)){ tr.classList.add('trash-hot'); tr.classList.add('trash-drop-target'); } }
     }
-    function clearTrashHot(){
-      document.querySelectorAll('.desktop-icon.trash-hot, .desktop-icon.trash-drop-target').forEach(function(el){
-        el.classList.remove('trash-hot');
-        el.classList.remove('trash-drop-target');
-      });
-    }
-    function overTrash(clientX, clientY){
-      var tr = trashIconEl();
-      if(!tr) return false;
-      var r = tr.getBoundingClientRect();
-      var pad = 10;
-      return clientX >= r.left - pad && clientX <= r.right + pad && clientY >= r.top - pad && clientY <= r.bottom + pad;
+    function onUp(e){
+      if(!dragging) return; if(ptrId!=null&&e&&e.pointerId!=null&&e.pointerId!==ptrId) return;
+      dragging=false; document.body.classList.remove('snk-icon-dragging');
+      div.classList.remove('dragging'); div.style.zIndex=''; div.style.transition=''; hideDeskSnapGhost();
+      try{ if(ptrId!=null) div.releasePointerCapture(ptrId); }catch(err){}
+      ptrId=null;
+      window.removeEventListener('pointermove', onMove, true);
+      window.removeEventListener('pointerup', onUp, true);
+      window.removeEventListener('pointercancel', onUp, true);
+      if(moved&&opts.canTrash&&e&&overTrash(e.clientX,e.clientY)){ clearTrashHot(); try{ if(typeof opts.onTrash==='function') opts.onTrash(); }catch(eT){} moved=false; return; }
+      clearTrashHot();
+      if(moved&&typeof opts.onDropAt==='function'){ var hit=false; try{ hit=!!opts.onDropAt(e.clientX,e.clientY,div);}catch(eD){} if(hit){ moved=false; return; } }
+      if(moved){
+        var snapped=snapIconToGrid(parseFloat(div.style.left)||0, parseFloat(div.style.top)||0, key);
+        div.style.left=snapped.left+'px'; div.style.top=snapped.top+'px'; iconPositions[key]=snapped;
+        if(document.body.classList.contains('phone-mode')){ if(!phoneIconCells) phoneIconCells={}; phoneIconCells[key]=iconCellFromPoint(snapped.left,snapped.top); phoneIconCols=iconGridConstants().maxCols; }
+        else if(currentUser) persistIconPos();
+        try{ syncIconScrollPad(); }catch(ePad){}
+      }
     }
     div.addEventListener('pointerdown', function(e){
-      if(e.button != null && e.button !== 0) return;
-      dragging = true; moved = false;
-      startX = e.clientX; startY = e.clientY;
-      origLeft = parseFloat(div.style.left) || 0;
-      origTop = parseFloat(div.style.top) || 0;
+      if(e.button!=null&&e.button!==0) return;
+      e.preventDefault(); e.stopPropagation();
+      dragging=true; moved=false; ptrId=e.pointerId; startX=e.clientX; startY=e.clientY;
+      origLeft=parseFloat(div.style.left)||0; origTop=parseFloat(div.style.top)||0;
       try{ div.setPointerCapture(e.pointerId); }catch(err){}
+      window.addEventListener('pointermove', onMove, true);
+      window.addEventListener('pointerup', onUp, true);
+      window.addEventListener('pointercancel', onUp, true);
     });
-    div.addEventListener('pointermove', function(e){
-      if(!dragging) return;
-      const dx = e.clientX - startX, dy = e.clientY - startY;
-      if(Math.abs(dx) > 4 || Math.abs(dy) > 4) moved = true;
-      if(moved){
-        div.classList.add('dragging');
-        let nl = origLeft + dx, nt = origTop + dy;
-        const gridNow = iconGridConstants();
-        const limits = getIconDragLimits(gridNow.iconH || 100);
-        const maxLeft = Math.max(0, limits.layerW - (gridNow.iconW || 70));
-        const maxTop = limits.maxTop;
-        nl = Math.max(0, Math.min(maxLeft, nl));
-        nt = Math.max(0, Math.min(maxTop, nt));
-        div.style.left = nl + 'px';
-        div.style.top = nt + 'px';
-        if(opts.canTrash){
-          clearTrashHot();
-          var tr = trashIconEl();
-          if(tr && overTrash(e.clientX, e.clientY)){
-            tr.classList.add('trash-hot');
-            tr.classList.add('trash-drop-target');
-          }
-        }
-      }
-    });
-    div.addEventListener('pointerup', function(e){
-      if(!dragging) return;
-      dragging = false;
-      div.classList.remove('dragging');
-      var droppedInTrash = false;
-      if(moved && opts.canTrash && overTrash(e.clientX, e.clientY)){
-        droppedInTrash = true;
-        clearTrashHot();
-        try { if(typeof opts.onTrash === 'function') opts.onTrash(); } catch(eT){}
-        return;
-      }
-      clearTrashHot();
-      if(moved && typeof opts.onDropAt === 'function'){
-        var dropHit = false;
-        try { dropHit = !!opts.onDropAt(e.clientX, e.clientY, div); } catch(eD){}
-        if(dropHit) return;
-      }
-      if(moved){
-        const snapped = snapIconToGrid(parseFloat(div.style.left) || 0, parseFloat(div.style.top) || 0, key);
-        div.style.left = snapped.left + 'px';
-        div.style.top = snapped.top + 'px';
-        iconPositions[key] = snapped;
-        if(document.body.classList.contains('phone-mode')){
-          if(!phoneIconCells) phoneIconCells = {};
-          phoneIconCells[key] = iconCellFromPoint(snapped.left, snapped.top);
-          phoneIconCols = iconGridConstants().maxCols;
-        } else if(currentUser) persistIconPos();
-        try { syncIconScrollPad(); } catch(ePad){}
-      }
-    });
-    div.addEventListener('pointercancel', function(){
-      dragging = false;
-      div.classList.remove('dragging');
-      clearTrashHot();
-    });
-    div.addEventListener('click', function(e){
-      if(moved){ moved = false; e.preventDefault(); e.stopPropagation(); return; }
-      onOpen();
-    });
+    div.addEventListener('click', function(e){ if(moved){ moved=false; e.preventDefault(); e.stopPropagation(); return; } onOpen(); });
+    div.addEventListener('dragstart', function(e){ e.preventDefault(); });
   }
 
 function buildIcons(){
@@ -14609,6 +14604,17 @@ function renderStoreApp(container){
       }
       return window.renderDoganieroPhoneApp(body);
     } },
+  };
+
+
+  window.snakeLooksLikeUrl = function(v){
+    v = String(v || '').trim();
+    if(!v) return false;
+    if(/^https?:\/\//i.test(v)) return true;
+    if(/^www\./i.test(v)) return true;
+    if(/^(?:[\w-]+\.)+[a-z]{2,}(?:[\/:?#].*)?$/i.test(v)) return true;
+    if(/^(localhost|(?:\d{1,3}\.){3}\d{1,3})(?::\d+)?(?:\/.*)?$/i.test(v)) return true;
+    return false;
   };
 
   window.APPS = APPS;
