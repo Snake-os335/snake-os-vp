@@ -7584,6 +7584,7 @@ function buildIcons(){
       '<div class="snk-browser">' +
         '<form class="snk-br-bar" id="browserForm-x" autocomplete="off">' +
           '<button type="button" class="snk-br-btn" id="browserBack-x" title="Atrás">◀</button>' +
+          '<button type="button" class="snk-br-btn" id="browserFwd-x" title="Adelante" disabled>▶</button>' +
           '<button type="button" class="snk-br-btn" id="browserHome-x" title="Inicio · Doganiero Search">🏠</button>' +
           '<img class="snk-br-dsearch" src="/static/assets/doganiero-search-logo.png?v=20261015g" width="28" height="28" alt="Doganiero Search" title="Doganiero Search">' +
           '<input type="text" class="snk-br-url" id="browserQuery-x" placeholder="Buscar en Doganiero Search o pegar una URL…" spellcheck="false">' +
@@ -7666,6 +7667,31 @@ function buildIcons(){
     }
     var hist = [];
     var histIdx = -1;
+    // URL real a guardar en el historial (sin envoltorio del proxy ni tokens que caducan)
+    function histKey(u){
+      u = String(u || '');
+      if(/^dsearch:/i.test(u)){ var q0 = u.replace(/^dsearch:/i, ''); return q0 ? googleSearchUrl(q0) : SEARCH_HOME; }
+      try{
+        var x = new URL(u, location.origin);
+        if(x.pathname === '/api/dbots/proxy'){ var t0 = (x.searchParams.get('u') || '').trim(); if(t0) return t0; }
+        if(x.pathname === '/api/dbots/serp'){ var q1 = (x.searchParams.get('q') || '').trim(); return q1 ? googleSearchUrl(q1) : SEARCH_HOME; }
+      }catch(e){}
+      return u;
+    }
+    function syncHistBtns(){
+      try{
+        var bb = container.querySelector('#browserBack-x'), fb = container.querySelector('#browserFwd-x');
+        if(bb) bb.disabled = histIdx <= 0;
+        if(fb) fb.disabled = histIdx >= hist.length - 1;
+      }catch(e){}
+    }
+    function histRecord(u){
+      var k = histKey(u); if(!k || k === 'about:blank') return;
+      if(hist[histIdx] === k) return;
+      if(histIdx < hist.length - 1) hist = hist.slice(0, histIdx + 1);
+      hist.push(k); if(hist.length > 100) hist.shift(); histIdx = hist.length - 1;
+      syncHistBtns();
+    }
     var passTimer = null;
 
     function toast(msg){
@@ -7739,7 +7765,7 @@ function buildIcons(){
       setMode('embed');
       input.value = displayUrl(base);
       hideBlocked();
-      container.querySelector('#browserBack-x').disabled = histIdx <= 0;
+      syncHistBtns();
       try{ frame.src = 'about:blank'; }catch(e3){}
       setTimeout(function(){ frame.src = dest; }, 30);
       try{ window.focus(); }catch(e4){}
@@ -7786,12 +7812,10 @@ function buildIcons(){
       var url = toUrl(raw);
       // Sin login forzado de Snake OS: si la web es accounts.google, se abre como cualquier otra URL.
 
-      if(push !== false){
-        if(histIdx < hist.length - 1) hist = hist.slice(0, histIdx + 1);
-        if(hist[histIdx] !== url){ hist.push(url); histIdx = hist.length - 1; }
-      }
+      try{ var ux = new URL(url, location.origin); if(ux.pathname === '/api/dbots/proxy' && ux.searchParams.get('u')) url = toUrl(ux.searchParams.get('u')); }catch(eU){}
+      if(push !== false) histRecord(url);
       input.value = displayUrl(url);
-      container.querySelector('#browserBack-x').disabled = histIdx <= 0;
+      syncHistBtns();
       hideBlocked();
       setMode('embed');
       var seq = ++navSeq;
@@ -7841,8 +7865,11 @@ function buildIcons(){
     container.querySelector('#browserHome-x').addEventListener('click', function(){
       waitingAuth = false; navigate(HOME, true);
     });
+    container.querySelector('#browserFwd-x').addEventListener('click', function(){
+      if(histIdx >= hist.length - 1) return; histIdx++; try{ navigate(hist[histIdx], false); }catch(eF){ toast('No se pudo ir adelante'); } syncHistBtns();
+    });
     container.querySelector('#browserBack-x').addEventListener('click', function(){
-      if(histIdx <= 0) return; histIdx--; navigate(hist[histIdx], false);
+      if(histIdx <= 0) return; histIdx--; try{ navigate(hist[histIdx], false); }catch(eB){ toast('No se pudo volver atrás'); } syncHistBtns();
     });
     if(loginBtn) loginBtn.addEventListener('click', function(){ startGoogleLogin(); });
     container.querySelector('#browserOpenTab-x').addEventListener('click', function(){
@@ -7885,8 +7912,10 @@ function buildIcons(){
         if(/^dsearch:/i.test(d.url)){
           var qq = d.url.replace(/^dsearch:/i, '');
           input.value = qq || '';
+          histRecord(d.url);
           return;
         }
+        histRecord(d.url);
         try{
           var xu = new URL(d.url, location.origin);
           if(xu.pathname.indexOf('/api/dbots/') === 0){ input.value = displayUrl(d.url); return; }
@@ -7899,6 +7928,7 @@ function buildIcons(){
           var yu = new URL(d.url, location.origin);
           if(yu.pathname.indexOf('/api/dbots/') === 0) return;
         }catch(e2){}
+        histRecord(d.url);
         input.value = displayUrl(d.url);
       }
     }
@@ -14535,7 +14565,7 @@ function renderStoreApp(container){
     } },
     calc:     { title:'Calculadora', icon:'🧮', width:270, height:400, render: renderCalcApp },
     code:     { title:'Code Lab',    icon:'💻', width:760, height:680, render: renderCodeLabApp },
-    explorer: { title:'Explorador',  icon:'🌍', width:350, height:360, render: renderExplorerApp },
+    explorer: { title:'Explorador',  icon:'📁', iconImg:'/static/assets/explorer-snakes.svg?v=1', iconHtml: appIconImgHtml('/static/assets/explorer-snakes.svg?v=1'), width:350, height:360, render: renderExplorerApp },
     trash:    { title:'Papelera',    icon:'🗑️', width:350, height:360, render: renderTrashApp },
     browser:  { title:'Navegador',   icon:'🌐', width:780, height:560, render: renderBrowserApp },
     profile:  { title:'Mi perfil',   icon:'👤', width:330, height:480, render: renderProfileApp },
