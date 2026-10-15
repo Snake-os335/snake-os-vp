@@ -47,6 +47,12 @@
     '.mos .mos-menu button{display:flex !important;align-items:center;gap:8px;width:100% !important;height:auto !important;min-height:34px;padding:6px 10px !important;border:0 !important;border-radius:9px !important;background:transparent !important;color:#fff !important;font-size:.8rem !important;text-align:left;cursor:pointer}',
     '.mos .mos-menu button:hover,.mos .mos-menu button:focus{background:rgba(124,252,154,.18) !important}.mos-menu hr{border:0;border-top:1px solid rgba(255,255,255,.12);margin:4px 0}',
     '.mos-off{position:absolute;inset:0;z-index:7;background:#000;color:#9f9;display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px;font-size:.8rem}.mos-off.on{display:flex}',
+    '.mos-sleep{position:absolute;inset:0;z-index:8;background:radial-gradient(circle at 50% 40%,#1a2744 0,#070b14 70%);color:#cde;display:none;flex-direction:column;align-items:center;justify-content:center;gap:10px;text-align:center;padding:16px}',
+    '.mos-sleep.on{display:flex}.mos-sleep .zzz{font-size:1.1rem;opacity:.85;letter-spacing:2px;animation:mosZzz 2.2s ease-in-out infinite}',
+    '.mos-sleep .av{filter:drop-shadow(0 6px 12px rgba(0,0,0,.45))}.mos-sleep .av .dbf-el,.mos-sleep .av .dbf-er{transform:scaleY(.12)!important}',
+    '.mos .mos-sleep button{width:auto !important;padding:8px 18px !important;border-radius:999px !important;border:1px solid #7cfc9a !important;background:#1e8e3e !important;color:#fff !important;cursor:pointer;font-size:.85rem !important}',
+    '@keyframes mosZzz{0%,100%{transform:translateY(0);opacity:.55}50%{transform:translateY(-4px);opacity:1}}',
+    '@media (prefers-reduced-motion:reduce){.mos-sleep .zzz{animation:none}}',
     '.mos .mos-off button{width:auto !important;padding:8px 16px !important;border-radius:999px !important;border:1px solid #3c6 !important;background:#0b2 !important;color:#fff !important;cursor:pointer}',
     '.mos-page.live{padding:0;overflow:hidden}.mos-page.live iframe{display:block;background:#fff}',
     '.mos-fb{padding:6px 10px;font-size:.72rem;background:#fff8e1;color:#5d4200;border-bottom:1px solid #f0d78c}.mos-fb a{color:#1a0dab;cursor:pointer;text-decoration:underline}',
@@ -90,6 +96,7 @@
             (opts.notes ? '<button data-m="notes">🧠 Notas del bot</button>' : '') + (opts.settings ? '<button data-m="settings">⚙️ Ajustes del bot</button>' : '') +
             '<hr><button data-m="reboot">🔄 Reiniciar mini OS</button><button data-m="off">⏻ Apagar mini OS</button></div>' +
           '<div class="mos-off" data-off><div style="font-size:30px">🐍</div><div>Snake OS Lite está apagado</div><button data-on>⏻ Encender</button></div>' +
+          '<div class="mos-sleep" data-sleep><div class="av" data-sleepav></div><div class="zzz">Z z z</div><div style="font-size:.9rem;font-weight:600">La computadora está dormida</div><button data-wake>☀️ Despertar</button></div>' +
           '<div class="mos-cur" data-cur style="color:' + color + '">' + cursorSvg(color, 16) + '</div>' +
         '</div>' +
         '<div class="mos-bar"><button data-start title="Snake OS Lite">🐍</button><button data-app="web" class="on">🌐 Navegador</button><button data-app="term">🖥️ Terminal</button><button data-app="code">💻 Código</button>' + (opts.fig ? '<span class="mos-fig">' + opts.fig + '</span>' : '') + '<span class="clk" data-clk></span></div>' +
@@ -103,7 +110,33 @@
     var ti = setInterval(tick, 20000); tick();
     function show(w) { el.querySelectorAll('.mos-win').forEach(function (x) { x.hidden = x.getAttribute('data-w') !== w; }); el.querySelectorAll('.mos-bar [data-app]').forEach(function (b) { b.classList.toggle('on', b.getAttribute('data-app') === w); }); }
     el.querySelectorAll('.mos-bar [data-app]').forEach(function (b) { b.onclick = function () { show(b.getAttribute('data-app')); }; });
-    var menu = el.querySelector('[data-menu]'), off = el.querySelector('[data-off]');
+    var menu = el.querySelector('[data-menu]'), off = el.querySelector('[data-off]'), sleepEl = el.querySelector('[data-sleep]');
+    var IDLE_MS = 150000; // 2,5 min
+    var idleT = null;
+    function sleepAvatar() {
+      var box = sleepEl.querySelector('[data-sleepav]');
+      if (opts.fig) box.innerHTML = opts.fig;
+      else box.innerHTML = '<div style="font-size:42px">🤖</div>';
+      // ojos cerrados: forzar escala Y baja en los óvalos blancos
+      box.querySelectorAll('.dbf-el,.dbf-er').forEach(function (x) { x.style.transform = 'scaleY(.12)'; });
+      box.querySelectorAll('.dbf-q,.dbf-ex').forEach(function (x) { x.style.opacity = '0'; });
+    }
+    function wake() { sleepEl.classList.remove('on'); bumpIdle(); }
+    function goSleep() {
+      if (!el.isConnected || off.classList.contains('on') || sleepEl.classList.contains('on')) return;
+      sleepAvatar(); sleepEl.classList.add('on'); menu.classList.remove('on');
+    }
+    function bumpIdle() {
+      clearTimeout(idleT);
+      if (sleepEl.classList.contains('on') || off.classList.contains('on')) return;
+      idleT = setTimeout(goSleep, IDLE_MS);
+    }
+    ['pointerdown','keydown','wheel','touchstart','mousemove'].forEach(function (ev) {
+      el.addEventListener(ev, function () { if (sleepEl.classList.contains('on')) return; bumpIdle(); }, { passive: true, capture: true });
+    });
+    sleepEl.querySelector('[data-wake]').onclick = function (e) { e.stopPropagation(); wake(); };
+    sleepEl.addEventListener('click', function (e) { if (e.target === sleepEl) wake(); });
+    bumpIdle();
     function menuOn(v) { menu.classList.toggle('on', v); }
     el.querySelector('[data-start]').onclick = function (e) { e.stopPropagation(); menuOn(!menu.classList.contains('on')); };
     el.addEventListener('click', function (e) { if (!menu.contains(e.target) && !e.target.closest('[data-start]')) menuOn(false); });
