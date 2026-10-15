@@ -2164,14 +2164,19 @@ window.addEventListener('error', function(e){
   .snk-br-frame-wrap{ flex:1 1 auto; min-height:0; position:relative; background:#fff; }
   .snk-br-frame{ position:absolute; inset:0; width:100%; height:100%; border:0; background:#fff; }
   .snk-br-shield{ position:absolute; inset:0; z-index:3; pointer-events:none; background:transparent; cursor:none; }
-  .snk-br-frame-wrap.snk-br-cur-on .snk-br-shield{ pointer-events:auto; }
+  /* Cursor naranja claro nativo (CSS): fluido, sin puntero JS encima del iframe */
+  .snk-browser, .snk-br-frame-wrap, .snk-br-frame{ cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath d='M3 2l15 9-6.5 1.5L8 19z' fill='%23FFB347' stroke='%23fff' stroke-width='1.4' stroke-linejoin='round'/%3E%3C/svg%3E") 3 2, auto !important; }
+  .snk-br-bar, .snk-br-bar *{ cursor: auto; }
+  .snk-br-bar button, .snk-br-go, .snk-br-login{ cursor: pointer; }
+  .snk-br-url{ cursor: text; }
+  .snk-br-frame-wrap.snk-br-cur-on .snk-br-shield{ pointer-events:none !important; display:none !important; }
   .snk-br-fake-cur{
     position:absolute; left:0; top:0; width:32px; height:32px; z-index:4;
     pointer-events:none; display:none; background-repeat:no-repeat; background-size:32px 32px;
     margin-left:-3px; margin-top:-2px; filter:drop-shadow(0 1px 1px rgba(0,0,0,0.35));
   }
   .snk-br-fake-cur.on{ display:block; }
-  .snk-br-frame-wrap.snk-br-cur-on .snk-br-frame{ cursor:none !important; }
+  .snk-br-frame-wrap.snk-br-cur-on .snk-br-frame{ cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath d='M3 2l15 9-6.5 1.5L8 19z' fill='%23FFB347' stroke='%23fff' stroke-width='1.4' stroke-linejoin='round'/%3E%3C/svg%3E") 3 2, auto !important; }
 
   .snk-br-bar .snk-br-login{
     all:unset; box-sizing:border-box; cursor:pointer; flex:none;
@@ -7544,7 +7549,7 @@ function buildIcons(){
     function displayUrl(u){
       try{
         var x = new URL(u);
-        if(/accounts\.google\./i.test(x.hostname)) return 'Iniciar sesión en Google';
+        if(/accounts\.google\./i.test(x.hostname)) return x.hostname;
         if(/google\./i.test(x.hostname)){
           var q = x.searchParams.get('q');
           if(q) return q;
@@ -7566,7 +7571,6 @@ function buildIcons(){
           '<button type="button" class="snk-br-btn" id="browserHome-x" title="Inicio · Doganiero Search">🏠</button>' +
           '<input type="text" class="snk-br-url" id="browserQuery-x" placeholder="Buscar en Doganiero Search o pegar una URL…" spellcheck="false">' +
           '<button type="submit" class="snk-br-go" title="Ir">Ir</button>' +
-          '<button type="button" class="snk-br-login" id="browserLogin-x" title="Iniciar sesión con Google">Iniciar sesión</button>' +
         '</form>' +
         '<div class="snk-br-frame-wrap" id="browserFrameWrap-x">' +
           '<iframe class="snk-br-frame" id="browserFrame-x" title="Doganiero Search" referrerpolicy="no-referrer-when-downgrade" allow="fullscreen; clipboard-read; clipboard-write"></iframe>' +
@@ -7605,7 +7609,7 @@ function buildIcons(){
     var shield = container.querySelector('#browserShield-x');
     var fakeCur = container.querySelector('#browserFakeCur-x');
     var sessionEl = container.querySelector('#browserSession-x');
-    var loginBtn = container.querySelector('#browserLogin-x');
+    var loginBtn = container.querySelector('#browserLogin-x'); // puede ser null (login eliminado)
     var toastEl = container.querySelector('#browserToast-x');
     var blockedEl = container.querySelector('#browserBlocked-x');
     var blockedUrl = '';
@@ -7672,12 +7676,10 @@ function buildIcons(){
       return win;
     }
     function setMode(next){
-      mode = next;
-      var session = mode === 'session';
-      sessionEl.hidden = !session;
-      if(session) hideBlocked();
-      frame.style.visibility = (session || !blockedEl.hidden) ? 'hidden' : 'visible';
-      loginBtn.textContent = waitingAuth ? 'Esperando…' : (loggedIn ? 'Cambiar cuenta' : 'Iniciar sesión');
+      mode = 'embed'; // nunca modo sesión/login forzado
+      sessionEl.hidden = true;
+      frame.style.visibility = blockedEl.hidden ? 'visible' : 'hidden';
+      if(loginBtn) loginBtn.hidden = true;
       syncShield();
     }
     function stopAuthWatch(){
@@ -7740,11 +7742,9 @@ function buildIcons(){
       }, 400);
     }
     function navigate(raw, push){
-      if(isGoogleAccounts(String(raw || '')) || /^\s*iniciar\s+sesi[oó]n/i.test(String(raw || ''))){
-        startGoogleLogin(); return;
-      }
       var url = toUrl(raw);
-      if(isGoogleAccounts(url)){ startGoogleLogin(); return; }
+      // Sin login forzado de Snake OS: si la web es accounts.google, se abre como cualquier otra URL.
+
       if(push !== false){
         if(histIdx < hist.length - 1) hist = hist.slice(0, histIdx + 1);
         if(hist[histIdx] !== url){ hist.push(url); histIdx = hist.length - 1; }
@@ -7768,50 +7768,17 @@ function buildIcons(){
       }).catch(function(){ if(seq === navSeq){ frame.src = url; openTabHint(url); } });
     }
     function startGoogleLogin(){
-      if(!waitingAuth) returnUrl = hist[histIdx] || '';
-      authStartedAt = Date.now();
-      waitingAuth = true;
-      setMode('session');
-      input.value = 'Iniciar sesión en Google';
-      openOrFocus(LOGIN_URL);
-      watchAuthPopup();
+      // Desactivado: el Navegador de Snake OS no exige iniciar sesión.
+      // Si el usuario llega a una página de login de un sitio, se muestra en el iframe/pestaña como contenido normal.
+      waitingAuth = false; setMode('embed');
     }
 
     /* Puntero Snake sobre el iframe */
-    function syncShield(){
-      var on = snakeCursorOn() && mode === 'embed' && sessionEl.hidden;
-      wrap.classList.toggle('snk-br-cur-on', !!on);
-      if(!on){
-        fakeCur.classList.remove('on');
-        shield.style.pointerEvents = 'none';
-      } else if(!passTimer){
-        shield.style.pointerEvents = 'auto';
-      }
-    }
-    function armShield(){
-      passTimer = null;
-      if(wrap.classList.contains('snk-br-cur-on')) shield.style.pointerEvents = 'auto';
-    }
-    function beginPass(ms){
-      shield.style.pointerEvents = 'none';
-      fakeCur.classList.remove('on');
-      clearTimeout(passTimer);
-      passTimer = setTimeout(armShield, ms || 400);
-    }
-    shield.addEventListener('mousemove', function(e){
-      if(!wrap.classList.contains('snk-br-cur-on')) return;
-      if(shield.style.pointerEvents === 'none') return;
-      var r = wrap.getBoundingClientRect();
-      var x = e.clientX - r.left, y = e.clientY - r.top;
-      if(x < 0 || y < 0 || x > r.width || y > r.height){ fakeCur.classList.remove('on'); return; }
-      fakeCur.classList.add('on');
-      fakeCur.style.backgroundImage = 'url("' + CUR_ARROW + '")';
-      fakeCur.style.transform = 'translate(' + x + 'px,' + y + 'px)';
-    });
-    shield.addEventListener('mouseleave', function(){ fakeCur.classList.remove('on'); });
-    shield.addEventListener('pointerdown', function(){ beginPass(500); }, true);
-    shield.addEventListener('wheel', function(){ beginPass(400); }, { passive: true, capture: true });
-    var curIv = setInterval(syncShield, 800);
+    // Cursor naranja claro vía CSS (arriba). Sin overlay ni seguimiento JS = iframe a 60 fps.
+    function syncShield(){ wrap.classList.remove('snk-br-cur-on'); fakeCur.classList.remove('on'); shield.style.pointerEvents = 'none'; }
+    function armShield(){ passTimer = null; }
+    function beginPass(){}
+    var curIv = setInterval(syncShield, 8000);
 
     form.addEventListener('submit', function(e){ e.preventDefault(); navigate(input.value, true); });
     container.querySelector('#browserHome-x').addEventListener('click', function(){
@@ -7820,7 +7787,7 @@ function buildIcons(){
     container.querySelector('#browserBack-x').addEventListener('click', function(){
       if(histIdx <= 0) return; histIdx--; navigate(hist[histIdx], false);
     });
-    loginBtn.addEventListener('click', function(){ startGoogleLogin(); });
+    if(loginBtn) loginBtn.addEventListener('click', function(){ startGoogleLogin(); });
     container.querySelector('#browserOpenTab-x').addEventListener('click', function(){
       if(blockedUrl) window.open(blockedUrl, '_blank', 'noopener');
     });
@@ -7852,8 +7819,7 @@ function buildIcons(){
     }
     function onMsg(ev){
       if(ev.origin !== location.origin) return;
-      if(ev.data && ev.data.type === 'snk-google-need-login') startGoogleLogin();
-      else if(ev.data && ev.data.type === 'snk-google-auth-done'){ waitingAuth = true; returnToBrowserWithSession(); }
+      if(ev.data && ev.data.type === 'snk-google-auth-done'){ /* opcional: ya no forzamos login */ waitingAuth = false; setMode('embed'); }
     }
     window.addEventListener('focus', onFocus);
     window.addEventListener('message', onMsg);
