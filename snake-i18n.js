@@ -26,6 +26,23 @@
   };
   var PARTS = [[/^Navegador de /, 'Browser of '], [/^Notas de /, 'Notes of '], [/^Archivos de /, 'Files of '], [/^Código de /, 'Code of '], [/ está usando tu escritorio$/, ' is using your desktop']];
   var ATTRS = ['title', 'placeholder', 'aria-label'];
+  var RT = {}; try { RT = JSON.parse(localStorage.getItem('snkI18nEn') || '{}') || {}; } catch (e) { RT = {}; }
+  var miss = {}, missT = null, asked = {};
+  function looksEs(k) { return k.length >= 2 && k.length <= 200 && /[A-Za-zÁÉÍÓÚÑáéíóúñü]{2}/.test(k) && !/^(https?:|www\.|[\w.-]+@)/i.test(k); }
+  function want(k) { if (lang !== 'en' || RT[k] != null || asked[k] || !looksEs(k)) return; miss[k] = 1; clearTimeout(missT); missT = setTimeout(flush, 350); }
+  function flush() {
+    var list = Object.keys(miss).slice(0, 80); miss = {};
+    if (!list.length || !window.api) return;
+    list.forEach(function (k) { asked[k] = 1; });
+    window.api('/api/i18n/en', { method: 'POST', body: { strings: list } }).then(function (r) {
+      var t = (r && r.t) || {}, any = false;
+      Object.keys(t).forEach(function (k) { RT[k] = t[k]; any = true; });
+      if (!any) return;
+      try { var keys = Object.keys(RT); if (keys.length > 6000) { var n = {}; keys.slice(-6000).forEach(function (k) { n[k] = RT[k]; }); RT = n; } localStorage.setItem('snkI18nEn', JSON.stringify(RT)); } catch (e) {}
+      if (lang === 'en') apply();
+      if (Object.keys(miss).length) flush();
+    }).catch(function () {});
+  }
   function autoLang() {
     try { var tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; if (/^(Europe\/Madrid|Atlantic\/Canary|Africa\/Ceuta)$/.test(tz)) return 'es'; } catch (e) {}
     return 'en';
@@ -34,9 +51,10 @@
   var lang = getLang();
   function tr(t) {
     var k = t.trim(); if (!k) return null;
-    var hit = D[k];
+    var hit = D[k] || RT[k];
     if (!hit) for (var i = 0; i < PARTS.length; i++) if (PARTS[i][0].test(k)) { hit = k.replace(PARTS[i][0], PARTS[i][1]); break; }
-    return hit ? t.replace(k, hit) : null;
+    if (!hit) { want(k); return null; }
+    return t.replace(k, hit);
   }
   function doNode(n) {
     if (n.nodeType === 3) {

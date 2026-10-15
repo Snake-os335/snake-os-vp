@@ -805,6 +805,9 @@ def _attachment_context(uid: int, meta: dict[str, Any]) -> str:
 MAX_CHAT_MSGS = 200
 MAX_CHAT_PER_MIN = 12
 _agent_rate: dict[int, list[float]] = {}
+_i18n_rate: dict[int, list[float]] = {}
+import threading as _thr_i18n
+_i18n_lock = _thr_i18n.Lock()
 _chat_rate: dict[int, list[float]] = {}
 
 
@@ -1289,6 +1292,48 @@ def build_router(
             conn.commit()
         _drop_files(uid, bot_id)
         return {"ok": True}
+
+    @r.post("/api/i18n/en")
+    def i18n_en(body: dict, user=Depends(require_user)):
+        """Traduce textos de la interfaz ES→EN con caché compartida (AskBox con la clave del usuario)."""
+        import json as _j
+        uid = int(user["id"])
+        strs = [str(x)[:200] for x in ((body or {}).get("strings") or [])[:80] if isinstance(x, str) and x.strip()]
+        cache_f = db.DATA_DIR / "i18n_en.json"
+        with _i18n_lock:
+            try:
+                cache = _j.loads(cache_f.read_text("utf-8")) if cache_f.exists() else {}
+            except Exception:
+                cache = {}
+        out = {k: cache[k] for k in strs if k in cache}
+        todo = [k for k in strs if k not in cache][:60]
+        if todo:
+            key = own_askbox_key(uid)
+            now = time.monotonic()
+            calls = [t for t in _i18n_rate.get(uid, []) if t > now - 60]
+            if key and len(calls) < 20:
+                calls.append(now); _i18n_rate[uid] = calls
+                system = ("Traduces textos de la interfaz de un sistema operativo web (Snake OS) del español al inglés. "
+                          "Devuelve SOLO un objeto JSON {texto_original: traducción}. Mantén emojis, números, nombres propios "
+                          "(Snake OS, Doganiero, AskBox, nombres de bots) y la puntuación. Si ya está en inglés o no se traduce, devuélvelo igual.")
+                try:
+                    res = askbox_client.ask(_j.dumps(todo, ensure_ascii=False), system=system, tier="fast", max_output_tokens=2500, api_key=key)
+                    d = _parse_json(res.get("text") or "") or {}
+                except Exception:
+                    d = {}
+                new = {k: str(d[k])[:300] for k in todo if isinstance(d.get(k), str) and d[k].strip()}
+                if new:
+                    out.update(new)
+                    with _i18n_lock:
+                        try:
+                            cache = _j.loads(cache_f.read_text("utf-8")) if cache_f.exists() else {}
+                        except Exception:
+                            cache = {}
+                        cache.update(new)
+                        if len(cache) > 20000:
+                            cache = dict(list(cache.items())[-20000:])
+                        cache_f.write_text(_j.dumps(cache, ensure_ascii=False), "utf-8")
+        return {"t": out}
 
     @r.post("/api/dbots/agent/{bot_id}")
     def agent_step(bot_id: str, body: dict, user=Depends(require_user)):
