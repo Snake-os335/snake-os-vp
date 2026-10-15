@@ -2458,6 +2458,9 @@ window.addEventListener('error', function(e){
   #deskSnapGhost{ position:absolute; z-index:4; pointer-events:none; box-sizing:border-box;
     border:2px dashed rgba(157,255,194,0.95); border-radius:14px; background:rgba(52,209,122,0.18); display:none; }
   #deskSnapGhost.on{ display:block; }
+  #deskReservedZone{ position:absolute; z-index:3; pointer-events:none; box-sizing:border-box; border:2px dashed rgba(255,90,90,0.9); border-radius:16px; background:repeating-linear-gradient(45deg,rgba(255,80,80,0.14) 0 10px,rgba(255,80,80,0.04) 10px 20px); display:none; }
+  #deskReservedZone.on{ display:block; }
+  #deskReservedZone.on::after{ content:'Zona reservada'; position:absolute; left:8px; top:6px; font:600 11px system-ui,sans-serif; color:#fff; text-shadow:0 1px 2px #000; }
   .desktop-icon.trash-drop-target,
   .desktop-icon[data-app="trash"].trash-hot{
     background:rgba(255,80,80,0.28) !important;
@@ -5309,8 +5312,15 @@ window.addEventListener('error', function(e){
   }
   function getIconPos(key, index){
     const saved = iconPositions[key];
-    if(saved && typeof saved.left === 'number' && typeof saved.top === 'number') return saved;
-    return iconGridPosition(index);
+    let pos = (saved && typeof saved.left === 'number' && typeof saved.top === 'number') ? saved : iconGridPosition(index);
+    try{
+      const c = iconCellFromPoint(pos.left, pos.top);
+      if(deskReservedCells()[iconCellKey(c.col, c.row)]){
+        pos = snapIconToGrid(pos.left, pos.top, key);
+        iconPositions[key] = pos;
+      }
+    }catch(eRz){}
+    return pos;
   }
   function nearestFreeIconCell(occ, preferCol, preferRow){
     const g = iconGridConstants();
@@ -5337,8 +5347,37 @@ window.addEventListener('error', function(e){
     return { col: 0, row: lastRow };
   }
 
+  /* Zona reservada del escritorio: ahí no se pueden colocar apps/iconos.
+     Por defecto: las 2 columnas de la derecha × 3 filas de arriba.
+     Ajustable con window.SNAKE_DESK_RESERVED = {cols:2, rows:3, side:'right'|'left', from:'top'|'bottom'} */
+  function deskReservedCells(){
+    const out = {};
+    if(document.body.classList.contains('phone-mode')) return out;
+    const cfg = Object.assign({ cols:2, rows:3, side:'right', from:'top' }, window.SNAKE_DESK_RESERVED || {});
+    if(cfg.off) return out;
+    const g = iconGridConstants();
+    const nc = Math.min(cfg.cols|0, Math.max(0, g.maxCols - 1)), nr = Math.min(cfg.rows|0, g.maxRows);
+    for(let i = 0; i < nc; i++) for(let j = 0; j < nr; j++){
+      const c = cfg.side === 'left' ? i : g.maxCols - 1 - i;
+      const r = cfg.from === 'bottom' ? g.maxRows - 1 - j : j;
+      out[iconCellKey(c, r)] = '__reserved__';
+    }
+    return out;
+  }
+  window.snakeDeskReservedCells = deskReservedCells;
+  function showDeskReservedZone(on){
+    const layer = document.getElementById('iconLayer'); if(!layer) return;
+    let z = document.getElementById('deskReservedZone');
+    if(!on){ if(z) z.classList.remove('on'); return; }
+    const cells = Object.keys(deskReservedCells()); if(!cells.length) return;
+    if(!z){ z = document.createElement('div'); z.id = 'deskReservedZone'; layer.appendChild(z); }
+    const g = iconGridConstants(); let l=1e9,t=1e9,r=-1e9,b=-1e9;
+    cells.forEach(function(k){ const m = String(k).match(/-?\d+/g); if(!m) return; const p = iconPosFromCell(+m[0], +m[1]);
+      l=Math.min(l,p.left); t=Math.min(t,p.top); r=Math.max(r,p.left+g.colWidth); b=Math.max(b,p.top+g.rowHeight); });
+    z.style.left=(l-4)+'px'; z.style.top=(t-2)+'px'; z.style.width=(r-l)+'px'; z.style.height=(b-t)+'px'; z.classList.add('on');
+  }
   function collectOccupiedCells(excludeKey){
-    const occ = {};
+    const occ = Object.assign({}, deskReservedCells());
     function claim(key, pos){
       if(!key || (excludeKey && key === excludeKey)) return;
       if(!pos || typeof pos.left !== 'number' || typeof pos.top !== 'number') return;
@@ -5691,7 +5730,7 @@ window.addEventListener('error', function(e){
     function onMove(e){
       if(!dragging) return; if(ptrId!=null&&e.pointerId!==ptrId) return;
       var dx=e.clientX-startX, dy=e.clientY-startY;
-      if(!moved&&(Math.abs(dx)>3||Math.abs(dy)>3)){ moved=true; div.classList.add('dragging'); document.body.classList.add('snk-icon-dragging'); div.style.transition='none'; div.style.zIndex='50000'; }
+      if(!moved&&(Math.abs(dx)>3||Math.abs(dy)>3)){ moved=true; div.classList.add('dragging'); document.body.classList.add('snk-icon-dragging'); try{ showDeskReservedZone(true); }catch(eRz){} div.style.transition='none'; div.style.zIndex='50000'; }
       if(!moved) return; if(e.cancelable) try{e.preventDefault();}catch(err){}
       var nl=origLeft+dx, nt=origTop+dy, gridNow=iconGridConstants(), limits=getIconDragLimits(gridNow.iconH||100);
       var maxLeft=Math.max(0, limits.layerW-(gridNow.iconW||70)), maxTop=limits.maxTop;
@@ -5703,7 +5742,7 @@ window.addEventListener('error', function(e){
     function onUp(e){
       if(!dragging) return; if(ptrId!=null&&e&&e.pointerId!=null&&e.pointerId!==ptrId) return;
       dragging=false; document.body.classList.remove('snk-icon-dragging');
-      div.classList.remove('dragging'); div.style.zIndex=''; div.style.transition=''; hideDeskSnapGhost();
+      div.classList.remove('dragging'); div.style.zIndex=''; div.style.transition=''; hideDeskSnapGhost(); try{ showDeskReservedZone(false); }catch(eRz){}
       try{ if(ptrId!=null) div.releasePointerCapture(ptrId); }catch(err){}
       ptrId=null;
       window.removeEventListener('pointermove', onMove, true);
