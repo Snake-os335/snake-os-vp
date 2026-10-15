@@ -7795,9 +7795,10 @@ function buildIcons(){
       var q = blockedUrl; try{ q = new URL(blockedUrl).hostname.replace(/^www\./, ''); }catch(e){}
       navigate(googleSearchUrl(q), true);
     });
-    container.querySelector('#browserFocus-x').addEventListener('click', function(){
+    var focusBtn = container.querySelector('#browserFocus-x');
+    if(focusBtn) focusBtn.addEventListener('click', function(){
       var win = aliveWin();
-      if(win){ try{ win.focus(); }catch(e){} } else startGoogleLogin();
+      if(win){ try{ win.focus(); }catch(e){} }
     });
     container.querySelector('#browserAuthDone-x').addEventListener('click', function(){
       returnToBrowserWithSession();
