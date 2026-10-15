@@ -250,6 +250,7 @@
     }
     function wire() { page.querySelectorAll('[data-go]').forEach(function (a) { a.onclick = function () { open(a.getAttribute('data-go')); }; }); }
     function search(qq, fallbackResults, pg) {
+      if (looksLikeUrl(qq)) return open(String(qq).trim());
       hist.push({ t: 'q', v: qq }); q.value = qq; clearFrame(); curUrl = ''; el.querySelector('[data-reader]').classList.remove('on');
       page.innerHTML = '<div class="mos-err" style="color:#5f6368">Buscando…</div>';
       return token().then(function (t) {

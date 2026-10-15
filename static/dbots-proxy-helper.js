@@ -41,6 +41,11 @@
       }
       if (!u.searchParams.get('t') && C.t) u.searchParams.set('t', C.t);
       var qq = (u.searchParams.get('q') || '').trim();
+      if (qq && (/^https?:\/\//i.test(qq) || /^www\./i.test(qq) || /^(?:[\w-]+\.)+[a-z]{2,}(?:[\/:?#].*)?$/i.test(qq) || /^(localhost|(?:\d{1,3}\.){3}\d{1,3})(?::\d+)?(?:\/.*)?$/i.test(qq))) {
+        var dest = /^https?:\/\//i.test(qq) ? qq : 'https://' + qq;
+        if (C.serp) { send({ type: 'open', url: dest }); return; }
+        location.href = prox(dest); return;
+      }
       if (!qq) {
         var qi = f.querySelector('[name=q]');
         if (qi) try { qi.focus(); } catch (e3) {}

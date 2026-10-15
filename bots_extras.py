@@ -509,7 +509,7 @@ def _proxy_doc(origin: str, tok: str, final: str, page: str) -> str:
         '<meta charset="utf-8">'
         f'<base href="{_html.escape(final, quote=True)}">'
         f'<script>window.__DBP={cfg};</script>'
-        f'<script src="{origin}/static/dbots-proxy-helper.js?v=20261015enc"></script>'
+        f'<script src="{origin}/static/dbots-proxy-helper.js?v=20261015u"></script>'
     )
     hm = re.search(r"<head\b[^>]*>", page, re.I)
     if hm:
@@ -520,7 +520,7 @@ def _proxy_doc(origin: str, tok: str, final: str, page: str) -> str:
 def _proxy_error(origin: str, msg: str, url: str) -> str:
     cfg = json.dumps({"p": origin + "/api/dbots/proxy", "t": "", "u": url, "o": origin, "error": msg})
     return ("<!doctype html><html><head><meta charset=utf-8><script>window.__DBP=" + cfg + ";</script>"
-            f'<script src="{origin}/static/dbots-proxy-helper.js?v=20261015"></script></head>'
+            f'<script src="{origin}/static/dbots-proxy-helper.js?v=20261015u"></script></head>'
             "<body style=\"font-family:system-ui;padding:24px;color:#333;text-align:center\"><p style=\"font-size:40px\">🚧</p>"
             f"<p>No se pudo mostrar la página.</p><p style=\"color:#b3261e\">{_html.escape(msg)}</p></body></html>")
 
@@ -670,7 +670,7 @@ def _serp_html(origin: str, tok: str, q: str, page: int, res: list[dict[str, str
     nxt = f'<a data-serp href="{origin}/api/dbots/serp?q={sq}&p={page + 1}&t={e(tok)}">Siguiente ›</a>' if res and page < 10 else ""
     return ("<!doctype html><html><head><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'>"
             f"<title>{e(q) + ' · ' if q else ''}Doganiero Search</title>"f'<link rel="icon" type="image/png" href="{origin}/static/assets/doganiero-search-logo.png?v=20261015g">'f"<script>window.__DBP={cfg};</script>"
-            f'<script src="{origin}/static/dbots-proxy-helper.js?v=20261015f"></script><style>'
+            f'<script src="{origin}/static/dbots-proxy-helper.js?v=20261015u"></script><style>'
             "body{margin:0;font-family:arial,system-ui,sans-serif;color:#202124;background:#fff}"
             ".top{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid #ebebeb;position:sticky;top:0;background:#fff;z-index:2}"
             ".lg{display:inline-flex;align-items:center;gap:8px;font-weight:800;font-size:1.15rem;letter-spacing:-.5px;color:#ff8a00;white-space:nowrap}.lg b{color:#ff8a00;font-weight:800}.lg img{width:36px;height:36px;border-radius:8px;object-fit:cover;flex:none;box-shadow:0 1px 4px rgba(0,0,0,.12)}.home .lg img{width:88px;height:88px;border-radius:18px}"
