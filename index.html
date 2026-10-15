@@ -55,8 +55,8 @@ window.addEventListener('error', function(e){
 <script src="/static/snake-emoji.js?v=202610140900" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-maps.js?v=202610141800" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-locshare.js?v=202610141830"></script>
-<script src="/static/doganiero-bots-os.js?v=202610151820"></script>
-<script src="/static/doganiero-bots.js?v=202610151800"></script>
+<script src="/static/doganiero-bots-os.js?v=202610151900"></script>
+<script src="/static/doganiero-bots.js?v=202610151900"></script>
 <script src="/static/snake-bluetooth.js?v=202610111725" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-keypad.js?v=202610111201" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-game-matrix.js?v=202610112000" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
@@ -4137,7 +4137,8 @@ window.addEventListener('error', function(e){
     files: 'dogaemail_files',
     trash: 'dogaemail_trash',
     iconpos: 'dogaemail_iconpos',
-    highscore: 'snakeos_highscore'
+    highscore: 'snakeos_highscore',
+    terminalHist: 'snakeos_term_hist'
   };
 
   async function api(path, options){
@@ -4394,6 +4395,13 @@ window.addEventListener('error', function(e){
       const raw = JSON.parse(localStorage.getItem(key) || '{}') || {};
       return raw[email];
     }catch(e){ return undefined; }
+  }
+  function writeLocalBlob(key, email, value){
+    try{
+      const raw = JSON.parse(localStorage.getItem(key) || '{}') || {};
+      raw[email] = value;
+      localStorage.setItem(key, JSON.stringify(raw));
+    }catch(e){}
   }
 
   function hasLocalDataFor(email){
@@ -7597,6 +7605,10 @@ function buildIcons(){
     function displayUrl(u){
       try{
         var x = new URL(String(u || ''), location.origin);
+        if(x.pathname === '/api/dbots/proxy'){
+          var pu = (x.searchParams.get('u') || '').trim();
+          return pu || u;
+        }
         if(isSearchUrl(x.href) || x.pathname === '/api/dbots/serp'){
           var dq = (x.searchParams.get('q') || '').trim();
           try{ dq = decodeURIComponent(dq.replace(/\+/g, ' ')); }catch(e){}
@@ -7624,7 +7636,7 @@ function buildIcons(){
         '<form class="snk-br-bar" id="browserForm-x" autocomplete="off">' +
           '<button type="button" class="snk-br-btn" id="browserBack-x" title="Atrás">◀</button>' +
           '<button type="button" class="snk-br-btn" id="browserHome-x" title="Inicio · Doganiero Search">🏠</button>' +
-          '<img class="snk-br-dsearch" src="/static/assets/doganiero-search-logo.png?v=20261015d" width="28" height="28" alt="Doganiero Search" title="Doganiero Search">' +
+          '<img class="snk-br-dsearch" src="/static/assets/doganiero-search-logo.png?v=20261015g" width="28" height="28" alt="Doganiero Search" title="Doganiero Search">' +
           '<input type="text" class="snk-br-url" id="browserQuery-x" placeholder="Buscar en Doganiero Search o pegar una URL…" spellcheck="false">' +
           '<button type="submit" class="snk-br-go" title="Buscar o ir">Buscar</button>' +
         '</form>' +
@@ -7806,6 +7818,21 @@ function buildIcons(){
         if(ticks > 3600) stopAuthWatch();
       }, 400);
     }
+    function proxyUrl(target, tok){
+      return '/api/dbots/proxy?u=' + encodeURIComponent(target) + (tok ? ('&t=' + encodeURIComponent(tok)) : '');
+    }
+    function openViaProxy(target, seq){
+      // Preferir cookie de sesión en el proxy; token HMAC opcional si ya lo tenemos.
+      return api('/api/dbots/proxy-token', { method: 'POST' }).then(function(r){
+        if(seq !== navSeq) return;
+        var tok = r && r.t;
+        frame.src = proxyUrl(target, tok);
+      }).catch(function(){
+        if(seq !== navSeq) return;
+        // Sin token: el proxy acepta cookie de sesión
+        frame.src = proxyUrl(target, '');
+      });
+    }
     function navigate(raw, push){
       var url = toUrl(raw);
       // Sin login forzado de Snake OS: si la web es accounts.google, se abre como cualquier otra URL.
@@ -7820,17 +7847,19 @@ function buildIcons(){
       setMode('embed');
       var seq = ++navSeq;
       if(isSearchUrl(url) || url.indexOf('/api/dbots/serp') === 0){ frame.src = url; return; }
+      // Ya es URL del proxy interno
+      if(/\/api\/dbots\/proxy(\?|$)/.test(url)){ frame.src = url; return; }
       if(isGoogleHost(url)){ frame.src = url; return; }
-      // Webs que no son Google: antes miramos si se dejan mostrar dentro de Snake OS.
+      // Webs externas: si no permiten iframe, abrir por proxy SSRF-safe (como el mini OS de bots).
       frame.src = 'about:blank';
       toast('Abriendo ' + displayUrl(url) + '…');
       api('/api/frame-check?u=' + encodeURIComponent(url)).then(function(r){
         if(seq !== navSeq) return;
-        // Si el servidor no llega a la web (DNS/red), probamos igualmente en el navegador del usuario.
-        if(!r || r.embeddable){ frame.src = url; return; }
-        if(r.reason === 'dns' || r.reason === 'unreachable'){ frame.src = url; openTabHint(url); return; }
-        showBlocked(url, r && r.reason);
-      }).catch(function(){ if(seq === navSeq){ frame.src = url; openTabHint(url); } });
+        if(r && r.embeddable){ frame.src = url; return; }
+        if(r && (r.reason === 'invalid' || r.reason === 'private')){ showBlocked(url, r.reason); return; }
+        // deny/sameorigin/dns/unreachable/null → proxy
+        openViaProxy(url, seq);
+      }).catch(function(){ if(seq === navSeq) openViaProxy(url, seq); });
     }
     function startGoogleLogin(){
       // Desactivado: el Navegador de Snake OS no exige iniciar sesión.
@@ -7886,8 +7915,31 @@ function buildIcons(){
       }
     }
     function onMsg(ev){
-      if(ev.origin !== location.origin) return;
-      if(ev.data && ev.data.type === 'snk-google-auth-done'){ /* opcional: ya no forzamos login */ waitingAuth = false; setMode('embed'); }
+      // Mensajes del helper del proxy/SERP (origen opaco del iframe) o auth-return same-origin
+      var d = ev.data || {};
+      if(d && d.type === 'snk-google-auth-done'){ waitingAuth = false; setMode('embed'); return; }
+      if(!d || !d.__dbp) return;
+      if(d.type === 'open' && d.url){ navigate(d.url, true); return; }
+      if(d.type === 'nav' && d.url){
+        if(/^dsearch:/i.test(d.url)){
+          var qq = d.url.replace(/^dsearch:/i, '');
+          input.value = qq || '';
+          return;
+        }
+        try{
+          var xu = new URL(d.url, location.origin);
+          if(xu.pathname.indexOf('/api/dbots/') === 0){ input.value = displayUrl(d.url); return; }
+        }catch(e){}
+        input.value = displayUrl(d.url);
+        return;
+      }
+      if(d.type === 'loaded' && d.url && !/^dsearch:/i.test(d.url)){
+        try{
+          var yu = new URL(d.url, location.origin);
+          if(yu.pathname.indexOf('/api/dbots/') === 0) return;
+        }catch(e2){}
+        input.value = displayUrl(d.url);
+      }
     }
     window.addEventListener('focus', onFocus);
     window.addEventListener('message', onMsg);
@@ -14084,6 +14136,21 @@ function renderStoreApp(container){
     var promptEl = container.querySelector('[data-term="prompt"]');
     var history = [];
     var histIdx = -1;
+    (function loadTermHist(){
+      try{
+        var em = (currentUser && currentUser.email) || '';
+        if(!em) return;
+        var raw = readLocalBlob(LOCAL_KEYS.terminalHist, em);
+        if(Array.isArray(raw)) history = raw.slice(-200);
+      }catch(eH){}
+    })();
+    function saveTermHist(){
+      try{
+        var em = (currentUser && currentUser.email) || '';
+        if(!em) return;
+        writeLocalBlob(LOCAL_KEYS.terminalHist, em, history.slice(-200));
+      }catch(eS){}
+    }
     var ssh = { ws: null, term: null, fitObs: null, connected: false, target: '' };
     try{ if(window.SnakeTermStyles) window.SnakeTermStyles.mount(container.querySelector('.term-wrap'), function(){ return ssh.term; }); }catch(eTs){}
     var termCtx = { container: container, out: out, input: input, promptEl: promptEl, history: history, println: function(t, c){ println(t, c); } };
@@ -14349,7 +14416,7 @@ function renderStoreApp(container){
       var val = input.value;
       input.value = '';
       if(String(val || '').trim()){
-        history.push(String(val).trim());
+        history.push(String(val).trim()); saveTermHist();
         if(history.length > 50) history.shift();
       }
       histIdx = -1;

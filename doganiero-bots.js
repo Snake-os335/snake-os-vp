@@ -98,7 +98,7 @@
     '.dbx .dbots-typing span{background:#fff}' +
     '.dbots-fig .dbf-face *{transform-box:fill-box;transform-origin:center}.dbots-fig .dbf-q,.dbots-fig .dbf-ex{opacity:0}' +
     '.dbots-fig .dbf-body{transform-box:fill-box;transform-origin:50% 100%}' +
-    '.dbf-think .dbf-eyes{animation:dbfLook 7s ease-in-out infinite}.dbf-think .dbf-el{animation:dbfL 7s ease-in-out infinite}.dbf-think .dbf-er{animation:dbfR 7s ease-in-out infinite}' +
+    '.dbots-fig.dbf-think{width:56px!important;height:56px!important;transform:scale(1.35);transform-origin:50% 100%;transition:transform .25s ease}.dbx .dbots-aside .dbots-fig.dbf-think{width:120px!important;height:120px!important;transform:scale(1.2)}.dbf-think .dbf-eyes{animation:dbfLook 7s ease-in-out infinite}.dbf-think .dbf-el{animation:dbfL 7s ease-in-out infinite}.dbf-think .dbf-er{animation:dbfR 7s ease-in-out infinite}' +
     '.dbf-think .dbf-q{animation:dbfQ 7s ease-in-out infinite}.dbf-think .dbf-ex{animation:dbfEx 7s ease-in-out infinite}.dbf-think .dbf-body{animation:dbfBob 2s ease-in-out infinite}' +
     '.dbf-happy .dbf-body{animation:dbfJump .6s ease-out 2}.dbf-happy .dbf-ex{opacity:1}.dbf-happy .dbf-el,.dbf-happy .dbf-er{transform:scale(1.25,1.3)}' +
     /* 0-25 mira a los lados · 28-32 parpadeo · 40-46 guiño · 52-70 ojos entornados (concentrado) · 78-88 ojos muy abiertos (sorpresa) */
@@ -231,13 +231,19 @@
       default: b = P('M32 4L54 18L54 42L32 56L10 42L10 18Z', D) + P('M32 4L10 18L32 22Z', L) + P('M32 4L54 18L32 22Z', C) + P('M10 18L32 22L20 44L10 42Z', C) + P('M54 18L32 22L44 44L54 42Z', DD) + P('M32 22L20 44H44Z', L) + P('M20 44L32 56L44 44Z', D); fc = [32, 34, .8];
     }
     var cls = 'dbots-fig' + (botId && S_mood[botId] ? ' dbf-' + S_mood[botId] : '');
-    return '<svg class="' + cls + '"' + (botId ? ' data-fb="' + esc(botId) + '"' : '') + ' viewBox="0 0 64 64" width="' + (size || 40) + '" height="' + (size || 40) + '" aria-hidden="true">' + g + '<g class="dbf-body">' + shadow + b + faceSvg(fc[0], fc[1], fc[2]) + '</g></svg>';
+    return '<svg class="' + cls + '"' + (botId ? ' data-fb="' + esc(botId) + '"' : '') + ' data-ow="' + (size || 40) + '" viewBox="0 0 64 64" width="' + (size || 40) + '" height="' + (size || 40) + '" aria-hidden="true">' + g + '<g class="dbf-body">' + shadow + b + faceSvg(fc[0], fc[1], fc[2]) + '</g></svg>';
   }
   var S_mood = {}, moodT = {};
   function setMood(id, m) {
-    if (!id) return; clearTimeout(moodT[id]);
-    if (m) S_mood[id] = m; else delete S_mood[id];
-    document.querySelectorAll('svg[data-fb="' + String(id).replace(/"/g, '') + '"]').forEach(function (x) { x.classList.remove('dbf-think', 'dbf-happy'); if (m) x.classList.add('dbf-' + m); });
+    if (moodT[id]) { clearTimeout(moodT[id]); moodT[id] = null; }
+    S_mood[id] = m || null;
+    document.querySelectorAll('svg[data-fb="' + String(id).replace(/"/g, '') + '"]').forEach(function (x) {
+      x.classList.remove('dbf-think', 'dbf-happy');
+      if (m) x.classList.add('dbf-' + m);
+      // Más grande mientras piensa (ojos logo, sin boca)
+      if (m === 'think') { x.setAttribute('width', '64'); x.setAttribute('height', '64'); }
+      else if (!x.closest('.dbots-aside')) { var w = x.getAttribute('data-ow'); if (w) { x.setAttribute('width', w); x.setAttribute('height', w); } }
+    });
     if (m === 'happy') moodT[id] = setTimeout(function () { setMood(id, null); }, 1800);
   }
   window.DogBotsMood = setMood;
@@ -410,7 +416,7 @@
           if (m.role === 'user') h += '<div class="dbots-msg user">' + att + txt + '<small>' + meta + '</small></div>';
           else h += '<div class="dbots-row">' + botFig(b, 30) + '<div class="dbots-msg bot">' + att + txt + actHtml(m) + '<small>' + meta + '</small></div></div>';
         });
-        if (S.sending) h += '<div class="dbots-row">' + botFig(b, 30) + '<div class="dbots-msg bot dbots-typing"><span></span><span></span><span></span></div></div>';
+        if (S.sending) h += '<div class="dbots-row">' + botFig(b, 52) + '<div class="dbots-msg bot dbots-typing"><span></span><span></span><span></span></div></div>';
         box.innerHTML = h; emo(box); wireActs(box, b); box.scrollTop = box.scrollHeight;
       }
       S.paintChat = paint;
