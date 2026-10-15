@@ -140,7 +140,7 @@
   var NOTIF_APP_LABELS = {
     chat: '💬 Doganiero Chat', 'doganiero-book': '📗 Doganiero Book', metaverse: '🌐 Doganiero Metaverse',
     phone: '📞 Teléfono', 'doganiero-tv': '📺 Doganiero TV', desk: '🖥️ Doganiero Desk', store: '🛍️ Doganiero Store',
-    mail: '✉️ Correo', cloud: '☁️ Doganiero Cloud',
+    cloud: '☁️ Doganiero Cloud',
     'account-request': 'Solicitud de cuenta'
   };
   function notifAppKey(n) {

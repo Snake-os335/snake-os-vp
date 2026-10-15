@@ -39,7 +39,6 @@ window.addEventListener('error', function(e){
   if(typeof window.revealSnakeBootError === 'function') window.revealSnakeBootError();
 }, true);
 </script>
-<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <script src="/static/metaverse.js?v=202610121930" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/doganiero-chat.js?v=202610141730" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/doganiero-desk.js?v=202610072130" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
@@ -4469,24 +4468,6 @@ window.addEventListener('error', function(e){
     btn.style.display = hasLocalDataFor(email) ? '' : 'none';
   }
 
-  // ---------- Correo (EmailJS) ----------
-  let SERVICE_ID = '';
-  let TEMPLATE_ID = '';
-  let PUBLIC_KEY = '';
-  function emailJsReady() {
-    return !!(SERVICE_ID && TEMPLATE_ID && PUBLIC_KEY && window.emailjs);
-  }
-  fetch('/api/emailjs-config', { cache: 'no-store' })
-    .then(function (res) { return res.ok ? res.json() : null; })
-    .then(function (data) {
-      if (!data || !data.enabled) return;
-      SERVICE_ID = String(data.serviceId || '');
-      TEMPLATE_ID = String(data.templateId || '');
-      PUBLIC_KEY = String(data.publicKey || '');
-      if (emailJsReady()) emailjs.init({ publicKey: PUBLIC_KEY });
-    })
-    .catch(function () {});
-
   // ---------- Sesión ----------
   let currentUser = null;
   var userAskboxKey = '';
@@ -6331,7 +6312,6 @@ function buildIcons(){
           buildStartMenu();
           try { if(typeof ensureNotifUi === 'function') ensureNotifUi(); } catch(eN){}
           try { if(window.snakeCursor && window.snakeCursor.endBusy) window.snakeCursor.endBusy(); } catch(eE){}
-          openApp('mail');
           try {
             var mel = document.getElementById('loginMelodyEl');
             if(mel){ mel.currentTime = 0; mel.play().catch(function(){}); }
@@ -6693,13 +6673,6 @@ function buildIcons(){
   }
   function refreshUserEverywhere(){
     setUserBadge(currentUser);
-    const mailRec = openApps['mail'];
-    if(mailRec){
-      const nameInput = mailRec.win.querySelector('#name-x');
-      const emailInput = mailRec.win.querySelector('#email-x');
-      if(nameInput) nameInput.value = currentUser.name;
-      if(emailInput) emailInput.value = currentUser.email;
-    }
     reRenderIfOpen('about');
     reRenderIfOpen('profile');
     reRenderIfOpen('chat');
@@ -6740,68 +6713,6 @@ function buildIcons(){
     setPhoneProfileChip(null);
     document.getElementById('desktop').classList.add('hidden');
     gateServerI9();
-  }
-
-  // ---------- App: Correo ----------
-  function renderMailApp(container){
-    container.innerHTML =
-      '<form id="mailForm-x">' +
-        '<label>Correo del destinatario</label>' +
-        '<input type="email" id="to_email-x" placeholder="destinatario@correo.com" required>' +
-        '<label>Tu nombre</label>' +
-        '<input type="text" id="name-x" placeholder="Ej: Juan Pérez" required>' +
-        '<label>Tu correo (para respuesta)</label>' +
-        '<input type="email" id="email-x" placeholder="Tu correo electrónico" required>' +
-        '<label>Asunto</label>' +
-        '<input type="text" id="subject-x" placeholder="Asunto del mensaje" required>' +
-        '<label>Mensaje</label>' +
-        '<textarea id="message-x" placeholder="Escribe tu mensaje aquí..." required></textarea>' +
-        '<button type="submit" id="sendBtn-x">Enviar correo</button>' +
-        '<div class="status" id="status-x"></div>' +
-      '</form>' +
-      '<p class="note">Los campos coinciden con tu plantilla de EmailJS. {{time}} se rellena automáticamente.</p>';
-
-    const form = container.querySelector('#mailForm-x');
-    const btn = container.querySelector('#sendBtn-x');
-    const status = container.querySelector('#status-x');
-    if(currentUser){
-      container.querySelector('#name-x').value = currentUser.name;
-      container.querySelector('#email-x').value = currentUser.email;
-    }
-    function showStatus(msg, ok){ status.textContent = msg; status.className = 'status show ' + (ok?'ok':'err'); }
-    form.addEventListener('submit', function(e){
-      e.preventDefault();
-      btn.disabled = true; btn.textContent = 'Enviando...'; status.className = 'status';
-      const params = {
-        to_email: container.querySelector('#to_email-x').value,
-        name: container.querySelector('#name-x').value,
-        email: container.querySelector('#email-x').value,
-        subject: container.querySelector('#subject-x').value,
-        message: container.querySelector('#message-x').value,
-        time: new Date().toLocaleString('es-ES')
-      };
-      if (!emailJsReady()) {
-        showStatus('El correo no está configurado en este servidor.', false);
-        btn.disabled = false;
-        btn.textContent = 'Enviar correo';
-        return;
-      }
-      emailjs.send(SERVICE_ID, TEMPLATE_ID, params)
-        .then(function(){
-          showStatus('Correo enviado correctamente ✅', true);
-          form.reset();
-          if(currentUser){
-            container.querySelector('#name-x').value = currentUser.name;
-            container.querySelector('#email-x').value = currentUser.email;
-          }
-        })
-        .catch(function(error){
-          const detail = (error && (error.text || error.message)) || JSON.stringify(error);
-          const code = error && error.status ? ' (código ' + error.status + ')' : '';
-          showStatus('Error al enviar' + code + ': ' + detail, false);
-        })
-        .finally(function(){ btn.disabled = false; btn.textContent = 'Enviar correo'; });
-    });
   }
 
   // ---------- App: Notas ----------
@@ -8374,7 +8285,7 @@ function buildIcons(){
     '"Doganiero" es solo el nombre de marca del sistema; no implica que seas un perro. Respondes siempre en español, con tono cercano, ' +
     'claro y profesional-amigable (emoji con moderación, nunca de perro), y vas al grano. Tu prioridad es ayudar a la persona usuaria ' +
     'a entender y usar Snake OS!. Estas son sus aplicaciones:\n' +
-    '- ✉️ Correo: cliente que envía correos reales mediante EmailJS; hay que rellenar destinatario, nombre, correo de respuesta, asunto y mensaje.\n' +
+    '' +
     '- 📝 Notas: crear y borrar notas de texto, privadas por cuenta y guardadas en el servidor.\n' +
     '- 🎮 Juegos: Tres en raya (2 jugadores en el mismo dispositivo) y Memoria (encontrar parejas de emojis).\n' +
     '- 🐍 Snake: la serpiente clásica; se controla con las flechas del teclado o el d-pad en pantalla, y guarda el récord por cuenta en el servidor.\n' +
@@ -8391,14 +8302,14 @@ function buildIcons(){
     '- ℹ️ Acerca de: información de la versión del sistema.\n' +
     'Las cuentas se crean desde la pantalla de registro con nombre, correo y contraseña (mínimo 4 caracteres). Todos los ' +
     'datos (cuentas, notas, archivos, papelera, posición de los iconos y esta misma conversación) se guardan en el ' +
-    'servidor de Snake OS con sesión por cookie, para poder entrar desde distintos ordenadores o navegadores. El envío ' +
-    'de correos es real vía EmailJS. Las ventanas de las apps se mueven arrastrando su barra de título, se ' +
+    'servidor de Snake OS con sesión por cookie, para poder entrar desde distintos ordenadores o navegadores. Las ' +
+    'ventanas de las apps se mueven arrastrando su barra de título, se ' +
     'minimizan y maximizan con los botones de la barra (o doble clic para maximizar), y se cierran con la X; el menú de ' +
     'inicio y los iconos del escritorio abren cada app. Si te preguntan algo que no tenga que ver con Snake OS!, ayudas ' +
     'con normalidad, pero tu foco principal es resolver dudas sobre el funcionamiento del sistema. Si no sabes algo con ' +
     'certeza, dilo en vez de inventarlo.\n' +
     'CAPACIDADES ESPECIALES (etiquetas al FINAL o donde toque; sin markdown alrededor de la etiqueta):\n' +
-    '1) Abrir apps: [[OPEN_APP:id]] con id en: mail, notes, games, snake, calc, explorer, trash, browser, profile, cloud, about, metaverse, chat, code, ai, store, doganiero-tv, server-i8, terminal, prism, phone, maps. Ejemplo: [[OPEN_APP:store]] abre Doganiero Store. Si piden la tienda, el store o Doganiero Store, abre store.\n' +
+    '1) Abrir apps: [[OPEN_APP:id]] con id en: notes, games, snake, calc, explorer, trash, browser, profile, cloud, about, metaverse, chat, code, ai, store, doganiero-tv, server-i8, terminal, prism, phone, maps. Ejemplo: [[OPEN_APP:store]] abre Doganiero Store. Si piden la tienda, el store o Doganiero Store, abre store.\n' +
     '2) Abrir un archivo del Explorador del usuario: [[OPEN_FILE:nombre_o_id]] usando el nombre exacto o el id numérico de la lista de archivos del contexto. Ejemplo: [[OPEN_FILE:foto.png]].\n' +
     '3) Leer el contenido de un archivo de texto del usuario para usarlo en tu respuesta: [[READ_FILE:nombre_o_id]]. El sistema te devolverá el contenido; entonces responde basándote en él y NO vuelvas a emitir READ_FILE del mismo archivo.\n' +
     '4) Programar / crear archivos: cuando pidan código, un script, una web, un programa, etc., escribe el código completo y guárdalo con:\n' +
@@ -14600,7 +14511,6 @@ function renderStoreApp(container){
 
     const APPS = {
     ai:       { title:'Doganiero AI', icon:'✨', iconImg: AI_ICON_URL, iconImgClass: 'ai-logo', iconHtml: appIconImgHtml(AI_ICON_URL, 'ai-logo'), width:350, height:520, render: renderAIApp },
-    mail:     { title:'Correo',      icon:'✉️', width:370, height:560, render: renderMailApp },
     notes:    { title:'Notas',       icon:'📝', width:350, height:480, render: renderNotesApp },
     games:    { title:'Juegos',      icon:'🎮', width:370, height:520, render: renderGamesApp },
     snake:    { title:'Snake',       icon:'🐍', width:330, height:580, render: renderSnakeApp },

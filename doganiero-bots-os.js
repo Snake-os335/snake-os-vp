@@ -39,7 +39,7 @@
     '.mos-cur{position:absolute;left:50%;top:50%;width:16px;height:16px;z-index:4;pointer-events:none;transition:left .55s cubic-bezier(.3,.7,.3,1),top .55s cubic-bezier(.3,.7,.3,1);display:none}.mos-cur.on{display:block}',
     '.mos-cur.click::after,.dbp-ptr.click::after{content:"";position:absolute;left:-10px;top:-10px;width:22px;height:22px;border-radius:50%;border:2px solid currentColor;animation:mosRip .45s ease-out}',
     '@keyframes mosRip{from{transform:scale(.3);opacity:1}to{transform:scale(1.6);opacity:0}}',
-    '.dbp-type{position:fixed;z-index:2147483601;pointer-events:none;background:#fff;color:#111;border-radius:10px;padding:6px 10px;font:13px/1.3 system-ui,sans-serif;box-shadow:0 6px 18px rgba(0,0,0,.35);max-width:320px;white-space:pre-wrap;word-break:break-word;display:none}.dbp-type.on{display:block}.dbp-type::after{content:"";display:inline-block;width:2px;height:1em;background:currentColor;margin-left:1px;vertical-align:-2px;animation:dbpCar .8s steps(1) infinite}@keyframes dbpCar{50%{opacity:0}}',
+    '.dbp-type{position:fixed;z-index:2147483601;pointer-events:none;background:#fff;color:#111;border:3px solid var(--bc,#34d17a);border-radius:14px;padding:10px 14px;font:600 18px/1.35 system-ui,sans-serif;box-shadow:0 10px 30px rgba(0,0,0,.45);max-width:420px;min-width:120px;white-space:pre-wrap;word-break:break-word;display:none}.dbp-type.on{display:block}.dbp-type::after{content:"";display:inline-block;width:2px;height:1em;background:currentColor;margin-left:1px;vertical-align:-2px;animation:dbpCar .8s steps(1) infinite}@keyframes dbpCar{50%{opacity:0}}',
     '.dbp-ptr{position:fixed;left:50vw;top:50vh;z-index:2147483600;pointer-events:none;transition:left .7s cubic-bezier(.3,.7,.3,1),top .7s cubic-bezier(.3,.7,.3,1);filter:drop-shadow(0 2px 3px rgba(0,0,0,.45))}',
     '.dbp-ptr .lab{position:absolute;left:20px;top:20px;white-space:nowrap;padding:2px 8px;border-radius:999px;color:#fff;font:600 12px/1.4 "Open Sans",system-ui,sans-serif}',
     '.dbp-stop{position:fixed;left:50%;top:14px;transform:translateX(-50%);z-index:2147483601;display:flex;align-items:center;gap:10px;background:#111;color:#fff;border-radius:999px;padding:6px 8px 6px 14px;font:13px "Open Sans",system-ui,sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.35)}',
@@ -289,13 +289,13 @@
       var sr = screen.getBoundingClientRect(), x, y;
       if (target && target.getBoundingClientRect) { var r = target.getBoundingClientRect(); x = r.left - sr.left + Math.min(r.width / 2, 40); y = r.top - sr.top + r.height / 2; }
       else { x = sr.width / 2; y = sr.height / 2; }
-      cur.classList.add('on'); cur.style.left = x + 'px'; cur.style.top = y + 'px';
+      cur.classList.add('on'); cur.style.left = (x - 2) + 'px'; cur.style.top = (y - 1) + 'px';
       return wait(600);
     }
     function click() { cur.classList.remove('click'); void cur.offsetWidth; cur.classList.add('click'); return wait(350); }
     function typeInto(input, text) {
       bar.classList.add('typing'); input.value = '';
-      var i = 0; return new Promise(function (res) { (function step() { if (i >= text.length) { bar.classList.remove('typing'); return res(); } input.value += text[i++]; try { input.focus({ preventScroll: true }); input.setSelectionRange(input.value.length, input.value.length); } catch (e) {} setTimeout(step, Math.max(35, Math.min(90, 2600 / Math.max(1, text.length)))); })(); });
+      var i = 0; return new Promise(function (res) { (function step() { if (i >= text.length) { bar.classList.remove('typing'); return res(); } input.value += text[i++]; try { input.focus({ preventScroll: true }); input.setSelectionRange(input.value.length, input.value.length); } catch (e) {} setTimeout(step, Math.max(55, Math.min(120, 4000 / Math.max(1, text.length)))); })(); });
     }
     function findLink(t) {
       var all = page.querySelectorAll('[data-go]'), want = String(t.url || t.text || '').toLowerCase();
@@ -381,18 +381,18 @@
     bar.querySelector('[data-stop]').onclick = st.stop;
     function moveTo(el, fx, fy) {
       var x, y;
-      if (el && el.getBoundingClientRect) { var r = el.getBoundingClientRect(); x = r.left + r.width / 2; y = r.top + Math.min(r.height / 2, 30); }
+      if (el && el.getBoundingClientRect) { try { var ic0 = el.querySelector && el.querySelector('.ic'); if (ic0) el = ic0; var r0 = el.getBoundingClientRect(); if (r0.bottom > innerHeight || r0.top < 0 || r0.right > innerWidth || r0.left < 0) el.scrollIntoView({ block: 'center', inline: 'center' }); } catch (e) {} var r = el.getBoundingClientRect(); x = r.left + r.width / 2; y = r.top + r.height / 2; }
       else { x = fx != null ? fx : innerWidth / 2; y = fy != null ? fy : innerHeight / 2; }
-      ptr.style.left = Math.max(4, Math.min(innerWidth - 30, x)) + 'px'; ptr.style.top = Math.max(4, Math.min(innerHeight - 30, y)) + 'px';
+      ptr.style.left = (Math.max(0, Math.min(innerWidth - 4, x)) - 3) + 'px'; ptr.style.top = (Math.max(0, Math.min(innerHeight - 4, y)) - 2) + 'px';
       return wait(750);
     }
     function clk() { ptr.classList.remove('click'); void ptr.offsetWidth; ptr.classList.add('click'); return wait(380); }
-    var tbox = document.createElement('div'); tbox.className = 'dbp-type'; document.body.appendChild(tbox);
-    function typeStep(n) { return Math.max(35, Math.min(90, 2600 / Math.max(1, n))); }
+    var tbox = document.createElement('div'); tbox.className = 'dbp-type'; tbox.style.setProperty('--bc', color); document.body.appendChild(tbox);
+    function typeStep(n) { return Math.max(55, Math.min(130, 4500 / Math.max(1, n))); }
     function typeVis(text) {
       text = String(text || '').slice(0, 300);
       var x = parseFloat(ptr.style.left) || innerWidth / 2, y = parseFloat(ptr.style.top) || innerHeight / 2;
-      tbox.style.left = Math.max(4, Math.min(innerWidth - 330, x + 22)) + 'px'; tbox.style.top = Math.max(4, Math.min(innerHeight - 60, y + 26)) + 'px';
+      tbox.style.left = Math.max(4, Math.min(innerWidth - 430, x + 24)) + 'px'; tbox.style.top = Math.max(4, Math.min(innerHeight - 60, y + 26)) + 'px';
       tbox.textContent = ''; tbox.classList.add('on');
       var i = 0; return new Promise(function (res) { (function step() { if (st.cancelled || i >= text.length) { setTimeout(function () { tbox.classList.remove('on'); res(); }, 350); return; } tbox.textContent += text[i++]; setTimeout(step, typeStep(text.length)); })(); });
     }
