@@ -55,7 +55,7 @@ window.addEventListener('error', function(e){
 <script src="/static/snake-emoji.js?v=202610140900" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-maps.js?v=202610141800" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-locshare.js?v=202610141830"></script>
-<script src="/static/doganiero-bots-os.js?v=202610152050"></script>
+<script src="/static/doganiero-bots-os.js?v=202610152100"></script>
 <script src="/static/doganiero-bots.js?v=202610152145"></script>
 <script src="/static/snake-bluetooth.js?v=202610111725" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-keypad.js?v=202610111201" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
@@ -7589,8 +7589,8 @@ function buildIcons(){
         return t.indexOf('//') === 0 ? ('https:' + t) : t;
       }
       if(t.charAt(0) === '/') return t; // rutas mismas origen
-      if(/^[a-z0-9.-]+\.[a-z]{2,}(\/.*)?$/i.test(t) && t.indexOf(' ') < 0){
-        return 'https://' + t;
+      if(t.indexOf(' ') < 0 && typeof window.snakeLooksLikeUrl === 'function' && window.snakeLooksLikeUrl(t)){
+        return (/^(localhost|(?:\d{1,3}\.){3}\d{1,3})(?::\d+)?(?:\/|$)/i.test(t) ? 'http://' : 'https://') + t;
       }
       // Barra: si muestra "Doganiero Search · consulta", extraer la consulta
       var m = t.match(/^doganiero\s*search\s*[·\-]\s*(.+)$/i);

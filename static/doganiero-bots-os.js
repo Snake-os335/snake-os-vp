@@ -39,6 +39,7 @@
     '.mos-cur{position:absolute;left:50%;top:50%;width:16px;height:16px;z-index:4;pointer-events:none;transition:left .55s cubic-bezier(.3,.7,.3,1),top .55s cubic-bezier(.3,.7,.3,1);display:none}.mos-cur.on{display:block}',
     '.mos-cur.click::after,.dbp-ptr.click::after{content:"";position:absolute;left:-10px;top:-10px;width:22px;height:22px;border-radius:50%;border:2px solid currentColor;animation:mosRip .45s ease-out}',
     '@keyframes mosRip{from{transform:scale(.3);opacity:1}to{transform:scale(1.6);opacity:0}}',
+    '.dbp-type{position:fixed;z-index:2147483601;pointer-events:none;background:#fff;color:#111;border-radius:10px;padding:6px 10px;font:13px/1.3 system-ui,sans-serif;box-shadow:0 6px 18px rgba(0,0,0,.35);max-width:320px;white-space:pre-wrap;word-break:break-word;display:none}.dbp-type.on{display:block}.dbp-type::after{content:"";display:inline-block;width:2px;height:1em;background:currentColor;margin-left:1px;vertical-align:-2px;animation:dbpCar .8s steps(1) infinite}@keyframes dbpCar{50%{opacity:0}}',
     '.dbp-ptr{position:fixed;left:50vw;top:50vh;z-index:2147483600;pointer-events:none;transition:left .7s cubic-bezier(.3,.7,.3,1),top .7s cubic-bezier(.3,.7,.3,1);filter:drop-shadow(0 2px 3px rgba(0,0,0,.45))}',
     '.dbp-ptr .lab{position:absolute;left:20px;top:20px;white-space:nowrap;padding:2px 8px;border-radius:999px;color:#fff;font:600 12px/1.4 "Open Sans",system-ui,sans-serif}',
     '.dbp-stop{position:fixed;left:50%;top:14px;transform:translateX(-50%);z-index:2147483601;display:flex;align-items:center;gap:10px;background:#111;color:#fff;border-radius:999px;padding:6px 8px 6px 14px;font:13px "Open Sans",system-ui,sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.35)}',
@@ -294,7 +295,7 @@
     function click() { cur.classList.remove('click'); void cur.offsetWidth; cur.classList.add('click'); return wait(350); }
     function typeInto(input, text) {
       bar.classList.add('typing'); input.value = '';
-      var i = 0; return new Promise(function (res) { (function step() { if (i >= text.length) { bar.classList.remove('typing'); return res(); } input.value += text[i++]; setTimeout(step, Math.max(18, 600 / Math.max(10, text.length))); })(); });
+      var i = 0; return new Promise(function (res) { (function step() { if (i >= text.length) { bar.classList.remove('typing'); return res(); } input.value += text[i++]; try { input.focus({ preventScroll: true }); input.setSelectionRange(input.value.length, input.value.length); } catch (e) {} setTimeout(step, Math.max(35, Math.min(90, 2600 / Math.max(1, text.length)))); })(); });
     }
     function findLink(t) {
       var all = page.querySelectorAll('[data-go]'), want = String(t.url || t.text || '').toLowerCase();
@@ -386,6 +387,19 @@
       return wait(750);
     }
     function clk() { ptr.classList.remove('click'); void ptr.offsetWidth; ptr.classList.add('click'); return wait(380); }
+    var tbox = document.createElement('div'); tbox.className = 'dbp-type'; document.body.appendChild(tbox);
+    function typeStep(n) { return Math.max(35, Math.min(90, 2600 / Math.max(1, n))); }
+    function typeVis(text) {
+      text = String(text || '').slice(0, 300);
+      var x = parseFloat(ptr.style.left) || innerWidth / 2, y = parseFloat(ptr.style.top) || innerHeight / 2;
+      tbox.style.left = Math.max(4, Math.min(innerWidth - 330, x + 22)) + 'px'; tbox.style.top = Math.max(4, Math.min(innerHeight - 60, y + 26)) + 'px';
+      tbox.textContent = ''; tbox.classList.add('on');
+      var i = 0; return new Promise(function (res) { (function step() { if (st.cancelled || i >= text.length) { setTimeout(function () { tbox.classList.remove('on'); res(); }, 350); return; } tbox.textContent += text[i++]; setTimeout(step, typeStep(text.length)); })(); });
+    }
+    function typeInput(inp, text) {
+      text = String(text || ''); inp.value = ''; try { inp.focus({ preventScroll: true }); } catch (e) {}
+      var i = 0; return new Promise(function (res) { (function step() { if (st.cancelled || i >= text.length) return res(); inp.value += text[i++]; inp.dispatchEvent(new Event('input', { bubbles: true })); setTimeout(step, typeStep(text.length)); })(); });
+    }
     function appIcon(id) { return vis(document.querySelector('.desktop-icon[data-app="' + id + '"]')) || vis(document.querySelector('#startBtn,.start-btn,[data-start-btn]')); }
     function win(id) { return vis(document.getElementById('win-' + id)); }
     var B = bridge(), done = [];
@@ -394,7 +408,7 @@
       close_app: function (s) { var w = win(s.app); if (!w) return 'La app «' + s.app + '» no estaba abierta'; var c = w.querySelector('.win-btn.close,[data-close],.close'); return moveTo(c || w).then(clk).then(function () { (B && B.closeApp ? B.closeApp : window.closeApp)(s.app); return 'Cerré ' + s.app; }); },
       create_folder: function (s) {
         var name = String(s.name || 'Nueva carpeta').replace(/[\\/]/g, '-').slice(0, 60);
-        return moveTo(null, innerWidth * 0.45, innerHeight * 0.4).then(clk).then(function () {
+        return moveTo(null, innerWidth * 0.45, innerHeight * 0.4).then(clk).then(function () { return typeVis(name); }).then(function () {
           if (typeof window.snkCreateFolder !== 'function') throw new Error('No puedo crear carpetas aquí');
           var orig = window.prompt; window.prompt = function () { return name; };
           return Promise.resolve(window.snkCreateFolder('')).finally(function () { window.prompt = orig; }).then(function () { return 'Creé la carpeta «' + name + '»'; });
@@ -403,7 +417,7 @@
       create_note: function (s) {
         if (!B) throw new Error('Notas no disponible');
         if (!(window.APPS || {}).notes) throw new Error('Notas no disponible');
-        return moveTo(appIcon('notes')).then(clk).then(function () {
+        return moveTo(appIcon('notes')).then(clk).then(function () { return typeVis(String(s.text || '')); }).then(function () {
           B.notes().push({ id: Date.now() + '-' + Math.random().toString(36).slice(2), text: String(s.text || '').slice(0, 4000), date: new Date().toLocaleString('es-ES') });
           return Promise.resolve(B.saveNotes()).catch(function () {});
         }).then(function () { try { if (win('notes')) B.closeApp('notes'); } catch (e) {} return wait(250); })
@@ -413,7 +427,7 @@
         if (!B) throw new Error('Archivos no disponible');
         var name = String(s.name || 'archivo.txt').replace(/^\/+/, '').slice(0, 100); if (!/\.\w{1,5}$/.test(name)) name += '.txt';
         var text = String(s.text || '');
-        return moveTo(null, innerWidth * 0.5, innerHeight * 0.45).then(clk).then(function () {
+        return moveTo(null, innerWidth * 0.5, innerHeight * 0.45).then(clk).then(function () { return typeVis(name + (text ? '\n' + text : '')); }).then(function () {
           var e = { id: B.newFileId(), name: name, type: 'text/plain', dataUrl: 'data:text/plain;base64,' + b64(text), size: text.length };
           B.files().push(e);
           return Promise.resolve(B.upload(e)).catch(function () {}).then(function () { return B.persistFiles(); }).catch(function () {}).then(function () { B.refresh(); return 'Creé el archivo «' + name + '»'; });
@@ -455,7 +469,7 @@
             return moveTo(appIcon('phone')).then(clk).then(function () { window.openApp('phone'); return wait(700); }).then(function () {
               var w = win('phone'), disp = w && w.querySelector('.dph-display'), btn = w && w.querySelector('.dph-call');
               if (!disp || !btn) throw new Error('No encontré el marcador del Teléfono');
-              return moveTo(disp).then(clk).then(function () { disp.value = String(c.number); disp.dispatchEvent(new Event('input', { bubbles: true })); return wait(400); })
+              return moveTo(disp).then(clk).then(function () { return typeInput(disp, String(c.number)).then(function () { return wait(300); }); })
                 .then(function () { return moveTo(btn); }).then(clk).then(function () { btn.click(); return 'Llamando a ' + label + ' (yo no hablo en la llamada)'; });
             });
           });
@@ -476,7 +490,7 @@
         return Promise.resolve().then(function () { return fn(s); }).then(function (msg) { if (msg) { done.push('✅ ' + msg); log('✅ ' + msg); } }, function (e) { if (String(e && e.message) === 'STOP') throw e; done.push('⚠️ ' + errMsg(e)); log('⚠️ ' + errMsg(e)); });
       });
     });
-    function end() { document.removeEventListener('keydown', onKey, true); ptr.remove(); bar.remove(); if (running === st) running = null; }
+    function end() { document.removeEventListener('keydown', onKey, true); ptr.remove(); bar.remove(); try { tbox.remove(); } catch (e) {} if (running === st) running = null; }
     return p.then(function () { end(); return { done: done, stopped: false }; }, function () { end(); done.push('⏹ Parado'); return { done: done, stopped: true }; });
   }
 
