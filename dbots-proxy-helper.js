@@ -20,18 +20,53 @@
     if (/^(javascript:|#)/i.test(h)) return;
     var u = abs(h); if (!/^https?:/i.test(u)) return;
     e.preventDefault();
-    if (a.hasAttribute('data-serp')) { send({ type: 'nav', url: 'doggle:' + u }); location.href = u; return; }
+    if (a.hasAttribute('data-serp')) { send({ type: 'nav', url: 'dsearch:' + u }); location.href = u; return; }
     if (C.serp) { send({ type: 'open', url: u }); return; }
     send({ type: 'nav', url: u }); location.href = prox(u);
   }, true);
   document.addEventListener('submit', function (e) {
-    var f = e.target; if (!f || !f.action) return;
-    if (f.hasAttribute('data-serpform')) return;
+    var f = e.target; if (!f) return;
+    // Doganiero Search: botón Buscar / Enter — navegar en el iframe (sandbox-safe)
+    if (f.hasAttribute && f.hasAttribute('data-serpform')) {
+      e.preventDefault();
+      e.stopPropagation();
+      var action = f.getAttribute('action') || ((C.o || '') + '/api/dbots/serp');
+      var u;
+      try { u = new URL(action, (C.o || location.origin) + '/'); } catch (err) { return; }
+      try {
+        new FormData(f).forEach(function (v, k) { if (typeof v === 'string') u.searchParams.set(k, v); });
+      } catch (err2) {
+        var inp = f.querySelector('[name=q]');
+        if (inp) u.searchParams.set('q', inp.value || '');
+      }
+      if (!u.searchParams.get('t') && C.t) u.searchParams.set('t', C.t);
+      var qq = (u.searchParams.get('q') || '').trim();
+      if (!qq) {
+        var qi = f.querySelector('[name=q]');
+        if (qi) try { qi.focus(); } catch (e3) {}
+        return;
+      }
+      send({ type: 'nav', url: 'dsearch:' + qq });
+      location.href = u.href;
+      return;
+    }
+    if (!f.action) return;
     e.preventDefault();
     if ((f.method || 'get').toLowerCase() !== 'get') { send({ type: 'note', text: 'El bot no envía formularios con datos (POST) por seguridad.' }); return; }
-    var u = new URL(abs(f.getAttribute('action') || C.u));
-    new FormData(f).forEach(function (v, k) { if (typeof v === 'string') u.searchParams.set(k, v); });
-    send({ type: 'nav', url: u.href }); location.href = prox(u.href);
+    var u2 = new URL(abs(f.getAttribute('action') || C.u));
+    new FormData(f).forEach(function (v, k) { if (typeof v === 'string') u2.searchParams.set(k, v); });
+    send({ type: 'nav', url: u2.href }); location.href = prox(u2.href);
+  }, true);
+  // Clicks en botón Buscar por si el submit se traga
+  document.addEventListener('click', function (e) {
+    var btn = e.target && e.target.closest ? e.target.closest('button[type=submit],button[data-serpgo]') : null;
+    if (!btn) return;
+    var f = btn.form || (btn.closest && btn.closest('form[data-serpform]'));
+    if (!f || !f.hasAttribute('data-serpform')) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (f.requestSubmit) f.requestSubmit(btn);
+    else f.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
   }, true);
   function rect(el) { var r = el.getBoundingClientRect(); return { x: r.left + Math.min(r.width / 2, 60), y: r.top + r.height / 2 }; }
   function hl(el) { el.style.outline = '3px solid #fbbc05'; el.style.background = 'rgba(255,243,160,.85)'; el.style.borderRadius = '4px'; setTimeout(function () { el.style.outline = ''; el.style.background = ''; }, 1600); }

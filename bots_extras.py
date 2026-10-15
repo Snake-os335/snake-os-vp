@@ -593,12 +593,12 @@ def _serp_html(origin: str, tok: str, q: str, page: int, res: list[dict[str, str
         f'<a data-serp class="{"on" if n == page else ""}" href="{origin}/api/dbots/serp?q={sq}&p={n}&t={e(tok)}">{n}</a>' for n in range(1, 6))
     nxt = f'<a data-serp href="{origin}/api/dbots/serp?q={sq}&p={page + 1}&t={e(tok)}">Siguiente ›</a>' if res and page < 10 else ""
     return ("<!doctype html><html><head><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'>"
-            f"<title>{e(q) + ' · ' if q else ''}Doganiero Search</title><script>window.__DBP={cfg};</script>"
-            f'<script src="{origin}/static/dbots-proxy-helper.js?v=20261015c"></script><style>'
+            f"<title>{e(q) + ' · ' if q else ''}Doganiero Search</title>"f'<link rel="icon" type="image/png" href="{origin}/static/assets/doganiero-search-logo.png?v=20261015d">'f"<script>window.__DBP={cfg};</script>"
+            f'<script src="{origin}/static/dbots-proxy-helper.js?v=20261015e"></script><style>'
             "body{margin:0;font-family:arial,system-ui,sans-serif;color:#202124;background:#fff}"
             ".top{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid #ebebeb;position:sticky;top:0;background:#fff;z-index:2}"
-            ".lg{font-weight:800;font-size:1.15rem;letter-spacing:-.5px;color:#ff8a00;white-space:nowrap}.lg b{color:#ff8a00;font-weight:800}"
-            "form{flex:1;max-width:560px}input{width:100%;box-sizing:border-box;border:1px solid #dfe1e5;border-radius:24px;padding:9px 16px;font-size:15px;box-shadow:0 1px 6px rgba(32,33,36,.18);outline:0}"
+            ".lg{display:inline-flex;align-items:center;gap:8px;font-weight:800;font-size:1.15rem;letter-spacing:-.5px;color:#ff8a00;white-space:nowrap}.lg b{color:#ff8a00;font-weight:800}.lg img{width:36px;height:36px;border-radius:8px;object-fit:cover;flex:none;box-shadow:0 1px 4px rgba(0,0,0,.12)}.home .lg img{width:88px;height:88px;border-radius:18px}"
+            "form{flex:1;max-width:640px;display:flex;gap:8px;align-items:center}input[name=q]{flex:1;min-width:0;box-sizing:border-box;border:1px solid #dfe1e5;border-radius:24px;padding:9px 16px;font-size:15px;box-shadow:0 1px 6px rgba(32,33,36,.18);outline:0}button.go,button[type=submit]{flex:none;cursor:pointer;pointer-events:auto;z-index:5;position:relative;border:0;border-radius:24px;padding:9px 18px;font-size:14px;font-weight:700;color:#fff;background:#ff8a00;box-shadow:0 1px 4px rgba(0,0,0,.15)}button.go:hover,button[type=submit]:hover{background:#e67a00}"
             ".st{color:#70757a;font-size:13px;padding:10px 16px 0}.w{padding:4px 16px 20px;max-width:680px}"
             ".r{margin:18px 0}.s{display:flex;gap:10px;align-items:center}.s img{width:18px;height:18px;border-radius:50%;background:#f1f3f4;padding:4px}"
             ".d{font-size:14px}.u{font-size:12px;color:#4d5156;max-width:520px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}"
@@ -607,9 +607,9 @@ def _serp_html(origin: str, tok: str, q: str, page: int, res: list[dict[str, str
             ".home{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:70vh;gap:14px;padding:24px}"
             ".home .lg{font-size:2.4rem}.home form{width:min(560px,100%)}.hint{color:#70757a;font-size:13px}"
             "@media(max-width:520px){.top{flex-wrap:wrap}.r>a{font-size:17px}.home .lg{font-size:1.7rem}}</style></head><body>"
-            + (f'<div class="home"><div class="lg"><b>Doganiero Search</b></div><form data-serpform action="{origin}/api/dbots/serp" method="get"><input name="q" placeholder="Buscar en Doganiero Search…" autofocus><input type="hidden" name="t" value="{e(tok)}"></form><div class="hint">Resultados de muchos sitios · DuckDuckGo + Bing</div></div></body></html>'
+            + (f'<div class="home"><div class="lg"><img src="{origin}/static/assets/doganiero-search-logo.png?v=20261015d" alt=""><b>Doganiero Search</b></div><form data-serpform action="{origin}/api/dbots/serp" method="get"><input name="q" placeholder="Buscar en Doganiero Search…" autofocus autocomplete="off"><input type="hidden" name="t" value="{e(tok)}"><button type="submit" class="go" data-serpgo>Buscar</button></form><div class="hint">Resultados de muchos sitios · DuckDuckGo + Bing</div></div></body></html>'
                if not q else
-               f'<div class="top"><div class="lg"><b>Doganiero Search</b></div><form data-serpform action="{origin}/api/dbots/serp" method="get"><input name="q" value="{e(q)}" placeholder="Buscar en Doganiero Search…"><input type="hidden" name="t" value="{e(tok)}"></form></div>'
+               f'<div class="top"><div class="lg"><img src="{origin}/static/assets/doganiero-search-logo.png?v=20261015d" alt=""><b>Doganiero Search</b></div><form data-serpform action="{origin}/api/dbots/serp" method="get"><input name="q" value="{e(q)}" placeholder="Buscar en Doganiero Search…" autocomplete="off"><input type="hidden" name="t" value="{e(tok)}"><button type="submit" class="go" data-serpgo>Buscar</button></form></div>'
                f'<div class="st">Página {page} · {len(res)} resultados de {len({r["domain"] for r in res})} sitios</div>'
                f'<div class="w">{items or "<p>Sin resultados. Prueba con otras palabras.</p>"}</div><div class="pg">{nav}{nxt}</div></body></html>'))
 

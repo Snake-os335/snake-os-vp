@@ -7725,9 +7725,9 @@ def placa_page():
 
 
 @app.get("/")
-def index():
-    # Always clear gate cookie on full page load so the password screen returns
-    # after every reload/restart (APIs still protected via require_os_gate).
+def index(request: Request):
+    # Siempre pedir login de cuenta otra vez: no reanudar perfil abierto.
+    # También se limpia la cookie del gate OS (como antes).
     resp = FileResponse(
         "index.html",
         headers={
@@ -7737,6 +7737,8 @@ def index():
             "Pragma": "no-cache",
         },
     )
+    end_session(request.cookies.get(COOKIE_NAME))
+    clear_session_cookie(resp)
     clear_os_gate_cookie(resp)
     return resp
 
