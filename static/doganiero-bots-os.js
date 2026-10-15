@@ -215,6 +215,24 @@
       return p.then(function () { busy = false; say(''); cur.classList.remove('on'); done.forEach(function (t) { log('✅ ' + t); }); return { done: done, left: left }; },
         function (e) { busy = false; say(''); log('⚠️ ' + (e && e.message || e)); return { done: done, left: left }; });
     }
+    // ---- Agente dentro del mini OS: ve su propia pantalla y decide cada paso ----
+    function agent(goal, log) {
+      log = log || function () {};
+      if (busy) return Promise.resolve({ done: ['⏳ Estoy ocupado en mi mini OS'], ok: false });
+      busy = true; var stop = false;
+      try { if (sleepEl.classList.contains('on')) wake(); if (off.classList.contains('on')) off.classList.remove('on'); } catch (e) {}
+      var ui = {
+        move: function (t) { return curTo(t); }, click: click,
+        type: function (inp, text) { return typeEl(inp, text, false); }
+      };
+      function snap() {
+        var s = snapshot(el, screen, '.mos-status,.mos-cur');
+        s.page = { url: curUrl || '', mode: frameMode || (page.innerHTML ? 'resultados' : ''), win: (el.querySelector('.mos-win:not([hidden]) .mos-tb b') || {}).textContent || '' };
+        return s;
+      }
+      return agentLoop(bot, goal, 'mini', snap, function (a, e, it) { return agentExec(a, e, it, ui, bot); }, log, function () { return stop; })
+        .then(function (r) { busy = false; say(''); cur.classList.remove('on'); return r; }, function (e) { busy = false; say(''); throw e; });
+    }
     function writeCode(c) { return launch('code').then(function () { return writeCode0(c); }); }
     function writeCode0(c) {
       show('code'); langSel.value = /^py/.test(c.lang || '') ? 'py' : 'js';
@@ -389,7 +407,7 @@
       return p.then(function () { say(''); cur.classList.remove('on'); busy = false; }, function () { say(''); busy = false; });
     }
     home();
-    return { el: el, termHost: el.querySelector('[data-termhost]'), show: show, search: search, open: open, replay: replay, say: say, curTo: curTo, click: click, cmd: cmd, menu: menuOn, reader: reader, code: writeCode, launch: launch, runMini: runMini };
+    return { el: el, termHost: el.querySelector('[data-termhost]'), show: show, search: search, open: open, replay: replay, say: say, curTo: curTo, click: click, cmd: cmd, menu: menuOn, reader: reader, code: writeCode, launch: launch, runMini: runMini, agent: agent };
   }
 
   // ---------------- Control del escritorio real ----------------
@@ -545,5 +563,115 @@
     return p.then(function () { end(); return { done: done, stopped: false }; }, function () { end(); done.push('⏹ Parado'); return { done: done, stopped: true }; });
   }
 
-  window.DogBotsOS = { mount: mount, runDesktop: runDesktop, context: context, cursorSvg: cursorSvg };
+  // ---------------- Agente con visión de la interfaz (sin listas de pasos preprogramadas) ----------------
+  // El bot "ve" un resumen compacto de la UI visible y AskBox decide, paso a paso, dónde hacer clic o qué teclear.
+  var RISKY = /llamar|llamada|\bcall\b|borrar|eliminar|delete|papelera|pagar|comprar|enviar|\bsend\b|cerrar sesi|logout|contraseña|password|apagar/i;
+  function labelOf(e) {
+    if (!e) return '';
+    var v = e.getAttribute && (e.getAttribute('aria-label') || e.getAttribute('title') || e.getAttribute('placeholder'));
+    if (!v) v = e.textContent || (e.tagName !== 'INPUT' && e.tagName !== 'TEXTAREA' ? e.value : '') || (e.getAttribute && e.getAttribute('data-app')) || '';
+    return String(v).replace(/\s+/g, ' ').trim().slice(0, 60);
+  }
+  function snapshot(root, base, skipSel) {
+    var sel = 'button,a,input,textarea,select,[data-go],.desktop-icon,[role=button]';
+    var items = [], map = {}, els = root.querySelectorAll(sel), br = base ? base.getBoundingClientRect() : { left: 0, top: 0 };
+    for (var i = 0; i < els.length && items.length < 70; i++) {
+      var e = els[i];
+      if (skipSel && e.closest(skipSel)) continue;
+      if (e.type === 'password' || e.type === 'hidden' || e.disabled) continue;
+      if (e.closest('.desktop-icon') && !e.classList.contains('desktop-icon')) continue;
+      if (e.closest('[hidden]')) continue;
+      var r = e.getBoundingClientRect();
+      if (r.width < 4 || r.height < 4 || r.bottom < 0 || r.right < 0 || r.top > innerHeight || r.left > innerWidth) continue;
+      var cs = getComputedStyle(e); if (cs.visibility === 'hidden' || cs.display === 'none') continue;
+      var tag = e.tagName.toLowerCase();
+      var role = e.classList.contains('desktop-icon') ? 'icono' : (tag === 'input' || tag === 'textarea') ? 'campo' : tag === 'select' ? 'lista' : 'botón';
+      var id = 'e' + items.length;
+      var it = { id: id, role: role, label: labelOf(e) || role, x: Math.round(r.left - br.left), y: Math.round(r.top - br.top), w: Math.round(r.width), h: Math.round(r.height) };
+      var win = e.closest('.app-window,.mos-win');
+      if (win) it.win = labelOf(win.querySelector('.mos-tb b,.win-title,.titlebar,.win-titlebar,.title') || win).slice(0, 40);
+      if (role === 'campo') it.value = String(e.value || '').slice(0, 60);
+      items.push(it); map[id] = e;
+    }
+    return { items: items, map: map };
+  }
+  function agentLoop(bot, goal, surface, snapFn, execFn, log, stopped) {
+    var hist = [], said = [], n = 0;
+    function fin(ok, msg) { if (msg) said.push(msg); return { done: said, ok: ok, stopped: !!(stopped && stopped()) }; }
+    function step() {
+      if (stopped && stopped()) return Promise.resolve(fin(false, '⏹ Parado'));
+      if (++n > 15) return Promise.resolve(fin(false, '⚠️ Demasiados pasos; paro aquí'));
+      var s = snapFn();
+      return api('/api/dbots/agent/' + encodeURIComponent(bot.id), { method: 'POST', body: { goal: goal, surface: surface, ui: s.items, page: s.page || null, history: hist.slice(-8), step: n } })
+        .then(function (a) {
+          a = a || {};
+          if (a.say) log('🤔 ' + a.say);
+          if (a.action === 'done') return fin(true, '✅ ' + (a.say || 'Hecho'));
+          if (a.action === 'fail') return fin(false, '⚠️ ' + (a.say || 'No pude hacerlo'));
+          var el = a.id ? s.map[a.id] : null;
+          var it = a.id ? s.items.filter(function (x) { return x.id === a.id; })[0] : null;
+          return Promise.resolve(execFn(a, el, it)).then(function (r) {
+            hist.push({ action: a.action, id: a.id || '', label: it ? it.label : '', text: a.text || a.key || '', result: r || 'ok' });
+            if (a.say) said.push('• ' + a.say);
+            return wait(350).then(step);
+          }, function (e) {
+            hist.push({ action: a.action, id: a.id || '', label: it ? it.label : '', result: 'error: ' + errMsg(e) });
+            return step();
+          });
+        }, function (e) { return fin(false, '⚠️ ' + errMsg(e)); });
+    }
+    return step();
+  }
+  // Ejecuta un paso en cualquier superficie: mover puntero → clic / teclear visiblemente
+  function agentExec(a, el, it, ui, bot) {
+    var lbl = (it ? it.label + ' ' + (it.win || '') : '') + ' ' + (a.text || '');
+    function guard() {
+      if (!RISKY.test(lbl)) return Promise.resolve(true);
+      return confirmBox('¿Dejo que ' + bot.name + ' haga «' + (it ? it.label : a.action) + '»?', bot);
+    }
+    if (a.action === 'wait') return wait(900).then(function () { return 'esperé'; });
+    if (!el && a.action !== 'key') return Promise.reject(new Error('Ese elemento ya no está en pantalla'));
+    if (a.action === 'click') return guard().then(function (ok) { if (!ok) return 'el usuario no lo permitió'; return ui.move(el).then(ui.click).then(function () { el.click(); try { el.focus({ preventScroll: true }); } catch (e) {} return 'clic hecho'; }); });
+    if (a.action === 'type') {
+      if (el.type === 'password') return Promise.reject(new Error('No escribo contraseñas'));
+      if (!/^(INPUT|TEXTAREA)$/.test(el.tagName)) return Promise.reject(new Error('Eso no es un campo de texto'));
+      return ui.move(el).then(ui.click).then(function () { return ui.type(el, String(a.text || '').slice(0, 500)); }).then(function () { return 'escrito'; });
+    }
+    if (a.action === 'key') {
+      var t = el || document.activeElement; if (!t) return Promise.reject(new Error('No hay nada enfocado'));
+      return guard().then(function (ok) {
+        if (!ok) return 'el usuario no lo permitió';
+        var k = String(a.key || 'Enter');
+        var ev = new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true });
+        t.dispatchEvent(ev);
+        if (k === 'Enter' && !ev.defaultPrevented && t.form) { try { t.form.requestSubmit ? t.form.requestSubmit() : t.form.submit(); } catch (e) {} }
+        return 'tecla ' + k;
+      });
+    }
+    if (a.action === 'scroll') { var sc = el.closest('[data-page],.app-window,.mos-win') || el; try { (sc.querySelector('.mos-page,[data-page]') || sc).scrollBy({ top: 300, behavior: 'smooth' }); } catch (e) {} return wait(500).then(function () { return 'scroll'; }); }
+    return Promise.reject(new Error('Acción desconocida'));
+  }
+  // El agente en el escritorio del usuario (solo si lo pide)
+  function agentDesktop(goal, bot, color, log) {
+    if (running) running.stop();
+    var ptr = document.createElement('div'); ptr.className = 'dbp-ptr';
+    ptr.innerHTML = cursorSvg(color, 26) + '<span class="lab" style="background:' + color + '">' + esc(bot.name) + '</span>';
+    document.body.appendChild(ptr);
+    var bar = document.createElement('div'); bar.className = 'dbp-stop';
+    bar.innerHTML = '<span>🤖 <b>' + esc(bot.name) + '</b> está usando tu escritorio</span><button data-stop>⏹ Parar (Esc)</button>';
+    document.body.appendChild(bar);
+    var st = { cancelled: false, stop: function () { st.cancelled = true; } }; running = st;
+    function onKey(e) { if (e.key === 'Escape') st.stop(); }
+    document.addEventListener('keydown', onKey, true); bar.querySelector('[data-stop]').onclick = st.stop;
+    var ui = {
+      move: function (el) { var t = (el.querySelector && el.querySelector('.ic')) || el; try { var r0 = t.getBoundingClientRect(); if (r0.bottom > innerHeight || r0.top < 0) t.scrollIntoView({ block: 'center' }); } catch (e) {} var r = t.getBoundingClientRect(); ptr.style.left = (r.left + r.width / 2 - 3) + 'px'; ptr.style.top = (r.top + r.height / 2 - 2) + 'px'; return wait(750); },
+      click: function () { ptr.classList.remove('click'); void ptr.offsetWidth; ptr.classList.add('click'); return wait(380); },
+      type: function (inp, text) { inp.value = ''; try { inp.focus({ preventScroll: true }); } catch (e) {} var i = 0; return new Promise(function (res) { (function s() { if (st.cancelled || i >= text.length) return res(); inp.value += text[i++]; inp.dispatchEvent(new Event('input', { bubbles: true })); setTimeout(s, Math.max(55, Math.min(130, 4500 / Math.max(1, text.length)))); })(); }); }
+    };
+    function snap() { return snapshot(document.body, null, '.dbp-stop,.dbp-ptr,#win-dbots,.dbx,[data-mos]'); }
+    function end() { document.removeEventListener('keydown', onKey, true); ptr.remove(); bar.remove(); if (running === st) running = null; }
+    return agentLoop(bot, goal, 'user', snap, function (a, el, it) { return agentExec(a, el, it, ui, bot); }, log, function () { return st.cancelled; })
+      .then(function (r) { end(); return r; }, function (e) { end(); throw e; });
+  }
+  window.DogBotsOS = { mount: mount, runDesktop: runDesktop, agentDesktop: agentDesktop, context: context, cursorSvg: cursorSvg };
 })();

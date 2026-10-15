@@ -804,6 +804,7 @@ def _attachment_context(uid: int, meta: dict[str, Any]) -> str:
 
 MAX_CHAT_MSGS = 200
 MAX_CHAT_PER_MIN = 12
+_agent_rate: dict[int, list[float]] = {}
 _chat_rate: dict[int, list[float]] = {}
 
 
@@ -1289,6 +1290,72 @@ def build_router(
         _drop_files(uid, bot_id)
         return {"ok": True}
 
+    @r.post("/api/dbots/agent/{bot_id}")
+    def agent_step(bot_id: str, body: dict, user=Depends(require_user)):
+        """Un paso del agente: recibe un resumen compacto de la UI visible y devuelve la siguiente acción."""
+        uid = int(user["id"])
+        bot = next((b for b in _load_bots(uid) if b.get("id") == bot_id), None)
+        if not bot:
+            raise HTTPException(404, "Bot no encontrado")
+        key = own_askbox_key(uid)
+        if not key:
+            raise HTTPException(422, "No tienes clave de AskBox. Añádela en Ajustes → IA → Key de AskBox.")
+        now = time.monotonic()
+        calls = [t for t in _agent_rate.get(uid, []) if t > now - 60]
+        if len(calls) >= 40:
+            raise HTTPException(429, "Demasiados pasos seguidos; espera un momento.")
+        calls.append(now)
+        _agent_rate[uid] = calls
+        body = body if isinstance(body, dict) else {}
+        goal = str(body.get("goal") or "").strip()[:500]
+        surface = "user" if body.get("surface") == "user" else "mini"
+        lines = []
+        for it in (body.get("ui") or [])[:70]:
+            if not isinstance(it, dict):
+                continue
+            def n(k):
+                try:
+                    return int(it.get(k) or 0)
+                except (TypeError, ValueError):
+                    return 0
+            row = f"{str(it.get('id') or '')[:5]}|{str(it.get('role') or '')[:8]}|{str(it.get('label') or '')[:60]}|{str(it.get('win') or '')[:40]}|{n('x')},{n('y')},{n('w')},{n('h')}"
+            if it.get("role") == "campo":
+                row += "|valor=" + str(it.get("value") or "")[:60]
+            lines.append(row)
+        hist = []
+        for h in (body.get("history") or [])[-8:]:
+            if isinstance(h, dict):
+                hist.append(f"- {str(h.get('action') or '')[:8]} {str(h.get('id') or '')[:5]} «{str(h.get('label') or '')[:50]}» {str(h.get('text') or '')[:80]} → {str(h.get('result') or '')[:80]}")
+        page = body.get("page") if isinstance(body.get("page"), dict) else {}
+        page_s = " ".join(f"{k}={str(v)[:150]}" for k, v in page.items() if v) if page else ""
+        where = ("tu propio mini OS (Snake OS Lite): barra inferior con 🐍 menú y las apps 🌐 Navegador, 🖥️ Terminal, 💻 Código, 📝 Notas y 📁 Archivos; "
+                 "la barra del Navegador acepta una URL o una búsqueda y se envía con la tecla Enter")
+        if surface == "user":
+            where = "el escritorio Snake OS del usuario: iconos de apps (doble uso: un clic abre la app), ventanas abiertas y barra de tareas"
+        system = (
+            f"Eres {bot.get('name') or 'un bot'}, un agente que maneja una interfaz con puntero y teclado. Estás en {where}. "
+            "Cada vez ves la lista de elementos visibles (id|tipo|texto|ventana|x,y,ancho,alto|valor). Razona paso a paso y decide SOLO el siguiente paso. "
+            "Responde SOLO con JSON: {\"thought\": razonamiento breve, \"say\": frase corta en español para el usuario, "
+            "\"action\": \"click\"|\"type\"|\"key\"|\"scroll\"|\"wait\"|\"done\"|\"fail\", \"id\": id del elemento, "
+            "\"text\": texto a escribir (si type), \"key\": \"Enter\" (si key)}. "
+            "type ya hace clic en el campo y escribe; después usa key Enter sobre ese mismo campo si hay que enviarlo. Para abrir una app, haz clic en su icono o botón. "
+            "Mira el historial: no repitas lo que ya funcionó. Cuando el objetivo esté cumplido responde done. Si es imposible, fail explicando por qué. "
+            "Nunca escribas contraseñas, claves, tokens ni datos privados; nunca inicies ni cierres sesión. Llamar, borrar, enviar, pagar o apagar requieren el permiso del usuario (el sistema lo pedirá)."
+        )
+        prompt = (f"Objetivo: {goal}\nPaso número {int(body.get('step') or 1)}.\n" + (f"Estado: {page_s}\n" if page_s else "")
+                  + ("Pasos ya hechos:\n" + "\n".join(hist) + "\n" if hist else "Aún no has hecho nada.\n")
+                  + "Elementos visibles ahora:\n" + ("\n".join(lines) or "(ninguno)") + "\nDevuelve el JSON del siguiente paso.")
+        try:
+            res = askbox_client.ask(prompt, system=system, tier="balanced", max_output_tokens=350, api_key=key)
+            d = _parse_json(res.get("text") or "") or {}
+        except Exception:
+            return {"action": "fail", "say": "No pude pensar el siguiente paso (AskBox no respondió)."}
+        act = str(d.get("action") or "fail").lower()
+        if act not in {"click", "type", "key", "scroll", "wait", "done", "fail"}:
+            act = "fail"
+        return {"action": act, "id": str(d.get("id") or "")[:6], "text": str(d.get("text") or "")[:500],
+                "key": str(d.get("key") or "Enter")[:12], "say": str(d.get("say") or d.get("thought") or "")[:200]}
+
     @r.post("/api/dbots/chat/{bot_id}")
     def chat_send(bot_id: str, body: ChatBody, user=Depends(require_user)):
         uid = int(user["id"])
@@ -1344,7 +1411,8 @@ def build_router(
             "Además puedes usar \"action\": \"browse\" con \"steps\": lista de pasos de navegador (máx. 6) entre "
             "{\"op\":\"search\",\"q\":...}, {\"op\":\"open\",\"url\":... o \"index\": n del resultado}, {\"op\":\"click\",\"text\": texto del enlace}, "
             "{\"op\":\"form\",\"q\": texto para el buscador de la página}, {\"op\":\"scroll\"}, {\"op\":\"read\"}. Úsalo cuando haya que navegar varias páginas.\n"
-            "Y \"action\": \"desktop\" con \"steps\" para hacer cosas con tu puntero. POR DEFECTO las haces DENTRO DE TU PROPIO mini OS (Snake OS Lite del bot: Navegador, Terminal, Código, Notas y Archivos); añade \"target\": \"user\" SOLO si el usuario pide expresamente hacerlo en SU escritorio (o para llamar por su Teléfono). Operaciones: "
+            "Para CUALQUIER tarea de manejar apps (abrir, hacer clic, escribir, navegar, crear notas o archivos) usa \"action\": \"ui\" con \"goal\": objetivo claro y completo, y \"target\": \"mini\" (por defecto: tu propio mini OS) o \"user\" (solo si el usuario pide hacerlo en SU escritorio). NO escribas listas de pasos: después verás la pantalla y decidirás cada clic y cada tecla tú mismo. "
+            "(Obsoleto, evítalo) \"action\": \"desktop\" con \"steps\" para hacer cosas con tu puntero. POR DEFECTO las haces DENTRO DE TU PROPIO mini OS (Snake OS Lite del bot: Navegador, Terminal, Código, Notas y Archivos); añade \"target\": \"user\" SOLO si el usuario pide expresamente hacerlo en SU escritorio (o para llamar por su Teléfono). Operaciones: "
             "open_app{app}, close_app{app}, create_folder{name}, create_note{text}, create_file{name,text}, set_wallpaper{id}, "
             "move_window{app,x,y,w,h}, switch_desktop{n 1-4}, delete_file{name} (pide confirmación), call_contact{name: nombre o número DOG- de un contacto del usuario} (llama por el Teléfono; siempre pide confirmación; tú no hablas en la llamada). "
             "También \"action\": \"code\" con \"lang\": \"js\" o \"python\" y \"code\": el programa completo, cuando el usuario te pida programar algo: lo escribes y ejecutas en tu editor (aislado, sin red; usa console.log/print para mostrar la salida). "
@@ -1395,6 +1463,10 @@ def build_router(
                     pg = [{"url": t["view"]["url"], "title": t["view"]["title"][:120], "domain": t["view"]["domain"]} for t in trace if t.get("view")]
                     if pg:
                         extra["pages"] = (extra.get("pages") or []) + pg[-3:]
+            elif action == "ui":
+                goal = str(d.get("goal") or text or "").strip()[:500]
+                if goal:
+                    extra["ui"] = {"goal": goal, "target": "user" if str(d.get("target") or "").lower() == "user" else "mini"}
             elif action == "desktop":
                 steps = _clean_desktop(d.get("steps"))
                 if steps:

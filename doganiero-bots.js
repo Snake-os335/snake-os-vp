@@ -383,6 +383,19 @@
       if (!m) return;
       if (m.browse && m.browse.length && S.mos) { root.classList.add('aside-open'); setMood(b.id, 'think'); S.mos.replay(m.browse).then(function () { setMood(b.id, 'happy'); }); }
       if (m.code && m.code.code && S.mos) { root.classList.add('aside-open'); S.mos.code(m.code); }
+      if (m.ui && m.ui.goal && !S.ran[m.id]) {
+        S.ran[m.id] = 1; if (S.paintChat) S.paintChat();
+        var col0 = b.color || th(b)[2], tag = m.ui.target === 'user' ? '[escritorio] ' : '[mini OS] ';
+        var lg = function (t) { line(tag + t, /✅/.test(t) ? 'term-ok' : /⚠️|⏹/.test(t) ? 'term-err' : ''); };
+        setMood(b.id, 'think');
+        var run = m.ui.target === 'user' ? window.DogBotsOS.agentDesktop(m.ui.goal, b, col0, lg) : (root.classList.add('aside-open'), S.mos.agent(m.ui.goal, lg));
+        run.then(function (res) {
+          setMood(b.id, res.ok ? 'happy' : 'think');
+          (S.msgs[b.id] = S.msgs[b.id] || []).push({ id: 'local' + Date.now(), role: 'bot', text: (m.ui.target === 'user' ? '🖱️ En tu escritorio:\n' : '🖥️ En mi mini OS:\n') + res.done.join('\n'), at: Date.now() / 1000 });
+          if (S.paintChat) S.paintChat();
+        }, function (e) { line('⚠️ ' + ((e && e.message) || e), 'term-err'); });
+        return;
+      }
       if (m.desktop && m.desktop.length && m.target !== 'user' && S.mos && S.mos.runMini) {
         S.ran[m.id] = 1; if (S.paintChat) S.paintChat(); root.classList.add('aside-open'); setMood(b.id, 'think');
         S.mos.runMini(m.desktop, function (t) { line('[mini OS] ' + t, /✅/.test(t) ? 'term-ok' : 'term-err'); }).then(function (res) {
