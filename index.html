@@ -55,8 +55,8 @@ window.addEventListener('error', function(e){
 <script src="/static/snake-emoji.js?v=202610140900" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-maps.js?v=202610141800" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-locshare.js?v=202610141830"></script>
-<script src="/static/doganiero-bots-os.js?v=202610151320"></script>
-<script src="/static/doganiero-bots.js?v=202610151300"></script>
+<script src="/static/doganiero-bots-os.js?v=202610151800"></script>
+<script src="/static/doganiero-bots.js?v=202610151800"></script>
 <script src="/static/snake-bluetooth.js?v=202610111725" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-keypad.js?v=202610111201" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-game-matrix.js?v=202610112000" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
@@ -7493,8 +7493,11 @@ function buildIcons(){
     /* Google DIRECTO en el iframe (igu=1) para que las cookies de la sesión
        del login en ventana 2 se usen aquí. El proxy /api/gembed NO lleva cookies
        del usuario → por eso la otra ventana sí tenía sesión y esta no. */
-    var HOME = 'https://www.google.com/webhp?igu=1&hl=es';
-    var LOGIN_CONTINUE = 'https://www.google.com/webhp?igu=1&hl=es';
+    var SEARCH_HOME = '/api/dbots/serp'; // Doganiero Search (compartido con el mini OS de los bots)
+    var HOME = SEARCH_HOME;
+    var GOOGLE_HOME = 'https://www.google.com/webhp?igu=1&hl=es';
+    // Tras el login, Google pasa por /url hacia nuestra página de vuelta, que avisa a Snake OS y cierra la ventana.
+    var LOGIN_CONTINUE = 'https://www.google.com/url?q=' + encodeURIComponent(location.origin + '/api/dbots/auth-return');
     var LOGIN_URL = 'https://accounts.google.com/AccountChooser?hl=es&continue=' +
       encodeURIComponent(LOGIN_CONTINUE);
     var POPUP_NAME = 'snakeOsGoogleSession';
@@ -7506,7 +7509,10 @@ function buildIcons(){
     var CUR_ARROW = '/static/assets/snk-cur-arrow.svg?v=20261009';
 
     function googleSearchUrl(q){
-      return 'https://www.google.com/search?igu=1&hl=es&q=' + encodeURIComponent(q);
+      return SEARCH_HOME + '?q=' + encodeURIComponent(q);
+    }
+    function isSearchUrl(u){
+      try{ return /\/api\/dbots\/serp/.test(String(u||'')); }catch(e){ return false; }
     }
     function isGoogleAccounts(u){
       try{
@@ -7542,6 +7548,7 @@ function buildIcons(){
         if(/google\./i.test(x.hostname)){
           var q = x.searchParams.get('q');
           if(q) return q;
+          if(isSearchUrl(x.href)){ var qq=x.searchParams.get('q'); return qq ? ('Doganiero Search · ' + qq) : 'Doganiero Search'; }
           if(/webhp/i.test(x.pathname) || x.pathname === '/' || x.pathname === '') return 'Google';
         }
         return u;
@@ -7556,13 +7563,13 @@ function buildIcons(){
       '<div class="snk-browser">' +
         '<form class="snk-br-bar" id="browserForm-x" autocomplete="off">' +
           '<button type="button" class="snk-br-btn" id="browserBack-x" title="Atrás">◀</button>' +
-          '<button type="button" class="snk-br-btn" id="browserHome-x" title="Inicio Google">🏠</button>' +
-          '<input type="text" class="snk-br-url" id="browserQuery-x" placeholder="Buscar en Google o pegar una URL…" spellcheck="false">' +
+          '<button type="button" class="snk-br-btn" id="browserHome-x" title="Inicio · Doganiero Search">🏠</button>' +
+          '<input type="text" class="snk-br-url" id="browserQuery-x" placeholder="Buscar en Doganiero Search o pegar una URL…" spellcheck="false">' +
           '<button type="submit" class="snk-br-go" title="Ir">Ir</button>' +
           '<button type="button" class="snk-br-login" id="browserLogin-x" title="Iniciar sesión con Google">Iniciar sesión</button>' +
         '</form>' +
         '<div class="snk-br-frame-wrap" id="browserFrameWrap-x">' +
-          '<iframe class="snk-br-frame" id="browserFrame-x" title="Google" referrerpolicy="no-referrer-when-downgrade" allow="fullscreen; clipboard-read; clipboard-write"></iframe>' +
+          '<iframe class="snk-br-frame" id="browserFrame-x" title="Doganiero Search" referrerpolicy="no-referrer-when-downgrade" allow="fullscreen; clipboard-read; clipboard-write"></iframe>' +
           '<div class="snk-br-shield" id="browserShield-x"></div>' +
           '<div class="snk-br-fake-cur" id="browserFakeCur-x"></div>' +
           '<div class="snk-br-session" id="browserSession-x" hidden>' +
@@ -7684,7 +7691,7 @@ function buildIcons(){
       loggedIn = true;
       var win = aliveWin();
       // Si la ventana 2 ya está en Google con sesión, cópiala al iframe y ciérrala
-      var base = returnUrl && isGoogleHost(returnUrl) ? returnUrl : HOME;
+      var base = returnUrl && isGoogleHost(returnUrl) ? returnUrl : (returnUrl && isSearchUrl(returnUrl) ? returnUrl : HOME);
       var dest = base + (base.indexOf('?') >= 0 ? '&' : '?') + '_snk=' + Date.now();
       returnUrl = '';
       if(win){
@@ -7747,6 +7754,7 @@ function buildIcons(){
       hideBlocked();
       setMode('embed');
       var seq = ++navSeq;
+      if(isSearchUrl(url) || url.indexOf('/api/dbots/serp') === 0){ frame.src = url; return; }
       if(isGoogleHost(url)){ frame.src = url; return; }
       // Webs que no son Google: antes miramos si se dejan mostrar dentro de Snake OS.
       frame.src = 'about:blank';
@@ -7845,12 +7853,16 @@ function buildIcons(){
     function onMsg(ev){
       if(ev.origin !== location.origin) return;
       if(ev.data && ev.data.type === 'snk-google-need-login') startGoogleLogin();
-      else if(ev.data && ev.data.type === 'snk-google-auth-done' && waitingAuth) returnToBrowserWithSession();
+      else if(ev.data && ev.data.type === 'snk-google-auth-done'){ waitingAuth = true; returnToBrowserWithSession(); }
     }
     window.addEventListener('focus', onFocus);
     window.addEventListener('message', onMsg);
 
-    navigate(HOME, true);
+    (function(){ // vuelta desde la página de login sin ventana de origen (móvil)
+      var back = null; try{ back = JSON.parse(localStorage.getItem('snkAuthReturn') || 'null'); localStorage.removeItem('snkAuthReturn'); }catch(e){}
+      if(back && Date.now() - (back.at || 0) < 5 * 60 * 1000){ loggedIn = true; navigate(back.url && isGoogleHost(back.url) ? back.url : HOME, true); }
+      else navigate(HOME, true);
+    })();
     syncShield();
 
     return function cleanup(){

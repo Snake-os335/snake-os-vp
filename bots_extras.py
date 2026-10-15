@@ -455,6 +455,165 @@ def _google_blocked(final: str, page: str) -> bool:
             or "recaptcha" in low or "<h3" not in low)
 
 
+# ---- Buscador general del navegador del bot (DuckDuckGo HTML + Bing HTML; sin claves de pago) ----
+import base64
+from urllib.parse import parse_qs, unquote
+
+_serp_cache: dict[tuple[str, int], tuple[float, list[dict[str, str]]]] = {}
+_SERP_UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
+
+
+def _txt(h: str) -> str:
+    return _html.unescape(re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", h or ""))).strip()
+
+
+def _get(url: str, data: bytes | None = None) -> str:
+    req = _UReq(url, data=data, headers={"User-Agent": _SERP_UA, "Accept-Language": "es-ES,es;q=0.9,en;q=0.6"})
+    with _opener.open(req, timeout=FETCH_TIMEOUT) as resp:
+        return resp.read(MAX_PAGE_BYTES).decode("utf-8", "replace")
+
+
+def _ddg(q: str, page: int) -> list[dict[str, str]]:
+    form = {"q": q, "kl": "es-es"}
+    if page > 1:
+        form.update({"s": str((page - 1) * 10), "dc": str((page - 1) * 10 + 1), "v": "l", "o": "json", "api": "d.js"})
+    h = _get("https://html.duckduckgo.com/html/", urlencode(form).encode())
+    out = []
+    for blk in re.split(r'<div class="result results_links', h)[1:]:
+        if "result--ad" in blk[:200]:
+            continue
+        m = re.search(r'class="result__a" href="([^"]+)"[^>]*>(.*?)</a>', blk, re.S)
+        if not m:
+            continue
+        url = _html.unescape(m.group(1))
+        if "duckduckgo.com/l/?" in url:
+            url = unquote(parse_qs(urlparse(url).query).get("uddg", [""])[0])
+        sn = re.search(r'class="result__snippet"[^>]*>(.*?)</a>', blk, re.S)
+        out.append({"title": _txt(m.group(2)), "url": url, "snippet": _txt(sn.group(1)) if sn else "", "src": "ddg"})
+    if not out:  # DuckDuckGo a veces responde con su comprobación anti-bots: probamos la versión lite
+        form = {"q": q, "kl": "es-es"}
+        if page > 1:
+            form.update({"s": str((page - 1) * 10), "dc": str((page - 1) * 10 + 1)})
+        h = _get("https://lite.duckduckgo.com/lite/", urlencode(form).encode())
+        links = re.findall(r'<a[^>]+href="([^"]+)"[^>]*class=.result-link.[^>]*>(.*?)</a>', h, re.S)
+        snips = re.findall(r"class=.result-snippet.[^>]*>(.*?)</td>", h, re.S)
+        for i, (u, t) in enumerate(links):
+            u = _html.unescape(u)
+            if "duckduckgo.com/l/?" in u:
+                u = unquote(parse_qs(urlparse(u).query).get("uddg", [""])[0])
+            out.append({"title": _txt(t), "url": u, "snippet": _txt(snips[i]) if i < len(snips) else "", "src": "ddg"})
+    return out
+
+
+def _bing_url(u: str) -> str:
+    if "bing.com/ck/a" in u:
+        v = parse_qs(urlparse(_html.unescape(u)).query).get("u", [""])[0]
+        if v.startswith("a1"):
+            try:
+                return base64.urlsafe_b64decode(v[2:] + "=" * (-len(v[2:]) % 4)).decode("utf-8", "replace")
+            except Exception:
+                return ""
+    return _html.unescape(u)
+
+
+_BING_MKTS = ["es-ES", "es-MX", "es-AR", "es-US", "es-CO", "es-CL", "en-US", "en-GB", "es-PE", "es-VE", "en-IE", "en-CA"]
+
+
+def _bing(q: str, page: int) -> list[dict[str, str]]:
+    # Bing sin cookies ignora la paginación: cada «página» pide otro mercado de Bing para sacar resultados distintos.
+    mkt = _BING_MKTS[(page - 1) % len(_BING_MKTS)]
+    h = _get("https://www.bing.com/search?" + urlencode({"q": q, "setlang": mkt.split("-")[0], "mkt": mkt, "cc": mkt.split("-")[1]}))
+    out = []
+    for blk in re.split(r'<li class="b_algo', h)[1:]:
+        m = re.search(r'<h2[^>]*>\s*<a[^>]+href="([^"]+)"[^>]*>(.*?)</a>', blk, re.S)
+        if not m:
+            continue
+        sn = re.search(r'<p[^>]*>(.*?)</p>', blk, re.S)
+        out.append({"title": _txt(m.group(2)), "url": _bing_url(m.group(1)), "snippet": _txt(sn.group(1)) if sn else "", "src": "bing"})
+    return out
+
+
+def _item(it: dict[str, str]) -> dict[str, str]:
+    u = it.get("url") or ""
+    dom = urlparse(u).hostname or ""
+    return {"title": (it.get("title") or "")[:160] or dom, "url": u[:600], "snippet": (it.get("snippet") or "")[:320], "domain": dom,
+            "favicon": f"https://external-content.duckduckgo.com/ip3/{dom}.ico"}
+
+
+def web_index(q: str, page: int = 1, fallback: Callable[[str, int], list[dict[str, str]]] | None = None) -> list[dict[str, str]]:
+    q = q.strip()[:200]
+    page = max(1, min(10, int(page or 1)))
+    key = (q.lower(), page)
+    hit = _serp_cache.get(key)
+    if hit and hit[0] > time.time() - 300:
+        return hit[1]
+    lists = []
+    jobs = [(_ddg, page), (_bing, page), (_bing, page + 6)]
+    with ThreadPoolExecutor(max_workers=3) as ex:
+        futs = [ex.submit(fn, q, pg) for fn, pg in jobs]
+        for f in futs:
+            try:
+                lists.append(f.result(timeout=FETCH_TIMEOUT + 2))
+            except Exception:
+                lists.append([])
+    res, seen = [], set()
+    def add(it: dict[str, str]) -> None:
+        u = it.get("url") or ""
+        if not re.match(r"https?://", u):
+            return
+        k = re.sub(r"^https?://(www\.)?", "", u).rstrip("/")
+        if k in seen:
+            return
+        seen.add(k)
+        res.append(_item(it))
+    for i in range(max([len(x) for x in lists] + [0])):
+        for lst in lists:
+            if i < len(lst):
+                add(lst[i])
+    if fallback and page == 1 and len(res) < 6:
+        for it in fallback(q, 8) or []:
+            add(it)
+    if res:
+        _serp_cache[key] = (time.time(), res)
+        if len(_serp_cache) > 200:
+            for k in sorted(_serp_cache, key=lambda k: _serp_cache[k][0])[:50]:
+                _serp_cache.pop(k, None)
+    return res
+
+
+def _serp_html(origin: str, tok: str, q: str, page: int, res: list[dict[str, str]]) -> str:
+    e = lambda x: _html.escape(str(x or ""), quote=True)
+    cfg = json.dumps({"p": origin + "/api/dbots/proxy", "t": tok, "u": ("dsearch:" + q if q else "dsearch:"), "o": origin, "serp": True})
+    items = "".join(
+        f'<div class="r"><div class="s"><img src="{e(r["favicon"])}" referrerpolicy="no-referrer" loading="lazy" alt="">'
+        f'<div><div class="d">{e(r["domain"])}</div><div class="u">{e(r["url"])}</div></div></div>'
+        f'<a href="{e(r["url"])}">{e(r["title"])}</a><p>{e(r["snippet"])}</p></div>' for r in res)
+    sq = quote(q)
+    nav = "".join(
+        f'<a data-serp class="{"on" if n == page else ""}" href="{origin}/api/dbots/serp?q={sq}&p={n}&t={e(tok)}">{n}</a>' for n in range(1, 6))
+    nxt = f'<a data-serp href="{origin}/api/dbots/serp?q={sq}&p={page + 1}&t={e(tok)}">Siguiente ›</a>' if res and page < 10 else ""
+    return ("<!doctype html><html><head><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'>"
+            f"<title>{e(q) + ' · ' if q else ''}Doganiero Search</title><script>window.__DBP={cfg};</script>"
+            f'<script src="{origin}/static/dbots-proxy-helper.js?v=20261015c"></script><style>'
+            "body{margin:0;font-family:arial,system-ui,sans-serif;color:#202124;background:#fff}"
+            ".top{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid #ebebeb;position:sticky;top:0;background:#fff;z-index:2}"
+            ".lg{font-weight:800;font-size:1.15rem;letter-spacing:-.5px;color:#ff8a00;white-space:nowrap}.lg b{color:#ff8a00;font-weight:800}"
+            "form{flex:1;max-width:560px}input{width:100%;box-sizing:border-box;border:1px solid #dfe1e5;border-radius:24px;padding:9px 16px;font-size:15px;box-shadow:0 1px 6px rgba(32,33,36,.18);outline:0}"
+            ".st{color:#70757a;font-size:13px;padding:10px 16px 0}.w{padding:4px 16px 20px;max-width:680px}"
+            ".r{margin:18px 0}.s{display:flex;gap:10px;align-items:center}.s img{width:18px;height:18px;border-radius:50%;background:#f1f3f4;padding:4px}"
+            ".d{font-size:14px}.u{font-size:12px;color:#4d5156;max-width:520px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}"
+            ".r>a{display:inline-block;margin-top:4px;font-size:19px;color:#1a0dab;text-decoration:none;line-height:1.3}.r>a:hover{text-decoration:underline}.r p{margin:3px 0 0;font-size:14px;line-height:1.55;color:#4d5156}"
+            ".pg{display:flex;gap:6px;flex-wrap:wrap;padding:8px 16px 30px}.pg a{padding:6px 11px;border-radius:8px;color:#1a0dab;text-decoration:none;font-size:14px}.pg a.on{background:#fff3e0;color:#e65100;font-weight:700}"
+            ".home{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:70vh;gap:14px;padding:24px}"
+            ".home .lg{font-size:2.4rem}.home form{width:min(560px,100%)}.hint{color:#70757a;font-size:13px}"
+            "@media(max-width:520px){.top{flex-wrap:wrap}.r>a{font-size:17px}.home .lg{font-size:1.7rem}}</style></head><body>"
+            + (f'<div class="home"><div class="lg"><b>Doganiero Search</b></div><form data-serpform action="{origin}/api/dbots/serp" method="get"><input name="q" placeholder="Buscar en Doganiero Search…" autofocus><input type="hidden" name="t" value="{e(tok)}"></form><div class="hint">Resultados de muchos sitios · DuckDuckGo + Bing</div></div></body></html>'
+               if not q else
+               f'<div class="top"><div class="lg"><b>Doganiero Search</b></div><form data-serpform action="{origin}/api/dbots/serp" method="get"><input name="q" value="{e(q)}" placeholder="Buscar en Doganiero Search…"><input type="hidden" name="t" value="{e(tok)}"></form></div>'
+               f'<div class="st">Página {page} · {len(res)} resultados de {len({r["domain"] for r in res})} sitios</div>'
+               f'<div class="w">{items or "<p>Sin resultados. Prueba con otras palabras.</p>"}</div><div class="pg">{nav}{nxt}</div></body></html>'))
+
+
 def run_browse(steps: Any, web_search: Callable[[str, int], list[dict[str, str]]]) -> list[dict[str, Any]]:
     """Ejecuta un plan de navegación en el servidor (sin cookies) y devuelve la traza para mostrarla en el mini navegador."""
     trace: list[dict[str, Any]] = []
@@ -838,6 +997,12 @@ def build_router(
         calls.append(now)
         _fetch_rate[uid] = calls
 
+    _base_search = web_search
+
+    def web_search(q: str, n: int = 5) -> list[dict[str, str]]:  # noqa: F811 - buscador general con resultados variados
+        res = web_index(q, 1, _base_search)
+        return res[:max(n, 1)] if res else (_base_search(q, n) or [])
+
     def _origin(request: Request) -> str:
         proto = (request.headers.get("x-forwarded-proto") or request.url.scheme or "https").split(",")[0].strip()
         host = request.headers.get("host") or request.url.netloc
@@ -882,6 +1047,31 @@ def build_router(
             return _resp(_proxy_doc(origin, t, final, page))
         except UrlBlocked as exc:
             return _resp(_proxy_error(origin, str(exc), u), 200)
+
+    @r.get("/api/dbots/auth-return")
+    def auth_return_ep():
+        # Página de vuelta tras iniciar sesión desde el Navegador de Snake OS (se cierra sola). Sin datos del usuario.
+        with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "snk-auth-return.html"), encoding="utf-8") as fh:
+            return HTMLResponse(fh.read(), headers={"Cache-Control": "no-store", "Referrer-Policy": "no-referrer"})
+
+    @r.get("/api/dbots/serp")
+    def serp_ep(request: Request, q: str = Query("", max_length=200), p: int = Query(1, ge=1, le=10), t: str = Query("", max_length=200)):
+        # Token HMAC (iframe del bot sin cookies) o cookie de sesión (Navegador de Snake OS).
+        from auth import COOKIE_NAME, user_from_session
+        origin = _origin(request)
+        uid = _proxy_uid(t)
+        if uid is None:
+            user = user_from_session(request.cookies.get(COOKIE_NAME))
+            if not user:
+                return _resp(_proxy_error(origin, "Inicia sesión en Snake OS para buscar.", ""), 403)
+            uid = int(user["id"])
+            t = proxy_token(uid)
+        if not _proxy_rl(uid):
+            return _resp(_proxy_error(origin, "Demasiadas búsquedas seguidas; espera un minuto.", ""), 429)
+        q = q.strip()
+        if not q:
+            return _resp(_serp_html(origin, t, "", 1, []))
+        return _resp(_serp_html(origin, t, q, p, web_index(q, p, _base_search)))
 
     @r.post("/api/dbots/gsearch")
     def gsearch_ep(body: dict, user=Depends(require_user)):

@@ -19,10 +19,14 @@
     var h = a.getAttribute('href') || '';
     if (/^(javascript:|#)/i.test(h)) return;
     var u = abs(h); if (!/^https?:/i.test(u)) return;
-    e.preventDefault(); send({ type: 'nav', url: u }); location.href = prox(u);
+    e.preventDefault();
+    if (a.hasAttribute('data-serp')) { send({ type: 'nav', url: 'doggle:' + u }); location.href = u; return; }
+    if (C.serp) { send({ type: 'open', url: u }); return; }
+    send({ type: 'nav', url: u }); location.href = prox(u);
   }, true);
   document.addEventListener('submit', function (e) {
     var f = e.target; if (!f || !f.action) return;
+    if (f.hasAttribute('data-serpform')) return;
     e.preventDefault();
     if ((f.method || 'get').toLowerCase() !== 'get') { send({ type: 'note', text: 'El bot no envía formularios con datos (POST) por seguridad.' }); return; }
     var u = new URL(abs(f.getAttribute('action') || C.u));
@@ -45,7 +49,7 @@
     if (m.cmd === 'info') return reply(info());
     if (m.cmd === 'scroll') { window.scrollBy({ top: (m.dy || innerHeight * 0.8), behavior: 'smooth' }); return reply({ ok: true }); }
     if (m.cmd === 'locate') { var a = findLink(m.text, m.url); if (!a) return reply({ ok: false }); a.scrollIntoView({ block: 'center' }); hl(a); return setTimeout(function () { reply({ ok: true, rect: rect(a), url: a.href }); }, 350); }
-    if (m.cmd === 'click') { var b = findLink(m.text, m.url); if (!b) return reply({ ok: false }); reply({ ok: true, url: b.href }); setTimeout(function () { location.href = prox(b.href); }, 150); return; }
+    if (m.cmd === 'click') { var b = findLink(m.text, m.url); if (!b) return reply({ ok: false }); reply({ ok: true, url: b.href }); if (C.serp) return send({ type: 'open', url: b.href }); setTimeout(function () { location.href = prox(b.href); }, 150); return; }
     if (m.cmd === 'type') {
       var inp = searchInput(); if (!inp) return reply({ ok: false });
       inp.scrollIntoView({ block: 'center' }); hl(inp); inp.focus(); inp.value = '';

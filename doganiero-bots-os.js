@@ -25,7 +25,7 @@
     '.mos-page{flex:1;min-height:0;overflow:auto;padding:10px 12px;color:#202124;font-size:.78rem;line-height:1.45;scroll-behavior:smooth}',
     '.mos-page iframe{border:0;width:100%;height:100%}',
     '.mos-home{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:10px}',
-    '.mos-logo{font-size:1.7rem;font-weight:700;letter-spacing:-1px}.mos-logo span:nth-child(1){color:#4285f4}.mos-logo span:nth-child(2){color:#ea4335}.mos-logo span:nth-child(3){color:#fbbc05}.mos-logo span:nth-child(4){color:#4285f4}.mos-logo span:nth-child(5){color:#34a853}.mos-logo span:nth-child(6){color:#ea4335}',
+    '.mos-logo{font-size:1.35rem;font-weight:800;letter-spacing:-.5px;color:#ff8a00}.mos-logo span{color:#ff8a00}',
     '.mos-res{margin:0 0 12px}.mos-res .u{color:#188038;font-size:.7rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.mos-res a,.mos-lk{color:#1a0dab;cursor:pointer;text-decoration:none;font-size:.86rem}.mos-res a:hover,.mos-lk:hover{text-decoration:underline}.mos-res p{margin:2px 0 0;color:#4d5156}',
     '.mos-pg h3{margin:0 0 2px;font-size:.95rem}.mos-pg .dom{color:#188038;font-size:.7rem;margin-bottom:8px}.mos-pg p{margin:0 0 6px}',
     '.mos-links{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px}.mos-links .mos-lk{font-size:.72rem;background:#f1f3f4;border-radius:999px;padding:2px 8px}',
@@ -78,7 +78,7 @@
       '<div class="mos" data-mos>' +
         '<div class="mos-screen">' +
           '<div class="mos-win" data-w="web"><div class="mos-tb"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i><b>🌐 Navegador de ' + esc(bot.name) + '</b></div>' +
-            '<div class="mos-tool"><button data-back title="Atrás">◀</button><button data-home title="Inicio">⌂</button><button data-reader title="Vista de lectura (si la página no carga)">📄</button><div class="mos-bar-in"><span style="font-weight:700;color:#4285f4">G</span><input data-q placeholder="Busca o escribe una dirección" spellcheck="false"></div></div>' +
+            '<div class="mos-tool"><button data-back title="Atrás">◀</button><button data-home title="Inicio">⌂</button><button data-reader title="Vista de lectura (si la página no carga)">📄</button><div class="mos-bar-in"><span style="font-weight:700;color:#4285f4">G</span><input data-q placeholder="Buscar en Doganiero Search o pegar una URL" spellcheck="false"></div></div>' +
             '<div class="mos-page" data-page></div></div>' +
           '<div class="mos-win mos-term" data-w="term" hidden><div class="mos-tb"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i><b>🖥️ Terminal</b></div><div data-termhost style="flex:1;min-height:0;display:flex;flex-direction:column"></div></div>' +
           '<div class="mos-win mos-code" data-w="code" hidden><div class="mos-tb"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i><b>💻 Código de ' + esc(bot.name) + '</b></div>' +
@@ -151,10 +151,10 @@
       if (!frame || e.source !== frame.contentWindow) return;
       var m = e.data || {}; if (!m.__dbp) return;
       if (m.type === 'loaded') {
-        if (m.url) { curUrl = m.url; q.value = m.url; }
+        if (m.url) { var dq = /^(doggle|dsearch):/.test(m.url) ? m.url.replace(/^(doggle|dsearch):/, '') : null; if (dq && /^https?:/.test(dq)) { try { dq = new URL(dq).searchParams.get('q'); } catch (e2) {} } curUrl = dq == null ? m.url : ''; q.value = dq == null ? m.url : dq; }
         if (m.error) showFallback(m.error); else hideFallback();
         if (onLoaded) { var f = onLoaded; onLoaded = null; f(m); }
-      } else if (m.type === 'nav') { if (m.url) { hist.push({ t: 'u', v: m.url }); q.value = m.url; } }
+      } else if (m.type === 'open') { if (m.url) open(m.url); } else if (m.type === 'nav') { if (m.url) { hist.push({ t: 'u', v: m.url }); q.value = m.url; } }
       else if (m.type === 'note') say(m.text);
       else if (m.id && pend[m.id]) { pend[m.id](m); delete pend[m.id]; }
     });
@@ -187,7 +187,7 @@
     function say(t) { status.textContent = t; status.classList.toggle('on', !!t); }
     function home() {
       clearFrame(); curUrl = '';
-      page.innerHTML = '<div class="mos-home"><div class="mos-logo"><span>D</span><span>o</span><span>g</span><span>g</span><span>l</span><span>e</span></div><div style="color:#5f6368;font-size:.72rem">El buscador de ' + esc(bot.name) + '</div></div>';
+      page.innerHTML = '<div class="mos-home"><div class="mos-logo"><span>Doganiero Search</span></div><div style="color:#5f6368;font-size:.72rem">El buscador de ' + esc(bot.name) + '</div></div>';
       q.value = '';
     }
     function renderResults(qq, results) {
@@ -209,12 +209,13 @@
       if (f) f.onkeydown = function (e) { if (e.key === 'Enter' && f.value.trim()) { var fm = v.forms[0]; open(fm.action + (fm.action.indexOf('?') >= 0 ? '&' : '?') + encodeURIComponent(fm.field) + '=' + encodeURIComponent(f.value.trim())); } };
     }
     function wire() { page.querySelectorAll('[data-go]').forEach(function (a) { a.onclick = function () { open(a.getAttribute('data-go')); }; }); }
-    function search(qq, fallbackResults) {
-      hist.push({ t: 'q', v: qq }); q.value = qq; clearFrame(); page.innerHTML = '<div class="mos-err" style="color:#5f6368">Buscando…</div>';
-      return api('/api/dbots/gsearch', { method: 'POST', body: { q: qq } }).then(function (r) {
-        if (r.ok && r.url) { TOK = { t: r.t, at: Date.now() }; curUrl = r.url; el.querySelector('[data-reader]').classList.remove('on'); var w = waitLoaded(); setFrame(proxUrl(r.url, r.t), 'proxy'); return w.then(function () { return 'google'; }); }
-        renderResults(qq, (r.results && r.results.length) ? r.results : (fallbackResults || [])); return 'doggle';
-      }).catch(function (e) { if (fallbackResults) { renderResults(qq, fallbackResults); return 'doggle'; } page.innerHTML = '<div class="mos-err">' + esc(errMsg(e)) + '</div>'; });
+    function search(qq, fallbackResults, pg) {
+      hist.push({ t: 'q', v: qq }); q.value = qq; clearFrame(); curUrl = ''; el.querySelector('[data-reader]').classList.remove('on');
+      page.innerHTML = '<div class="mos-err" style="color:#5f6368">Buscando…</div>';
+      return token().then(function (t) {
+        var w = waitLoaded(); setFrame('/api/dbots/serp?q=' + encodeURIComponent(qq) + '&p=' + (pg || 1) + '&t=' + encodeURIComponent(t), 'proxy');
+        return w.then(function (m) { if (m && (m.timeout || m.error)) { renderResults(qq, fallbackResults || []); } return 'doggle'; });
+      }).catch(function (e) { renderResults(qq, fallbackResults || []); return 'doggle'; });
     }
     function open(url, readerOnly) {
       if (!/^https?:\/\//i.test(url)) url = 'https://' + url;

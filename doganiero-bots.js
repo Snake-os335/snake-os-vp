@@ -96,19 +96,17 @@
     '.dbx .dbots-msg small{color:inherit;opacity:.55}.dbx .dbots-msg.bot a{color:#7fd1ff}.dbx .dbots-msg.user a{color:#2457d6}',
     '.dbx .dbots-row{max-width:80%}.dbx .dbots-row .dbots-msg{max-width:100%}',
     '.dbx .dbots-typing span{background:#fff}' +
-    '.dbots-fig .dbf-face *{transform-box:fill-box;transform-origin:center}.dbots-fig .dbf-brow,.dbots-fig .dbf-o,.dbots-fig .dbf-q,.dbots-fig .dbf-ex{opacity:0}' +
+    '.dbots-fig .dbf-face *{transform-box:fill-box;transform-origin:center}.dbots-fig .dbf-q,.dbots-fig .dbf-ex{opacity:0}' +
     '.dbots-fig .dbf-body{transform-box:fill-box;transform-origin:50% 100%}' +
-    '.dbf-think .dbf-pu{animation:dbfLook 6s ease-in-out infinite}.dbf-think .dbf-el{animation:dbfWink 6s ease-in-out infinite}.dbf-think .dbf-er{animation:dbfBlink 6s ease-in-out infinite}' +
-    '.dbf-think .dbf-q{animation:dbfQ 6s ease-in-out infinite}.dbf-think .dbf-brow{animation:dbfBrow 6s ease-in-out infinite}.dbf-think .dbf-mouth{animation:dbfMouth 6s ease-in-out infinite}.dbf-think .dbf-o{animation:dbfO 6s ease-in-out infinite}' +
-    '.dbf-think .dbf-body{animation:dbfBob 2s ease-in-out infinite}' +
-    '.dbf-happy .dbf-body{animation:dbfJump .6s ease-out 2}.dbf-happy .dbf-ex{opacity:1}.dbf-happy .dbf-mouth{transform:scale(1.6,2)}.dbf-happy .dbf-el,.dbf-happy .dbf-er{transform:scaleY(.55)}' +
-    '@keyframes dbfLook{0%,8%{transform:translate(0,0)}14%,24%{transform:translate(-1.4px,-.6px)}30%,40%{transform:translate(1.4px,-.6px)}46%,100%{transform:translate(0,0)}}' +
-    '@keyframes dbfWink{0%,48%,54%,100%{transform:scaleY(1)}51%{transform:scaleY(.1)}}' +
-    '@keyframes dbfBlink{0%,4%,8%,100%{transform:scaleY(1)}6%{transform:scaleY(.1)}}' +
-    '@keyframes dbfQ{0%,4%{opacity:0}8%,44%{opacity:1}48%,100%{opacity:0}}' +
-    '@keyframes dbfBrow{0%,56%{opacity:0}60%,82%{opacity:1}86%,100%{opacity:0}}' +
-    '@keyframes dbfMouth{0%,56%{transform:scale(1)}60%,82%{transform:scale(.6,.3)}86%,88%{opacity:1}90%,96%{opacity:0}100%{opacity:1}}' +
-    '@keyframes dbfO{0%,88%{opacity:0}90%,96%{opacity:1}100%{opacity:0}}' +
+    '.dbf-think .dbf-eyes{animation:dbfLook 7s ease-in-out infinite}.dbf-think .dbf-el{animation:dbfL 7s ease-in-out infinite}.dbf-think .dbf-er{animation:dbfR 7s ease-in-out infinite}' +
+    '.dbf-think .dbf-q{animation:dbfQ 7s ease-in-out infinite}.dbf-think .dbf-ex{animation:dbfEx 7s ease-in-out infinite}.dbf-think .dbf-body{animation:dbfBob 2s ease-in-out infinite}' +
+    '.dbf-happy .dbf-body{animation:dbfJump .6s ease-out 2}.dbf-happy .dbf-ex{opacity:1}.dbf-happy .dbf-el,.dbf-happy .dbf-er{transform:scale(1.25,1.3)}' +
+    /* 0-25 mira a los lados · 28-32 parpadeo · 40-46 guiño · 52-70 ojos entornados (concentrado) · 78-88 ojos muy abiertos (sorpresa) */
+    '@keyframes dbfLook{0%,6%{transform:translate(0,0)}10%,16%{transform:translate(-2px,0)}20%,25%{transform:translate(2px,-.5px)}28%,100%{transform:translate(0,0)}}' +
+    '@keyframes dbfL{0%,28%{transform:scale(1)}30%{transform:scaleY(.12)}32%,40%{transform:scale(1)}43%{transform:scaleY(.12)}46%,52%{transform:scale(1)}56%,70%{transform:scaleY(.45)}74%,78%{transform:scale(1)}82%,88%{transform:scale(1.25,1.3)}92%,100%{transform:scale(1)}}' +
+    '@keyframes dbfR{0%,28%{transform:scale(1)}30%{transform:scaleY(.12)}32%,52%{transform:scale(1)}56%,70%{transform:scaleY(.45)}74%,78%{transform:scale(1)}82%,88%{transform:scale(1.25,1.3)}92%,100%{transform:scale(1)}}' +
+    '@keyframes dbfQ{0%,4%{opacity:0}8%,48%{opacity:1}52%,100%{opacity:0}}' +
+    '@keyframes dbfEx{0%,78%{opacity:0}82%,88%{opacity:1}92%,100%{opacity:0}}' +
     '@keyframes dbfBob{0%,100%{transform:translateY(0)}50%{transform:translateY(-1.5px)}}' +
     '@keyframes dbfJump{0%,100%{transform:translateY(0) scale(1)}40%{transform:translateY(-4px) scale(1.04,.97)}}' +
     '@media (prefers-reduced-motion:reduce){.dbots-fig *{animation:none !important}.dbf-think .dbf-q{opacity:1}}',
@@ -203,15 +201,12 @@
   }
   var FIGS = ['Cubo', 'Esfera', 'Pirámide', 'Octaedro', 'Cilindro', 'Toro', 'Prisma', 'Cono', 'Diamante', 'Cápsula', 'Hexágono', 'Icosaedro'];
   var figSeq = 0;
+  // Cara al estilo del logo: dos ojos blancos verticales redondeados, sin boca. Las expresiones solo con los ojos.
   function faceSvg(x, y, sc) {
     return '<g class="dbf-face" transform="translate(' + x + ' ' + y + ') scale(' + (sc || 1) + ')">' +
-      '<g class="dbf-eyes"><g class="dbf-el"><ellipse cx="-5" cy="0" rx="2.4" ry="2.9" fill="#fff"/><circle class="dbf-pu" cx="-4.6" cy=".4" r="1.35" fill="#111"/></g>' +
-      '<g class="dbf-er"><ellipse cx="5" cy="0" rx="2.4" ry="2.9" fill="#fff"/><circle class="dbf-pu" cx="5.4" cy=".4" r="1.35" fill="#111"/></g></g>' +
-      '<path class="dbf-brow" d="M-8 -5.5l5 1.3M8 -5.5l-5 1.3" stroke="#111" stroke-width="1.3" stroke-linecap="round"/>' +
-      '<path class="dbf-mouth" d="M-3 5q3 2.6 6 0" stroke="#111" stroke-width="1.3" fill="none" stroke-linecap="round"/>' +
-      '<ellipse class="dbf-o" cx="0" cy="5.6" rx="1.8" ry="2.2" fill="#111"/>' +
-      '<text class="dbf-q" x="9" y="-6" font-size="8" font-weight="800" fill="#fff" stroke="#111" stroke-width=".6">?</text>' +
-      '<text class="dbf-ex" x="9" y="-6" font-size="8" font-weight="800" fill="#ffd23f" stroke="#111" stroke-width=".6">!</text></g>';
+      '<g class="dbf-eyes"><rect class="dbf-el" x="-7" y="-4.5" width="4" height="9" rx="2" fill="#fff"/><rect class="dbf-er" x="3" y="-4.5" width="4" height="9" rx="2" fill="#fff"/></g>' +
+      '<text class="dbf-q" x="8.5" y="-6" font-size="8" font-weight="800" fill="#fff" stroke="#111" stroke-width=".6">?</text>' +
+      '<path class="dbf-ex" d="M12 -13q.6 3.4 4 4q-3.4.6-4 4q-.6-3.4-4-4q3.4-.6 4-4z" fill="#ffd23f"/></g>';
   }
   function figSvg(kind, color, size, botId) {
     var k = ((+kind || 0) % FIGS.length + FIGS.length) % FIGS.length, C = color || '#34d17a';
@@ -588,7 +583,9 @@
 
   function install() {
     var apps = window.APPS; if (!apps) return false;
-    if (!apps.dbots) apps.dbots = { title: 'Doganiero Bots', icon: '🤖', width: 1120, height: 700, render: render };
+    var LOGO = '/static/assets/dbots-logo.svg?v=1';
+    if (!document.getElementById('dbots-logo-css')) { var st = document.createElement('style'); st.id = 'dbots-logo-css'; st.textContent = '.app-icon-img.dbots-logo{width:44px;height:44px;object-fit:contain;border-radius:22%;background:transparent;box-shadow:none}.start-item img.app-icon-img.dbots-logo,.taskbar img.app-icon-img.dbots-logo,#taskbar img.app-icon-img.dbots-logo,.win-title img.app-icon-img.dbots-logo,.win-titlebar img.app-icon-img.dbots-logo{width:1.35em;height:1.35em;vertical-align:-0.25em;margin-right:4px}'; document.head.appendChild(st); }
+    if (!apps.dbots) apps.dbots = { title: 'Doganiero Bots', icon: '🤖', iconImg: LOGO, iconImgClass: 'dbots-logo', iconHtml: '<img class="app-icon-img dbots-logo" src="' + LOGO + '" alt="">', width: 1120, height: 700, render: render };
     try {
       if (document.querySelector('#iconLayer .desktop-icon') && typeof buildIcons === 'function') buildIcons();
       if (typeof buildStartMenu === 'function' && document.querySelector('#startMenu .start-item')) buildStartMenu();
@@ -596,4 +593,10 @@
     return true;
   }
   if (!install()) { var n = 0, iv = setInterval(function () { if (install() || ++n > 200) clearInterval(iv); }, 50); }
+})();
+
+/* Vuelta del login del Navegador sin ventana de origen (móvil): al arrancar Snake OS, reabre el Navegador. */
+(function () {
+  try { var b = JSON.parse(localStorage.getItem('snkAuthReturn') || 'null'); if (!b || Date.now() - (b.at || 0) > 5 * 60 * 1000) return; } catch (e) { return; }
+  var n = 0, iv = setInterval(function () { if (++n > 60) return clearInterval(iv); if (window.__snakeBootAck && window.openApp && (window.APPS || {}).browser) { clearInterval(iv); try { window.openApp('browser'); } catch (e) {} } }, 500);
 })();
