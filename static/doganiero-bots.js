@@ -383,6 +383,16 @@
       if (!m) return;
       if (m.browse && m.browse.length && S.mos) { root.classList.add('aside-open'); setMood(b.id, 'think'); S.mos.replay(m.browse).then(function () { setMood(b.id, 'happy'); }); }
       if (m.code && m.code.code && S.mos) { root.classList.add('aside-open'); S.mos.code(m.code); }
+      if (m.desktop && m.desktop.length && m.target !== 'user' && S.mos && S.mos.runMini) {
+        S.ran[m.id] = 1; if (S.paintChat) S.paintChat(); root.classList.add('aside-open'); setMood(b.id, 'think');
+        S.mos.runMini(m.desktop, function (t) { line('[mini OS] ' + t, /✅/.test(t) ? 'term-ok' : 'term-err'); }).then(function (res) {
+          setMood(b.id, 'happy');
+          if (res.done.length) { (S.msgs[b.id] = S.msgs[b.id] || []).push({ id: 'local' + Date.now(), role: 'bot', text: '🖥️ Hecho en mi mini OS:\n' + res.done.join('\n'), at: Date.now() / 1000 }); if (S.paintChat) S.paintChat(); }
+          // Lo que mi mini OS no tiene (p. ej. llamar por tu Teléfono) se hace en tu escritorio
+          if (res.left.length && !res.left.some(function (s) { return s.confirm; })) runDesk(b, Object.assign({}, m, { desktop: res.left, id: m.id + '-u' }));
+        });
+        return;
+      }
       if (m.desktop && m.desktop.length && !m.desktop.some(function (s) { return s.confirm; })) runDesk(b, m);
     }
     function wireActs(box, b) {

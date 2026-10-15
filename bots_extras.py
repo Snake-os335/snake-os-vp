@@ -1344,7 +1344,7 @@ def build_router(
             "Además puedes usar \"action\": \"browse\" con \"steps\": lista de pasos de navegador (máx. 6) entre "
             "{\"op\":\"search\",\"q\":...}, {\"op\":\"open\",\"url\":... o \"index\": n del resultado}, {\"op\":\"click\",\"text\": texto del enlace}, "
             "{\"op\":\"form\",\"q\": texto para el buscador de la página}, {\"op\":\"scroll\"}, {\"op\":\"read\"}. Úsalo cuando haya que navegar varias páginas.\n"
-            "Y \"action\": \"desktop\" con \"steps\" para hacer cosas en el escritorio Snake OS del usuario, solo con estas operaciones: "
+            "Y \"action\": \"desktop\" con \"steps\" para hacer cosas con tu puntero. POR DEFECTO las haces DENTRO DE TU PROPIO mini OS (Snake OS Lite del bot: Navegador, Terminal, Código, Notas y Archivos); añade \"target\": \"user\" SOLO si el usuario pide expresamente hacerlo en SU escritorio (o para llamar por su Teléfono). Operaciones: "
             "open_app{app}, close_app{app}, create_folder{name}, create_note{text}, create_file{name,text}, set_wallpaper{id}, "
             "move_window{app,x,y,w,h}, switch_desktop{n 1-4}, delete_file{name} (pide confirmación), call_contact{name: nombre o número DOG- de un contacto del usuario} (llama por el Teléfono; siempre pide confirmación; tú no hablas en la llamada). "
             "También \"action\": \"code\" con \"lang\": \"js\" o \"python\" y \"code\": el programa completo, cuando el usuario te pida programar algo: lo escribes y ejecutas en tu editor (aislado, sin red; usa console.log/print para mostrar la salida). "
@@ -1399,6 +1399,7 @@ def build_router(
                 steps = _clean_desktop(d.get("steps"))
                 if steps:
                     extra["desktop"] = steps
+                    extra["target"] = "user" if (str(d.get("target") or "").lower() == "user" or any(st.get("op") == "call_contact" for st in steps)) else "mini"
                     if any(st.get("confirm") for st in steps):
                         reply = (reply or "Voy a hacerlo en tu escritorio.") + "\n\n⚠️ Hay acciones que necesitan tu permiso (borrar o llamar): confírmalo abajo antes de que las haga."
                 else:

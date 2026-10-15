@@ -32,6 +32,7 @@
     '.mos-hl{background:#fff3a0 !important;outline:2px solid #fbbc05;border-radius:6px;transition:background .2s}',
     '.mos-err{color:#b3261e;padding:20px;text-align:center}',
     '.mos-term .term-wrap{flex:1;border-radius:0 !important;min-height:0 !important}',
+    '.mos-notes textarea{flex:1;border:0;outline:0;resize:none;padding:10px;font:13px/1.45 system-ui,sans-serif;color:#202124}.mos-files .fl{flex:1;overflow:auto;padding:8px;color:#202124;font-size:.8rem}.mos-files .fl div{padding:5px 8px;border-radius:8px}.mos-files .fl div:hover{background:#f1f3f4}.mos-files .fin{display:flex;gap:6px;padding:6px;border-bottom:1px solid #e3e3e3}.mos-files .fin input{flex:1;border:1px solid #dfe1e5;border-radius:999px;padding:4px 10px;font-size:.8rem;outline:0}.mos-files .fin input.typing,.mos-notes textarea.typing{box-shadow:inset 0 0 0 2px #4285f4}',
     '.mos-bar{display:flex;align-items:center;gap:4px;padding:4px 6px;background:rgba(10,20,14,.92);color:#fff;font-size:.72rem;flex-shrink:0}',
     '.mos .mos-bar button{height:24px !important;padding:0 8px !important;border-radius:8px !important;border:0 !important;background:rgba(255,255,255,.08) !important;color:#fff !important;font-size:.72rem !important;cursor:pointer}',
     '.mos .mos-bar button.on{background:rgba(124,252,154,.28) !important}.mos-bar .clk{margin-left:auto;opacity:.8}',
@@ -91,6 +92,8 @@
           '<div class="mos-win mos-code" data-w="code" hidden><div class="mos-tb"><span class="tb-dots"><button type="button" class="tb-close" data-close title="Cerrar"></button><button type="button" class="tb-min" tabindex="-1"></button><button type="button" class="tb-max" tabindex="-1"></button></span><b>💻 Código de ' + esc(bot.name) + '</b></div>' +
             '<div class="mos-tool"><select data-lang><option value="js">JavaScript</option><option value="py">Python</option></select><button data-run title="Ejecutar">▶</button><button data-tocl title="Copiar a mi Code Lab">📋</button><span class="mos-ch" data-chint>Aislado: sin red ni cookies</span></div>' +
             '<textarea data-code spellcheck="false" placeholder="// El bot escribe aquí su código"></textarea><iframe data-out sandbox="allow-scripts" title="Salida"></iframe></div>' +
+          '<div class="mos-win mos-notes" data-w="notes" hidden><div class="mos-tb"><span class="tb-dots"><button type="button" class="tb-close" data-close title="Cerrar"></button><button type="button" class="tb-min" tabindex="-1"></button><button type="button" class="tb-max" tabindex="-1"></button></span><b>📝 Notas de ' + esc(bot.name) + '</b></div><textarea data-notes spellcheck="false" placeholder="Notas del bot"></textarea></div>' +
+          '<div class="mos-win mos-files" data-w="files" hidden><div class="mos-tb"><span class="tb-dots"><button type="button" class="tb-close" data-close title="Cerrar"></button><button type="button" class="tb-min" tabindex="-1"></button><button type="button" class="tb-max" tabindex="-1"></button></span><b>📁 Archivos de ' + esc(bot.name) + '</b></div><div class="fin"><input data-fname placeholder="Nombre" spellcheck="false"><button data-fadd title="Crear">＋</button></div><div class="fl" data-flist></div></div>' +
           '<div class="mos-status" data-status></div>' +
           '<div class="mos-menu" data-menu role="menu"><div class="hd">🐍 Snake OS Lite · ' + esc(bot.name) + '</div>' +
             '<button data-m="web">🌐 Navegador</button><button data-m="term">🖥️ Terminal</button><button data-m="code">💻 Código</button>' +
@@ -100,7 +103,7 @@
           '<div class="mos-sleep" data-sleep><div class="av" data-sleepav></div><div class="zzz">Z z z</div><div style="font-size:.9rem;font-weight:600">La computadora está dormida</div><button data-wake>☀️ Despertar</button></div>' +
           '<div class="mos-cur" data-cur style="color:' + color + '">' + cursorSvg(color, 16) + '</div>' +
         '</div>' +
-        '<div class="mos-bar"><button data-start title="Snake OS Lite">🐍</button><button data-app="web" class="on">🌐 Navegador</button><button data-app="term">🖥️ Terminal</button><button data-app="code">💻 Código</button>' + (opts.fig ? '<span class="mos-fig">' + opts.fig + '</span>' : '') + '<span class="clk" data-clk></span></div>' +
+        '<div class="mos-bar"><button data-start title="Snake OS Lite">🐍</button><button data-app="web" class="on">🌐 Navegador</button><button data-app="term">🖥️ Terminal</button><button data-app="code">💻 Código</button><button data-app="notes">📝 Notas</button><button data-app="files">📁 Archivos</button>' + (opts.fig ? '<span class="mos-fig">' + opts.fig + '</span>' : '') + '<span class="clk" data-clk></span></div>' +
       '</div>');
     var el = host.querySelector('[data-mos]:last-child');
     var page = el.querySelector('[data-page]'), q = el.querySelector('[data-q]'), bar = el.querySelector('.mos-bar-in');
@@ -175,6 +178,43 @@
         if (!ed) return; if (lg) { lg.value = langSel.value; lg.dispatchEvent(new Event('change', { bubbles: true })); } if (nm) nm.value = 'bot-' + String(bot.name || 'bot').toLowerCase().replace(/\W+/g, '-') + (langSel.value === 'py' ? '.py' : '.js');
         ed.value = codeTa.value; ed.dispatchEvent(new Event('input', { bubbles: true })); el.querySelector('[data-chint]').textContent = '✅ Copiado a tu Code Lab'; }, 500);
     };
+    // ---- El bot hace sus tareas DENTRO de su mini OS (puntero, clics y tecleo visibles) ----
+    var notesTa = el.querySelector('[data-notes]'), fname = el.querySelector('[data-fname]'), flist = el.querySelector('[data-flist]'), fadd = el.querySelector('[data-fadd]');
+    var mfiles = [];
+    function paintFiles() { flist.innerHTML = mfiles.length ? mfiles.map(function (x) { return '<div>' + (x.dir ? '📁 ' : '📄 ') + esc(x.name) + '</div>'; }).join('') : '<div style="color:#5f6368">Vacío</div>'; }
+    paintFiles();
+    fadd.onclick = function () { var v = fname.value.trim(); if (!v) return; mfiles.push({ name: v, dir: !/\.\w{1,5}$/.test(v) }); fname.value = ''; paintFiles(); };
+    function typeEl(inp, text, append) {
+      text = String(text || ''); if (!append) inp.value = ''; inp.classList.add('typing');
+      var i = 0; return new Promise(function (res) { (function step() { if (i >= text.length) { inp.classList.remove('typing'); return res(); } inp.value += text[i++]; try { inp.scrollTop = inp.scrollHeight; } catch (e) {} setTimeout(step, Math.max(45, Math.min(110, 4000 / Math.max(1, text.length)))); })(); });
+    }
+    var MINI_APP = { browser: 'web', web: 'web', navegador: 'web', chrome: 'web', terminal: 'term', term: 'term', code: 'code', codelab: 'code', notes: 'notes', notas: 'notes', explorer: 'files', files: 'files', archivos: 'files', cloud: 'files' };
+    function miniWin(w) { return el.querySelector('.mos-win[data-w="' + w + '"]'); }
+    function runMini(steps, log) {
+      log = log || function () {};
+      var done = [], left = [];
+      if (busy) { return Promise.resolve({ done: ['⏳ Estoy ocupado en mi mini OS'], left: [] }); }
+      busy = true; var p = Promise.resolve();
+      (steps || []).forEach(function (s) {
+        p = p.then(function () {
+          var op = s.op, r;
+          if (op === 'open_app') { var w = MINI_APP[String(s.app || '').toLowerCase()]; if (!w) { left.push(s); return; } say('🖱️ Abro ' + s.app); return launch(w).then(function () { done.push('Abrí ' + s.app + ' en mi mini OS'); }); }
+          if (op === 'close_app') { var w2 = MINI_APP[String(s.app || '').toLowerCase()], win = w2 && miniWin(w2); if (!win) { left.push(s); return; } var c = win.querySelector('[data-close]'); return curTo(c).then(click).then(function () { closeMosWin(w2); done.push('Cerré ' + s.app); }); }
+          if (op === 'create_note') { say('📝 Escribiendo una nota'); return launch('notes').then(function () { return curTo(notesTa); }).then(click).then(function () { return typeEl(notesTa, (notesTa.value ? '\n' : '') + String(s.text || ''), true); }).then(function () { done.push('Escribí una nota en mi mini OS'); }); }
+          if (op === 'create_folder' || op === 'create_file') {
+            var nm = String(s.name || (op === 'create_folder' ? 'Nueva carpeta' : 'archivo.txt')).slice(0, 80);
+            say(op === 'create_folder' ? '📁 Creando carpeta' : '📄 Creando archivo');
+            return launch('files').then(function () { return curTo(fname); }).then(click).then(function () { return typeEl(fname, nm); })
+              .then(function () { return curTo(fadd); }).then(click).then(function () { mfiles.push({ name: nm, dir: op === 'create_folder', text: s.text || '' }); fname.value = ''; paintFiles(); done.push((op === 'create_folder' ? 'Creé la carpeta «' : 'Creé el archivo «') + nm + '» en mi mini OS'); });
+          }
+          if (op === 'delete_file') { var i = mfiles.findIndex(function (x) { return x.name.toLowerCase() === String(s.name || '').toLowerCase(); }); if (i < 0) { left.push(s); return; } return launch('files').then(function () { mfiles.splice(i, 1); paintFiles(); done.push('Borré «' + s.name + '» de mi mini OS'); }); }
+          if (op === 'set_wallpaper') { return curTo(screen).then(click).then(function () { screen.style.background = 'radial-gradient(circle at 30% 20%,#3b6fd8 0,#13235a 50%,#060b1c 100%)'; done.push('Cambié el fondo de mi mini OS'); }); }
+          left.push(s);
+        }).then(function () { return wait(250); });
+      });
+      return p.then(function () { busy = false; say(''); cur.classList.remove('on'); done.forEach(function (t) { log('✅ ' + t); }); return { done: done, left: left }; },
+        function (e) { busy = false; say(''); log('⚠️ ' + (e && e.message || e)); return { done: done, left: left }; });
+    }
     function writeCode(c) { return launch('code').then(function () { return writeCode0(c); }); }
     function writeCode0(c) {
       show('code'); langSel.value = /^py/.test(c.lang || '') ? 'py' : 'js';
@@ -349,7 +389,7 @@
       return p.then(function () { say(''); cur.classList.remove('on'); busy = false; }, function () { say(''); busy = false; });
     }
     home();
-    return { el: el, termHost: el.querySelector('[data-termhost]'), show: show, search: search, open: open, replay: replay, say: say, curTo: curTo, click: click, cmd: cmd, menu: menuOn, reader: reader, code: writeCode, launch: launch };
+    return { el: el, termHost: el.querySelector('[data-termhost]'), show: show, search: search, open: open, replay: replay, say: say, curTo: curTo, click: click, cmd: cmd, menu: menuOn, reader: reader, code: writeCode, launch: launch, runMini: runMini };
   }
 
   // ---------------- Control del escritorio real ----------------
