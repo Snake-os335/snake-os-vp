@@ -84,7 +84,7 @@
       '<div class="mos" data-mos>' +
         '<div class="mos-screen">' +
           '<div class="mos-win" data-w="web">' + '<div class="mos-tb"><span class="tb-dots"><button type="button" class="tb-close" data-close title="Cerrar"></button><button type="button" class="tb-min" tabindex="-1"></button><button type="button" class="tb-max" tabindex="-1"></button></span><b>🌐 Navegador de ' + esc(bot.name) + '</b></div>' +
-            '<div class="mos-tool"><button data-back title="Atrás">◀</button><button data-home title="Inicio">⌂</button><button data-reader title="Vista de lectura (si la página no carga)">📄</button><div class="mos-bar-in"><span style="font-weight:700;color:#4285f4">G</span><input data-q placeholder="Buscar en Doganiero Search o pegar una URL" spellcheck="false"></div></div>' +
+            '<div class="mos-tool"><button data-back title="Atrás">◀</button><button data-home title="Inicio">⌂</button><button data-reader title="Vista de lectura (si la página no carga)">📄</button><div class="mos-bar-in"><span style="font-weight:700;color:#4285f4">G</span><input data-q placeholder="Buscar o pegar una URL" spellcheck="false"></div></div>' +
             '<div class="mos-page" data-page></div></div>' +
           '<div class="mos-win mos-term" data-w="term" hidden><div class="mos-tb"><span class="tb-dots"><button type="button" class="tb-close" data-close title="Cerrar"></button><button type="button" class="tb-min" tabindex="-1"></button><button type="button" class="tb-max" tabindex="-1"></button></span><b>🖥️ Terminal</b></div><div data-termhost style="flex:1;min-height:0;display:flex;flex-direction:column"></div></div>' +
           '<div class="mos-win mos-code" data-w="code" hidden><div class="mos-tb"><span class="tb-dots"><button type="button" class="tb-close" data-close title="Cerrar"></button><button type="button" class="tb-min" tabindex="-1"></button><button type="button" class="tb-max" tabindex="-1"></button></span><b>💻 Código de ' + esc(bot.name) + '</b></div>' +
@@ -222,7 +222,8 @@
     function say(t) { status.textContent = t; status.classList.toggle('on', !!t); }
     function home() {
       clearFrame(); curUrl = '';
-      page.innerHTML = '<div class="mos-home"><div class="mos-logo"><span>Doganiero Search</span></div><div style="color:#5f6368;font-size:.72rem">El buscador de ' + esc(bot.name) + '</div></div>';
+      // Doganiero Search solo en Snake OS Lite Navegador — no en el mini OS del bot
+      page.innerHTML = '<div class="mos-home"><div style="font-size:2.2rem">🌐</div><div class="mos-logo"><span>Navegador de ' + esc(bot.name) + '</span></div><div style="color:#5f6368;font-size:.72rem">Escribe una URL o un texto para buscar</div></div>';
       q.value = '';
     }
     function renderResults(qq, results) {

@@ -98,7 +98,7 @@
     '.dbx .dbots-typing span{background:#fff}' +
     '.dbots-fig .dbf-face *{transform-box:fill-box;transform-origin:center}.dbots-fig .dbf-q,.dbots-fig .dbf-ex{opacity:0}' +
     '.dbots-fig .dbf-body{transform-box:fill-box;transform-origin:50% 100%}' +
-    '.dbots-fig.dbf-think{width:56px!important;height:56px!important;transform:scale(1.35);transform-origin:50% 100%;transition:transform .25s ease}.dbx .dbots-aside .dbots-fig.dbf-think{width:120px!important;height:120px!important;transform:scale(1.2)}.dbf-think .dbf-eyes{animation:dbfLook 7s ease-in-out infinite}.dbf-think .dbf-el{animation:dbfL 7s ease-in-out infinite}.dbf-think .dbf-er{animation:dbfR 7s ease-in-out infinite}' +
+    '.dbots-fig.dbf-think{/* tamaño normal al pensar — sin agrandar */}.dbf-think .dbf-eyes{animation:dbfLook 7s ease-in-out infinite}.dbf-think .dbf-el{animation:dbfL 7s ease-in-out infinite}.dbf-think .dbf-er{animation:dbfR 7s ease-in-out infinite}' +
     '.dbf-think .dbf-q{animation:dbfQ 7s ease-in-out infinite}.dbf-think .dbf-ex{animation:dbfEx 7s ease-in-out infinite}.dbf-think .dbf-body{animation:dbfBob 2s ease-in-out infinite}' +
     '.dbf-happy .dbf-body{animation:dbfJump .6s ease-out 2}.dbf-happy .dbf-ex{opacity:1}.dbf-happy .dbf-el,.dbf-happy .dbf-er{transform:scale(1.25,1.3)}' +
     /* 0-25 mira a los lados · 28-32 parpadeo · 40-46 guiño · 52-70 ojos entornados (concentrado) · 78-88 ojos muy abiertos (sorpresa) */
@@ -240,9 +240,8 @@
     document.querySelectorAll('svg[data-fb="' + String(id).replace(/"/g, '') + '"]').forEach(function (x) {
       x.classList.remove('dbf-think', 'dbf-happy');
       if (m) x.classList.add('dbf-' + m);
-      // Más grande mientras piensa (ojos logo, sin boca)
-      if (m === 'think') { x.setAttribute('width', '64'); x.setAttribute('height', '64'); }
-      else if (!x.closest('.dbots-aside')) { var w = x.getAttribute('data-ow'); if (w) { x.setAttribute('width', w); x.setAttribute('height', w); } }
+      // Tamaño normal siempre (override: no agrandar al pensar)
+      if (!x.closest('.dbots-aside')) { var w = x.getAttribute('data-ow'); if (w) { x.setAttribute('width', w); x.setAttribute('height', w); } }
     });
     if (m === 'happy') moodT[id] = setTimeout(function () { setMood(id, null); }, 1800);
   }

@@ -332,6 +332,7 @@ def fetch_page(url: str, max_chars: int = 7000) -> dict[str, Any]:
         "User-Agent": "Mozilla/5.0 (compatible; DoganieroBots/1.0)",
         "Accept": "text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.5",
         "Accept-Language": "es-ES,es;q=0.9,en;q=0.7",
+        "Accept-Encoding": "identity",
     })
     try:
         with _opener.open(req, timeout=FETCH_TIMEOUT) as resp:
@@ -417,27 +418,102 @@ def _fetch_raw(url: str) -> tuple[str, str, bytes]:
     return final, ctype, raw
 
 
+def _normalize_charset(name: str) -> str:
+    n = (name or "").strip().lower().replace('"', "").replace("'", "")
+    aliases = {
+        "utf8": "utf-8", "utf-8": "utf-8",
+        "iso-8859-1": "latin-1", "iso8859-1": "latin-1", "latin1": "latin-1", "latin-1": "latin-1",
+        "windows-1252": "cp1252", "cp1252": "cp1252", "ansi": "cp1252",
+        "gb2312": "gbk", "gbk": "gbk", "big5": "big5",
+        "shift_jis": "shift_jis", "shift-jis": "shift_jis", "sjis": "shift_jis",
+        "euc-jp": "euc_jp", "euc-kr": "euc_kr",
+        "us-ascii": "ascii", "ascii": "ascii",
+    }
+    return aliases.get(n, n or "utf-8")
+
+
+def _score_text(s: str) -> float:
+    if not s:
+        return -1e9
+    bad = s.count("\ufffd")
+    moji = len(re.findall(r"Ã.|Â.|â€.", s[:80000]))
+    good = len(re.findall(r"[A-Za-zÁÉÍÓÚáéíóúñÑüÜ]", s[:40000]))
+    return good - bad * 50 - moji * 30
+
+
 def _decode(raw: bytes, ctype: str) -> str:
-    m = re.search(r"charset=([\w-]+)", ctype) or re.search(rb"<meta[^>]+charset=[\"']?([\w-]+)", raw[:3000], re.I)
-    cs = m.group(1) if m else "utf-8"
-    if isinstance(cs, bytes):
-        cs = cs.decode("ascii", "ignore")
-    try:
-        return raw.decode(cs, errors="replace")
-    except LookupError:
-        return raw.decode("utf-8", errors="replace")
+    """Decodifica HTML a Unicode. Prioriza UTF-8; Content-Type/meta como pista; anti-mojibake."""
+    if not raw:
+        return ""
+    if raw[:2] == b"\x1f\x8b":
+        import gzip
+        try:
+            raw = gzip.decompress(raw)
+        except Exception:
+            pass
+    elif raw[:2] in (b"\x78\x9c", b"\x78\x01", b"\x78\xda"):
+        import zlib
+        try:
+            raw = zlib.decompress(raw)
+        except Exception:
+            pass
+
+    declared: list[str] = []
+    m = re.search(r"charset\s*=\s*([\w.\-]+)", ctype or "", re.I)
+    if m:
+        declared.append(_normalize_charset(m.group(1)))
+    head = raw[:8192]
+    for rx in (
+        rb"<meta[^>]+charset=[\"']?([\w.\-]+)",
+        rb"<meta[^>]+http-equiv=[\"']?content-type[\"'][^>]+content=[\"'][^\"']*charset=([\w.\-]+)",
+    ):
+        mm = re.search(rx, head, re.I)
+        if mm:
+            cs = mm.group(1)
+            declared.append(_normalize_charset(cs.decode("ascii", "ignore") if isinstance(cs, bytes) else cs))
+
+    if raw.startswith(b"\xef\xbb\xbf"):
+        try:
+            return raw.decode("utf-8-sig")
+        except Exception:
+            pass
+
+    candidates: list[str] = []
+    for c in ["utf-8"] + declared + ["cp1252", "latin-1"]:
+        if c and c not in candidates:
+            candidates.append(c)
+
+    best_s, best_sc = None, -1e18
+    for cs in candidates:
+        try:
+            s = raw.decode(cs, errors="strict" if cs == "utf-8" else "replace")
+        except Exception:
+            try:
+                s = raw.decode(cs, errors="replace")
+            except Exception:
+                continue
+        sc = _score_text(s) + (5 if cs == "utf-8" else 0)
+        if sc > best_sc:
+            best_sc, best_s = sc, s
+    return best_s if best_s is not None else raw.decode("utf-8", errors="replace")
+
 
 
 def _proxy_doc(origin: str, tok: str, final: str, page: str) -> str:
     page = re.sub(r"<meta[^>]+http-equiv=[\"']?(content-security-policy|x-frame-options|refresh|set-cookie)[^>]*>", "", page, flags=re.I)
     page = re.sub(r"<base\b[^>]*>", "", page, flags=re.I)
+    page = re.sub(r"<meta[^>]+charset=[^>]*>", "", page, flags=re.I)
+    page = re.sub(r"<meta[^>]+http-equiv=[\"']?content-type[\"'][^>]*>", "", page, flags=re.I)
     cfg = json.dumps({"p": origin + "/api/dbots/proxy", "t": tok, "u": final, "o": origin})
-    inject = (f'<base href="{_html.escape(final, quote=True)}">'
-              f'<script>window.__DBP={cfg};</script>'
-              f'<script src="{origin}/static/dbots-proxy-helper.js?v=20261015"></script>')
-    m = re.search(r"<head\b[^>]*>", page, re.I)
-    if m:
-        return page[:m.end()] + inject + page[m.end():]
+    inject = (
+        '<meta charset="utf-8">'
+        f'<base href="{_html.escape(final, quote=True)}">'
+        f'<script>window.__DBP={cfg};</script>'
+        f'<script src="{origin}/static/dbots-proxy-helper.js?v=20261015enc"></script>'
+    )
+    hm = re.search(r"<head\b[^>]*>", page, re.I)
+    if hm:
+        return page[:hm.end()] + inject + page[hm.end():]
     return "<!doctype html><html><head>" + inject + "</head><body>" + page + "</body></html>"
 
 
@@ -1022,8 +1098,9 @@ def build_router(
         return True
 
     def _resp(html_text: str, status: int = 200) -> HTMLResponse:
-        return HTMLResponse(html_text, status_code=status, headers={
+        return HTMLResponse(html_text, status_code=status, media_type="text/html; charset=utf-8", headers={
             "Content-Security-Policy": PROXY_CSP, "X-Content-Type-Options": "nosniff",
+            "Content-Type": "text/html; charset=utf-8",
             "Referrer-Policy": "no-referrer", "Cache-Control": "private, no-store",
         })
 
