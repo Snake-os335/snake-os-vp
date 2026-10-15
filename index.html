@@ -7610,8 +7610,8 @@ function buildIcons(){
               '<h3 id="browserBlockedTitle-x">Esta web no se puede mostrar dentro de Snake OS</h3>' +
               '<p id="browserBlockedText-x"></p>' +
               '<div class="snk-br-session-actions">' +
-                '<button type="button" class="snk-br-go" id="browserOpenTab-x">Abrir en pestaña nueva</button>' +
-                '<button type="button" class="snk-br-btn" id="browserBlockedSearch-x">Buscar en Google</button>' +
+                '<button type="button" class="snk-br-go" id="browserOpenTab-x">Abrir con el proxy de Snake OS</button>' +
+                '<button type="button" class="snk-br-btn" id="browserBlockedSearch-x">Buscar en Doganiero Search</button>' +
               '</div>' +
             '</div>' +
           '</div>' +
@@ -7646,21 +7646,21 @@ function buildIcons(){
     function showBlocked(url, kind){
       blockedUrl = url;
       var t = container.querySelector('#browserBlockedTitle-x'), x = container.querySelector('#browserBlockedText-x');
-      if(kind === 'unreachable' || kind === 'dns'){ t.textContent = 'No se ha podido abrir esta web'; x.textContent = 'Puede que la dirección esté mal escrita o que la web no responda. Prueba a abrirla en una pestaña nueva o búscala en Google.'; }
+      if(kind === 'unreachable' || kind === 'dns'){ t.textContent = 'No se ha podido abrir esta web'; x.textContent = 'Puede que la dirección esté mal escrita o que la web no responda. Prueba con el proxy de Snake OS o búscala en Doganiero Search o búscala en Google.'; }
       else if(kind === 'invalid' || kind === 'private'){ t.textContent = 'Esta dirección no se puede abrir aquí'; x.textContent = 'Revisa que la dirección esté bien escrita.'; }
-      else { t.textContent = 'Esta web no se puede mostrar dentro de Snake OS'; x.textContent = 'La página no deja que otras webs la muestren dentro (lo decide ella por seguridad). Puedes abrirla en una pestaña nueva.'; }
+      else { t.textContent = 'Esta web no se puede mostrar dentro de Snake OS'; x.textContent = 'La página no deja que otras webs la muestren dentro (lo decide ella por seguridad). Puedes intentar abrirla con el proxy de Snake OS (algunas webs con mucho JavaScript, como YouTube, no funcionan bien así) o buscarla en Doganiero Search.'; }
       blockedEl.hidden = false;
       frame.style.visibility = 'hidden';
     }
-    function hideBlocked(){ blockedEl.hidden = true; blockedUrl = ''; }
+    function hideBlocked(){ blockedEl.hidden = true; blockedUrl = ''; try{ frame.style.visibility = ''; }catch(e){} }
     // No sabemos si la web se dejará mostrar: aviso que se puede tocar para abrirla fuera.
     function openTabHint(url){
       if(!toastEl) return;
       toastEl.hidden = false;
-      toastEl.textContent = 'Si la web no se ve, toca aquí para abrirla en una pestaña nueva';
+      toastEl.textContent = 'Si la web no se ve, toca aquí para abrirla con el proxy de Snake OS';
       toastEl.style.cursor = 'pointer';
       toastEl.style.pointerEvents = 'auto';
-      toastEl.onclick = function(){ window.open(url, '_blank', 'noopener'); toastEl.hidden = true; };
+      toastEl.onclick = function(){ toastEl.hidden = true; hideBlocked(); openViaProxy(url, ++navSeq); };
       clearTimeout(toast._t);
       toast._t = setTimeout(function(){ toastEl.hidden = true; toastEl.onclick = null; }, 9000);
     }
@@ -7796,6 +7796,18 @@ function buildIcons(){
       setMode('embed');
       var seq = ++navSeq;
       if(isSearchUrl(url) || url.indexOf('/api/dbots/serp') === 0){ frame.src = url; return; }
+      // YouTube no deja mostrarse dentro de otras webs (X-Frame-Options), salvo su reproductor oficial /embed/.
+      try{
+        var yu = new URL(url), yh = yu.hostname.replace(/^(www\.|m\.|music\.)/, '');
+        if(yh === 'youtube.com' || yh === 'youtu.be' || yh === 'youtube-nocookie.com'){
+          var vid = yh === 'youtu.be' ? yu.pathname.slice(1).split('/')[0]
+            : (yu.searchParams.get('v') || ((yu.pathname.match(/^\/(?:shorts|embed|live)\/([\w-]{6,})/) || [])[1]) || '');
+          if(vid){ frame.src = 'https://www.youtube-nocookie.com/embed/' + encodeURIComponent(vid) + '?autoplay=1&rel=0'; input.value = 'youtube.com/watch?v=' + vid; return; }
+          var yq = yu.searchParams.get('search_query') || yu.searchParams.get('q') || '';
+          toast('YouTube no se puede mostrar entero dentro de Snake OS: busca el vídeo y se abrirá en el reproductor.');
+          frame.src = googleSearchUrl('youtube ' + (yq || 'vídeos')); return;
+        }
+      }catch(eYt){}
       // Ya es URL del proxy interno
       if(/\/api\/dbots\/proxy(\?|$)/.test(url)){ frame.src = url; return; }
       if(isGoogleHost(url)){ frame.src = url; return; }
@@ -7834,7 +7846,7 @@ function buildIcons(){
     });
     if(loginBtn) loginBtn.addEventListener('click', function(){ startGoogleLogin(); });
     container.querySelector('#browserOpenTab-x').addEventListener('click', function(){
-      if(blockedUrl) window.open(blockedUrl, '_blank', 'noopener');
+      if(!blockedUrl) return; var u = blockedUrl; hideBlocked(); openViaProxy(u, ++navSeq);
     });
     container.querySelector('#browserBlockedSearch-x').addEventListener('click', function(){
       var q = blockedUrl; try{ q = new URL(blockedUrl).hostname.replace(/^www\./, ''); }catch(e){}
