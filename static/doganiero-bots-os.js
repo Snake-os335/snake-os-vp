@@ -596,23 +596,37 @@
     return { items: items, map: map };
   }
   function agentLoop(bot, goal, surface, snapFn, execFn, log, stopped) {
-    var hist = [], said = [], n = 0;
+    var MAX = 25, hist = [], said = [], n = 0, sameScreen = 0, lastFp = '', warned = 0, sigs = [];
+    function fp(s) { return (s.items || []).map(function (x) { return x.label + '|' + (x.value || '') + '|' + (x.win || ''); }).join('~') + '#' + JSON.stringify(s.page || {}); }
     function fin(ok, msg) { if (msg) said.push(msg); return { done: said, ok: ok, stopped: !!(stopped && stopped()) }; }
     function step() {
       if (stopped && stopped()) return Promise.resolve(fin(false, '⏹ Parado'));
-      if (++n > 15) return Promise.resolve(fin(false, '⚠️ Demasiados pasos; paro aquí'));
-      var s = snapFn();
-      return api('/api/dbots/agent/' + encodeURIComponent(bot.id), { method: 'POST', body: { goal: goal, surface: surface, ui: s.items, page: s.page || null, history: hist.slice(-8), step: n } })
+      if (n >= MAX) return Promise.resolve(fin(false, '⏸️ Paro aquí tras ' + n + ' pasos para no dar vueltas. Dime si sigo o cómo lo prefieres.'));
+      n++;
+      var s = snapFn(), f = fp(s);
+      sameScreen = (f === lastFp) ? sameScreen + 1 : 0; lastFp = f;
+      // ¿bucle? misma acción sobre el mismo elemento repetida
+      var loopish = sigs.length >= 4 && sigs.slice(-4).every(function (x, i, a) { return x === a[i % 2]; });
+      var rep3 = sigs.length >= 3 && sigs.slice(-3).every(function (x) { return x === sigs[sigs.length - 1]; });
+      var stuck = sameScreen >= 2 || loopish || rep3;
+      if (stuck) {
+        warned++;
+        if (warned > 2) return Promise.resolve(fin(false, '⏸️ Me he atascado (la pantalla no cambia o repito lo mismo). Paro para no liarla.'));
+        log('🔁 Parece que me atasco; cambio de estrategia');
+      }
+      return api('/api/dbots/agent/' + encodeURIComponent(bot.id), { method: 'POST', body: { goal: goal, surface: surface, ui: s.items, page: s.page || null, history: hist.slice(-10), step: n, max: MAX, stuck: stuck ? (sameScreen >= 2 ? 'la pantalla no cambia tras tus últimos pasos' : 'estás repitiendo las mismas acciones') : '' } })
         .then(function (a) {
           a = a || {};
           if (a.say) log('🤔 ' + a.say);
-          if (a.action === 'done') return fin(true, '✅ ' + (a.say || 'Hecho'));
+          if (a.action === 'done' || a.goal_met) return fin(true, '✅ ' + (a.say || 'Hecho'));
           if (a.action === 'fail') return fin(false, '⚠️ ' + (a.say || 'No pude hacerlo'));
           var el = a.id ? s.map[a.id] : null;
           var it = a.id ? s.items.filter(function (x) { return x.id === a.id; })[0] : null;
+          sigs.push(a.action + ':' + (it ? it.label : a.id || '') + ':' + (a.text || a.key || ''));
           return Promise.resolve(execFn(a, el, it)).then(function (r) {
             hist.push({ action: a.action, id: a.id || '', label: it ? it.label : '', text: a.text || a.key || '', result: r || 'ok' });
             if (a.say) said.push('• ' + a.say);
+            if (r === 'el usuario no lo permitió') return fin(false, '🛑 No lo hice porque no diste permiso.');
             return wait(350).then(step);
           }, function (e) {
             hist.push({ action: a.action, id: a.id || '', label: it ? it.label : '', result: 'error: ' + errMsg(e) });

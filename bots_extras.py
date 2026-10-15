@@ -1339,10 +1339,21 @@ def build_router(
             "\"action\": \"click\"|\"type\"|\"key\"|\"scroll\"|\"wait\"|\"done\"|\"fail\", \"id\": id del elemento, "
             "\"text\": texto a escribir (si type), \"key\": \"Enter\" (si key)}. "
             "type ya hace clic en el campo y escribe; después usa key Enter sobre ese mismo campo si hay que enviarlo. Para abrir una app, haz clic en su icono o botón. "
-            "Mira el historial: no repitas lo que ya funcionó. Cuando el objetivo esté cumplido responde done. Si es imposible, fail explicando por qué. "
+            "Céntrate SOLO en el objetivo pedido: no explores, no abras apps ni webs que no hagan falta y no añadas tareas extra. "
+            "Mira el historial: no repitas lo que ya funcionó. Antes de actuar comprueba si el objetivo YA está cumplido según lo visible (app abierta, texto escrito, página cargada…): si es así responde done con goal_met true. "
+            "Si te dicen que estás atascado, cambia de estrategia (otro elemento, Enter, otra ruta) o responde done/fail; nunca repitas el mismo clic. Si es imposible, fail explicando por qué. "
+            "Añade siempre \"goal_met\": true|false. "
             "Nunca escribas contraseñas, claves, tokens ni datos privados; nunca inicies ni cierres sesión. Llamar, borrar, enviar, pagar o apagar requieren el permiso del usuario (el sistema lo pedirá)."
         )
-        prompt = (f"Objetivo: {goal}\nPaso número {int(body.get('step') or 1)}.\n" + (f"Estado: {page_s}\n" if page_s else "")
+        try:
+            _step, _max = int(body.get("step") or 1), int(body.get("max") or 25)
+        except (TypeError, ValueError):
+            _step, _max = 1, 25
+        stuck = str(body.get("stuck") or "")[:120]
+        prompt = (f"Objetivo (no te desvíes): {goal}\nPaso {_step} de {_max} como máximo"
+                  + (" — quedan pocos: termina ya o di done/fail." if _max - _step <= 4 else ".") + "\n"
+                  + (f"⚠️ AVISO: {stuck}. Cambia de estrategia o termina.\n" if stuck else "")
+                  + (f"Estado: {page_s}\n" if page_s else "")
                   + ("Pasos ya hechos:\n" + "\n".join(hist) + "\n" if hist else "Aún no has hecho nada.\n")
                   + "Elementos visibles ahora:\n" + ("\n".join(lines) or "(ninguno)") + "\nDevuelve el JSON del siguiente paso.")
         try:
@@ -1354,7 +1365,8 @@ def build_router(
         if act not in {"click", "type", "key", "scroll", "wait", "done", "fail"}:
             act = "fail"
         return {"action": act, "id": str(d.get("id") or "")[:6], "text": str(d.get("text") or "")[:500],
-                "key": str(d.get("key") or "Enter")[:12], "say": str(d.get("say") or d.get("thought") or "")[:200]}
+                "key": str(d.get("key") or "Enter")[:12], "say": str(d.get("say") or d.get("thought") or "")[:200],
+                "goal_met": bool(d.get("goal_met")) and act in {"done", "wait"}}
 
     @r.post("/api/dbots/chat/{bot_id}")
     def chat_send(bot_id: str, body: ChatBody, user=Depends(require_user)):
