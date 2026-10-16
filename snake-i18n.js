@@ -31,6 +31,21 @@
     'Doganiero Cloud', 'Doganiero TV', 'Doganiero AI', 'Doganiero Metaverse', 'Doganiero', 'Direct™', 'Snakemoji', 'Snakemojis', 'Code Lab', 'AskBox',
     'Dogalandia', 'Snake Racing', 'Book', 'Prism', 'Doggle', 'server i8', 'server i9'];
   var BRAND_RE = new RegExp('(' + BRANDS.map(function (b) { return b.replace(/[.*+?^${}()|[\]\\!™]/g, '\\$&'); }).join('|') + ')', 'g');
+  // Textos dinámicos (fechas, saludos, contadores) que no pueden estar en el diccionario.
+  var DAYS = {lunes:'Monday',martes:'Tuesday','miércoles':'Wednesday',jueves:'Thursday',viernes:'Friday','sábado':'Saturday',domingo:'Sunday'};
+  var MON = {enero:'January',febrero:'February',marzo:'March',abril:'April',mayo:'May',junio:'June',julio:'July',agosto:'August',septiembre:'September',octubre:'October',noviembre:'November',diciembre:'December'};
+  var GREET = {'buenos días':'Good morning','buenas tardes':'Good afternoon','buenas noches':'Good evening','hola':'Hi'};
+  function dyn(k) {
+    var m = k.match(/^(lunes|martes|miércoles|jueves|viernes|sábado|domingo),?\s+(\d{1,2})\s+de\s+([a-zé]+)(?:\s+de\s+(\d{4}))?$/i);
+    if (m && MON[m[3].toLowerCase()]) return DAYS[m[1].toLowerCase()] + ', ' + MON[m[3].toLowerCase()] + ' ' + m[2] + (m[4] ? ', ' + m[4] : '');
+    m = k.match(/^(\d{1,2})\s+de\s+([a-zé]+)(?:\s+de\s+(\d{4}))?$/i);
+    if (m && MON[m[2].toLowerCase()]) return MON[m[2].toLowerCase()] + ' ' + m[1] + (m[3] ? ', ' + m[3] : '');
+    m = k.match(/^(buenos días|buenas tardes|buenas noches|hola)([,!\s].*)?$/i);
+    if (m) return GREET[m[1].toLowerCase()] + (m[2] || '');
+    m = k.match(/^hace (\d+) (minutos?|horas?|días?|segundos?)$/i);
+    if (m) { var u = {minuto:'minute',hora:'hour','día':'day',segundo:'second'}[m[2].toLowerCase().replace(/s$/, '')] || m[2]; return m[1] + ' ' + u + (m[1] === '1' ? '' : 's') + ' ago'; }
+    return null;
+  }
   function onlyBrand(k) { return k.replace(BRAND_RE, '').replace(/[\s!¡?¿.,:;·…\-–—()"'«»]+/g, '') === ''; }
   function brandsOk(src, out) { var b = src.match(BRAND_RE) || []; for (var i = 0; i < b.length; i++) if (out.indexOf(b[i]) < 0) return false; return true; }
   // Diccionario completo generado (snake-i18n-dict.js); el manual D tiene prioridad
@@ -74,6 +89,7 @@
   var lang = getLang();
   function tr(t) {
     var k = t.trim(); if (!k || onlyBrand(k)) return null;
+    var dy = dyn(k); if (dy) return t.replace(k, dy);
     var hit = lookup(k) || RT[k];
     if (!hit) for (var i = 0; i < PARTS.length; i++) if (PARTS[i][0].test(k)) { hit = k.replace(PARTS[i][0], PARTS[i][1]); break; }
     if (hit && !brandsOk(k, hit)) hit = null;

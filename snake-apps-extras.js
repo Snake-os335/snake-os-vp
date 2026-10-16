@@ -20,6 +20,7 @@
   function lsSet(k, v) { try { localStorage.setItem(lsKey(k), JSON.stringify(v)); } catch (e) {} }
   function isPhone() { return !!(document.body && document.body.classList.contains('phone-mode')); }
   function toast(msg, ms) {
+    try { if (window.snakeNotifSound) window.snakeNotifSound(); } catch (eS) {}
     var el = $('snk4aToast');
     if (!el) {
       el = document.createElement('div');
