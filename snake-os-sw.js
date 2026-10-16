@@ -143,7 +143,7 @@ self.addEventListener('push', function (event) {
     event.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (list) {
       for (var i = 0; i < list.length; i++) { if (list[i].visibilityState === 'visible' && list[i].focused) return; }
       return showSnakeNotification(data.title || 'Snake OS!', {
-        body: data.body || '', tag: data.tag || 'snakeos-notif', icon: data.icon || undefined, badge: data.icon || undefined,
+        body: data.body || '', tag: data.tag || 'snakeos-notif', icon: data.icon || "/static/assets/snake-os-icon-192.png?v=202610161925", badge: data.icon || "/static/assets/snake-os-favicon-64.png?v=202610161925",
         data: { url: data.url || '/', peerEmail: data.peerEmail || null, openApp: data.app === 'chat' ? 'chat' : (data.app || 'chat'), tag: data.tag || '' }
       });
     }));

@@ -15,12 +15,13 @@
 <!-- ai-voice ?v=202610032030 -->
 <!-- tutorial ?v=202610092033 -->
 <!-- doganiero-chat-video-min-202610031850 -->
-<link rel="manifest" href="/manifest.webmanifest">
+<link rel="manifest" href="/manifest.webmanifest?v=202610161925">
 <meta name="theme-color" content="#1f9e57">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<link rel="icon" type="image/png" sizes="64x64" href="/static/assets/snake-os-favicon-64.png?v=202610101640">
-<link rel="apple-touch-icon" sizes="180x180" href="/static/assets/snake-os-icon-180.png?v=202610101640">
+<link rel="icon" type="image/svg+xml" href="/static/assets/snake-os-logo-v2.svg?v=202610161925">
+<link rel="icon" type="image/png" sizes="64x64" href="/static/assets/snake-os-favicon-64.png?v=202610161925">
+<link rel="apple-touch-icon" sizes="180x180" href="/static/assets/snake-os-icon-180.png?v=202610161925">
 <script>
 window.__snakeBootBroken = 0;
 window.__snakeBootAck = 0;
@@ -43,7 +44,7 @@ window.addEventListener('error', function(e){
 <script src="/static/snake-voice.js?v=202610161905"></script>
 <script src="/static/metaverse.js?v=202610121930" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-notify-sound.js?v=202610161830"></script>
-<script src="/static/doganiero-chat.js?v=202610161830" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
+<script src="/static/doganiero-chat.js?v=202610161925" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/doganiero-desk.js?v=202610072130" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/desktop-extras.js?v=202610161910" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script>window.SNAKE_OS_VERSION='2026.12';/* versión de Snake OS: cambiar SOLO aquí */</script>
@@ -88,7 +89,7 @@ window.SNAKE_OS_CHANGES=[
 <script src="/static/doganiero-tv.js?v=202610091150" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/prism.js?v=202610080900" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/doganiero-phone.js?v=202610161800" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
-<script src="/static/snake-apps-extras.js?v=202610161835" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
+<script src="/static/snake-apps-extras.js?v=202610161925" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-cursor.js?v=202610142010" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-emoji-data.js?v=202610100831" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-emoji.js?v=202610140900" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
@@ -3437,9 +3438,9 @@ window.SNAKE_OS_CHANGES=[
   <div class="blob blob3"></div>
 
   <div id="boot" class="hidden">
-    <img class="boot-logo-img" src="/static/assets/snake-os-logo-mark.png?v=202610101825" alt="" width="1024" height="1024" decoding="async" fetchpriority="high">
+    <img class="boot-logo-img" src="/static/assets/snake-os-logo-mark.png?v=202610161925" alt="" width="1024" height="1024" decoding="async" fetchpriority="high">
     <div class="boot-brand">
-      <img src="/static/assets/snake-os-logo.jpg?v=202610101810" alt="" width="84" height="84">
+      <img src="/static/assets/snake-os-logo.jpg?v=202610161925" alt="" width="84" height="84">
       <span>Snake OS!</span>
     </div>
     <div class="bar" aria-hidden="true"><div class="bar-fill"></div></div>
@@ -3490,7 +3491,7 @@ window.SNAKE_OS_CHANGES=[
       
     </div>
     <div class="card" id="loginView">
-      <h1><span class="lock-snake" aria-hidden="true">🐍</span><span>Snake OS!</span></h1>
+      <h1><span class="lock-snake" aria-hidden="true"><img src="/static/assets/snake-os-logo-v2.svg?v=202610161925" alt="" style="width:1.1em;height:1.1em;vertical-align:-0.15em"></span><span>Snake OS!</span></h1>
       <p class="sub">powered by Doganiero OS! 3 — inicia sesión para continuar.</p>
       <form id="loginForm">
         <label for="login_email">Correo</label>
@@ -3506,7 +3507,7 @@ window.SNAKE_OS_CHANGES=[
     </div>
 
     <div class="card hidden" id="signupView">
-      <h1><span class="lock-snake" aria-hidden="true">🐍</span><span>Snake OS!</span></h1>
+      <h1><span class="lock-snake" aria-hidden="true"><img src="/static/assets/snake-os-logo-v2.svg?v=202610161925" alt="" style="width:1.1em;height:1.1em;vertical-align:-0.15em"></span><span>Snake OS!</span></h1>
       <p class="sub">Crea tu cuenta para entrar al sistema.</p>
       <form id="signupForm">
         <label for="signup_name">Tu nombre</label>
@@ -3534,7 +3535,7 @@ window.SNAKE_OS_CHANGES=[
     <div id="windows"></div>
     <div id="startMenu"></div>
     <div id="taskbar">
-      <button type="button" id="startBtn"><img class="start-btn-logo" src="/static/assets/snake-os-icon.png?v=202610101640" alt="" aria-hidden="true" width="20" height="20">Snake OS</button>
+      <button type="button" id="startBtn"><img class="start-btn-logo" src="/static/assets/snake-os-icon.png?v=202610161925" alt="" aria-hidden="true" width="20" height="20">Snake OS</button>
       <div id="taskItems"></div>
       <div id="userBadge"></div>
       <div class="tb-tools" id="tbTools">
@@ -11136,7 +11137,7 @@ function renderCodeLabApp(container, opts){
   function renderAboutApp(container){
     container.innerHTML =
       '<div class="about-box">' +
-        '<div class="about-logo">🐍 Snake OS!</div>' +
+        '<div class="about-logo"><img src="/static/assets/snake-os-logo-v2.svg?v=202610161925" alt="" width="40" height="40" style="vertical-align:middle;margin-right:8px">Snake OS!</div>' +
         '<p class="sub">powered by Doganiero OS! 3</p>' +
         '<p style="font-size:0.85rem;">Sistema construido sobre Doganiero OS!3. Incluye correo, notas, juegos, calculadora, Code Lab, explorador y Doganiero Metaverse (2D, varios mundos y salas de eventos).</p>' +
         '<p class="note">Sesión iniciada como: <strong>' + (currentUser ? currentUser.name : '') + '</strong></p>' +

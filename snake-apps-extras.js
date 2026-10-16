@@ -427,7 +427,7 @@
     });
     function aboutHtml() {
       var u = cu();
-      var html = '<div class="snk4a-about"><div class="snk4a-about-logo">🐍</div><h2>Snake OS!</h2>' +
+      var html = '<div class="snk4a-about"><div class="snk4a-about-logo"><img src="/static/assets/snake-os-logo-v2.svg?v=202610161925" alt="" width="72" height="72" style="display:block;margin:0 auto 6px"></div><h2>Snake OS!</h2>' +
         '<div class="ver">' + esc(SNK_VERSION) + '</div>' +
         '<div style="font-size:0.78rem;opacity:0.8">powered by Doganiero OS! 3</div>' +
         '<div class="snk4a-log">' + currentChanges() + '<h4>🆕 Novedades</h4>';
