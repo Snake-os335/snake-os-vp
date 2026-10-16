@@ -40,6 +40,35 @@
     radioBehind: ['Radio: {a} te pisa los talones, cierra el interior.', 'Radio: tienes a {a} detrás, defiende la posición.', 'Radio: {a} se acerca, cuidado en la frenada.'],
     radioAhead: ['Radio: {a} está a tiro, aprovecha el rebufo.', 'Radio: {a} delante, prepara el adelantamiento.', 'Radio: estás ganando tiempo a {a}, ¡ataca!']
   };
+
+  // English commentary (Snake OS language = EN)
+  var COLOR_NAMES_EN = { '#ff3b30': 'red', '#0a84ff': 'blue', '#ffd60a': 'yellow', '#30d158': 'green', '#bf5af2': 'purple', '#ff9f0a': 'orange' };
+  var SECTOR_NAMES_EN = ['Sector 1 · straight and first corner', 'Sector 2 · central chicane', 'Sector 3 · hairpin and run to the line'];
+  var PHR_EN = {
+    start: ['Lights out and away we go!', 'And they\'re off! Six cars charging into the first corner.', 'The race is on at the Doganiero circuit!'],
+    overtake: ['{a} overtakes {b}!', 'What a move by {a} on {b}!', '{a} dives down the inside and passes {b}.', '{b} can\'t hold off {a}!', 'Overtake by {a}, {b} loses the place.'],
+    overtakeMe: ['You overtake {b}! Well done.', 'Great pass on {b}!', 'You get rid of {b}, keep it up!'],
+    overtakenMe: ['{a} gets past you! Time to fight back.', '{a} has slipped past you, don\'t give up!', 'Careful, {a} takes your position.'],
+    offtrack: ['{a} goes off the track!', '{a} hits the grass and loses time.', 'Mistake by {a}, running wide.'],
+    offtrackMe: ['You\'re off the track!', 'You\'re on the grass, get back on the tarmac!', 'Wide in the corner, you lose time.'],
+    crash: ['Contact between {a} and {b}!', 'Contact! {a} and {b} touch.', 'Wheel to wheel, {a} and {b} bang together!'],
+    reset: ['{a} rejoins the track with a penalty.', '{a} gets back in position and loses a second.'],
+    fastlap: ['Fastest lap for {a}: {t}!', '{a} sets the best lap: {t}.', 'Race lap record for {a}, {t}.'],
+    lastlap: ['Final lap! {a} leads.', 'There\'s the bell! Final lap with {a} in front.'],
+    finish: ['{a} wins the race!', 'Victory for {a}!', '{a} crosses the line in first place!'],
+    finishOther: ['{a} crosses the line in position {p}.', '{a} finishes in position {p}.'],
+    join: ['{a} joins the room.', '{a} has arrived in the room.'],
+    leave: ['{a} leaves the room.', '{a} has disconnected.'],
+    revenge: ['{a} is out for revenge: you\'ve beaten them {w} times.', 'Watch out for {a}, they haven\'t forgotten you beat them last time.'],
+    nemesis: ['{a} has beaten you {l} times. Time for payback today!'],
+    ambient: ['A blistering pace at the Doganiero circuit.', '{a} is setting the pace at the front.', 'This race is wide open.', 'Watch for slipstreaming on the main straight.', '{a} looks very comfortable in the car.'],
+    radioBehind: ['Radio: {a} is right on your tail, cover the inside.', 'Radio: {a} is behind you, defend your position.', 'Radio: {a} is closing in, careful under braking.'],
+    radioAhead: ['Radio: {a} is within reach, use the slipstream.', 'Radio: {a} ahead, get ready to overtake.', 'Radio: you\'re gaining on {a}, attack!']
+  };
+  function isEn() { try { return !!(global.snakeI18n && global.snakeI18n.lang === 'en'); } catch (e) { return false; } }
+  function P() { return isEn() ? PHR_EN : PHR; }
+  function colorName(col, dflt) { return (isEn() ? COLOR_NAMES_EN : COLOR_NAMES)[col] || dflt; }
+  function L(es, en) { return isEn() ? en : es; }
   function pick(a) { return a[Math.floor(Math.random() * a.length)]; }
 
   // Circuito (puntos de control, Catmull-Rom cerrado)
@@ -777,7 +806,7 @@
     // ---------- comentarista + radio + consejos ----------
     var elSub = root.querySelector('.srx-sub'), elVoice = root.querySelector('.srx-voice');
     var raceBest = null, lastLapSaid = false, lastRank = null, evLog = [], speakQ = [], speaking = false, subTimer = 0, ambT = 6, radioT = 4, cool = {}, llm = { checked: false, on: false, busy: false };
-    function cname(c) { if (!c) return ''; if (c === me) return 'tú'; return c.name + ', el ' + (COLOR_NAMES[c.color] || 'coche'); }
+    function cname(c) { if (!c) return ''; if (c === me) return L('tú', 'you'); return isEn() ? c.name + ', the ' + colorName(c.color, '') + ' car' : c.name + ', el ' + colorName(c.color, 'coche'); }
     function fill(t, v) { return t.replace(/\{(\w)\}/g, function (_, k) { return v[k] != null ? v[k] : ''; }); }
     function setVoice(on) {
       opts.voice = !!on; saveJSON('snkRacingOpts', opts);
@@ -785,6 +814,9 @@
       if (!opts.voice) { try { speechSynthesis.cancel(); } catch (e) {} speaking = false; speakQ = []; }
     }
     setVoice(opts.voice);
+    // al cambiar el idioma de Snake OS: vaciar la cola y callar lo que estaba en el otro idioma
+    function onLang() { speakQ = []; try { if (speaking && global.speechSynthesis) speechSynthesis.cancel(); } catch (e) {} speaking = false; subClear(); }
+    global.addEventListener('snk-lang', onLang);
     var esVoice = null;
     function pickVoice() {
       try { var vs = speechSynthesis.getVoices(); esVoice = vs.filter(function (v) { return /^es[-_]ES/i.test(v.lang); })[0] || vs.filter(function (v) { return /^es/i.test(v.lang); })[0] || null; } catch (e) {}
@@ -795,7 +827,7 @@
     function say(text, prio, radio) {
       if (!text) return;
       evLog.push(text); if (evLog.length > 12) evLog.shift();
-      var item = { text: text, prio: prio || 1, radio: !!radio, t: performance.now() };
+      var item = { en: isEn(), text: text, prio: prio || 1, radio: !!radio, t: performance.now() };
       if (item.prio >= 3) speakQ = speakQ.filter(function (q) { return q.prio >= 3; });
       speakQ.push(item);
       speakQ.sort(function (a, b) { return b.prio - a.prio || a.t - b.t; });
@@ -820,7 +852,7 @@
       }
       try {
         var u = new SpeechSynthesisUtterance(item.text);
-        u.lang = 'es-ES'; if (esVoice) u.voice = esVoice;
+        if (item.en) u.lang = 'en-US'; else { u.lang = 'es-ES'; if (esVoice) u.voice = esVoice; }
         u.rate = item.radio ? 1.15 : 1.08; u.pitch = item.radio ? 0.85 : 1.05; u.volume = 0.9;
         var done = function () { if (!speaking) return; speaking = false; if (alive) setTimeout(pump, 120); };
         u.onend = done; u.onerror = done;
@@ -832,24 +864,24 @@
     function ev(type, a, b, extra) {
       if (!me || (state !== 'race' && state !== 'finish' && type !== 'start')) return;
       var A = cname(a), B = cname(b);
-      if (type === 'start') { say(pick(PHR.start), 3); remindRivals(); }
-      else if (type === 'crash') { if ((a === me || b === me || cd('crash', 4)) && cd('crash' + a.name + b.name, 3)) say(fill(pick(PHR.crash), { a: A, b: B }), a === me || b === me ? 2 : 1); }
-      else if (type === 'offtrack') { if (a === me ? cd('offme', 4) : cd('off', 6)) say(a === me ? pick(PHR.offtrackMe) : fill(pick(PHR.offtrack), { a: A }), a === me ? 2 : 1); }
-      else if (type === 'reset') say(fill(pick(PHR.reset), { a: a === me ? 'Tu coche' : A }), 1);
-      else if (type === 'fastlap') say(fill(pick(PHR.fastlap), { a: a === me ? 'ti' : A, t: fmtTime(extra * 1000) }), a === me ? 2 : 1);
-      else if (type === 'lastlap') say(fill(pick(PHR.lastlap), { a: A }), 2);
+      if (type === 'start') { say(pick(P().start), 3); remindRivals(); }
+      else if (type === 'crash') { if ((a === me || b === me || cd('crash', 4)) && cd('crash' + a.name + b.name, 3)) say(fill(pick(P().crash), { a: A, b: B }), a === me || b === me ? 2 : 1); }
+      else if (type === 'offtrack') { if (a === me ? cd('offme', 4) : cd('off', 6)) say(a === me ? pick(P().offtrackMe) : fill(pick(P().offtrack), { a: A }), a === me ? 2 : 1); }
+      else if (type === 'reset') say(fill(pick(P().reset), { a: a === me ? L('Tu coche', 'Your car') : A }), 1);
+      else if (type === 'fastlap') say(fill(pick(P().fastlap), { a: a === me ? L('ti', 'you') : A, t: fmtTime(extra * 1000) }), a === me ? 2 : 1);
+      else if (type === 'lastlap') say(fill(pick(P().lastlap), { a: A }), 2);
       else if (type === 'finish') {
-        if (extra === 1) say(a === me ? '¡Has ganado la carrera! ¡Enhorabuena!' : fill(pick(PHR.finish), { a: A }), 3);
-        else if (a === me) say('Cruzas la meta en ' + extra + 'ª posición.', 3);
-        else if (extra <= 3) say(fill(pick(PHR.finishOther), { a: A, p: extra }), 1);
+        if (extra === 1) say(a === me ? L('¡Has ganado la carrera! ¡Enhorabuena!', 'You won the race! Congratulations!') : fill(pick(P().finish), { a: A }), 3);
+        else if (a === me) say(L('Cruzas la meta en ' + extra + 'ª posición.', 'You cross the line in position ' + extra + '.'), 3);
+        else if (extra <= 3) say(fill(pick(P().finishOther), { a: A, p: extra }), 1);
       }
     }
     function remindRivals() {
       var best = null;
       cars.forEach(function (c) { var r = c.ai && rivals[c.name]; if (r && (!best || r.w + r.l > best.r.w + best.r.l)) best = { c: c, r: r }; });
       if (!best) return;
-      if (best.r.last === 'w') say(fill(pick(PHR.revenge), { a: cname(best.c), w: best.r.w }), 1);
-      else if (best.r.l > best.r.w) say(fill(pick(PHR.nemesis), { a: cname(best.c), l: best.r.l }), 1);
+      if (best.r.last === 'w') say(fill(pick(P().revenge), { a: cname(best.c), w: best.r.w }), 1);
+      else if (best.r.l > best.r.w) say(fill(pick(P().nemesis), { a: cname(best.c), l: best.r.l }), 1);
     }
     function commentTick(dt) {
       if (subTimer > 0) { subTimer -= dt; if (subTimer <= 0 && !speaking) subClear(); }
@@ -864,9 +896,9 @@
             if (!victim || victim === c || victim.done) continue;
             var key = 'ov' + c.name + victim.name;
             if (!cd(key, 6)) continue;
-            if (c === me) say(fill(pick(PHR.overtakeMe), { b: cname(victim) }), 2);
-            else if (victim === me) say(fill(pick(PHR.overtakenMe), { a: cname(c) }), 2);
-            else if (i <= 2 && cd('ovany', 3)) say(fill(pick(PHR.overtake), { a: cname(c), b: cname(victim) }), 1);
+            if (c === me) say(fill(pick(P().overtakeMe), { b: cname(victim) }), 2);
+            else if (victim === me) say(fill(pick(P().overtakenMe), { a: cname(c) }), 2);
+            else if (i <= 2 && cd('ovany', 3)) say(fill(pick(P().overtake), { a: cname(c), b: cname(victim) }), 1);
           }
         }
       }
@@ -877,18 +909,18 @@
         radioT = 2;
         var mi = rk.indexOf(me), ah = rk[mi - 1], bh = rk[mi + 1];
         var gapB = bh ? me.prog - bh.prog : 1e9, gapA = ah ? ah.prog - me.prog : 1e9;
-        if (bh && gapB < 14 && cd('radioB', 12)) say(fill(pick(PHR.radioBehind), { a: cname(bh) }), 1, true);
-        else if (ah && gapA < 18 && cd('radioA', 12)) say(fill(pick(PHR.radioAhead), { a: cname(ah) }) + (me.draft ? ' Estás en su rebufo.' : ''), 1, true);
+        if (bh && gapB < 14 && cd('radioB', 12)) say(fill(pick(P().radioBehind), { a: cname(bh) }), 1, true);
+        else if (ah && gapA < 18 && cd('radioA', 12)) say(fill(pick(P().radioAhead), { a: cname(ah) }) + (me.draft ? L(' Estás en su rebufo.', ' You\'re in their slipstream.') : ''), 1, true);
       }
       // ambiente (LLM si hay, si no frases locales)
       ambT -= dt;
       if (ambT <= 0) {
         ambT = 9;
         if (speakQ.length || speaking) return;
-        if (llm.on && !llm.busy) {
+        if (llm.on && !llm.busy && !isEn()) {
           llm.busy = true;
-          askLLM('ambient', raceFacts()).then(function (t) { llm.busy = false; if (t) say(t, 0); else say(fill(pick(PHR.ambient), { a: cname(rk[0]) }), 0); });
-        } else say(fill(pick(PHR.ambient), { a: cname(rk[0]) }), 0);
+          askLLM('ambient', raceFacts()).then(function (t) { llm.busy = false; if (t) say(t, 0); else say(fill(pick(P().ambient), { a: cname(rk[0]) }), 0); });
+        } else say(fill(pick(P().ambient), { a: cname(rk[0]) }), 0);
       }
     }
     function raceFacts() {
@@ -915,29 +947,30 @@
           .then(function (r) { return r.ok ? r.json() : null; }).then(function (j) { return j && j.ok ? j.text : null; }).catch(function () { return null; });
       } catch (e) { return Promise.resolve(null); }
     }
-    function veces(n) { return n + (n === 1 ? ' vez' : ' veces'); }
+    function veces(n) { return isEn() ? n + (n === 1 ? ' time' : ' times') : n + (n === 1 ? ' vez' : ' veces'); }
+    function secName(s) { return (isEn() ? SECTOR_NAMES_EN : SECTOR_NAMES)[s]; }
     function tipsList(rk) {
       var tips = [];
       // referencia por sector: el mejor parcial de cualquier rival
       for (var s = 0; s < 3; s++) {
         var mine = me.secBest[s], ref = null, who = null;
         cars.forEach(function (c) { if (c !== me && c.secBest[s] != null && (ref == null || c.secBest[s] < ref)) { ref = c.secBest[s]; who = c; } });
-        if (mine != null && ref != null && mine - ref > 0.15) tips.push({ loss: mine - ref, text: 'Pierdes ' + (mine - ref).toFixed(2) + ' s en el ' + SECTOR_NAMES[s] + ' respecto a ' + cname(who) + '.' + (me.secOff[s] ? ' Te saliste ' + veces(me.secOff[s]) + ' ahí: frena antes y acelera a la salida.' : ' Prueba a frenar un poco antes y abrir gas antes en la salida.') });
-        else if (mine != null && ref != null && mine < ref) tips.push({ loss: -1, text: '¡Eres el más rápido en el ' + SECTOR_NAMES[s] + '!' });
+        if (mine != null && ref != null && mine - ref > 0.15) tips.push({ loss: mine - ref, text: isEn() ? 'You lose ' + (mine - ref).toFixed(2) + ' s in ' + secName(s) + ' compared to ' + cname(who) + '.' + (me.secOff[s] ? ' You went off ' + veces(me.secOff[s]) + ' there: brake earlier and accelerate on the exit.' : ' Try braking a little earlier and getting on the throttle sooner on the exit.') : 'Pierdes ' + (mine - ref).toFixed(2) + ' s en el ' + secName(s) + ' respecto a ' + cname(who) + '.' + (me.secOff[s] ? ' Te saliste ' + veces(me.secOff[s]) + ' ahí: frena antes y acelera a la salida.' : ' Prueba a frenar un poco antes y abrir gas antes en la salida.') });
+        else if (mine != null && ref != null && mine < ref) tips.push({ loss: -1, text: L('¡Eres el más rápido en el ' + secName(s) + '!', 'You\'re the fastest in ' + secName(s) + '!') });
       }
       tips.sort(function (a, b) { return b.loss - a.loss; });
       var out = tips.map(function (t) { return t.text; });
-      if (me.offCount >= 3) out.push('Te saliste de la pista ' + me.offCount + ' veces: la hierba te frena a la mitad.');
-      if (me.resets) out.push('Usaste R ' + veces(me.resets) + ' (+1 s cada una).');
-      if (!out.length) out.push('Carrera muy limpia. Usa el rebufo (ponte detrás de un rival en recta) para ganar velocidad.');
+      if (me.offCount >= 3) out.push(L('Te saliste de la pista ' + me.offCount + ' veces: la hierba te frena a la mitad.', 'You went off the track ' + me.offCount + ' times: the grass cuts your speed in half.'));
+      if (me.resets) out.push(L('Usaste R ', 'You used R ') + veces(me.resets) + L(' (+1 s cada una).', ' (+1 s each).'));
+      if (!out.length) out.push(L('Carrera muy limpia. Usa el rebufo (ponte detrás de un rival en recta) para ganar velocidad.', 'Very clean race. Use the slipstream (get behind a rival on a straight) to gain speed.'));
       return out.slice(0, 4);
     }
     var lastTipsHtml = '';
     function tipsHtml(rk) {
       var id = 'srxsum' + Date.now();
-      lastTipsHtml = '<div class="srx-tips"><b>Consejos</b><ul style="margin:4px 0;padding-left:18px">' + tipsList(rk).map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('') + '</ul><div id="' + id + '" style="color:#b8c0cc;font-style:italic"></div></div>';
+      lastTipsHtml = '<div class="srx-tips"><b>' + L('Consejos', 'Tips') + '</b><ul style="margin:4px 0;padding-left:18px">' + tipsList(rk).map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('') + '</ul><div id="' + id + '" style="color:#b8c0cc;font-style:italic"></div></div>';
       var facts = raceFacts(); facts.consejos = tipsList(rk); facts.mejor_vuelta_tuya = me.bestLap;
-      if (llm.on) askLLM('summary', facts).then(function (t) { var el = document.getElementById(id); if (el && t) { el.textContent = '🎙️ ' + t; say(t, 2); } });
+      if (llm.on && !isEn()) askLLM('summary', facts).then(function (t) { var el = document.getElementById(id); if (el && t) { el.textContent = '🎙️ ' + t; say(t, 2); } });
       return lastTipsHtml;
     }
     var afterDone = -1;
@@ -1026,7 +1059,7 @@
       else if (m.type === 'info') { toast('ℹ️ ' + esc(m.detail), 'chat'); }
       else if (m.type === 'toast') {
         var dot = '<span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:' + esc(m.color) + '"></span> ';
-        if (m.kind === 'join' || m.kind === 'leave') say(fill(pick(PHR[m.kind]), { a: m.name + ', ' + (COLOR_NAMES[m.color] || 'sin color') }), 2);
+        if (m.kind === 'join' || m.kind === 'leave') say(fill(pick(P()[m.kind]), { a: m.name + ', ' + colorName(m.color, L('sin color', 'no colour')) }), 2);
         if (m.kind === 'join') toast(dot + '<b>' + esc(m.name) + '</b> ha entrado en la sala', 'join');
         else if (m.kind === 'leave') toast(dot + '<b>' + esc(m.name) + '</b> ha salido', 'leave');
         else toast(dot + '<b>' + esc(m.name) + ':</b> ' + esc(m.text), 'chat');
@@ -1095,6 +1128,7 @@
       window.removeEventListener('keydown', onKey, true);
       window.removeEventListener('keyup', onKey, true);
       window.removeEventListener('blur', onBlur);
+      try { global.removeEventListener('snk-lang', onLang); } catch (e) {}
       if (ro) ro.disconnect(); else window.removeEventListener('resize', resize);
     };
   }

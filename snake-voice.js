@@ -31,9 +31,42 @@
     curU = u;
     try { nat.speak(u); } catch (e) { done(); }
   }
+  // Con Snake OS! en inglés, toda narración (TV, tutorial, asistente, bots...) sale en inglés:
+  // texto traducido (diccionario + /api/i18n/en, marcas intactas) y voz inglesa de Piper.
+  var EN = {};
+  function looksEs(t) { return /[áéíóúñ¿¡]|\b(el|la|los|las|de|que|y|en|un|una|es|para|con|por|tu|hola)\b/i.test(t); }
+  function toEn(text) {
+    var I = window.snakeI18n, out = [], need = [];
+    var segs = String(text).match(/[^.!?…]+[.!?…]*\s*/g) || [String(text)];
+    segs.forEach(function (sg, i) {
+      var k = sg.trim(), t = k && (EN[k] || (I && I.t ? I.t(k) : k));
+      out[i] = t && t !== k ? sg.replace(k, t) : sg;
+      if (k && (!t || t === k) && looksEs(k)) need.push([i, k.slice(0, 200)]);
+    });
+    if (!need.length) return Promise.resolve({ text: out.join(''), en: true });
+    return fetch('/api/i18n/en', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ strings: need.map(function (n) { return n[1]; }) }) })
+      .then(function (r) { return r.ok ? r.json() : {}; }).catch(function () { return {}; })
+      .then(function (r) {
+        var t = (r && r.t) || {}, all = true;
+        need.forEach(function (n) { var v = t[n[1]]; if (v) { EN[n[1]] = v; out[n[0]] = segs[n[0]].replace(n[1], v); } else all = false; });
+        return { text: out.join(''), en: all };
+      });
+  }
   function pump() {
     if (cur || curU || paused || !queue.length) return;
-    var u = queue.shift(), lang = langOf(u), parts = chunks(u.text || '');
+    var u0 = queue[0];
+    if (uiLang() === 'en' && !u0.__snkEn) {
+      if (u0.__snkEnBusy) return;
+      u0.__snkEnBusy = 1;
+      toEn(u0.text || '').then(function (r) {
+        u0.__snkEn = 1;
+        // Si no se pudo traducir, se queda en español con la voz española (mejor que inglés con acento raro).
+        if (r.en) { u0.__snkText = r.text; u0.__snkLang = 'en'; } else u0.__snkLang = 'es';
+        pump();
+      });
+      return;
+    }
+    var u = queue.shift(), lang = u.__snkLang || (uiLang() === 'en' ? 'en' : langOf(u)), parts = chunks(u.__snkText || u.text || '');
     if (!parts.length) { fire(u, 'start'); fire(u, 'end'); return pump(); }
     if (!serverOk && Date.now() < failUntil) return native(u);
     curU = u;
