@@ -1315,13 +1315,15 @@ def build_router(
                 calls.append(now); _i18n_rate[uid] = calls
                 system = ("Traduces textos de la interfaz de un sistema operativo web (Snake OS) del español al inglés. "
                           "Devuelve SOLO un objeto JSON {texto_original: traducción}. Mantén emojis, números, nombres propios "
-                          "(Snake OS, Doganiero, AskBox, nombres de bots) y la puntuación. Si ya está en inglés o no se traduce, devuélvelo igual.")
+                          "(NUNCA traduzcas marcas: Snake OS!, Snake OS, Snake OS Lite, Doganiero, Doganiero Search, Doganiero Bots, Book, Direct™, Snakemoji, Code Lab, AskBox, Dogalandia, nombres de bots) y la puntuación. Si ya está en inglés o no se traduce, devuélvelo igual.")
                 try:
                     res = askbox_client.ask(_j.dumps(todo, ensure_ascii=False), system=system, tier="fast", max_output_tokens=2500, api_key=key)
                     d = _parse_json(res.get("text") or "") or {}
                 except Exception:
                     d = {}
                 new = {k: str(d[k])[:300] for k in todo if isinstance(d.get(k), str) and d[k].strip()}
+                _brx = re.compile("Snake OS Lite|Snake OS|Doganiero Search|Doganiero Bots|Doganiero|Direct™|Snakemojis?|Code Lab|AskBox|Dogalandia|Book")
+                new = {k: v for k, v in new.items() if all(b in v for b in _brx.findall(k))}
                 if new:
                     out.update(new)
                     with _i18n_lock:

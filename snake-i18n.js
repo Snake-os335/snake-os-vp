@@ -26,7 +26,30 @@
   };
   var PARTS = [[/^Navegador de /, 'Browser of '], [/^Notas de /, 'Notes of '], [/^Archivos de /, 'Files of '], [/^Código de /, 'Code of '], [/ está usando tu escritorio$/, ' is using your desktop']];
   var ATTRS = ['title', 'placeholder', 'aria-label'];
-  var RT = {}; try { RT = JSON.parse(localStorage.getItem('snkI18nEn') || '{}') || {}; } catch (e) { RT = {}; }
+  // Marcas: NUNCA se traducen (ni en ES ni en EN). Se enmascaran antes del diccionario y de AskBox.
+  var BRANDS = ['Snake OS Lite', 'Snake OS!', 'Snake OS', 'Doganiero Search', 'Doganiero Bots', 'Doganiero Book', 'Doganiero Chat', 'Doganiero Store',
+    'Doganiero Cloud', 'Doganiero TV', 'Doganiero AI', 'Doganiero Metaverse', 'Doganiero', 'Direct™', 'Snakemoji', 'Snakemojis', 'Code Lab', 'AskBox',
+    'Dogalandia', 'Snake Racing', 'Book', 'Prism', 'Doggle', 'server i8', 'server i9'];
+  var BRAND_RE = new RegExp('(' + BRANDS.map(function (b) { return b.replace(/[.*+?^${}()|[\]\\!™]/g, '\\$&'); }).join('|') + ')', 'g');
+  function onlyBrand(k) { return k.replace(BRAND_RE, '').replace(/[\s!¡?¿.,:;·…\-–—()"'«»]+/g, '') === ''; }
+  function brandsOk(src, out) { var b = src.match(BRAND_RE) || []; for (var i = 0; i < b.length; i++) if (out.indexOf(b[i]) < 0) return false; return true; }
+  // Diccionario completo generado (snake-i18n-dict.js); el manual D tiene prioridad
+  var BIG = window.__SNK_I18N_EN || {};
+  Object.keys(BIG).forEach(function (k) { if (D[k] == null) D[k] = BIG[k]; });
+  var LOW = {}; Object.keys(D).forEach(function (k) { LOW[k.toLowerCase()] = D[k]; });
+  var MEMO = {};
+  function lookup(k) { if (k in MEMO) return MEMO[k]; return (MEMO[k] = lookup0(k)); }
+  function lookup0(k) {
+    var h = D[k] || LOW[k.toLowerCase()];
+    if (h) return h;
+    var m = k.match(/^(.*?)([\s:.…!?,·]+)$/); // sin puntuación final
+    if (m && m[1]) { h = D[m[1]] || LOW[m[1].toLowerCase()]; if (h) return h + m[2]; }
+    var m2 = k.match(/^([\p{Extended_Pictographic}\uFE0F\u200D\s]+)(.+)$/u); // emoji delante
+    if (m2) { h = D[m2[2]] || LOW[m2[2].toLowerCase()]; if (h) return m2[1] + h; }
+    // frases con partes dinámicas: sustituir fragmentos conocidos largos
+    return null;
+  }
+  var RT = {}; try { RT = JSON.parse(localStorage.getItem('snkI18nEn3') || '{}') || {}; localStorage.removeItem('snkI18nEn'); } catch (e) { RT = {}; }
   var miss = {}, missT = null, asked = {};
   function looksEs(k) { return k.length >= 2 && k.length <= 200 && /[A-Za-zÁÉÍÓÚÑáéíóúñü]{2}/.test(k) && !/^(https?:|www\.|[\w.-]+@)/i.test(k); }
   function want(k) { if (lang !== 'en' || RT[k] != null || asked[k] || !looksEs(k)) return; miss[k] = 1; clearTimeout(missT); missT = setTimeout(flush, 350); }
@@ -38,7 +61,7 @@
       var t = (r && r.t) || {}, any = false;
       Object.keys(t).forEach(function (k) { RT[k] = t[k]; any = true; });
       if (!any) return;
-      try { var keys = Object.keys(RT); if (keys.length > 6000) { var n = {}; keys.slice(-6000).forEach(function (k) { n[k] = RT[k]; }); RT = n; } localStorage.setItem('snkI18nEn', JSON.stringify(RT)); } catch (e) {}
+      try { var keys = Object.keys(RT); if (keys.length > 6000) { var n = {}; keys.slice(-6000).forEach(function (k) { n[k] = RT[k]; }); RT = n; } localStorage.setItem('snkI18nEn3', JSON.stringify(RT)); } catch (e) {}
       if (lang === 'en') apply();
       if (Object.keys(miss).length) flush();
     }).catch(function () {});
@@ -50,16 +73,17 @@
   function getLang() { var v = null; try { v = localStorage.getItem('snkLang'); } catch (e) {} return v === 'es' || v === 'en' ? v : autoLang(); }
   var lang = getLang();
   function tr(t) {
-    var k = t.trim(); if (!k) return null;
-    var hit = D[k] || RT[k];
+    var k = t.trim(); if (!k || onlyBrand(k)) return null;
+    var hit = lookup(k) || RT[k];
     if (!hit) for (var i = 0; i < PARTS.length; i++) if (PARTS[i][0].test(k)) { hit = k.replace(PARTS[i][0], PARTS[i][1]); break; }
+    if (hit && !brandsOk(k, hit)) hit = null;
     if (!hit) { want(k); return null; }
     return t.replace(k, hit);
   }
   function doNode(n) {
     if (n.nodeType === 3) {
-      if (lang === 'en') { if (n.__es == null) { var r = tr(n.nodeValue); if (r) { n.__es = n.nodeValue; n.nodeValue = r; } } }
-      else if (n.__es != null) { n.nodeValue = n.__es; n.__es = null; }
+      if (lang === 'en') { if (n.__en != null && n.nodeValue === n.__en) return; if (n.__es == null || n.nodeValue !== n.__en) { n.__es = null; var r = tr(n.nodeValue); if (r && r !== n.nodeValue) { n.__es = n.nodeValue; n.__en = r; n.nodeValue = r; } } }
+      else if (n.__es != null) { if (n.nodeValue === n.__en) n.nodeValue = n.__es; n.__es = null; n.__en = null; }
       return;
     }
     if (n.nodeType !== 1 || /^(SCRIPT|STYLE|TEXTAREA|IFRAME|CODE|PRE)$/.test(n.tagName) || (n.closest && n.closest('[data-noi18n],.term-wrap,.dbx-msg'))) return;
@@ -71,8 +95,25 @@
     for (var c = n.firstChild; c; c = c.nextSibling) doNode(c);
   }
   var busy = false;
-  function apply(root) { busy = true; try { doNode(root || document.body); } finally { busy = false; } document.documentElement.lang = lang; }
-  var mo = new MutationObserver(function (ms) { if (busy || lang !== 'en') return; busy = true; try { ms.forEach(function (m) { if (m.type === 'characterData') { m.target.__es = null; doNode(m.target); } else m.addedNodes.forEach(doNode); }); } finally { busy = false; } });
+  function apply(root) { busy = true; try { doNode(root || document.body); } finally { busy = false; try { mo.takeRecords(); } catch (e) {} } document.documentElement.lang = lang; document.documentElement.setAttribute('translate', 'no'); document.documentElement.classList.add('notranslate'); }
+  var queue = [], qT = 0;
+  function pump() {
+    qT = 0; if (lang !== 'en') { queue = []; return; }
+    var t0 = Date.now(); busy = true;
+    try { while (queue.length && Date.now() - t0 < 12) doNode(queue.shift()); }
+    finally { busy = false; mo.takeRecords(); }
+    if (queue.length) qT = setTimeout(pump, 30);
+  }
+  var mo = new MutationObserver(function (ms) {
+    if (busy || lang !== 'en') return;
+    for (var i = 0; i < ms.length; i++) {
+      var m = ms[i];
+      if (m.type === 'characterData') { if (m.target.__en == null || m.target.nodeValue !== m.target.__en) queue.push(m.target); }
+      else for (var j = 0; j < m.addedNodes.length; j++) queue.push(m.addedNodes[j]);
+    }
+    if (queue.length > 5000) queue = queue.slice(-5000);
+    if (!qT) qT = setTimeout(pump, 60);
+  });
   function setLang(l) {
     lang = l === 'en' ? 'en' : 'es'; try { localStorage.setItem('snkLang', lang); } catch (e) {}
     apply(); paintTile();
