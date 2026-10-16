@@ -7,7 +7,8 @@
   if (window.__snk4a) return;
   window.__snk4a = true;
 
-  var SNK_VERSION = 'Snake OS 2026.12';
+  // Única fuente: window.SNAKE_OS_VERSION (index.html, que nunca se cachea).
+  var SNK_VERSION = 'Snake OS ' + (window.SNAKE_OS_VERSION || '2026.12');
 
   function $(id) { return document.getElementById(id); }
   function esc(s) {
