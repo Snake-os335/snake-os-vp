@@ -18,7 +18,8 @@ var RING_SRC = '/static/ringtone.mp3?v=202610141730';
 var CALL_ICON = '/static/assets/phone-icon.png';
 
 self.addEventListener('install', function () { self.skipWaiting(); });
-self.addEventListener('activate', function (event) { event.waitUntil(self.clients.claim()); });
+/* Este SW no cachea nada (sin 'fetch'): al activarse borra cachés antiguas por si quedó alguna. */
+self.addEventListener('activate', function (event) { event.waitUntil((self.caches && caches.keys ? caches.keys().then(function (ks) { return Promise.all(ks.map(function (k) { return caches.delete(k); })); }) : Promise.resolve()).catch(function () {}).then(function () { return self.clients.claim(); })); });
 
 function showSnakeNotification(title, opts) {
   function attempt(options) { return self.registration.showNotification(title, options); }

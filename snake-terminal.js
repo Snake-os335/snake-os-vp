@@ -2,7 +2,7 @@
 (function(){
   if(window.SnakeTerminal) return;
   var BOOT = Date.now();
-  var VERSION = window.SNAKE_OS_VERSION || '2026.12', KERNEL = 'Doganiero OS! 3';
+  var VERSION = window.SNAKE_OS_VERSION || '2026.13', KERNEL = 'Doganiero OS! 3';
   function B(){ return window.SnakeTermBridge; }
   function user(){ return (B() && B().user()) || null; }
   function uname(){

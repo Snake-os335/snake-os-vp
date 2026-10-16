@@ -8,7 +8,7 @@
   window.__snk4a = true;
 
   // Única fuente: window.SNAKE_OS_VERSION (index.html, que nunca se cachea).
-  var SNK_VERSION = 'Snake OS ' + (window.SNAKE_OS_VERSION || '2026.12');
+  var SNK_VERSION = 'Snake OS ' + (window.SNAKE_OS_VERSION || '2026.13');
 
   function $(id) { return document.getElementById(id); }
   function esc(s) {
