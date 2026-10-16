@@ -19,3 +19,8 @@ fetch anónimo HTTPS de `main`; si hay commits nuevos y es fast-forward → `upd
 health-check (200 + `/api/status`), `update-end.sh`. Si algo falla vuelve al commit anterior y no reintenta ese commit.
 Log: `/srv/juegos_david/logs/snake-auto-deploy.log`. Para desplegar basta con hacer push a `main`.
 Si cambias `scripts/auto-deploy.sh`, vuelve a copiarlo a `/srv/juegos_david/bin/`.
+
+### Qué ven los usuarios al actualizar
+- Durante el despliegue (`.updating` existe), las cargas NUEVAS de `/` reciben `maintenance.html` (503) y se recargan solas al terminar.
+- Sesiones ya abiertas: no se interrumpen ni se recargan; solo ven un aviso pequeño «Hay una actualización de Snake OS! — se instalará la próxima vez que lo abras».
+- Al abrir Snake OS con una versión nueva (`/api/status` → `version` = commit), se muestra 10,5 s la pantalla «Snake OS! se está actualizando...» mientras se refrescan cachés, y se entra en la versión nueva.

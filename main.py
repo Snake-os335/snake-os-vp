@@ -305,7 +305,38 @@ _UPDATING_FLAG = FsPath(os.path.dirname(os.path.abspath(__file__))) / ".updating
 @app.get("/api/status")
 def os_status():
     """Público y ligero: ¿se está actualizando Snake OS? (lo activan scripts/update-start.sh y update-end.sh)."""
-    return JSONResponse({"updating": _UPDATING_FLAG.exists()}, headers={"Cache-Control": "no-store"})
+    return JSONResponse({"updating": _UPDATING_FLAG.exists(), "version": _os_version()}, headers={"Cache-Control": "no-store"})
+
+
+def _os_version() -> str:
+    """Versión desplegada = commit de git (cambia en cada actualización)."""
+    try:
+        base = FsPath(os.path.dirname(os.path.abspath(__file__)))
+        g = base / ".git"
+        if g.is_file():  # worktree
+            g = FsPath(g.read_text().split(":", 1)[1].strip())
+        head = (g / "HEAD").read_text().strip()
+        if not head.startswith("ref:"):
+            return head[:12]
+        ref = head[4:].strip()
+        roots = [g]
+        common = g / "commondir"
+        if common.exists():
+            roots.append((g / common.read_text().strip()).resolve())
+        for r in roots:
+            if (r / ref).exists():
+                return (r / ref).read_text().strip()[:12]
+            pk = r / "packed-refs"
+            if pk.exists():
+                for line in pk.read_text().splitlines():
+                    if line.endswith(" " + ref):
+                        return line[:12]
+    except Exception:
+        pass
+    return "dev"
+
+
+_MAINT_HTML = FsPath(os.path.dirname(os.path.abspath(__file__))) / "maintenance.html"
 
 
 @app.get("/api/os-gate")
@@ -7818,6 +7849,10 @@ def placa_page():
 
 @app.get("/")
 def index(request: Request):
+    if _UPDATING_FLAG.exists() and _MAINT_HTML.exists():
+        # Solo durante el breve despliegue y solo para cargas nuevas: pantalla 503.
+        return FileResponse(str(_MAINT_HTML), status_code=503, media_type="text/html",
+                            headers={"Cache-Control": "no-store", "Retry-After": "5"})
     # Siempre pedir login de cuenta otra vez: no reanudar perfil abierto.
     # También se limpia la cookie del gate OS (como antes).
     resp = FileResponse(

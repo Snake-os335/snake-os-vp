@@ -24,7 +24,7 @@ if [ -n "$(git status --porcelain --untracked-files=no)" ]; then log "RECHAZADO:
 log "Nuevo main: ${OLD:0:7} -> ${NEW:0:7}"
 sh scripts/update-start.sh >>"$LOG" 2>&1
 TS=$(date +%Y%m%d-%H%M%S)
-git bundle create -q "$BK/pre-$TS-${OLD:0:7}.bundle" "$OLD" 2>>"$LOG"; echo "$OLD" > "$BK/last-good"
+git bundle create -q "$BK/pre-$TS-${OLD:0:7}.bundle" HEAD 2>>"$LOG"; echo "$OLD" > "$BK/last-good"
 ls -1t "$BK"/pre-*.bundle 2>/dev/null | tail -n +21 | xargs -r rm -f
 CHANGED=$(git diff --name-only "$OLD" "$NEW")
 needs_restart(){ echo "$CHANGED" | grep -Eq "(\.py$|^Dockerfile|^docker-compose|^requirements)"; }
