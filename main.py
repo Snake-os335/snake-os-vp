@@ -814,7 +814,7 @@ async def desk_ws(websocket: WebSocket):
             )
         except Exception:
             pass
-        await websocket.close(code=4401)
+        await _ws_close_quiet(websocket, 4401)
         _i9_untrack(websocket)
         return
 
@@ -1047,7 +1047,7 @@ async def term_ssh_ws(websocket: WebSocket):
             await websocket.send_text(json.dumps({"type": "error", "detail": "Sesión no válida"}))
         except Exception:
             pass
-        await websocket.close(code=4401)
+        await _ws_close_quiet(websocket, 4401)
         _i9_untrack(websocket)
         return
     master_fd: int | None = None
@@ -3580,6 +3580,21 @@ import asyncio
 import time as time_mod
 from fastapi import WebSocket, WebSocketDisconnect
 
+def _safe_int(v: Any, default: int) -> int:
+    try:
+        return int(v)
+    except (TypeError, ValueError):
+        return default
+
+
+async def _ws_close_quiet(ws: Any, code: int = 1000) -> None:
+    """Close without raising if the client already went away."""
+    try:
+        await ws.close(code=code)
+    except Exception:
+        pass
+
+
 def _ws_is_open(ws: Any) -> bool:
     """True only while both sides of the socket are CONNECTED (after accept, before close)."""
     try:
@@ -4634,7 +4649,7 @@ async def metaverse_mando_ws(websocket: WebSocket, code: str = ""):
             await websocket.send_text(json.dumps({"type": "error", "detail": "Código inválido o caducado"}))
         except Exception:
             pass
-        await websocket.close(code=4401)
+        await _ws_close_quiet(websocket, 4401)
         _i9_untrack(websocket)
         return
     email = str(row.get("email") or "")
@@ -4728,10 +4743,13 @@ async def metaverse_ws(websocket: WebSocket):
     sid = websocket.cookies.get(COOKIE_NAME)
     user_row = user_from_session(sid)
     if not user_row:
-        await websocket.send_text(
-            json.dumps({"type": "error", "detail": "No autenticado"}, ensure_ascii=False)
-        )
-        await websocket.close(code=4401)
+        try:
+            await websocket.send_text(
+                json.dumps({"type": "error", "detail": "No autenticado"}, ensure_ascii=False)
+            )
+        except Exception:
+            pass
+        await _ws_close_quiet(websocket, 4401)
         _i9_untrack(websocket)
         return
 
@@ -5185,7 +5203,7 @@ async def metaverse_ws(websocket: WebSocket):
                 payload = {
                     "type": "voice_pcm",
                     "from": email,
-                    "rate": int(msg.get("rate") or 16000),
+                    "rate": _safe_int(msg.get("rate"), 16000),
                     "pcm": pcm,
                 }
                 for em in targets:
@@ -5232,10 +5250,13 @@ async def snake_racing_ws(websocket: WebSocket):
     sid = websocket.cookies.get(COOKIE_NAME)
     user_row = user_from_session(sid)
     if not user_row:
-        await websocket.send_text(
-            json.dumps({"type": "error", "detail": "Inicia sesión para jugar"}, ensure_ascii=False)
-        )
-        await websocket.close(code=4401)
+        try:
+            await websocket.send_text(
+                json.dumps({"type": "error", "detail": "Inicia sesión para jugar"}, ensure_ascii=False)
+            )
+        except Exception:
+            pass
+        await _ws_close_quiet(websocket, 4401)
         return
     pub = db.user_public(user_row)
     email = str(pub["email"]).strip().lower()
@@ -5252,6 +5273,8 @@ async def snake_racing_ws(websocket: WebSocket):
                 await snake_racing.racing_hub.handle(websocket, msg)
     except WebSocketDisconnect:
         pass
+    except Exception as exc:
+        print(f"[snake-racing-ws] error {email}: {exc!r}", flush=True)
     finally:
         await snake_racing.racing_hub.disconnect(websocket)
 
@@ -7750,10 +7773,13 @@ async def chat_ws(websocket: WebSocket):
     sid = websocket.cookies.get(COOKIE_NAME)
     user_row = user_from_session(sid)
     if not user_row:
-        await websocket.send_text(
-            json.dumps({"type": "error", "detail": "No autenticado"}, ensure_ascii=False)
-        )
-        await websocket.close(code=4401)
+        try:
+            await websocket.send_text(
+                json.dumps({"type": "error", "detail": "No autenticado"}, ensure_ascii=False)
+            )
+        except Exception:
+            pass
+        await _ws_close_quiet(websocket, 4401)
         _i9_untrack(websocket)
         return
     uid = int(user_row["id"])
