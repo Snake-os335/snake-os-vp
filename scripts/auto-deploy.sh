@@ -35,15 +35,21 @@ restart(){
 health(){ # 200 en / y /api/status responde (updating true mientras dura)
   for i in $(seq 1 20); do
     c=$(curl -s -o /dev/null -w "%{http_code}" "$HEALTH/"); s=$(curl -s "$HEALTH/api/status")
-    if [ "$c" = 200 ] && echo "$s" | grep -q "\"updating\""; then return 0; fi; sleep 3
+    # Con .updating, "/" da 503 (maintenance.html) a propósito: vale 200 o 503 si /api/status responde.
+    if { [ "$c" = 200 ] || [ "$c" = 503 ]; } && echo "$s" | grep -q "\"updating\""; then return 0; fi; sleep 3
   done; log "health falló: http=$c status=$s"; return 1
 }
 ok=1
 git merge --ff-only -q "$NEW" >>"$LOG" 2>&1 || ok=0
 if [ $ok = 1 ] && needs_restart; then log "Reinicio del contenedor (cambió Python/docker)"; restart || ok=0; fi
 [ $ok = 1 ] && { health || ok=0; }
-if [ $ok = 1 ]; then log "OK desplegado ${NEW:0:7}"
-else
+if [ $ok = 1 ]; then
+  sh scripts/update-end.sh >>"$LOG" 2>&1
+  for i in $(seq 1 10); do c=$(curl -s -o /dev/null -w "%{http_code}" "$HEALTH/"); [ "$c" = 200 ] && break; sleep 2; done
+  if [ "$c" = 200 ]; then log "OK desplegado ${NEW:0:7}"; exit 0; fi
+  log "health final falló (http=$c)"; ok=0; sh scripts/update-start.sh >>"$LOG" 2>&1
+fi
+if [ $ok = 0 ]; then
   log "FALLO: vuelvo a ${OLD:0:7}"; echo "$NEW" > "$BK/bad"
   git reset -q --hard "$OLD" >>"$LOG" 2>&1
   CHANGED=$(git diff --name-only "$OLD" "$NEW"); needs_restart && restart
