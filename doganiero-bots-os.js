@@ -33,7 +33,7 @@
     '.mos-err{color:#b3261e;padding:20px;text-align:center}',
     '.mos-term .term-wrap{flex:1;border-radius:0 !important;min-height:0 !important}',
     '.mos-notes textarea{flex:1;border:0;outline:0;resize:none;padding:10px;font:13px/1.45 system-ui,sans-serif;color:#202124}.mos-files .fl{flex:1;overflow:auto;padding:8px;color:#202124;font-size:.8rem}.mos-files .fl div{padding:5px 8px;border-radius:8px}.mos-files .fl div:hover{background:#f1f3f4}.mos-files .fin{display:flex;gap:6px;padding:6px;border-bottom:1px solid #e3e3e3}.mos-files .fin input{flex:1;border:1px solid #dfe1e5;border-radius:999px;padding:4px 10px;font-size:.8rem;outline:0}.mos-files .fin input.typing,.mos-notes textarea.typing{box-shadow:inset 0 0 0 2px #4285f4}',
-    '.mos-bar{display:flex;align-items:center;gap:4px;padding:4px 6px;background:rgba(10,20,14,.92);color:#fff;font-size:.72rem;flex-shrink:0}',
+    '.mos-bar{display:flex;flex-wrap:wrap;row-gap:3px;align-items:center;gap:4px;padding:4px 6px;background:rgba(10,20,14,.92);color:#fff;font-size:.72rem;flex-shrink:0}',
     '.mos .mos-bar button{height:24px !important;padding:0 8px !important;border-radius:8px !important;border:0 !important;background:rgba(255,255,255,.08) !important;color:#fff !important;font-size:.72rem !important;cursor:pointer}',
     '.mos .mos-bar button.on{background:rgba(124,252,154,.28) !important}.mos-bar .clk{margin-left:auto;opacity:.8}',
     '.mos-stopbtn{position:absolute;top:8px;right:8px;z-index:6;border:0;border-radius:999px;padding:4px 12px;background:#e5484d;color:#fff;font-weight:700;font-size:.75rem;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.3)}' +

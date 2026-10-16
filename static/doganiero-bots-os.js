@@ -33,9 +33,10 @@
     '.mos-err{color:#b3261e;padding:20px;text-align:center}',
     '.mos-term .term-wrap{flex:1;border-radius:0 !important;min-height:0 !important}',
     '.mos-notes textarea{flex:1;border:0;outline:0;resize:none;padding:10px;font:13px/1.45 system-ui,sans-serif;color:#202124}.mos-files .fl{flex:1;overflow:auto;padding:8px;color:#202124;font-size:.8rem}.mos-files .fl div{padding:5px 8px;border-radius:8px}.mos-files .fl div:hover{background:#f1f3f4}.mos-files .fin{display:flex;gap:6px;padding:6px;border-bottom:1px solid #e3e3e3}.mos-files .fin input{flex:1;border:1px solid #dfe1e5;border-radius:999px;padding:4px 10px;font-size:.8rem;outline:0}.mos-files .fin input.typing,.mos-notes textarea.typing{box-shadow:inset 0 0 0 2px #4285f4}',
-    '.mos-bar{display:flex;align-items:center;gap:4px;padding:4px 6px;background:rgba(10,20,14,.92);color:#fff;font-size:.72rem;flex-shrink:0}',
+    '.mos-bar{display:flex;flex-wrap:wrap;row-gap:3px;align-items:center;gap:4px;padding:4px 6px;background:rgba(10,20,14,.92);color:#fff;font-size:.72rem;flex-shrink:0}',
     '.mos .mos-bar button{height:24px !important;padding:0 8px !important;border-radius:8px !important;border:0 !important;background:rgba(255,255,255,.08) !important;color:#fff !important;font-size:.72rem !important;cursor:pointer}',
     '.mos .mos-bar button.on{background:rgba(124,252,154,.28) !important}.mos-bar .clk{margin-left:auto;opacity:.8}',
+    '.mos-stopbtn{position:absolute;top:8px;right:8px;z-index:6;border:0;border-radius:999px;padding:4px 12px;background:#e5484d;color:#fff;font-weight:700;font-size:.75rem;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.3)}' +
     '.mos-status{position:absolute;left:8px;right:8px;bottom:10px;z-index:3;background:rgba(0,0,0,.75);color:#fff;border-radius:10px;padding:4px 8px;font-size:.7rem;display:none}.mos-status.on{display:block}',
     '.mos-cur{position:absolute;left:50%;top:50%;width:16px;height:16px;z-index:4;pointer-events:none;transition:left .55s cubic-bezier(.3,.7,.3,1),top .55s cubic-bezier(.3,.7,.3,1);display:none}.mos-cur.on{display:block}',
     '.mos-cur.click::after,.dbp-ptr.click::after{content:"";position:absolute;left:-10px;top:-10px;width:22px;height:22px;border-radius:50%;border:2px solid currentColor;animation:mosRip .45s ease-out}',
@@ -109,7 +110,7 @@
     var el = host.querySelector('[data-mos]:last-child');
     var page = el.querySelector('[data-page]'), q = el.querySelector('[data-q]'), bar = el.querySelector('.mos-bar-in');
     var cur = el.querySelector('[data-cur]'), screen = el.querySelector('.mos-screen'), status = el.querySelector('[data-status]');
-    var hist = [], busy = false;
+    var hist = [], busy = false, agentStop = null;
     var clk = el.querySelector('[data-clk]');
     function tick() { if (!el.isConnected) return clearInterval(ti); clk.textContent = new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }); }
     var ti = setInterval(tick, 20000); tick();
@@ -249,8 +250,12 @@
         s.page = { url: curUrl || '', mode: frameMode || (page.innerHTML ? 'resultados' : ''), win: (el.querySelector('.mos-win:not([hidden]) .mos-tb b') || {}).textContent || '', calendario: (!el.querySelector('[data-w="cal"]').hidden ? (cMsg.textContent || '') : '') };
         return s;
       }
-      return agentLoop(bot, goal, 'mini', snap, function (a, e, it) { return agentExec(a, e, it, ui, bot); }, log, function () { return stop; })
-        .then(function (r) { busy = false; say(''); cur.classList.remove('on'); return r; }, function (e) { busy = false; say(''); throw e; });
+      var sb = document.createElement('button'); sb.type = 'button'; sb.className = 'mos-stopbtn'; sb.textContent = '⏹ Parar'; sb.title = 'Parar al bot';
+      sb.onclick = function () { stop = true; say('⏹ Parando…'); }; el.appendChild(sb);
+      agentStop = function () { stop = true; };
+      function done0() { busy = false; say(''); cur.classList.remove('on'); sb.remove(); agentStop = null; }
+      return agentLoop(bot, goal, 'mini', snap, function (a, e, it) { if (stop) return Promise.reject(new Error('parado')); return agentExec(a, e, it, ui, bot); }, log, function () { return stop; }, say)
+        .then(function (r) { done0(); return r; }, function (e) { done0(); throw e; });
     }
     function writeCode(c) { return launch('code').then(function () { return writeCode0(c); }); }
     function writeCode0(c) {
@@ -426,7 +431,7 @@
       return p.then(function () { say(''); cur.classList.remove('on'); busy = false; }, function () { say(''); busy = false; });
     }
     home();
-    return { el: el, termHost: el.querySelector('[data-termhost]'), show: show, search: search, open: open, replay: replay, say: say, curTo: curTo, click: click, cmd: cmd, menu: menuOn, reader: reader, code: writeCode, launch: launch, runMini: runMini, agent: agent };
+    return { el: el, termHost: el.querySelector('[data-termhost]'), show: show, search: search, open: open, replay: replay, say: say, curTo: curTo, click: click, cmd: cmd, menu: menuOn, reader: reader, code: writeCode, launch: launch, runMini: runMini, agent: agent, stop: function () { if (agentStop) agentStop(); }, busy: function () { return busy; } };
   }
 
   // ---------------- Control del escritorio real ----------------
@@ -460,7 +465,7 @@
     document.body.appendChild(ptr);
     var bar = document.createElement('div');
     bar.className = 'dbp-stop';
-    bar.innerHTML = '<span>🤖 <b>' + esc(bot.name) + '</b> está usando tu escritorio</span><button data-stop>⏹ Parar (Esc)</button>';
+    bar.innerHTML = '<span>🤖 <b>' + esc(bot.name) + '</b> está usando tu escritorio <i data-st style="opacity:.85"></i></span><button data-stop>⏹ Parar (Esc)</button>';
     document.body.appendChild(bar);
     var st = { cancelled: false, stop: function () { st.cancelled = true; } };
     running = st;
@@ -614,44 +619,67 @@
     }
     return { items: items, map: map };
   }
-  function agentLoop(bot, goal, surface, snapFn, execFn, log, stopped) {
-    var MAX = 25, hist = [], said = [], n = 0, sameScreen = 0, lastFp = '', warned = 0, sigs = [];
+  function agentLoop(bot, goal, surface, snapFn, execFn, log, stopped, status) {
+    // Bucle del agente: ve la pantalla, la IA decide UN paso, se ejecuta y se VERIFICA el resultado.
+    var MAX = 40, hist = [], said = [], n = 0, noChange = 0, warned = 0, sigs = [], plan = null, apiErr = 0, lastErr = '';
+    status = status || function () {};
     function fp(s) { return (s.items || []).map(function (x) { return x.label + '|' + (x.value || '') + '|' + (x.win || ''); }).join('~') + '#' + JSON.stringify(s.page || {}); }
-    function fin(ok, msg) { if (msg) said.push(msg); return { done: said, ok: ok, stopped: !!(stopped && stopped()) }; }
+    function fin(ok, msg) { status(''); if (msg) said.push(msg); return { done: said, ok: ok, stopped: !!(stopped && stopped()), plan: plan }; }
+    function summary() { var d = hist.filter(function (h) { return !/error|NO /.test(h.result); }).slice(-4).map(function (h) { return h.label || h.action; }); return d.length ? d.join(', ') : 'nada aún'; }
     function step() {
-      if (stopped && stopped()) return Promise.resolve(fin(false, '⏹ Parado'));
-      if (n >= MAX) return Promise.resolve(fin(false, '⏸️ Paro aquí tras ' + n + ' pasos para no dar vueltas. Dime si sigo o cómo lo prefieres.'));
+      if (stopped && stopped()) return Promise.resolve(fin(false, '⏹ Parado. Lo último que hice: ' + summary() + '.'));
+      if (n >= MAX) return Promise.resolve(fin(false, '📋 He avanzado ' + n + ' pasos (' + summary() + '). Si quieres, dime «sigue» y continúo desde aquí.'));
       n++;
-      var s = snapFn(), f = fp(s);
-      sameScreen = (f === lastFp) ? sameScreen + 1 : 0; lastFp = f;
-      // ¿bucle? misma acción sobre el mismo elemento repetida
+      var s = snapFn(), before = fp(s);
       var loopish = sigs.length >= 4 && sigs.slice(-4).every(function (x, i, a) { return x === a[i % 2]; });
       var rep3 = sigs.length >= 3 && sigs.slice(-3).every(function (x) { return x === sigs[sigs.length - 1]; });
-      var stuck = sameScreen >= 2 || loopish || rep3;
+      var stuck = noChange >= 2 || loopish || rep3;
       if (stuck) {
         warned++;
-        if (warned > 2) return Promise.resolve(fin(false, '⏸️ Me he atascado (la pantalla no cambia o repito lo mismo). Paro para no liarla.'));
-        log('🔁 Parece que me atasco; cambio de estrategia');
+        if (warned > 4) return Promise.resolve(fin(false, '⏸️ No consigo avanzar' + (lastErr ? ' (' + lastErr + ')' : '') + '. Hecho: ' + summary() + '. ¿Lo intento de otra forma?'));
+        log('🔁 Eso no funcionó; pruebo otra forma');
       }
-      return api('/api/dbots/agent/' + encodeURIComponent(bot.id), { method: 'POST', body: { goal: goal, surface: surface, ui: s.items, page: s.page || null, history: hist.slice(-10), step: n, max: MAX, stuck: stuck ? (sameScreen >= 2 ? 'la pantalla no cambia tras tus últimos pasos' : 'estás repitiendo las mismas acciones') : '' } })
+      status('🧠 Paso ' + n + ' · pensando…');
+      return api('/api/dbots/agent/' + encodeURIComponent(bot.id), { method: 'POST', body: { goal: goal, surface: surface, ui: s.items, page: s.page || null, history: hist.slice(-12), step: n, max: MAX, plan: plan, tries: warned, stuck: stuck ? (noChange >= 2 ? 'la pantalla no cambia tras tus últimos pasos' : 'estás repitiendo las mismas acciones') : '' } })
         .then(function (a) {
-          a = a || {};
-          if (a.say) log('🤔 ' + a.say);
+          a = a || {}; apiErr = 0;
+          if (stopped && stopped()) return fin(false, '⏹ Parado.');
+          if (a.plan && a.plan.length && !plan) { plan = a.plan.slice(0, 8); log('🗺️ Plan: ' + plan.join(' → ')); }
+          if (a.retry) { n--; status('⏳ Un momento…'); return wait(1500).then(step); }
           if (a.action === 'done' || a.goal_met) return fin(true, '✅ ' + (a.say || 'Hecho'));
           if (a.action === 'fail') return fin(false, '⚠️ ' + (a.say || 'No pude hacerlo'));
+          if (a.say) log('🤔 ' + a.say);
           var el = a.id ? s.map[a.id] : null;
           var it = a.id ? s.items.filter(function (x) { return x.id === a.id; })[0] : null;
+          if (!el && a.label) { // el id cambió: buscar por texto
+            var alt = s.items.filter(function (x) { return x.label === a.label; })[0];
+            if (alt) { it = alt; el = s.map[alt.id]; }
+          }
+          status('▶️ Paso ' + n + ': ' + (a.say || a.action));
           sigs.push(a.action + ':' + (it ? it.label : a.id || '') + ':' + (a.text || a.key || ''));
           return Promise.resolve(execFn(a, el, it)).then(function (r) {
-            hist.push({ action: a.action, id: a.id || '', label: it ? it.label : '', text: a.text || a.key || '', result: r || 'ok' });
-            if (a.say) said.push('• ' + a.say);
-            if (r === 'el usuario no lo permitió') return fin(false, '🛑 No lo hice porque no diste permiso.');
-            return wait(350).then(step);
+            if (r === 'el usuario no lo permitió') { hist.push({ action: a.action, label: it ? it.label : '', result: r }); return fin(false, '🛑 No lo hice porque no diste permiso.'); }
+            return wait(260).then(function () {
+              var after = fp(snapFn()), changed = after !== before, ver = String(r || 'ok');
+              if (a.action === 'type' && el) {
+                var okv = String(el.value || '').indexOf(String(a.text || '').slice(0, 40)) >= 0;
+                ver += okv ? ' · verificado: el campo contiene el texto' : ' · ⚠️ el campo NO contiene el texto';
+                noChange = okv ? 0 : noChange + 1;
+              } else if (a.action !== 'wait') { ver += changed ? ' · la pantalla cambió' : ' · la pantalla NO cambió'; noChange = changed ? 0 : noChange + 1; }
+              hist.push({ action: a.action, id: a.id || '', label: it ? it.label : '', text: a.text || a.key || '', result: ver });
+              if (a.say) said.push('• ' + a.say);
+              return step();
+            });
           }, function (e) {
-            hist.push({ action: a.action, id: a.id || '', label: it ? it.label : '', result: 'error: ' + errMsg(e) });
+            lastErr = errMsg(e); noChange++;
+            hist.push({ action: a.action, id: a.id || '', label: it ? it.label : '', result: 'error: ' + lastErr });
             return step();
           });
-        }, function (e) { return fin(false, '⚠️ ' + errMsg(e)); });
+        }, function (e) {
+          var m = errMsg(e); apiErr++;
+          if (apiErr <= 2 && !/clave|AskBox\. Añád|no encontrado/i.test(m)) { n--; status('⏳ Reintentando…'); return wait(1200 * apiErr + (/429|rápido|seguidos/.test(m) ? 4000 : 0)).then(step); }
+          return fin(false, '⚠️ ' + m);
+        });
     }
     return step();
   }
@@ -691,19 +719,20 @@
     ptr.innerHTML = cursorSvg(color, 26) + '<span class="lab" style="background:' + color + '">' + esc(bot.name) + '</span>';
     document.body.appendChild(ptr);
     var bar = document.createElement('div'); bar.className = 'dbp-stop';
-    bar.innerHTML = '<span>🤖 <b>' + esc(bot.name) + '</b> está usando tu escritorio</span><button data-stop>⏹ Parar (Esc)</button>';
+    bar.innerHTML = '<span>🤖 <b>' + esc(bot.name) + '</b> está usando tu escritorio <i data-st style="opacity:.85"></i></span><button data-stop>⏹ Parar (Esc)</button>';
     document.body.appendChild(bar);
     var st = { cancelled: false, stop: function () { st.cancelled = true; } }; running = st;
     function onKey(e) { if (e.key === 'Escape') st.stop(); }
     document.addEventListener('keydown', onKey, true); bar.querySelector('[data-stop]').onclick = st.stop;
     var ui = {
-      move: function (el) { var t = (el.querySelector && el.querySelector('.ic')) || el; try { var r0 = t.getBoundingClientRect(); if (r0.bottom > innerHeight || r0.top < 0) t.scrollIntoView({ block: 'center' }); } catch (e) {} var r = t.getBoundingClientRect(); ptr.style.left = (r.left + r.width / 2 - 3) + 'px'; ptr.style.top = (r.top + r.height / 2 - 2) + 'px'; return wait(750); },
+      move: function (el) { var t = (el.querySelector && el.querySelector('.ic')) || el; try { var r0 = t.getBoundingClientRect(); if (r0.bottom > innerHeight || r0.top < 0) t.scrollIntoView({ block: 'center' }); } catch (e) {} var r = t.getBoundingClientRect(); ptr.style.left = (r.left + r.width / 2 - 3) + 'px'; ptr.style.top = (r.top + r.height / 2 - 2) + 'px'; return wait(560); },
       click: function () { ptr.classList.remove('click'); void ptr.offsetWidth; ptr.classList.add('click'); return wait(380); },
       type: function (inp, text) { inp.value = ''; try { inp.focus({ preventScroll: true }); } catch (e) {} var i = 0; return new Promise(function (res) { (function s() { if (st.cancelled || i >= text.length) return res(); inp.value += text[i++]; inp.dispatchEvent(new Event('input', { bubbles: true })); setTimeout(s, Math.max(55, Math.min(130, 4500 / Math.max(1, text.length)))); })(); }); }
     };
     function snap() { return snapshot(document.body, null, '.dbp-stop,.dbp-ptr,#win-dbots,.dbx,[data-mos]'); }
     function end() { document.removeEventListener('keydown', onKey, true); ptr.remove(); bar.remove(); if (running === st) running = null; }
-    return agentLoop(bot, goal, 'user', snap, function (a, el, it) { return agentExec(a, el, it, ui, bot); }, log, function () { return st.cancelled; })
+    var stEl = bar.querySelector('[data-st]');
+    return agentLoop(bot, goal, 'user', snap, function (a, el, it) { if (st.cancelled) return Promise.reject(new Error('parado')); return agentExec(a, el, it, ui, bot); }, log, function () { return st.cancelled; }, function (t) { stEl.textContent = t ? '· ' + t : ''; })
       .then(function (r) { end(); return r; }, function (e) { end(); throw e; });
   }
   window.DogBotsOS = { mount: mount, runDesktop: runDesktop, agentDesktop: agentDesktop, context: context, cursorSvg: cursorSvg };
