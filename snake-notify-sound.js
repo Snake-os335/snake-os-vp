@@ -3,8 +3,8 @@
    Segundo plano: un único AudioContext desbloqueado con el primer gesto y mantenido vivo;
    la campanilla se programa con ctx.currentTime (sin cadenas de setTimeout, que el navegador frena). */
 (function () {
-  var SRC = '/static/assets/notif-chime.wav?v=202610160830';
-  var VOL = 0.3, base = null, last = 0, ctx = null, buf = null, loading = false, keep = null;
+  var SRC = '/static/assets/notif-chime.wav?v=202610161830';
+  var VOL = 0.6, base = null, last = 0, ctx = null, buf = null, loading = false, keep = null;
   function muted() {
     try { if (document.body && document.body.classList.contains('qs-dnd')) return true; } catch (e) {}
     try { if (localStorage.getItem('snkNotifSound') === '0') return true; } catch (e) {}
@@ -51,7 +51,7 @@
       var t = c.currentTime + 0.02;
       var s = c.createBufferSource(); s.buffer = buf;
       /* Más suave: filtro paso bajo (quita lo chillón) + volumen 30 % con entrada suave. */
-      var f = c.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 2200;
+      var f = c.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 4000;
       var g = c.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(VOL, t + 0.04);
       s.connect(f); f.connect(g); g.connect(c.destination);
       s.start(t);
