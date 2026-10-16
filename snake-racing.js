@@ -917,7 +917,7 @@
       if (ambT <= 0) {
         ambT = 9;
         if (speakQ.length || speaking) return;
-        if (llm.on && !llm.busy && !isEn()) {
+        if (llm.on && !llm.busy) {
           llm.busy = true;
           askLLM('ambient', raceFacts()).then(function (t) { llm.busy = false; if (t) say(t, 0); else say(fill(pick(P().ambient), { a: cname(rk[0]) }), 0); });
         } else say(fill(pick(P().ambient), { a: cname(rk[0]) }), 0);
@@ -943,7 +943,7 @@
       try {
         var ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
         if (ctl) setTimeout(function () { ctl.abort(); }, kind === 'summary' ? 9000 : 5000);
-        return fetch('/api/snake-racing/commentary', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kind: kind, facts: facts }), signal: ctl ? ctl.signal : undefined })
+        return fetch('/api/snake-racing/commentary', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kind: kind, facts: facts, lang: isEn() ? "en" : "es" }), signal: ctl ? ctl.signal : undefined })
           .then(function (r) { return r.ok ? r.json() : null; }).then(function (j) { return j && j.ok ? j.text : null; }).catch(function () { return null; });
       } catch (e) { return Promise.resolve(null); }
     }
@@ -970,7 +970,7 @@
       var id = 'srxsum' + Date.now();
       lastTipsHtml = '<div class="srx-tips"><b>' + L('Consejos', 'Tips') + '</b><ul style="margin:4px 0;padding-left:18px">' + tipsList(rk).map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('') + '</ul><div id="' + id + '" style="color:#b8c0cc;font-style:italic"></div></div>';
       var facts = raceFacts(); facts.consejos = tipsList(rk); facts.mejor_vuelta_tuya = me.bestLap;
-      if (llm.on && !isEn()) askLLM('summary', facts).then(function (t) { var el = document.getElementById(id); if (el && t) { el.textContent = '🎙️ ' + t; say(t, 2); } });
+      if (llm.on) askLLM('summary', facts).then(function (t) { var el = document.getElementById(id); if (el && t) { el.textContent = '🎙️ ' + t; say(t, 2); } });
       return lastTipsHtml;
     }
     var afterDone = -1;

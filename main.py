@@ -5283,6 +5283,7 @@ async def snake_racing_ws(websocket: WebSocket):
 class SnakeRacingCommentaryBody(BaseModel):
     kind: str = "ambient"
     facts: dict = Field(default_factory=dict)
+    lang: str = "es"
 
 
 _snake_racing_comm_last: dict[int, float] = {}
@@ -5290,7 +5291,7 @@ _snake_racing_comm_last: dict[int, float] = {}
 
 @app.get("/api/snake-racing/commentary")
 def snake_racing_commentary_status(user=Depends(require_user)):
-    return {"llm": bool(resolve_askbox_key(int(user["id"])))}
+    return {"llm": bool(resolve_askbox_key(int(user["id"]))), "langs": ["es", "en"]}
 
 
 @app.post("/api/snake-racing/commentary")
@@ -5306,7 +5307,14 @@ def snake_racing_commentary(body: SnakeRacingCommentaryBody, user=Depends(requir
         return {"ok": False, "reason": "throttled"}
     _snake_racing_comm_last[uid] = now
     facts = json.dumps(body.facts, ensure_ascii=False)[:1800]
-    if kind == "summary":
+    en = (body.lang or "es").strip().lower()[:2] == "en"
+    if en and kind == "summary":
+        prompt = "Summarise the race in 2-3 exciting sentences and give the player (You / \"Tú\") one concrete tip. Data: " + facts
+        max_tok = 220
+    elif en:
+        prompt = "Give ONE short line (max 20 words) of ambient race commentary, mentioning the name and colour of some car. Current data: " + facts
+        max_tok = 80
+    elif kind == "summary":
         prompt = "Resume en 2-3 frases emocionantes la carrera y da un consejo concreto al jugador (Tú). Datos: " + facts
         max_tok = 220
     else:
@@ -5315,7 +5323,9 @@ def snake_racing_commentary(body: SnakeRacingCommentaryBody, user=Depends(requir
     try:
         result = askbox_client.ask(
             prompt,
-            system="Eres un comentarista de carreras español, enérgico y breve. Responde solo con el texto a locutar, sin comillas.",
+            system=("You are an energetic, concise English-speaking race commentator. Reply in natural English with only the text to be spoken, no quotes."
+                    if en else
+                    "Eres un comentarista de carreras español, enérgico y breve. Responde solo con el texto a locutar, sin comillas."),
             tier="fast", max_output_tokens=max_tok, api_key=key,
         )
     except AskboxError as exc:
