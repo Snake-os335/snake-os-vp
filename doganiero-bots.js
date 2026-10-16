@@ -162,6 +162,7 @@
     ' .dbx .dbots-bot{margin:4px 0 4px 8px;padding:4px 10px}',
     ' .dbx .dbots-aside{position:absolute;right:0;top:0;bottom:0;width:78%;max-width:300px;z-index:6;transform:translateX(105%);transition:transform .2s;box-shadow:-6px 0 20px rgba(0,0,0,.25)}',
     ' .dbx.aside-open .dbots-aside{transform:none}',
+    ' .dbx{overflow:hidden !important}',
     ' .dbots.dbx.dbx .dbx-asidebtn,.dbots.dbx.dbx .dbots-aside .dbx-close{display:inline-flex !important}',
     ' .dbx .dbots-head{justify-content:flex-start !important}.dbx .dbots-head .dbx-hbtn{position:static;margin-left:auto}',
     ' .dbx .dbots-msg{max-width:85%;padding:11px 16px}',

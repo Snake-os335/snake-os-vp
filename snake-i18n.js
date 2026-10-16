@@ -42,6 +42,17 @@
     if (m && MON[m[2].toLowerCase()]) return MON[m[2].toLowerCase()] + ' ' + m[1] + (m[3] ? ', ' + m[3] : '');
     m = k.match(/^(buenos días|buenas tardes|buenas noches|hola)([,!\s].*)?$/i);
     if (m) return GREET[m[1].toLowerCase()] + (m[2] || '');
+    m = k.match(/^Récord: (\d+)$/); if (m) return 'High score: ' + m[1];
+    m = k.match(/^Lín (\d+), Col (\d+) · (\d+) car\.$/); if (m) return 'Ln ' + m[1] + ', Col ' + m[2] + ' · ' + m[3] + ' chars';
+    m = k.match(/^(\d+) archivo\(s\) · (.+?) · (\d+) nota\(s\)$/); if (m) return m[1] + ' file(s) · ' + m[2] + ' · ' + m[3] + ' note(s)';
+    m = k.match(/^Perfil activo: (.+)$/); if (m) return 'Active profile: ' + m[1];
+    m = k.match(/^¡Hola, ([^!]+)! Soy Doganiero AI\. (.+)$/); if (m) { var rest = D['¡Hola! Soy Doganiero AI. ' + m[2]]; if (rest) return rest.replace(/^Hi!/, 'Hi, ' + m[1] + '!'); }
+    m = k.match(/^Doganiero AI \((.+)\) está escribiendo…$/); if (m) return 'Doganiero AI (' + m[1] + ') is typing…';
+    m = k.match(/^No se pudieron cargar (los contactos|las llamadas): (.+)$/); if (m) return "Couldn't load " + (m[1] === 'los contactos' ? 'contacts' : 'calls') + ': ' + (D[m[2]] || m[2]);
+    m = k.match(/^No se pudo leer la suscripción \((.+)\)\.$/); if (m) return "Couldn't read the subscription (" + (D[m[1]] || m[1]) + ').';
+    m = k.match(/^Ajustes rápidos · (.+)$/); if (m) return 'Quick settings · ' + m[1];
+    m = k.match(/^Ahora: (.+)$/); if (m) return 'Now: ' + (D[m[1]] || m[1]);
+    m = k.match(/^Símbolos · (\d+)$/); if (m) return 'Symbols · ' + m[1];
     m = k.match(/^hace (\d+) (minutos?|horas?|días?|segundos?)$/i);
     if (m) { var u = {minuto:'minute',hora:'hour','día':'day',segundo:'second'}[m[2].toLowerCase().replace(/s$/, '')] || m[2]; return m[1] + ' ' + u + (m[1] === '1' ? '' : 's') + ' ago'; }
     return null;
@@ -61,7 +72,11 @@
     if (m && m[1]) { h = D[m[1]] || LOW[m[1].toLowerCase()]; if (h) return h + m[2]; }
     var m2 = k.match(/^([\p{Extended_Pictographic}\uFE0F\u200D\s]+)(.+)$/u); // emoji delante
     if (m2) { h = D[m2[2]] || LOW[m2[2].toLowerCase()]; if (h) return m2[1] + h; }
-    // frases con partes dinámicas: sustituir fragmentos conocidos largos
+    // «Frase (detalle)» → traducir cada parte
+    var m3 = k.match(/^(.+?)\s*(\((.+)\))$/);
+    if (m3) { var a3 = lookup(m3[1]), b3 = lookup(m3[3]); if (a3 && b3) return a3 + ' (' + b3 + ')'; if (a3 && !looksEs(m3[3])) return a3 + ' ' + m3[2]; }
+    // «parte · parte» → traducir las partes conocidas (nombres propios/dinámicos se quedan)
+    if (k.indexOf(' · ') > 0) { var ps = k.split(' · '), any = false; for (var i = 0; i < ps.length; i++) { var t3 = lookup(ps[i]); if (t3) { ps[i] = t3; any = true; } } if (any) return ps.join(' · '); }
     return null;
   }
   var RT = {}; try { RT = JSON.parse(localStorage.getItem('snkI18nEn3') || '{}') || {}; localStorage.removeItem('snkI18nEn'); } catch (e) { RT = {}; }
@@ -102,11 +117,13 @@
       else if (n.__es != null) { if (n.nodeValue === n.__en) n.nodeValue = n.__es; n.__es = null; n.__en = null; }
       return;
     }
+    if (n.nodeType === 1 && n.tagName === 'TEXTAREA' && lang === 'en') { var ph = n.getAttribute('placeholder'); if (ph && ph !== n.__en_placeholder) { var rp = tr(ph); if (rp && rp !== ph) { n.__es_placeholder = ph; n.__en_placeholder = rp; n.setAttribute('placeholder', rp); } } }
     if (n.nodeType !== 1 || /^(SCRIPT|STYLE|TEXTAREA|IFRAME|CODE|PRE)$/.test(n.tagName) || (n.closest && n.closest('[data-noi18n],.term-wrap,.dbx-msg'))) return;
     for (var a = 0; a < ATTRS.length; a++) {
       var at = ATTRS[a], key = '__es_' + at, v = n.getAttribute(at);
-      if (lang === 'en') { if (v && n[key] == null) { var r2 = tr(v); if (r2) { n[key] = v; n.setAttribute(at, r2); } } }
-      else if (n[key] != null) { n.setAttribute(at, n[key]); n[key] = null; }
+      var ekey = '__en_' + at;
+      if (lang === 'en') { if (v && (n[key] == null || v !== n[ekey])) { if (v === n[ekey]) continue; var r2 = tr(v); if (r2 && r2 !== v) { n[key] = v; n[ekey] = r2; n.setAttribute(at, r2); } else { n[key] = null; n[ekey] = null; } } }
+      else if (n[key] != null) { if (v === n[ekey]) n.setAttribute(at, n[key]); n[key] = null; n[ekey] = null; }
     }
     for (var c = n.firstChild; c; c = c.nextSibling) doNode(c);
   }
@@ -116,18 +133,28 @@
   function pump() {
     qT = 0; if (lang !== 'en') { queue = []; return; }
     var t0 = Date.now(); busy = true;
-    try { while (queue.length && Date.now() - t0 < 12) doNode(queue.shift()); }
+    try { while (queue.length && Date.now() - t0 < 20) { var qn = queue.shift(); qn.__q = 0; if (qn.isConnected) doNode(qn); } }
     finally { busy = false; mo.takeRecords(); }
-    if (queue.length) qT = setTimeout(pump, 30);
+    if (queue.length) qT = setTimeout(pump, 16);
   }
+  function sweepAttrs() {
+    if (lang !== 'en' || document.hidden) return;
+    var els = document.querySelectorAll('.app-window [placeholder], .app-window [title], .app-window [aria-label], #startMenu [title], #startMenu [placeholder], #taskbar [title], #taskbar [aria-label]');
+    if (els.length > 4000) return;
+    busy = true;
+    try {
+      for (var i = 0; i < els.length; i++) { var e = els[i]; for (var a = 0; a < ATTRS.length; a++) { var at = ATTRS[a], v = e.getAttribute(at); if (!v || v === e['__en_' + at]) continue; var r = tr(v); if (r && r !== v) { e['__es_' + at] = v; e['__en_' + at] = r; e.setAttribute(at, r); } } }
+    } finally { busy = false; try { mo.takeRecords(); } catch (x) {} }
+  }
+  function enq(n) { if (n && !n.__q) { n.__q = 1; queue.push(n); } }
   var mo = new MutationObserver(function (ms) {
     if (busy || lang !== 'en') return;
     for (var i = 0; i < ms.length; i++) {
       var m = ms[i];
-      if (m.type === 'characterData') { if (m.target.__en == null || m.target.nodeValue !== m.target.__en) queue.push(m.target); }
-      else for (var j = 0; j < m.addedNodes.length; j++) queue.push(m.addedNodes[j]);
+      if (m.type === 'characterData') { if (m.target.__en == null || m.target.nodeValue !== m.target.__en) enq(m.target); }
+      else if (m.type === 'attributes') { var tv = m.target.getAttribute(m.attributeName); if (tv && tv !== m.target['__en_' + m.attributeName]) enq(m.target); }
+      else for (var j = 0; j < m.addedNodes.length; j++) enq(m.addedNodes[j]);
     }
-    if (queue.length > 5000) queue = queue.slice(-5000);
     if (!qT) qT = setTimeout(pump, 60);
   });
   function setLang(l) {
@@ -150,6 +177,8 @@
   function start() {
     addTile(); apply();
     mo.observe(document.body, { childList: true, subtree: true, characterData: true });
+    // Atributos que las apps cambian después de pintar (placeholder/title): repaso ligero de ventanas abiertas, sin observar atributos (evita bucles con otros observadores).
+    setInterval(sweepAttrs, 2500);
   }
   window.snakeI18n = { get lang() { return lang; }, set: setLang, t: function (s) { return lang === 'en' ? (tr(String(s)) || s) : s; } };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();

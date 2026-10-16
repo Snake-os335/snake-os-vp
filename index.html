@@ -44,7 +44,7 @@ window.addEventListener('error', function(e){
 <script src="/static/snake-notify-sound.js?v=202610160830"></script>
 <script src="/static/doganiero-chat.js?v=202610160850" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/doganiero-desk.js?v=202610072130" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
-<script src="/static/desktop-extras.js?v=202610160850" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
+<script src="/static/desktop-extras.js?v=202610160920" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-terminal.js?v=20261014202000" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-win-resize.js?v=202610152140"></script>
 <script src="/static/doganiero-tv.js?v=202610091150" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
@@ -57,13 +57,13 @@ window.addEventListener('error', function(e){
 <script src="/static/snake-maps.js?v=202610141800" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-locshare.js?v=202610141830"></script>
 <script src="/static/doganiero-bots-os.js?v=202610152230"></script>
-<script src="/static/doganiero-bots.js?v=202610152125"></script>
+<script src="/static/doganiero-bots.js?v=202610160920"></script>
 <script src="/static/snake-bluetooth.js?v=202610111725" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
-<script src="/static/snake-keypad.js?v=202610111201" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
+<script src="/static/snake-keypad.js?v=202610160920" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-game-matrix.js?v=202610112000" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-racing.js?v=202610122130" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
-<script src="/static/snake-i18n-dict.js?v=202610160845" defer></script>
-<script src="/static/snake-i18n.js?v=202610160840" defer></script>
+<script src="/static/snake-i18n-dict.js?v=202610160920" defer></script>
+<script src="/static/snake-i18n.js?v=202610160920" defer></script>
 <style>
   :root{
     --text:#ffffff; --muted:rgba(255,255,255,0.82);
@@ -1944,7 +1944,7 @@ window.addEventListener('error', function(e){
     z-index:2000;
   }
   body.phone-mode #windows{
-    inset:0 0 calc(56px + 50px + 4px + env(safe-area-inset-bottom, 0px)) 0 !important;
+    inset:0 0 calc(56px + 50px + 8px + 6px + env(safe-area-inset-bottom, 0px)) 0 !important;
   }
   body.phone-mode #iconLayer{
     inset:0 !important;
@@ -7958,6 +7958,7 @@ function buildIcons(){
 
   // ---------- App: Mi perfil ----------
   function renderProfileApp(container){
+    if(!currentUser){ container.innerHTML = '<p style="padding:16px">Inicia sesión para ver tu perfil.</p>'; return; }
     container.innerHTML =
       '<label>Tu nombre</label>' +
       '<input type="text" id="profileName-x">' +

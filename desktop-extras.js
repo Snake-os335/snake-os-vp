@@ -494,6 +494,7 @@
 
   var lastDndSent = null;
   function syncDndToServer() {
+    if (!window.currentUser) return;
     var on = !!qsPrefs.dnd; if (on === lastDndSent) return; lastDndSent = on;
     try { fetch('/api/push/dnd', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ on: on }) }).catch(function () { lastDndSent = null; }); } catch (e) {}
   }
@@ -1677,15 +1678,17 @@
     var optsDate = { timeZone: 'Europe/Madrid', weekday: 'short', day: '2-digit', month: 'short' };
     var optsTime = { timeZone: 'Europe/Madrid', hour: '2-digit', minute: '2-digit', second: '2-digit' };
     var optsShort = { timeZone: 'Europe/Madrid', hour: '2-digit', minute: '2-digit' };
-    var dateStr = now.toLocaleDateString('es-ES', optsDate);
-    var timeStr = now.toLocaleTimeString('es-ES', optsTime);
-    var timeShort = now.toLocaleTimeString('es-ES', optsShort);
+    var en = !!(window.snakeI18n && window.snakeI18n.lang === 'en'); var loc = en ? 'en-GB' : 'es-ES';
+    var dateStr = now.toLocaleDateString(loc, optsDate);
+    var timeStr = now.toLocaleTimeString(loc, optsTime);
+    var timeShort = now.toLocaleTimeString(loc, optsShort);
     if (dateStr) dateStr = dateStr.charAt(0).toUpperCase() + dateStr.slice(1);
     var phone = false;
     try { phone = document.body.classList.contains('phone-mode'); } catch (e) {}
     var shown = phone ? timeShort : timeStr;
-    el.innerHTML = '<span class="clk-date">' + dateStr + ' · Madrid</span><span class="clk-time">' + shown + '</span>';
-    el.title = 'Ajustes rápidos · Madrid ' + dateStr + ' ' + timeStr;
+    var html = '<span class="clk-date">' + dateStr + ' · Madrid</span><span class="clk-time">' + shown + '</span>';
+    if (el.__clk !== html) { el.__clk = html; el.innerHTML = html; }
+    el.title = (en ? 'Quick settings · Madrid ' : 'Ajustes rápidos · Madrid ') + dateStr + ' ' + timeStr;
   }
 
   function patchTickClock() {

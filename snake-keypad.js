@@ -74,7 +74,9 @@
     }
   }
 
+  var inFlight = false, idle = 0;
   async function tick() {
+    if (inFlight) return; inFlight = true;
     try {
       var res = await fetch('/api/keypad?after=' + last, { cache: 'no-store' });
       if (!res.ok) return;
@@ -85,10 +87,16 @@
         if (item.id > last) last = item.id;
         if (primed && document.hasFocus()) typeKey(item.k);
       }
+      idle = keys.length ? 0 : idle + 1;
       primed = true;
-    } catch (e) {}
+    } catch (e) { idle++; }
+    finally { inFlight = false; }
   }
 
-  setInterval(tick, 80);
-  tick();
+  // Rápido (80 ms) mientras llegan teclas; si no, cada ~1 s; en pestaña oculta, cada 5 s.
+  function loop() {
+    var wait = document.hidden ? 5000 : (idle < 25 ? 80 : 1000);
+    setTimeout(function () { tick().then(loop, loop); }, wait);
+  }
+  tick().then(loop, loop);
 })();
