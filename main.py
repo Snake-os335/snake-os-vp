@@ -1417,7 +1417,17 @@ def _tomb_files(uid: int, field: str, payload):
         cur = db.list_file_meta(uid, field) or []
         oth = db.list_file_meta(uid, other) or []
         before = {k for k in (_file_key(x) for x in cur + oth) if k}
-        payload = [x for x in payload if not (_file_key(x) and _file_key(x) in data["files"] and _file_key(x) not in before)]
+        # ids que el servidor ya tiene: si llega uno con un nombre «borrado» antes, es un MOVER/RENOMBRAR
+        # (p. ej. volver a meter un archivo en una carpeta donde estuvo), no una resurrección: se acepta.
+        live_ids = {str(x.get("id")) for x in cur + oth if isinstance(x, dict) and x.get("id") is not None}
+        def _stale(x):
+            k = _file_key(x)
+            return bool(k and k in data["files"] and k not in before and str(x.get("id")) not in live_ids)
+        payload = [x for x in payload if not _stale(x)]
+        for x in payload:
+            k = _file_key(x)
+            if k and k in data["files"]:
+                data["files"].pop(k, None)
         after = {k for k in (_file_key(x) for x in payload + oth) if k}
         now = time.time()
         for k in before - after:
