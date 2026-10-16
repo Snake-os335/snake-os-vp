@@ -487,7 +487,7 @@
         var ids = ready.map(function (f) { return f.id; });
         (S.msgs[b.id] = S.msgs[b.id] || []).push({ role: 'user', text: v, at: Date.now() / 1000, attachments: ready.map(function (f) { return { id: f.id, name: f.name, type: f.type, size: f.size }; }) });
         S.pending = []; drawChips(); paint();
-        api('/api/dbots/chat/' + encodeURIComponent(b.id), { method: 'POST', body: { text: v, attachments: ids, ctx: window.DogBotsOS ? window.DogBotsOS.context() : {} } })
+        api('/api/dbots/chat/' + encodeURIComponent(b.id), { method: 'POST', body: { text: v, attachments: ids, origin: 'desktop', ctx: window.DogBotsOS ? window.DogBotsOS.context() : {} } })
           .then(function (r) { S.sending = false; setMood(b.id, 'happy'); var m = r && r.message; return refresh().then(function () { handleBot(b, m); }); })
           .then(function () { poll(); })
           .catch(function (e) { S.sending = false; setMood(b.id, null); S.msgs[b.id].push({ role: 'bot', text: '❌ ' + errMsg(e), at: Date.now() / 1000 }); paint(); });

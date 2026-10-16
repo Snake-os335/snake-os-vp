@@ -167,6 +167,7 @@ class ChatBody(BaseModel):
     text: str = Field("", max_length=2000)
     attachments: list[str] = Field(default_factory=list, max_length=6)
     ctx: dict[str, Any] = Field(default_factory=dict)  # apps/fondos disponibles en el escritorio del usuario
+    origin: str | None = None  # 'desktop' (escritorio principal) o 'lite' (Snake OS Lite del bot)
 
 
 # ---- Acciones del bot en el escritorio de Snake OS (lista blanca; las ejecuta el navegador del usuario) ----
@@ -177,6 +178,24 @@ DESKTOP_OPS = {
 }
 DESTRUCTIVE_OPS = {"delete_file", "call_contact"}
 BROWSE_OPS = {"search", "open", "click", "scroll", "read", "form"}
+
+
+_USER_DESK_RE = re.compile(r"\b(mi|mis)\s+(escritorio|pantalla|snake ?os|ordenador|pc)\b|\b(my|on my)\s+(desktop|screen)\b", re.I)
+
+
+_MINI_DESK_RE = re.compile(r"\b(tu|su)\s+(snake ?os lite|mini ?os|escritorio|ordenador|pc)\b|\bsnake ?os lite\b", re.I)
+
+
+def _wants_user_desk(text, origin: str = "desktop") -> bool:
+    """¿Se hace en el escritorio de Snake OS del usuario (True) o en el Snake OS Lite del bot (False)?
+    1) Palabra explícita gana: «mi escritorio/mi Snake OS…» → usuario; «tu ordenador/tu Snake OS Lite…» → Lite.
+    2) Sin palabra: donde se escribió la petición (escritorio principal → usuario; Lite del bot → Lite)."""
+    t = str(text or "")
+    if _USER_DESK_RE.search(t):
+        return True
+    if _MINI_DESK_RE.search(t):
+        return False
+    return str(origin or "desktop").lower() != "lite"
 
 
 def _clean_desktop(steps: Any) -> list[dict[str, Any]]:
@@ -1493,7 +1512,7 @@ def build_router(
             "Además puedes usar \"action\": \"browse\" con \"steps\": lista de pasos de navegador (máx. 6) entre "
             "{\"op\":\"search\",\"q\":...}, {\"op\":\"open\",\"url\":... o \"index\": n del resultado}, {\"op\":\"click\",\"text\": texto del enlace}, "
             "{\"op\":\"form\",\"q\": texto para el buscador de la página}, {\"op\":\"scroll\"}, {\"op\":\"read\"}. Úsalo cuando haya que navegar varias páginas.\n"
-            "Para crear eventos o recordatorios del calendario usa también action ui (target mini) con un goal que incluya título, fecha exacta AAAA-MM-DD y hora. "
+            "Para crear eventos o recordatorios del calendario usa también action ui con un goal que incluya título, fecha exacta AAAA-MM-DD y hora. "
             "Para CUALQUIER tarea de manejar apps (abrir, hacer clic, escribir, navegar, crear notas o archivos) usa \"action\": \"ui\" con \"goal\": objetivo claro y completo, y \"target\": \"mini\" (por defecto: tu propio mini OS) o \"user\" (solo si el usuario pide hacerlo en SU escritorio). NO escribas listas de pasos: después verás la pantalla y decidirás cada clic y cada tecla tú mismo. "
             "(Obsoleto, evítalo) \"action\": \"desktop\" con \"steps\" para hacer cosas con tu puntero. POR DEFECTO las haces DENTRO DE TU PROPIO mini OS (Snake OS Lite del bot: Navegador, Terminal, Código, Notas y Archivos); añade \"target\": \"user\" SOLO si el usuario pide expresamente hacerlo en SU escritorio (o para llamar por su Teléfono). Operaciones: "
             "open_app{app}, close_app{app}, create_folder{name}, create_note{text}, create_file{name,text}, set_wallpaper{id}, "
@@ -1549,12 +1568,12 @@ def build_router(
             elif action == "ui":
                 goal = str(d.get("goal") or text or "").strip()[:500]
                 if goal:
-                    extra["ui"] = {"goal": goal, "target": "user" if str(d.get("target") or "").lower() == "user" else "mini"}
+                    extra["ui"] = {"goal": goal, "target": "user" if _wants_user_desk(text, getattr(body, "origin", None) or "desktop") else "mini"}
             elif action == "desktop":
                 steps = _clean_desktop(d.get("steps"))
                 if steps:
                     extra["desktop"] = steps
-                    extra["target"] = "user" if (str(d.get("target") or "").lower() == "user" or any(st.get("op") == "call_contact" for st in steps)) else "mini"
+                    extra["target"] = "user" if (_wants_user_desk(text, getattr(body, "origin", None) or "desktop") or any(st.get("op") == "call_contact" for st in steps)) else "mini"
                     if any(st.get("confirm") for st in steps):
                         reply = (reply or "Voy a hacerlo en tu escritorio.") + "\n\n⚠️ Hay acciones que necesitan tu permiso (borrar o llamar): confírmalo abajo antes de que las haga."
                 else:
