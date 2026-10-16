@@ -12,11 +12,13 @@ services:
       - /sys:/host/sys:ro
       - /etc/os-release:/host/os-release:ro
       - /etc/hostname:/host/hostname:ro
+      - ${SNAKEOS_PIPER_VOICES:-../piper-voices}:/voices:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
     command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
     environment:
       - PYTHONUNBUFFERED=1
+      - SNAKEOS_PIPER_DIR=/voices
       - OS_GATE_PASSWORD=${OS_GATE_PASSWORD:-}
       - SNAKEOS_LAN_IP=${SNAKEOS_LAN_IP:-}
       - SNAKEOS_LAN_PORT=${SNAKEOS_LAN_PORT:-8988}

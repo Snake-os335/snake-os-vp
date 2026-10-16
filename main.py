@@ -38,6 +38,7 @@ import chat_extras
 import store_extras
 import calendar_extras
 import bots_extras
+import snake_tts
 import askbox_client
 import matrix_api
 from askbox_client import AskboxError
@@ -8274,6 +8275,17 @@ class _PublicStaticFiles(StaticFiles):
 
 # Doganiero Bots (2026-10-14)
 app.include_router(bots_extras.build_router(require_user, bots_extras.own_key, web_search_results))
+
+# Voz propia de Snake OS (Piper TTS local)
+def _tts_user(request):
+    try:
+        return require_user(request)
+    except Exception:
+        return None
+
+
+app.include_router(snake_tts.build_router(_tts_user))
+snake_tts.warm()
 
 app.mount("/static", _PublicStaticFiles(directory="."), name="static")
 # ===== END /static seguro =====
