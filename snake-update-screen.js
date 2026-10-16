@@ -38,12 +38,20 @@
   }
   function notice() {
     if (noticed) return; noticed = true;
-    var n = document.createElement('div'); n.id = 'snkUpdNotice'; n.setAttribute('translate', 'no'); n.setAttribute('data-noi18n', '');
-    n.style.cssText = 'position:fixed;left:50%;bottom:calc(70px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:2147482000;max-width:92vw;background:rgba(10,30,18,.94);color:#eafff0;border:1px solid #2fae5f;border-radius:12px;padding:8px 34px 8px 12px;font:13px system-ui,sans-serif;box-shadow:0 4px 16px rgba(0,0,0,.35)';
-    n.textContent = en() ? '🐍 There is a Snake OS! update — it will be installed the next time you open it.' : '🐍 Hay una actualización de Snake OS! — se instalará la próxima vez que lo abras.';
-    var x = document.createElement('button'); x.type = 'button'; x.textContent = '✕'; x.title = en() ? 'Close' : 'Cerrar';
-    x.style.cssText = 'position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:0;color:#eafff0;cursor:pointer;font-size:14px';
-    x.onclick = function () { n.remove(); }; n.appendChild(x); document.body.appendChild(n);
+    // Shadow DOM: los estilos globales de Snake OS (botones, divs fijos) no pueden deformar el aviso.
+    var host = document.createElement('div'); host.id = 'snkUpdNotice'; host.setAttribute('translate', 'no'); host.setAttribute('data-noi18n', '');
+    host.style.cssText = 'all:initial;position:fixed;left:0;right:0;bottom:calc(72px + env(safe-area-inset-bottom,0px));z-index:2147482000;display:flex;justify-content:center;pointer-events:none';
+    var root = host.attachShadow ? host.attachShadow({ mode: 'open' }) : host;
+    var msg = en() ? '🐍 There is a Snake OS! update — it will be installed the next time you open it.' : '🐍 Hay una actualización de Snake OS! — se instalará la próxima vez que lo abras.';
+    root.innerHTML = '<style>.t{pointer-events:auto;box-sizing:border-box;display:flex;align-items:flex-start;gap:10px;max-width:min(440px,calc(100vw - 24px));margin:0 12px;padding:10px 10px 10px 14px;background:rgba(10,30,18,.96);color:#eafff0;border:1px solid #2fae5f;border-radius:12px;box-shadow:0 6px 20px rgba(0,0,0,.35);font:14px/1.35 system-ui,-apple-system,Segoe UI,sans-serif;text-align:left}' +
+      '.m{flex:1 1 auto;min-width:0;white-space:normal;overflow-wrap:anywhere}' +
+      '.x{flex:0 0 auto;width:26px;height:26px;margin:-2px 0 0;padding:0;border:0;border-radius:8px;background:transparent;color:#eafff0;font:16px/26px system-ui,sans-serif;cursor:pointer;box-shadow:none;backdrop-filter:none}' +
+      '.x:hover{background:rgba(255,255,255,.12)}</style>' +
+      '<div class="t" role="status"><span class="m"></span><button class="x" type="button">✕</button></div>';
+    root.querySelector('.m').textContent = msg;
+    var x = root.querySelector('.x'); x.title = en() ? 'Close' : 'Cerrar'; x.setAttribute('aria-label', x.title);
+    x.onclick = function () { host.remove(); };
+    document.body.appendChild(host);
   }
   function check() {
     fetch('/api/status', { cache: 'no-store', credentials: 'same-origin' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
