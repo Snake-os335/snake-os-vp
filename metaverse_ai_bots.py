@@ -398,9 +398,9 @@ async def _line(bot: dict[str, Any], kind: str, lang: str, prompt: str, player: 
     return text or _canned(kind, lang, bot, player)
 
 
-def _nearest_bot(world: str, x: float, y: float) -> dict[str, Any] | None:
+def _nearest_bot(world: str, x: float, y: float, max_dist: float | None = CHAT_NEAR_DIST) -> dict[str, Any] | None:
     best = None
-    best_d = CHAT_NEAR_DIST
+    best_d = float("inf") if max_dist is None else float(max_dist)
     for bot in _bots.values():
         if bot["world"] != world:
             continue
@@ -421,8 +421,9 @@ def _mentioned_bot(world: str, text: str) -> dict[str, Any] | None:
 async def on_player_chat(world: str, email: str, name: str, text: str) -> None:
     """A human wrote in the public chat of a world. Maybe one bot answers.
 
-    A bot answers when it is named in the message, or when it is the closest
-    bot within CHAT_NEAR_DIST of the writer. Never blocks the caller.
+    A bot answers when it is named in the message; otherwise the closest bot
+    of the same world answers, whatever the distance. Cooldowns still apply.
+    Never blocks the caller.
     """
     if _room is None or not _bots or str(email).startswith("ai-bot:"):
         return
@@ -438,7 +439,9 @@ async def on_player_chat(world: str, email: str, name: str, text: str) -> None:
             px, py = float(client.get("x") or 0), float(client.get("y") or 0)
         except (TypeError, ValueError):
             return
-        bot = _nearest_bot(world, px, py)
+        # Nadie nombrado: contesta el bot más cercano del mismo mundo, esté donde esté
+        # (desde el centro de la plaza ninguno quedaba a menos de CHAT_NEAR_DIST).
+        bot = _nearest_bot(world, px, py, max_dist=None)
     if bot is None:
         return
     now = time.monotonic()

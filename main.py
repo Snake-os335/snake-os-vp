@@ -3580,6 +3580,17 @@ import asyncio
 import time as time_mod
 from fastapi import WebSocket, WebSocketDisconnect
 
+def _ws_is_open(ws: Any) -> bool:
+    """True only while both sides of the socket are CONNECTED (after accept, before close)."""
+    try:
+        return (
+            getattr(getattr(ws, "client_state", None), "name", "") == "CONNECTED"
+            and getattr(getattr(ws, "application_state", None), "name", "") == "CONNECTED"
+        )
+    except Exception:
+        return False
+
+
 class MetaverseRoom:
     """In-memory presence for Doganiero Metaverse (2D, multi-world)."""
 
@@ -3666,7 +3677,7 @@ class MetaverseRoom:
                 keep_room = old.get("room")
                 keep_world = self.normalize_world(old.get("world") or world)
                 keep_voice = bool(old.get("voice"))
-                if old.get("ws") is not ws:
+                if old.get("ws") is not ws and _ws_is_open(old.get("ws")):
                     try:
                         await old["ws"].send_text(
                             '{"type":"replaced","detail":"Nueva sesión en otra pestaña"}'
@@ -3957,6 +3968,9 @@ class MetaverseRoom:
                 continue
             if want is not None and cur_world != want:
                 continue
+            if not _ws_is_open(ws):
+                dead.append((email, ws))
+                continue
             try:
                 await ws.send_text(data)
             except Exception:
@@ -3993,7 +4007,7 @@ class MetaverseRoom:
     async def send_to(self, email: str, payload: dict[str, Any]) -> bool:
         async with self._lock:
             c = self.clients.get(email)
-        if not c:
+        if not c or not _ws_is_open(c.get("ws")):
             return False
         try:
             await c["ws"].send_text(json.dumps(payload, ensure_ascii=False))
@@ -4199,7 +4213,10 @@ try:
             created_at=time_mod.time(),
             world=world,
         )
-        await metaverse_room.broadcast({"type": "chat", **saved, "bot": True}, world=world)
+        try:
+            await metaverse_room.broadcast({"type": "chat", **saved, "bot": True}, world=world)
+        except Exception as exc:
+            print(f"[metaverse-bots] broadcast failed: {exc!r}", flush=True)
 
     _metaverse_ai_bots.set_chat_sender(_metaverse_bot_say)
 except Exception:
@@ -4804,7 +4821,15 @@ async def metaverse_ws(websocket: WebSocket):
 
     try:
         while True:
-            raw = await websocket.receive_text()
+            # Otra pestaña nos sustituyó (connect cerró este socket) o el barrido lo cerró:
+            # salir sin llamar a receive sobre un socket ya cerrado.
+            if not _ws_is_open(websocket):
+                break
+            try:
+                raw = await websocket.receive_text()
+            except RuntimeError:
+                # Starlette: 'WebSocket is not connected. Need to call "accept" first.'
+                break
             try:
                 msg = json.loads(raw)
             except json.JSONDecodeError:

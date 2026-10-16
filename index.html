@@ -82,7 +82,7 @@ window.SNAKE_OS_CHANGES=[
 <script src="/static/snake-maps.js?v=202610141800" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-locshare.js?v=202610141830"></script>
 <script src="/static/doganiero-bots-os.js?v=202610161800"></script>
-<script src="/static/doganiero-bots.js?v=202610161800"></script>
+<script src="/static/doganiero-bots.js?v=202610161815"></script>
 <script src="/static/snake-bluetooth.js?v=202610111725" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-keypad.js?v=202610161800" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-game-matrix.js?v=202610112000" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
@@ -404,6 +404,10 @@ window.SNAKE_OS_CHANGES=[
 
   .mv-score{ margin-top:6px; display:inline-block; padding:4px 10px; border-radius:999px; background:rgba(255,180,40,0.35); font-size:0.78rem; font-weight:700; text-shadow:0 1px 3px #000; }
   .mv-party-timer{ margin-top:6px; display:inline-block; padding:4px 10px; border-radius:999px; background:rgba(199,125,255,0.32); font-size:0.78rem; font-weight:700; text-shadow:0 1px 3px #000; }
+  /* Cada etiqueta del HUD en su propia línea: antes eran inline-block y, al cambiar el
+     texto del reloj de fiesta o del estado cada segundo, el botón de mundo saltaba de línea. */
+  .mv-hud .mv-status, .mv-hud .mv-score, .mv-hud .mv-party-timer, .mv-hud .mv-world-bar{ display:table; }
+  .mv-party-timer{ font-variant-numeric:tabular-nums; }
   .mv-party-timer.party-on{ background:rgba(255,77,109,0.45); animation:mv-party-pulse 1.2s ease-in-out infinite; }
   @keyframes mv-party-pulse{ 50%{ transform:scale(1.03); box-shadow:0 0 12px rgba(255,210,63,0.55); } }
   .mv-emotes{ position:absolute; left:10px; bottom:10px; display:flex; gap:6px; z-index:3; pointer-events:auto; }
