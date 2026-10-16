@@ -250,10 +250,11 @@
         s.page = { url: curUrl || '', mode: frameMode || (page.innerHTML ? 'resultados' : ''), win: (el.querySelector('.mos-win:not([hidden]) .mos-tb b') || {}).textContent || '', calendario: (!el.querySelector('[data-w="cal"]').hidden ? (cMsg.textContent || '') : '') };
         return s;
       }
-      var sb = document.createElement('button'); sb.type = 'button'; sb.className = 'mos-stopbtn'; sb.textContent = '⏹ Parar'; sb.title = 'Parar al bot';
-      sb.onclick = function () { stop = true; say('⏹ Parando…'); }; el.appendChild(sb);
+      // Sin botón visible (estorbaba): se para con Esc o escribiendo «para» en el chat del bot.
+      function onEsc(e) { if (e.key === 'Escape' && !stop) { stop = true; say('⏹ Parando…'); } }
+      document.addEventListener('keydown', onEsc, true);
       agentStop = function () { stop = true; };
-      function done0() { busy = false; say(''); cur.classList.remove('on'); sb.remove(); agentStop = null; }
+      function done0() { busy = false; say(''); cur.classList.remove('on'); document.removeEventListener('keydown', onEsc, true); agentStop = null; }
       return agentLoop(bot, goal, 'mini', snap, function (a, e, it) { if (stop) return Promise.reject(new Error('parado')); return agentExec(a, e, it, ui, bot); }, log, function () { return stop; }, say)
         .then(function (r) { done0(); return r; }, function (e) { done0(); throw e; });
     }
@@ -465,13 +466,13 @@
     document.body.appendChild(ptr);
     var bar = document.createElement('div');
     bar.className = 'dbp-stop';
-    bar.innerHTML = '<span>🤖 <b>' + esc(bot.name) + '</b> está usando tu escritorio <i data-st style="opacity:.85"></i></span><button data-stop>⏹ Parar (Esc)</button>';
+    bar.innerHTML = '<span>🤖 <b>' + esc(bot.name) + '</b> está usando tu escritorio <i data-st style="opacity:.85"></i></span><small style="opacity:.75;margin-left:8px">Esc o «para» en el chat para detener</small>';
     document.body.appendChild(bar);
     var st = { cancelled: false, stop: function () { st.cancelled = true; } };
     running = st;
     function onKey(e) { if (e.key === 'Escape') st.stop(); }
     document.addEventListener('keydown', onKey, true);
-    bar.querySelector('[data-stop]').onclick = st.stop;
+    
     function moveTo(el, fx, fy) {
       var x, y;
       if (el && el.getBoundingClientRect) { try { var ic0 = el.querySelector && el.querySelector('.ic'); if (ic0) el = ic0; var r0 = el.getBoundingClientRect(); if (r0.bottom > innerHeight || r0.top < 0 || r0.right > innerWidth || r0.left < 0) el.scrollIntoView({ block: 'center', inline: 'center' }); } catch (e) {} var r = el.getBoundingClientRect(); x = r.left + r.width / 2; y = r.top + r.height / 2; }
@@ -621,14 +622,14 @@
   }
   function agentLoop(bot, goal, surface, snapFn, execFn, log, stopped, status) {
     // Bucle del agente: ve la pantalla, la IA decide UN paso, se ejecuta y se VERIFICA el resultado.
-    var MAX = 40, hist = [], said = [], n = 0, noChange = 0, warned = 0, sigs = [], plan = null, apiErr = 0, lastErr = '';
+    // Sin límite de pasos: sigue hasta cumplir el objetivo o hasta que el usuario pulse Parar.
+    var MAX = Infinity, hist = [], said = [], n = 0, noChange = 0, warned = 0, sigs = [], plan = null, apiErr = 0, lastErr = '';
     status = status || function () {};
     function fp(s) { return (s.items || []).map(function (x) { return x.label + '|' + (x.value || '') + '|' + (x.win || ''); }).join('~') + '#' + JSON.stringify(s.page || {}); }
     function fin(ok, msg) { status(''); if (msg) said.push(msg); return { done: said, ok: ok, stopped: !!(stopped && stopped()), plan: plan }; }
     function summary() { var d = hist.filter(function (h) { return !/error|NO /.test(h.result); }).slice(-4).map(function (h) { return h.label || h.action; }); return d.length ? d.join(', ') : 'nada aún'; }
     function step() {
       if (stopped && stopped()) return Promise.resolve(fin(false, '⏹ Parado. Lo último que hice: ' + summary() + '.'));
-      if (n >= MAX) return Promise.resolve(fin(false, '📋 He avanzado ' + n + ' pasos (' + summary() + '). Si quieres, dime «sigue» y continúo desde aquí.'));
       n++;
       var s = snapFn(), before = fp(s);
       var loopish = sigs.length >= 4 && sigs.slice(-4).every(function (x, i, a) { return x === a[i % 2]; });
@@ -636,11 +637,11 @@
       var stuck = noChange >= 2 || loopish || rep3;
       if (stuck) {
         warned++;
-        if (warned > 4) return Promise.resolve(fin(false, '⏸️ No consigo avanzar' + (lastErr ? ' (' + lastErr + ')' : '') + '. Hecho: ' + summary() + '. ¿Lo intento de otra forma?'));
+        if (warned > 4) { warned = 1; sigs = []; noChange = 0; status('🔄 Cambio de estrategia…'); log('🔄 Atascado: empiezo de nuevo con otro enfoque' + (lastErr ? ' (' + lastErr + ')' : '')); }
         log('🔁 Eso no funcionó; pruebo otra forma');
       }
       status('🧠 Paso ' + n + ' · pensando…');
-      return api('/api/dbots/agent/' + encodeURIComponent(bot.id), { method: 'POST', body: { goal: goal, surface: surface, ui: s.items, page: s.page || null, history: hist.slice(-12), step: n, max: MAX, plan: plan, tries: warned, stuck: stuck ? (noChange >= 2 ? 'la pantalla no cambia tras tus últimos pasos' : 'estás repitiendo las mismas acciones') : '' } })
+      return api('/api/dbots/agent/' + encodeURIComponent(bot.id), { method: 'POST', body: { goal: goal, surface: surface, ui: s.items, page: s.page || null, history: hist.slice(-12), step: n, max: null, plan: plan, tries: warned, stuck: stuck ? (noChange >= 2 ? 'la pantalla no cambia tras tus últimos pasos' : 'estás repitiendo las mismas acciones') : '' } })
         .then(function (a) {
           a = a || {}; apiErr = 0;
           if (stopped && stopped()) return fin(false, '⏹ Parado.');
@@ -677,7 +678,9 @@
           });
         }, function (e) {
           var m = errMsg(e); apiErr++;
-          if (apiErr <= 2 && !/clave|AskBox\. Añád|no encontrado/i.test(m)) { n--; status('⏳ Reintentando…'); return wait(1200 * apiErr + (/429|rápido|seguidos/.test(m) ? 4000 : 0)).then(step); }
+          // Límite de la IA: esperar y seguir, nunca rendirse.
+          if (/429|rápido|seguidos|límite|limit/i.test(m) && !/clave|AskBox\. Añád/i.test(m)) { n--; var wt = Math.min(30000, 4000 * apiErr); status('⏳ La IA va saturada; espero ' + Math.round(wt / 1000) + ' s…'); return wait(wt).then(step); }
+          if (apiErr <= 3 && !/clave|AskBox\. Añád|no encontrado/i.test(m)) { n--; status('⏳ Reintentando…'); return wait(1200 * apiErr + (/429|rápido|seguidos/.test(m) ? 4000 : 0)).then(step); }
           return fin(false, '⚠️ ' + m);
         });
     }
@@ -719,11 +722,11 @@
     ptr.innerHTML = cursorSvg(color, 26) + '<span class="lab" style="background:' + color + '">' + esc(bot.name) + '</span>';
     document.body.appendChild(ptr);
     var bar = document.createElement('div'); bar.className = 'dbp-stop';
-    bar.innerHTML = '<span>🤖 <b>' + esc(bot.name) + '</b> está usando tu escritorio <i data-st style="opacity:.85"></i></span><button data-stop>⏹ Parar (Esc)</button>';
+    bar.innerHTML = '<span>🤖 <b>' + esc(bot.name) + '</b> está usando tu escritorio <i data-st style="opacity:.85"></i></span><small style="opacity:.75;margin-left:8px">Esc o «para» en el chat para detener</small>';
     document.body.appendChild(bar);
     var st = { cancelled: false, stop: function () { st.cancelled = true; } }; running = st;
     function onKey(e) { if (e.key === 'Escape') st.stop(); }
-    document.addEventListener('keydown', onKey, true); bar.querySelector('[data-stop]').onclick = st.stop;
+    document.addEventListener('keydown', onKey, true); 
     var ui = {
       move: function (el) { var t = (el.querySelector && el.querySelector('.ic')) || el; try { var r0 = t.getBoundingClientRect(); if (r0.bottom > innerHeight || r0.top < 0) t.scrollIntoView({ block: 'center' }); } catch (e) {} var r = t.getBoundingClientRect(); ptr.style.left = (r.left + r.width / 2 - 3) + 'px'; ptr.style.top = (r.top + r.height / 2 - 2) + 'px'; return wait(560); },
       click: function () { ptr.classList.remove('click'); void ptr.offsetWidth; ptr.classList.add('click'); return wait(380); },
@@ -735,5 +738,6 @@
     return agentLoop(bot, goal, 'user', snap, function (a, el, it) { if (st.cancelled) return Promise.reject(new Error('parado')); return agentExec(a, el, it, ui, bot); }, log, function () { return st.cancelled; }, function (t) { stEl.textContent = t ? '· ' + t : ''; })
       .then(function (r) { end(); return r; }, function (e) { end(); throw e; });
   }
-  window.DogBotsOS = { mount: mount, runDesktop: runDesktop, agentDesktop: agentDesktop, context: context, cursorSvg: cursorSvg };
+  function stopDesktop() { if (running) { running.stop(); return true; } return false; }
+  window.DogBotsOS = { stopDesktop: stopDesktop, mount: mount, runDesktop: runDesktop, agentDesktop: agentDesktop, context: context, cursorSvg: cursorSvg };
 })();

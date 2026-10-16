@@ -200,7 +200,7 @@ def _wants_user_desk(text, origin: str = "desktop") -> bool:
 
 def _clean_desktop(steps: Any) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
-    for st in (steps if isinstance(steps, list) else [])[:10]:
+    for st in (steps if isinstance(steps, list) else []):
         if not isinstance(st, dict):
             continue
         op = str(st.get("op") or "")

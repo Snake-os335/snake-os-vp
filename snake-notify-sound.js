@@ -4,7 +4,7 @@
    la campanilla se programa con ctx.currentTime (sin cadenas de setTimeout, que el navegador frena). */
 (function () {
   var SRC = '/static/assets/notif-chime.wav?v=202610160830';
-  var base = null, last = 0, ctx = null, buf = null, loading = false, keep = null;
+  var VOL = 0.3, base = null, last = 0, ctx = null, buf = null, loading = false, keep = null;
   function muted() {
     try { if (document.body && document.body.classList.contains('qs-dnd')) return true; } catch (e) {}
     try { if (localStorage.getItem('snkNotifSound') === '0') return true; } catch (e) {}
@@ -48,15 +48,20 @@
     var c = wake(); if (!c || !buf) return false;
     /* 'suspended' / 'interrupted' (Safari): resume() ya pedido; si no arranca, no sonará este aviso. */
     try {
-      var s = c.createBufferSource(); s.buffer = buf; s.connect(c.destination);
-      s.start(c.currentTime + 0.02);
+      var t = c.currentTime + 0.02;
+      var s = c.createBufferSource(); s.buffer = buf;
+      /* Más suave: filtro paso bajo (quita lo chillón) + volumen 30 % con entrada suave. */
+      var f = c.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 2200;
+      var g = c.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(VOL, t + 0.04);
+      s.connect(f); f.connect(g); g.connect(c.destination);
+      s.start(t);
       return true;
     } catch (e) { return false; }
   }
   function playTag() {
     try {
       if (!base) { base = new Audio(SRC); base.preload = 'auto'; }
-      var a = base.cloneNode(); a.volume = 1;
+      var a = base.cloneNode(); a.volume = VOL;
       try { a.setAttribute('playsinline', 'true'); } catch (e) {}
       var p = a.play(); if (p && p.catch) p.catch(function () {});
       return true;

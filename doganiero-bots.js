@@ -357,6 +357,7 @@
     var DESK_LABEL = { open_app: 'Abrir app', close_app: 'Cerrar app', create_folder: 'Crear carpeta', create_note: 'Escribir nota', create_file: 'Crear archivo', set_wallpaper: 'Cambiar fondo', move_window: 'Mover ventana', switch_desktop: 'Cambiar de escritorio', delete_file: '🗑️ Borrar archivo', call_contact: '📞 Llamar a' };
     function stepTxt(s) { return (DESK_LABEL[s.op] || s.op) + ' ' + esc(s.app || s.name || s.id || (s.n != null ? s.n : '') || (s.text ? '«' + String(s.text).slice(0, 40) + '»' : '')); }
     S.ran = S.ran || {};
+    S.done1 = S.done1 || (function () { try { return JSON.parse(localStorage.getItem('dbotsDone') || '{}') || {}; } catch (e) { return {}; } })();
     function actHtml(m) {
       var h = '';
       if (m.desktop && m.desktop.length) {
@@ -382,6 +383,10 @@
     }
     function handleBot(b, m) {
       if (!m) return;
+      // Cada respuesta del bot se ejecuta UNA sola vez (también tras recargar o reabrir la app)
+      if (m.id) { if (S.ran[m.id] || S.done1[m.id]) return; S.done1[m.id] = 1; try { var ks = Object.keys(S.done1); if (ks.length > 400) ks.slice(0, ks.length - 400).forEach(function (k) { delete S.done1[k]; }); localStorage.setItem('dbotsDone', JSON.stringify(S.done1)); } catch (e) {} }
+      // Respuestas antiguas (otra pestaña/dispositivo, >10 min): no se vuelven a ejecutar solas; queda ↻ Repetir.
+      if (m.at && (Date.now() / 1000 - Number(m.at)) > 600) { S.ran[m.id] = 1; return; }
       if (m.browse && m.browse.length && S.mos) { root.classList.add('aside-open'); setMood(b.id, 'think'); S.mos.replay(m.browse).then(function () { setMood(b.id, 'happy'); }); }
       if (m.code && m.code.code && S.mos) { root.classList.add('aside-open'); S.mos.code(m.code); }
       if (m.ui && m.ui.goal && !S.ran[m.id]) {
@@ -477,7 +482,7 @@
       ta.addEventListener('paste', function (e) { var it = (e.clipboardData && e.clipboardData.files) || []; if (it.length) { e.preventDefault(); addFiles(it); } });
       function send() {
         var v = ta.value.trim();
-        if (/^(para|parar|stop|detente|basta)[.!]*$/i.test(v) && S.mos && S.mos.busy && S.mos.busy()) { S.mos.stop(); ta.value = ''; return; }
+        if (/^(para|parar|stop|detente|basta)[.!]*$/i.test(v)) { var stopped0 = false; if (S.mos && S.mos.busy && S.mos.busy()) { S.mos.stop(); stopped0 = true; } if (window.DogBotsOS && window.DogBotsOS.stopDesktop && window.DogBotsOS.stopDesktop()) stopped0 = true; if (stopped0) { ta.value = ''; return; } }
         if (S.sending) return;
         if (S.pending.some(function (f) { return f.state === 'up'; })) { alert('Espera a que terminen de subirse los archivos'); return; }
         var ready = S.pending.filter(function (f) { return f.state === 'ok'; });
