@@ -1,0 +1,145 @@
+/* Snake OS · barra de tareas nueva (2026-10-16). Solo escritorio (no .phone-mode). Ver snake-taskbar11.js */
+body.tb11.phone-mode #tb11Center{ display:contents; }
+body.tb11.phone-mode .tb11-pin, body.tb11.phone-mode .tb11-start-ico{ display:none !important; }
+body.tb11.phone-mode .task-item .tb11-ico{ margin-right:4px; }
+body.tb11.phone-mode .task-item.tb11-hide{ display:inline-flex !important; }
+
+body.tb11:not(.phone-mode) #taskbar{
+  --tb11-fg:#1c1c22; --tb11-hover:rgba(255,255,255,0.62); --tb11-press:rgba(255,255,255,0.42); --tb11-dot:#7a7f8c; --tb11-accent:#2a6fe0;
+  left:12px; right:12px; bottom:10px; height:54px; padding:0 10px; gap:6px;
+  border-radius:16px;
+  background:rgba(238,240,248,0.74);
+  backdrop-filter:blur(28px) saturate(180%); -webkit-backdrop-filter:blur(28px) saturate(180%);
+  border:1px solid rgba(255,255,255,0.7);
+  box-shadow:0 10px 30px rgba(20,24,40,0.18), inset 0 1px 0 rgba(255,255,255,0.8);
+  color:var(--tb11-fg);
+}
+body.tb11:not(.phone-mode) #taskbar::before{ background:linear-gradient(180deg, rgba(255,255,255,0.35), rgba(255,255,255,0) 60%); }
+/* tema oscuro (por defecto en Snake OS): mismo estilo con cristal oscuro */
+body.tb11:not(.theme-light):not(.phone-mode) #taskbar{
+  --tb11-fg:#f2f4f8; --tb11-hover:rgba(255,255,255,0.12); --tb11-press:rgba(255,255,255,0.07); --tb11-dot:#aab1bf; --tb11-accent:#6cb6ff;
+  background:rgba(30,32,42,0.66); border-color:rgba(255,255,255,0.14);
+  box-shadow:0 10px 30px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.10);
+}
+body.tb11:not(.theme-light):not(.phone-mode) #taskbar::before{ background:linear-gradient(180deg, rgba(255,255,255,0.06), transparent 60%); }
+body.tb11:not(.phone-mode) #taskbar #clock,
+body.tb11:not(.phone-mode) #taskbar #userBadge,
+body.tb11:not(.phone-mode) #taskbar .tb-tool,
+body.tb11:not(.phone-mode) #taskbar #tbBattery{ color:var(--tb11-fg) !important; }
+body.tb11:not(.phone-mode) #taskbar .tb-tool{ background:transparent !important; border:none !important; box-shadow:none !important; border-radius:8px !important; }
+body.tb11:not(.phone-mode) #taskbar .tb-tool:hover{ background:var(--tb11-hover) !important; }
+body.tb11:not(.phone-mode) #taskbar #userBadge{ margin-right:auto; background:transparent; border-color:transparent; }
+body.tb11:not(.phone-mode) #taskbar #userBadge:hover{ background:var(--tb11-hover); }
+body.tb11:not(.phone-mode) #taskbar #tbTools{ margin-left:auto; }
+body.tb11:not(.phone-mode) #taskbar #tbSearchBtn{ display:none !important; } /* sustituido por el anclado Buscar del centro */
+
+/* zona central */
+body.tb11:not(.phone-mode) #tb11Center{
+  position:absolute !important; left:50%; top:0; bottom:0; transform:translateX(-50%);
+  display:flex; align-items:center; gap:4px; z-index:2 !important;
+  max-width:calc(100% - 600px); min-width:0;
+}
+body.tb11:not(.phone-mode) #tb11Center #taskItems{ flex:0 1 auto; gap:4px; height:100%; min-width:0; display:flex; align-items:center; }
+body.tb11:not(.phone-mode) #tb11Center #startBtn,
+body.tb11:not(.phone-mode) #tb11Center .tb11-pin,
+body.tb11:not(.phone-mode) #tb11Center .task-item{
+  position:relative; flex:0 0 42px !important; width:42px !important; height:42px !important; min-width:42px !important; max-width:42px !important;
+  padding:0 !important; margin:0 !important; border-radius:9px !important;
+  display:inline-flex !important; align-items:center; justify-content:center;
+  background:transparent !important; border:1px solid transparent !important; box-shadow:none !important;
+  color:var(--tb11-fg) !important; font-size:0 !important; overflow:visible !important;
+  backdrop-filter:none !important; -webkit-backdrop-filter:none !important; transform:none !important;
+  transition:background .15s ease, border-color .15s ease;
+  cursor:pointer;
+}
+body.tb11:not(.phone-mode) #tb11Center #startBtn:hover,
+body.tb11:not(.phone-mode) #tb11Center .tb11-pin:hover,
+body.tb11:not(.phone-mode) #tb11Center .task-item:hover{ background:var(--tb11-hover) !important; border-color:rgba(255,255,255,0.35) !important; }
+body.tb11:not(.phone-mode) #tb11Center #startBtn:active,
+body.tb11:not(.phone-mode) #tb11Center .tb11-pin:active,
+body.tb11:not(.phone-mode) #tb11Center .task-item:active{ background:var(--tb11-press) !important; }
+body.tb11:not(.phone-mode) #tb11Center #startBtn:active .tb11-start-ico,
+body.tb11:not(.phone-mode) #tb11Center .tb11-pin:active .tb11-ico,
+body.tb11:not(.phone-mode) #tb11Center .task-item:active .tb11-ico{ transform:scale(0.86); }
+body.tb11:not(.phone-mode) #startBtn .start-btn-logo,
+body.tb11:not(.phone-mode) #startBtn .tb11-label,
+body.tb11:not(.phone-mode) .task-item .tb11-lab{ display:none !important; }
+body.tb11:not(.phone-mode) #tb11Center .task-item.tb11-hide,
+body.tb11:not(.phone-mode) #tb11Center .task-item.snk-vd-off{ display:none !important; }
+/* contador de no leídos (data-badge, de desktop-extras.js) en la esquina del icono */
+body.tb11:not(.phone-mode) #tb11Center .task-item[data-badge]::after{ top:1px !important; right:1px !important; margin-top:0 !important; font-size:9px; }
+body.tb11:not(.phone-mode) .tb11-start-ico,
+body.tb11:not(.phone-mode) #tb11Center .tb11-ico{
+  display:inline-flex; align-items:center; justify-content:center; width:26px; height:26px;
+  font-size:21px; line-height:1; transition:transform .12s ease;
+}
+body.tb11 .tb11-start-ico svg, body.tb11 .tb11-ico svg{ width:100%; height:100%; display:block; }
+body.tb11:not(.phone-mode) #tb11Center .tb11-ico img{ width:24px !important; height:24px !important; margin:0 !important; vertical-align:0 !important; }
+/* indicador de app abierta: punto gris; activa (en primer plano): píldora azul */
+body.tb11:not(.phone-mode) #tb11Center .tb11-pin.running::before,
+body.tb11:not(.phone-mode) #tb11Center .task-item::before{
+  content:""; position:absolute; left:50%; bottom:2px; width:6px; height:3px; border-radius:3px;
+  transform:translateX(-50%); background:var(--tb11-dot); transition:width .2s ease, background .2s ease;
+}
+body.tb11:not(.phone-mode) #tb11Center .tb11-pin.active::before,
+body.tb11:not(.phone-mode) #tb11Center .task-item.active::before{ width:16px; background:var(--tb11-accent); }
+
+/* escritorios estrechos: sin centrado absoluto para no tapar el reloj ni las herramientas */
+@media (max-width:1000px){
+  body.tb11:not(.phone-mode) #tb11Center{ position:relative !important; left:auto; transform:none; max-width:none; flex:1 1 auto; top:auto; bottom:auto; height:100%; }
+  body.tb11:not(.phone-mode) #taskbar #userBadge{ margin-right:0; }
+}
+@media (max-width:620px){
+  body.tb11:not(.phone-mode) #taskbar #userBadge{ display:none; }
+  body.tb11:not(.phone-mode) #tb11Center #startBtn,
+  body.tb11:not(.phone-mode) #tb11Center .tb11-pin,
+  body.tb11:not(.phone-mode) #tb11Center .task-item{ flex-basis:36px !important; width:36px !important; min-width:36px !important; max-width:36px !important; height:38px !important; }
+  body.tb11:not(.phone-mode) #tb11Center #tb11pin-search{ display:none !important; }
+  body.tb11:not(.phone-mode) #taskbar #tbSearchBtn{ display:inline-flex !important; }
+}
+
+/* ===== Estilo Snake OS «cristal líquido»: píldora flotante muy translúcida, tinte verde sutil ===== */
+body.tb11:not(.phone-mode) #taskbar,
+body.tb11.theme-light:not(.phone-mode) #taskbar,
+body.tb11:not(.theme-light):not(.phone-mode) #taskbar{
+  --tb11-fg:#f4fff8; --tb11-hover:rgba(255,255,255,0.16); --tb11-press:rgba(255,255,255,0.08); --tb11-dot:rgba(220,255,232,0.85); --tb11-accent:#7dffb0;
+  left:14px; right:14px; bottom:10px; height:58px;
+  border-radius:999px;
+  background:
+    linear-gradient(115deg, rgba(255,255,255,0.20) 0%, rgba(255,255,255,0.04) 32%, rgba(120,255,180,0.06) 55%, rgba(255,255,255,0.10) 100%),
+    rgba(40,120,80,0.14);
+  backdrop-filter:blur(30px) saturate(190%) brightness(1.06); -webkit-backdrop-filter:blur(30px) saturate(190%) brightness(1.06);
+  border:1px solid rgba(255,255,255,0.32);
+  box-shadow:
+    0 12px 36px rgba(0,0,0,0.30),
+    0 2px 6px rgba(0,0,0,0.12),
+    inset 0 1px 0 rgba(255,255,255,0.55),
+    inset 0 -1px 0 rgba(255,255,255,0.12),
+    inset 0 0 0 1px rgba(160,255,200,0.08),
+    inset 0 -10px 22px rgba(120,255,180,0.06);
+  color:var(--tb11-fg); text-shadow:0 1px 2px rgba(0,0,0,0.35);
+}
+body.tb11.theme-light:not(.phone-mode) #taskbar{ --tb11-fg:#0d3a22; --tb11-dot:#1f7a46; --tb11-accent:#12a556; text-shadow:none; background:linear-gradient(115deg, rgba(255,255,255,0.45), rgba(255,255,255,0.18) 40%, rgba(150,255,200,0.14) 70%, rgba(255,255,255,0.30)), rgba(200,255,225,0.18); }
+/* brillo especular superior */
+body.tb11:not(.phone-mode) #taskbar::before{
+  content:""; position:absolute; left:6%; right:6%; top:1px; height:45%; border-radius:999px 999px 40% 40% / 999px 999px 100% 100%;
+  pointer-events:none; opacity:1;
+  background:linear-gradient(180deg, rgba(255,255,255,0.28), rgba(255,255,255,0.05) 70%, transparent) !important;
+}
+body.tb11:not(.phone-mode) #tb11Center #startBtn,
+body.tb11:not(.phone-mode) #tb11Center .tb11-pin,
+body.tb11:not(.phone-mode) #tb11Center .task-item{ border-radius:14px !important; transition:background .18s ease, box-shadow .18s ease, transform .18s ease; }
+body.tb11:not(.phone-mode) #tb11Center #startBtn:hover,
+body.tb11:not(.phone-mode) #tb11Center .tb11-pin:hover,
+body.tb11:not(.phone-mode) #tb11Center .task-item:hover{
+  background:radial-gradient(circle at 50% 40%, rgba(255,255,255,0.28), rgba(255,255,255,0.06) 70%) !important;
+  border-color:rgba(255,255,255,0.35) !important;
+  box-shadow:0 0 14px rgba(140,255,190,0.35), inset 0 1px 0 rgba(255,255,255,0.45) !important;
+}
+body.tb11:not(.phone-mode) #tb11Center #startBtn{ margin-right:6px !important; }
+body.tb11:not(.phone-mode) #tb11Center #startBtn .tb11-start-ico{ width:32px; height:32px; filter:drop-shadow(0 3px 5px rgba(0,0,0,.35)); }
+body.tb11 .tb11-start-ico img{ width:100%; height:100%; display:block; }
+body.tb11:not(.phone-mode) #tb11Center .tb11-ico img{ width:28px !important; height:28px !important; border-radius:7px; filter:drop-shadow(0 3px 4px rgba(0,0,0,.30)); }
+body.tb11:not(.phone-mode) #tb11Center .tb11-emo{ font-size:22px; line-height:1; }
+body.tb11:not(.phone-mode) #tb11Center .tb11-pin.running::before,
+body.tb11:not(.phone-mode) #tb11Center .task-item::before{ box-shadow:0 0 6px rgba(160,255,200,0.7); }
