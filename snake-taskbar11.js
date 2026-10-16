@@ -81,3 +81,99 @@
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 })();
+
+/* ===== Ventana de inicio «cristal líquido» anclada sobre el logo (2026-10-16) =====
+   Buscar · Fijadas (todas las apps reales de window.APPS) · Recientes (por perfil, máx. 6) ·
+   avatar + nombre + Apagar / Cerrar sesión. Esc o clic fuera cierra. En móvil: hoja inferior.
+   «Más opciones» abre el menú de inicio clásico (#startMenu) con todas sus funciones. */
+(function () {
+  'use strict';
+  function T(es, en) { try { return window.snakeI18n && window.snakeI18n.lang === 'en' ? en : es; } catch (e) { return es; } }
+  function esc(t) { return String(t == null ? '' : t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function tr(s) { try { return window.snakeI18n && window.snakeI18n.t ? window.snakeI18n.t(s) : s; } catch (e) { return s; } }
+  function key() { var u = window.currentUser; return 'snkRecentApps:' + ((u && u.email) || 'anon'); }
+  function recent() { try { return JSON.parse(localStorage.getItem(key()) || '[]').filter(function (id) { return (window.APPS || {})[id]; }); } catch (e) { return []; } }
+  function remember(id) {
+    if (!id || !(window.APPS || {})[id] || id === 'about') return;
+    var r = recent().filter(function (x) { return x !== id; }); r.unshift(id);
+    try { localStorage.setItem(key(), JSON.stringify(r.slice(0, 6))); } catch (e) {}
+  }
+  function icon(a) {
+    if (a.iconImg) return '<img src="' + esc(a.iconImg) + '" alt="" draggable="false">';
+    return '<span class="sm11-emo">' + esc(a.icon || '📦') + '</span>';
+  }
+  var panel, open = false;
+  function tile(id) { var a = window.APPS[id]; return '<button type="button" class="sm11-app" data-app="' + esc(id) + '" title="' + esc(tr(a.title || id)) + '"><span class="sm11-ico">' + icon(a) + '</span><span class="sm11-lab">' + esc(tr(a.title || id)) + '</span></button>'; }
+  function render(q) {
+    var A = window.APPS || {}, ids = Object.keys(A);
+    q = String(q || '').trim().toLowerCase();
+    var list = q ? ids.filter(function (id) { var t = String(A[id].title || id); return t.toLowerCase().indexOf(q) >= 0 || tr(t).toLowerCase().indexOf(q) >= 0 || id.indexOf(q) >= 0; }) : ids;
+    panel.querySelector('[data-pinh]').textContent = q ? T('Resultados', 'Results') : T('Fijadas', 'Pinned');
+    panel.querySelector('[data-grid]').innerHTML = list.map(tile).join('') || '<div class="sm11-none">' + esc(T('No hay apps con ese nombre', 'No apps match')) + '</div>';
+    var r = recent(), rw = panel.querySelector('[data-recw]');
+    rw.hidden = !!q || !r.length;
+    panel.querySelector('[data-rec]').innerHTML = r.map(tile).join('');
+    var u = window.currentUser || {};
+    panel.querySelector('[data-av]').textContent = (u.avatar && String(u.avatar).length <= 4) ? u.avatar : '🐍';
+    panel.querySelector('[data-name]').textContent = u.name || u.email || '';
+  }
+  function build() {
+    panel = document.createElement('div'); panel.id = 'sm11'; panel.setAttribute('role', 'dialog'); panel.hidden = true;
+    panel.innerHTML =
+      '<div class="sm11-search"><span>🔍</span><input type="search" data-q autocomplete="off"></div>' +
+      '<div class="sm11-h"><b data-pinh></b><button type="button" class="sm11-more" data-more></button></div>' +
+      '<div class="sm11-grid" data-grid></div>' +
+      '<div data-recw><div class="sm11-h"><b data-rech></b></div><div class="sm11-grid sm11-rec" data-rec></div></div>' +
+      '<div class="sm11-foot"><div class="sm11-user"><span class="sm11-av" data-av></span><span data-name></span></div>' +
+      '<div class="sm11-pw"><button type="button" data-out></button><button type="button" data-power>⏻</button></div></div>';
+    document.body.appendChild(panel);
+    panel.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-app]');
+      if (b) { close(); try { window.openApp(b.dataset.app); } catch (er) {} return; }
+      if (e.target.closest('[data-more]')) { close(); setTimeout(function () { var m = document.getElementById('startMenu'); if (m) m.classList.add('open'); }, 0); return; }
+      if (e.target.closest('[data-power]')) { close(); var p = document.querySelector('#startMenu .start-item.poweroff'); if (p) p.click(); return; }
+      if (e.target.closest('[data-out]')) { close(); var o = document.querySelector('#startMenu .start-item.logout'); if (o) o.click(); }
+    });
+    panel.querySelector('[data-q]').addEventListener('input', function () { render(this.value); });
+    panel.querySelector('[data-q]').addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { var f = panel.querySelector('[data-grid] [data-app]'); if (f) f.click(); }
+    });
+  }
+  function place() {
+    var s = document.getElementById('startBtn'); if (!s) return;
+    var phone = document.body.classList.contains('phone-mode') || window.innerWidth < 640;
+    panel.classList.toggle('sheet', phone);
+    if (phone) { panel.style.left = panel.style.bottom = panel.style.top = ''; return; }
+    var r = s.getBoundingClientRect(), w = panel.offsetWidth, bar = document.getElementById('taskbar').getBoundingClientRect();
+    var left = Math.round(r.left + r.width / 2 - w / 2);
+    left = Math.max(8, Math.min(window.innerWidth - w - 8, left));
+    panel.style.left = left + 'px';
+    panel.style.bottom = Math.round(window.innerHeight - bar.top + 14) + 'px';
+    panel.style.setProperty('--sm11-arrow', Math.round(r.left + r.width / 2 - left) + 'px');
+  }
+  function show() {
+    if (!panel) build();
+    var q = panel.querySelector('[data-q]'); q.value = ''; q.placeholder = T('Buscar apps', 'Search apps');
+    panel.querySelector('[data-more]').textContent = T('Más opciones ›', 'More options ›');
+    panel.querySelector('[data-rech]').textContent = T('Recientes', 'Recent');
+    panel.querySelector('[data-out]').textContent = T('Cerrar sesión', 'Sign out');
+    panel.querySelector('[data-power]').title = T('Apagar', 'Power off');
+    render('');
+    panel.hidden = false; open = true; place();
+    requestAnimationFrame(function () { panel.classList.add('on'); });
+    try { var m = document.getElementById('startMenu'); if (m) m.classList.remove('open'); } catch (e) {}
+    setTimeout(function () { if (open && !document.body.classList.contains('phone-mode')) q.focus(); }, 60);
+  }
+  function close() { if (!panel || !open) return; open = false; panel.classList.remove('on'); panel.hidden = true; }
+  window.snkStart11 = { open: show, close: close, isOpen: function () { return open; } };
+  function hook() {
+    var s = document.getElementById('startBtn'); if (!s || s.__sm11) return; s.__sm11 = 1;
+    s.addEventListener('click', function (e) { e.stopImmediatePropagation(); e.preventDefault(); open ? close() : show(); }, true);
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && open) close(); });
+    document.addEventListener('pointerdown', function (e) { if (open && panel && !panel.contains(e.target) && !s.contains(e.target)) close(); }, true);
+    window.addEventListener('resize', function () { if (open) place(); });
+    var items = document.getElementById('taskItems');
+    if (items) new MutationObserver(function (ms) { ms.forEach(function (m) { Array.prototype.forEach.call(m.addedNodes, function (n) { if (n.id && /^task-/.test(n.id)) remember(n.id.slice(5)); }); }); }).observe(items, { childList: true, subtree: true });
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', hook); else hook();
+})();
