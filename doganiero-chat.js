@@ -117,7 +117,10 @@
   }
 
   function updateBadge(n) {
+    var prevUnread = notifState.unread || 0;
     notifState.unread = Math.max(0, parseInt(n, 10) || 0);
+    if (notifState.unread > prevUnread && notifState._soundReady) { try { if (window.snakeNotifSound) window.snakeNotifSound(); } catch (eS) {} }
+    notifState._soundReady = true;
     var badge = document.getElementById('notifBadge');
     var btn = document.getElementById('notifBtn');
     if (badge) {
