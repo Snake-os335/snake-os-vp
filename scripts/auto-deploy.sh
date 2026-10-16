@@ -22,6 +22,15 @@ OLD=$(git rev-parse HEAD); NEW=$(git rev-parse origin/main)
 if ! git merge-base --is-ancestor "$OLD" "$NEW"; then log "RECHAZADO: origin/main $NEW no es fast-forward de $OLD"; exit 1; fi
 if [ -n "$(git status --porcelain --untracked-files=no)" ]; then log "RECHAZADO: cambios locales sin commit en la carpeta en vivo"; exit 1; fi
 log "Nuevo main: ${OLD:0:7} -> ${NEW:0:7}"
+# Si hay que reconstruir la imagen (requirements/Dockerfile), se construye ANTES de activar la
+# pantalla de mantenimiento: así el corte para los usuarios dura segundos, no minutos.
+if git diff --name-only "$OLD" "$NEW" | grep -Eq "^(Dockerfile|requirements)"; then
+  log "Construyendo imagen antes del corte"
+  git -c advice.detachedHead=false worktree add -q --detach /tmp/snake-prebuild "$NEW" 2>>"$LOG" && \
+    (cd /tmp/snake-prebuild && docker compose -p snake-os-vp build web >>"$LOG" 2>&1) || log "aviso: prebuild falló; se construirá en el corte"
+  git worktree remove --force /tmp/snake-prebuild 2>/dev/null
+  PREBUILT=1
+fi
 sh scripts/update-start.sh >>"$LOG" 2>&1
 TS=$(date +%Y%m%d-%H%M%S)
 git bundle create -q "$BK/pre-$TS-${OLD:0:7}.bundle" HEAD 2>>"$LOG"; echo "$OLD" > "$BK/last-good"
@@ -29,7 +38,8 @@ ls -1t "$BK"/pre-*.bundle 2>/dev/null | tail -n +21 | xargs -r rm -f
 CHANGED=$(git diff --name-only "$OLD" "$NEW")
 needs_restart(){ echo "$CHANGED" | grep -Eq "(\.py$|^Dockerfile|^docker-compose|^requirements)"; }
 restart(){
-  if echo "$CHANGED" | grep -Eq "^(Dockerfile|requirements)"; then docker compose up -d --build web >>"$LOG" 2>&1
+  if echo "$CHANGED" | grep -Eq "^(Dockerfile|requirements)"; then if [ -n "${PREBUILT:-}" ]; then docker compose up -d web >>"$LOG" 2>&1; else docker compose up -d --build web >>"$LOG" 2>&1; fi
+  elif echo "$CHANGED" | grep -Eq "^docker-compose"; then docker compose up -d web >>"$LOG" 2>&1
   else docker compose restart web >>"$LOG" 2>&1; fi
 }
 health(){ # 200 en / y /api/status responde (updating true mientras dura)
@@ -51,7 +61,7 @@ if [ $ok = 1 ]; then
 fi
 if [ $ok = 0 ]; then
   log "FALLO: vuelvo a ${OLD:0:7}"; echo "$NEW" > "$BK/bad"
-  git reset -q --hard "$OLD" >>"$LOG" 2>&1
+  git reset -q --hard "$OLD" >>"$LOG" 2>&1; PREBUILT=
   CHANGED=$(git diff --name-only "$OLD" "$NEW"); needs_restart && restart
   health && log "Rollback OK" || log "Rollback: health sigue fallando, revisar a mano"
 fi
