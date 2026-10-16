@@ -63,6 +63,37 @@ def _clean(text: str) -> str:
     return " ".join(t.split())[:MAX_CHARS]
 
 
+# Voz propia de Snake OS!: tono un poco más alto (~+1,2 semitonos), ritmo algo más ágil,
+# leve coro y un poco de "sala" para un timbre reconocible, sin sonar robótico. Mismo
+# tratamiento en ES y EN. Solo numpy (ya está en la imagen), sin ffmpeg ni sox.
+_PITCH = 1.07
+
+
+def _signature(wav_bytes: bytes, out: io.BytesIO) -> None:
+    import numpy as np
+    with wave.open(io.BytesIO(wav_bytes), "rb") as r:
+        sr, n = r.getframerate(), r.getnframes()
+        x = np.frombuffer(r.readframes(n), dtype=np.int16).astype(np.float32) / 32768.0
+    # subir el tono: remuestreo (la duración extra ya se pidió a Piper con length_scale)
+    t = np.arange(0, len(x) - 1, _PITCH)
+    y = np.interp(t, np.arange(len(x)), x)
+    i = np.arange(len(y))
+    # coro muy suave: copia con retardo 9 ms ± 1,5 ms modulado a 0,6 Hz
+    d = (0.009 + 0.0015 * np.sin(2 * np.pi * 0.6 * i / sr)) * sr
+    y = y + 0.16 * np.interp(i - d, i, y, left=0.0)
+    # brillo/presencia: realce suave de agudos (pre-énfasis mezclado)
+    y = y + 0.22 * np.concatenate(([0.0], np.diff(y)))
+    # pequeña sala: dos ecos cortos y bajos
+    for ms, g in ((23, 0.10), (41, 0.06)):
+        k = int(sr * ms / 1000)
+        y[k:] += g * y[:-k]
+    peak = float(np.max(np.abs(y))) or 1.0
+    y = np.clip(y * (0.89 / peak), -1, 1)
+    with wave.open(out, "wb") as w:
+        w.setnchannels(1); w.setsampwidth(2); w.setframerate(sr)
+        w.writeframes((y * 32767).astype(np.int16).tobytes())
+
+
 def _synth(lang: str, text: str) -> bytes:
     key = (lang, text)
     hit = _cache.get(key)
@@ -71,9 +102,19 @@ def _synth(lang: str, text: str) -> bytes:
         return hit
     v = _voice(lang)
     buf = io.BytesIO()
+    raw = io.BytesIO()
     with _synth_lock:
-        with wave.open(buf, "wb") as w:
-            v.synthesize_wav(text, w)
+        with wave.open(raw, "wb") as w:
+            try:
+                from piper import SynthesisConfig
+                v.synthesize_wav(text, w, syn_config=SynthesisConfig(
+                    length_scale=_PITCH * 0.97, noise_scale=0.6, noise_w_scale=0.75))
+            except Exception:
+                v.synthesize_wav(text, w)
+    try:
+        _signature(raw.getvalue(), buf)
+    except Exception:
+        buf = raw
     data = buf.getvalue()
     _cache[key] = data
     if len(_cache) > _CACHE_MAX:
