@@ -3908,8 +3908,13 @@ class MetaverseRoom:
         skip: str | None = None,
         world: str | None = None,
     ) -> None:
-        # AI bots are gesture/movement-only: never relay bot chat payloads.
-        if payload.get("type") == "chat" and str(payload.get("from") or "").lower().startswith("ai-bot:"):
+        # AI bots only chat through metaverse_ai_bots (marked bot=True), which
+        # has its own small Askbox budget. Anything else claiming a bot is dropped.
+        if (
+            payload.get("type") == "chat"
+            and str(payload.get("from") or payload.get("from_email") or "").lower().startswith("ai-bot:")
+            and payload.get("bot") is not True
+        ):
             return
         data = json.dumps(payload, ensure_ascii=False)
         want = self.normalize_world(world) if world else None
@@ -4153,6 +4158,19 @@ def _discover_lan_ips() -> list[str]:
 try:
     import metaverse_ai_bots as _metaverse_ai_bots
     _metaverse_ai_bots.attach(metaverse_room)
+
+    async def _metaverse_bot_say(bot: dict, world: str, text: str) -> None:
+        saved = db.save_metaverse_message(
+            from_email=str(bot["email"]),
+            from_name=str(bot["name"]),
+            to_email=None,
+            text=text,
+            created_at=time_mod.time(),
+            world=world,
+        )
+        await metaverse_room.broadcast({"type": "chat", **saved, "bot": True}, world=world)
+
+    _metaverse_ai_bots.set_chat_sender(_metaverse_bot_say)
 except Exception:
     _metaverse_ai_bots = None
 
@@ -4954,6 +4972,11 @@ async def metaverse_ws(websocket: WebSocket):
                 payload = {"type": "chat", **saved}
                 if to_email is None:
                     await metaverse_room.broadcast(payload, world=cur_world)
+                    if _metaverse_ai_bots is not None:
+                        # Bots may answer nearby players; runs apart so the socket never waits.
+                        asyncio.create_task(
+                            _metaverse_ai_bots.on_player_chat(cur_world, email, str(pub["name"]), text)
+                        )
                 else:
                     await metaverse_room.send_to(email, payload)
                     await metaverse_room.send_to(to_email, payload)
