@@ -234,7 +234,7 @@
     var state = { mine: '', contacts: [], recents: [], tab: 'pad', digits: '', busy: false, contactsLoaded: false, incoming: [], outgoing: [] };
     var SEEN_KEY = profKey('snakeos_phone_missed_seen_v1');
 
-    var root = el('div', 'dph snk-noemoji');
+    var root = el('div', 'dph');
     var head = el('div', 'dph-head');
     head.appendChild(el('div', 'dph-mine-label', 'Tu número Doganiero'));
     var mineEl = el('div', 'dph-mine', '…');
