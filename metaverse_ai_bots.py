@@ -6,7 +6,14 @@ present). Between decisions the bot keeps walking at the player speed
 (140 units/sec) toward that heading or its exclusive map spot. A failed or
 unusable call does not cancel the current glide. Arriving, a blocked step,
 or a slow reply never publishes quieto or zero velocity. No patrol path, no
-random walk, no chat text, no voice.
+random walk, no voice.
+
+Chat (v2026.12): bots answer a human who writes in the world chat near them
+and, now and then, say a short line on their own. Chat asks have their own
+small budget (BOT_CHAT_BUDGET, 6/min for the whole process) so most of the
+30/min Askbox bucket stays for Doganiero AI chat. When that budget is spent,
+during a 429 pause, without a key, or if Askbox fails, the bot answers with a
+canned phrase instead. Language follows the player's message (es/en).
 
 All asks go through askbox_client.ask() with the project-wide system key
 (SNAKEOS_ASKBOX_KEY). The bots are shared scenery, so they never use a
@@ -25,8 +32,9 @@ import json
 import math
 import os
 import re
+import random
 import time
-from typing import Any
+from typing import Any, Awaitable, Callable
 
 import askbox_client
 from askbox_client import AskboxError
@@ -187,6 +195,302 @@ _QUOTA_PAUSE_MAX = 900.0
 # Marcas de tiempo de los asks de los bots (ventana deslizante de 1 min).
 _ask_times: list[float] = []
 _budget_log_at = 0.0
+
+
+# --- Chat de los bots -------------------------------------------------------
+# Presupuesto propio y pequeño: como mucho 6 asks/min para todos los mundos.
+BOT_CHAT_BUDGET = 6
+CHAT_MAX_TOKENS = 80
+CHAT_MAX_CHARS = 140
+CHAT_NEAR_DIST = 220.0
+# Un bot no contesta dos veces seguidas en menos de esto.
+CHAT_BOT_COOLDOWN_SEC = 6.0
+# Por mundo: como mucho una respuesta cada tanto, para no llenar el chat.
+CHAT_WORLD_COOLDOWN_SEC = 3.0
+# Frase espontánea: de media una cada AMBIENT_SEC por mundo ocupado.
+AMBIENT_SEC = 90.0
+# Solo una de cada AMBIENT_AI_EVERY frases espontáneas usa IA; el resto es fija.
+AMBIENT_AI_EVERY = 3
+
+_chat_times: list[float] = []
+_chat_bot_at: dict[str, float] = {}
+_chat_world_at: dict[str, float] = {}
+_world_lang: dict[str, str] = {}
+_ambient_count = 0
+# main.py registra aquí cómo se guarda y difunde un mensaje de chat de bot.
+_chat_sender: Callable[[dict[str, Any], str, str], Awaitable[None]] | None = None
+
+_CHAT_SYSTEM = {
+    "es": (
+        "Eres {name}, un vecino amable del Metaverso Doganiero (mundo {world}) "
+        "dentro de Snake OS!. Hablas en español, en una o dos frases cortas "
+        "(máximo 140 caracteres), cercano y con buen rollo. No eres un perro ni "
+        "un asistente; no des datos personales, enlaces ni instrucciones "
+        "peligrosas. Si te piden algo complejo, sugiere abrir Doganiero AI. "
+        "Responde solo con la frase, sin comillas."
+    ),
+    "en": (
+        "You are {name}, a friendly neighbour in the Doganiero Metaverse "
+        "(world {world}) inside Snake OS!. Speak English in one or two short "
+        "sentences (max 140 characters), warm and casual. You are not a dog nor "
+        "an assistant; never share personal data, links or dangerous "
+        "instructions. For complex requests, suggest opening Doganiero AI. "
+        "Reply with the sentence only, no quotes."
+    ),
+}
+
+_CANNED_REPLY = {
+    "es": (
+        "¡Hola, {player}! ¿Qué tal por aquí?",
+        "¡Jaja, buena esa, {player}!",
+        "Ahora mismo voy de paseo, {player}. ¡Luego hablamos!",
+        "Si necesitas algo más complicado, prueba Doganiero AI 😉",
+        "¡Me alegra verte por {world}, {player}!",
+        "Uy, no sé qué decirte… ¿damos una vuelta?",
+    ),
+    "en": (
+        "Hi {player}! How's it going?",
+        "Haha, good one, {player}!",
+        "I'm out for a walk right now, {player}. Talk later!",
+        "For something trickier, try Doganiero AI 😉",
+        "Nice to see you in {world}, {player}!",
+        "Hmm, not sure what to say… shall we walk around?",
+    ),
+}
+
+_CANNED_AMBIENT = {
+    "es": (
+        "¡Qué buen día hace en {world}!",
+        "¿Alguien ha visto huesos por aquí? 🦴",
+        "Me encanta pasear por {world}.",
+        "¿Os venís a la fiesta de luego? 🎉",
+        "Hola a todos 👋",
+        "Dicen que en la otra sala hay algo interesante…",
+    ),
+    "en": (
+        "What a nice day in {world}!",
+        "Has anyone seen bones around here? 🦴",
+        "I love walking around {world}.",
+        "Coming to the party later? 🎉",
+        "Hi everyone 👋",
+        "They say there's something cool in the other room…",
+    ),
+}
+
+_EN_WORDS = {
+    "hi", "hello", "hey", "the", "you", "are", "what", "how", "is", "and",
+    "thanks", "thank", "please", "where", "who", "why", "yes", "good", "my",
+}
+_ES_WORDS = {
+    "hola", "que", "qué", "como", "cómo", "eres", "estas", "estás", "gracias",
+    "por", "favor", "donde", "dónde", "quien", "quién", "si", "sí", "bien",
+    "el", "la", "los", "las", "y", "de", "es", "un", "una", "tu", "tú",
+}
+
+
+def set_chat_sender(fn: Callable[[dict[str, Any], str, str], Awaitable[None]] | None) -> None:
+    """main.py: async fn(bot_public, world, text) that saves and broadcasts."""
+    global _chat_sender
+    _chat_sender = fn
+
+
+def _detect_lang(text: str, fallback: str = "es") -> str:
+    """Spanish by default (same as snake-i18n for Spain); English if it reads English."""
+    if re.search(r"[ñáéíóúü¿¡]", text, re.I):
+        return "es"
+    words = set(re.findall(r"[a-záéíóúñü]+", text.lower()))
+    en = len(words & _EN_WORDS)
+    es = len(words & _ES_WORDS)
+    if en > es:
+        return "en"
+    if es > en:
+        return "es"
+    return fallback if fallback in ("es", "en") else "es"
+
+
+def _chat_budget_take() -> bool:
+    """Own sliding 1-min window for bot chat. Event loop only."""
+    now = time.monotonic()
+    cutoff = now - BOT_ASK_WINDOW_SEC
+    while _chat_times and _chat_times[0] < cutoff:
+        _chat_times.pop(0)
+    if len(_chat_times) >= BOT_CHAT_BUDGET:
+        return False
+    _chat_times.append(now)
+    return True
+
+
+def _canned(kind: str, lang: str, bot: dict[str, Any], player: str = "") -> str:
+    table = _CANNED_REPLY if kind == "reply" else _CANNED_AMBIENT
+    lines = table.get(lang) or table["es"]
+    line = random.choice(lines)
+    return line.format(player=player or ("amigo" if lang == "es" else "friend"), world=bot["world"])
+
+
+def _clean_line(text: str) -> str:
+    line = " ".join(str(text or "").split()).strip().strip('"\'«»“”')
+    line = " ".join(re.sub(r"https?://\S+", "", line).split())
+    if len(line) > CHAT_MAX_CHARS:
+        line = line[: CHAT_MAX_CHARS - 1].rstrip() + "…"
+    return line
+
+
+def _chat_ask_sync(bot: dict[str, Any], lang: str, prompt: str) -> str | None:
+    """One short Askbox ask for a chat line. None means: use a canned phrase."""
+    global _key_warned
+    if _in_quota_pause():
+        return None
+    if not askbox_client.default_key():
+        if not _key_warned:
+            print("[ai-bots] sin clave Askbox; los bots usan frases fijas", flush=True)
+            _key_warned = True
+        return None
+    system = _CHAT_SYSTEM.get(lang, _CHAT_SYSTEM["es"]).format(name=bot["name"], world=bot["world"])
+    try:
+        result = askbox_client.ask(
+            prompt,
+            system=system,
+            tier=ASK_TIER,
+            max_output_tokens=CHAT_MAX_TOKENS,
+        )
+    except AskboxError as exc:
+        if exc.status == 429:
+            _enter_quota_pause(f"Askbox 429 chat ({exc.message[:120]})", _retry_after_sec(exc))
+        elif exc.status in (401, 403):
+            _enter_quota_pause(f"clave Askbox rechazada ({exc.status})", _QUOTA_PAUSE_MAX)
+        else:
+            _log_throttled(f"chat:{exc.status}:{exc.code}", f"chat Askbox {exc.status} {exc.code}")
+        return None
+    except Exception as exc:  # defensivo
+        _log_throttled(f"chat:{type(exc).__name__}", f"chat {type(exc).__name__}: {exc}")
+        return None
+    line = _clean_line(str(result.get("text") or ""))
+    return line or None
+
+
+async def _say(bot: dict[str, Any], text: str) -> None:
+    if not text or _room is None:
+        return
+    world = str(bot["world"])
+    try:
+        if _chat_sender is not None:
+            await _chat_sender(_public(bot), world, text)
+        else:
+            await _room.broadcast({
+                "type": "chat",
+                "from": bot["email"],
+                "name": bot["name"],
+                "text": text,
+                "world": world,
+                "bot": True,
+                "created_at": time.time(),
+            }, world=world)
+    except Exception as exc:
+        print(f"[ai-bots] chat {type(exc).__name__}: {exc}", flush=True)
+
+
+async def _line(bot: dict[str, Any], kind: str, lang: str, prompt: str, player: str = "", use_ai: bool = True) -> str:
+    text: str | None = None
+    if use_ai and not _in_quota_pause() and _chat_budget_take():
+        # Same single in-flight ask as the heading loop: never two bot asks at once.
+        async with _ask_lock:
+            text = await asyncio.to_thread(_chat_ask_sync, bot, lang, prompt)
+    return text or _canned(kind, lang, bot, player)
+
+
+def _nearest_bot(world: str, x: float, y: float) -> dict[str, Any] | None:
+    best = None
+    best_d = CHAT_NEAR_DIST
+    for bot in _bots.values():
+        if bot["world"] != world:
+            continue
+        d = math.hypot(float(bot["x"]) - x, float(bot["y"]) - y)
+        if d < best_d:
+            best, best_d = bot, d
+    return best
+
+
+def _mentioned_bot(world: str, text: str) -> dict[str, Any] | None:
+    low = text.lower()
+    for bot in _bots.values():
+        if bot["world"] == world and re.search(rf"\b{re.escape(bot['name'].lower())}\b", low):
+            return bot
+    return None
+
+
+async def on_player_chat(world: str, email: str, name: str, text: str) -> None:
+    """A human wrote in the public chat of a world. Maybe one bot answers.
+
+    A bot answers when it is named in the message, or when it is the closest
+    bot within CHAT_NEAR_DIST of the writer. Never blocks the caller.
+    """
+    if _room is None or not _bots or str(email).startswith("ai-bot:"):
+        return
+    text = str(text or "").strip()
+    if not text:
+        return
+    lang = _detect_lang(text, _world_lang.get(world, "es"))
+    _world_lang[world] = lang
+    bot = _mentioned_bot(world, text)
+    if bot is None:
+        client = _room.clients.get(email) or {}
+        try:
+            px, py = float(client.get("x") or 0), float(client.get("y") or 0)
+        except (TypeError, ValueError):
+            return
+        bot = _nearest_bot(world, px, py)
+    if bot is None:
+        return
+    now = time.monotonic()
+    if now - _chat_bot_at.get(bot["id"], 0.0) < CHAT_BOT_COOLDOWN_SEC:
+        return
+    if now - _chat_world_at.get(world, 0.0) < CHAT_WORLD_COOLDOWN_SEC:
+        return
+    _chat_bot_at[bot["id"]] = now
+    _chat_world_at[world] = now
+    player = str(name or "").strip()[:40]
+    prompt = (
+        f"{player} te dice: «{text[:300]}». Contesta breve." if lang == "es"
+        else f"{player} says to you: \"{text[:300]}\". Reply briefly."
+    )
+    line = await _line(bot, "reply", lang, prompt, player)
+    await asyncio.sleep(random.uniform(0.6, 1.6))  # parece que escribe
+    await _say(bot, line)
+
+
+async def _ambient_loop() -> None:
+    """Now and then a bot of an occupied world says a short line on its own."""
+    global _ambient_count
+    while True:
+        await asyncio.sleep(random.uniform(AMBIENT_SEC * 0.6, AMBIENT_SEC * 1.4))
+        if _room is None or not _bots:
+            continue
+        worlds = tuple(getattr(_room, "VALID_WORLDS", ())) or ("plaza", "parque", "ciudad")
+        for world in worlds:
+            try:
+                humans = _humans(world)
+                if not humans:
+                    continue
+                now = time.monotonic()
+                if now - _chat_world_at.get(world, 0.0) < 20.0:
+                    continue  # alguien está charlando: no interrumpir
+                bots = [b for b in _bots.values() if b["world"] == world]
+                if not bots:
+                    continue
+                bot = random.choice(bots)
+                _chat_world_at[world] = now
+                _chat_bot_at[bot["id"]] = now
+                lang = _world_lang.get(world, "es")
+                _ambient_count += 1
+                use_ai = _ambient_count % AMBIENT_AI_EVERY == 0
+                names = ", ".join(h["nombre"] for h in humans[:3])
+                prompt = (
+                    f"Di una frase corta espontánea a la gente cercana ({names}) en {world}." if lang == "es"
+                    else f"Say one short spontaneous line to the people nearby ({names}) in {world}."
+                )
+                await _say(bot, await _line(bot, "ambient", lang, prompt, use_ai=use_ai))
+            except Exception as exc:
+                print(f"[ai-bots] ambient {world} {type(exc).__name__}: {exc}", flush=True)
 
 
 def _in_quota_pause() -> bool:
@@ -1037,6 +1341,7 @@ def schedule() -> None:
     worlds = tuple(getattr(_room, "VALID_WORLDS", ()))
     loop = asyncio.get_running_loop()
     loop.create_task(_motion_loop())
+    loop.create_task(_ambient_loop())
     if _placa_on():
         note = "el rumbo lo manda la placa"
     else:
@@ -1047,6 +1352,7 @@ def schedule() -> None:
     started = sum(1 for world in worlds if sum(1 for b in _bots.values() if b["world"] == world) == 5)
     print(
         f"[ai-bots] {started} mundos, andar continuo {PLAYER_WALK_SPEED:.0f} u/s; "
-        + note,
+        + note
+        + f"; chat IA máx {BOT_CHAT_BUDGET}/min",
         flush=True,
     )
