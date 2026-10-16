@@ -4214,6 +4214,7 @@ async def _notify_metaverse_party() -> int:
                 "notification": notif,
                 "unread": db.count_unread_notifications(user_id=uid),
             })
+            _queue_notif_push(uid, notif)
             sent += 1
         except Exception:
             continue
@@ -6530,6 +6531,7 @@ async def chat_send(body: ChatSendBody, user=Depends(require_user)):
     # No WS echo to sender: client already paints from POST response (avoids phone dupes)
     await chat_hub.send_to_user(peer_id, msg_payload)
     await chat_hub.send_to_user(peer_id, notif_payload)
+    _queue_notif_push(peer_id, notif)
     note_activity("chat", user["name"])
     return {"message": saved, "notificationId": notif["id"]}
 
@@ -6646,6 +6648,15 @@ def _push_keys_ok(endpoint: str, p256dh: str, auth: str) -> bool:
 
 
 def _vapid_material() -> dict[str, str]:
+    # Claves VAPID: del entorno del servidor (SNAKEOS_VAPID_PUBLIC / SNAKEOS_VAPID_PRIVATE_B64). Nunca se imprimen.
+    _pub = os.environ.get("SNAKEOS_VAPID_PUBLIC", "").strip()
+    _priv64 = os.environ.get("SNAKEOS_VAPID_PRIVATE_B64", "").strip()
+    if _pub and _priv64:
+        import base64 as _b64
+        try:
+            return {"publicKey": _pub, "privateKey": _b64.b64decode(_priv64).decode("ascii")}
+        except Exception:
+            pass
     path = db.DATA_DIR / "vapid.json"
     if path.is_file():
         try:
@@ -6693,6 +6704,8 @@ def _web_push_headers(payload: dict[str, Any]) -> dict[str, str]:
 
 def _send_web_push_sync(user_id: int, payload: dict[str, Any]) -> None:
     """Best-effort Web Push to this profile's browsers. Never raises."""
+    if int(user_id) in _PUSH_DND and payload.get("action") != "stop":
+        return
     try:
         from pywebpush import webpush
     except Exception:
@@ -6729,6 +6742,42 @@ def _send_web_push_sync(user_id: int, payload: dict[str, Any]) -> None:
                     db.delete_push_subscription_by_endpoint(endpoint=endpoint)
                 except Exception:
                     pass
+
+
+_PUSH_DND_PATH = db.DATA_DIR / "push_dnd.json"
+try:
+    _PUSH_DND: set[int] = set(int(x) for x in json.loads(_PUSH_DND_PATH.read_text(encoding="utf-8")))
+except Exception:
+    _PUSH_DND = set()
+
+
+def _push_dnd_set(user_id: int, on: bool) -> None:
+    (_PUSH_DND.add if on else _PUSH_DND.discard)(int(user_id))
+    try:
+        _PUSH_DND_PATH.write_text(json.dumps(sorted(_PUSH_DND)), encoding="utf-8")
+    except Exception:
+        pass
+
+
+def _notif_push_payload(notif: dict[str, Any]) -> dict[str, Any]:
+    data = notif.get("data") if isinstance(notif.get("data"), dict) else {}
+    return {
+        "kind": "notif",
+        "title": str(notif.get("title") or "Snake OS!")[:120],
+        "body": str(notif.get("body") or "")[:180],
+        "tag": ("mv-" if data.get("app") == "metaverse" else "dc-") + str(data.get("messageId") or data.get("roomId") or data.get("eventId") or data.get("peerEmail") or notif.get("title") or "chat"),
+        "url": "/",
+        "app": str(data.get("app") or ""),
+        "peerEmail": str(data.get("peerEmail") or ""),
+        "icon": "/static/assets/phone-icon.png",
+    }
+
+
+def _queue_notif_push(user_id: int, notif: dict[str, Any]) -> None:
+    try:
+        asyncio.create_task(_schedule_web_push(int(user_id), _notif_push_payload(notif)))
+    except Exception:
+        pass
 
 
 async def _schedule_web_push(user_id: int, payload: dict[str, Any]) -> None:
@@ -6796,6 +6845,16 @@ def push_subscribe(body: PushSubscribeBody, user=Depends(require_user)):
     except ValueError:
         raise HTTPException(status_code=400, detail="Suscripción push no válida")
     return {"ok": True, "email": str(user["email"]).strip().lower()}
+
+
+class PushDndBody(BaseModel):
+    on: bool = False
+
+
+@app.post("/api/push/dnd")
+def push_dnd(body: PushDndBody, user=Depends(require_user)):
+    _push_dnd_set(int(user["id"]), bool(body.on))
+    return {"ok": True, "dnd": bool(body.on)}
 
 
 @app.post("/api/push/unsubscribe")
@@ -6868,6 +6927,7 @@ async def _push_account_request(to_id: int, title: str, body: str, data: dict) -
         "notification": notif,
         "unread": unread,
     })
+    _queue_notif_push(int(to_id), notif)
     await chat_hub.send_to_user(int(to_id), {"type": "account_request"})
 
 

@@ -470,6 +470,21 @@
     } catch (e) {}
   }
 
+  /** Ajustes → Notificaciones: activar avisos con Snake OS! cerrado (gesto del usuario). */
+  window.snkEnablePush = function () {
+    return Promise.resolve(ensureNativeNotifPermission(true)).then(function (perm) {
+      if (perm !== 'granted') return perm || 'default';
+      return navigator.serviceWorker.ready.then(function () { return subscribeWebPush(); }).then(function (ok) { return ok ? 'on' : 'nopush'; });
+    }).catch(function () { return 'error'; });
+  };
+  window.snkPushState = function () {
+    if (typeof Notification === 'undefined' || !('serviceWorker' in navigator) || !('PushManager' in window)) return Promise.resolve('unsupported');
+    if (Notification.permission === 'denied') return Promise.resolve('denied');
+    if (Notification.permission !== 'granted') return Promise.resolve('off');
+    return navigator.serviceWorker.getRegistration().then(function (reg) { return reg ? reg.pushManager.getSubscription() : null; })
+      .then(function (s) { return s ? 'on' : 'off'; }).catch(function () { return 'off'; });
+  };
+
   function unsubscribePushForLogout() {
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) return Promise.resolve();
     return navigator.serviceWorker.ready.then(function (reg) {
@@ -580,7 +595,7 @@
       return Promise.resolve(null);
     }
     // Cache-bust: CF a veces cachea el SW; la query no cambia el scope (/)
-    var swUrl = '/snake-os-sw.js?v=202610141730';
+    var swUrl = '/snake-os-sw.js?v=202610160850';
     return navigator.serviceWorker.register(swUrl, { scope: '/' })
       .then(function (reg) {
         notifState.swReady = true;

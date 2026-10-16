@@ -202,6 +202,19 @@
     row('apariencia', 'snakemoji', '🐍', 'Snakemoji', 'Galería de los emojis Snake: busca, filtra por categoría y toca uno para copiarlo · tecla S', 'action', { btn: 'Abrir', run: function () { if (window.openApp) window.openApp('snakemoji'); } });
     row('apariencia', 'compact', '🧩', 'Modo compacto', 'Ventanas y barra más compactas', 'toggle', { tile: 'qsCompact' });
     row('sonido', 'sounds', '🔊', 'Sonidos del sistema', 'Melodía de bienvenida, avisos y llamadas', 'toggle', { tile: 'qsSounds', invert: false });
+    row('notificaciones', 'webpush', '📲', 'Avisos con Snake OS! cerrado', 'Puedes recibir notificaciones aunque Snake OS! esté cerrado, siempre que el navegador siga abierto.', 'action', {
+      label: function () { var st = window.__snkPushSt || ''; return st === 'on' ? 'Activados' : st === 'denied' ? 'Bloqueados en el navegador' : st === 'unsupported' ? 'No disponible en este navegador' : 'Desactivados'; },
+      btn: 'Activar avisos',
+      run: function () {
+        if (!window.snkEnablePush) { toast('Inicia sesión para activar los avisos'); return; }
+        window.snkEnablePush().then(function (r) {
+          window.__snkPushSt = r;
+          toast(r === 'on' ? 'Avisos activados ✅' : r === 'denied' ? 'El navegador bloqueó los avisos: permítelos en el candado de la barra de direcciones' : r === 'unsupported' ? 'Este navegador no admite avisos push (en iPhone, añade Snake OS! a la pantalla de inicio)' : 'No se pudieron activar los avisos');
+          try { var a = document.querySelector('.snk4a-set-nav button.on'); if (a) a.click(); } catch (e) {}
+        });
+      }
+    });
+    if (window.snkPushState && !window.__snkPushChk) { window.__snkPushChk = 1; window.snkPushState().then(function (st) { window.__snkPushSt = st; window.__snkPushChk = 0; }); }
     row('notificaciones', 'dnd', '🔕', 'No molestar', 'Silencia los avisos mientras trabajas', 'toggle', { tile: 'qsDnd' });
     row('notificaciones', 'focus', '🎯', 'Modo foco', 'Oculta distracciones del escritorio', 'toggle', { tile: 'qsFocus' });
     row('rendimiento', 'perf', '⚡', 'Modo rendimiento', 'Menos efectos para equipos lentos', 'toggle', { tile: 'qsPerf' });
@@ -404,7 +417,7 @@
       var html = '<div class="snk4a-about"><div class="snk4a-about-logo">🐍</div><h2>Snake OS!</h2>' +
         '<div class="ver">' + esc(SNK_VERSION) + '</div>' +
         '<div style="font-size:0.78rem;opacity:0.8">powered by Doganiero OS! 3</div>' +
-        '<div class="snk4a-log"><h4>🆕 Novedades del 9 de octubre de 2026</h4>';
+        '<div class="snk4a-log"><h4>🆕 Novedades</h4>';
       CHANGELOG.forEach(function (g) {
         html += '<h4>' + esc(g.t) + '</h4><ul>' + g.items.map(function (i) { return '<li>' + esc(i) + '</li>'; }).join('') + '</ul>';
       });

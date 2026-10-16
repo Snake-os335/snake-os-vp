@@ -492,9 +492,15 @@
     try { localStorage.setItem(QS_KEY_PREFIX + key, JSON.stringify(prefs)); } catch (e) {}
   }
 
+  var lastDndSent = null;
+  function syncDndToServer() {
+    var on = !!qsPrefs.dnd; if (on === lastDndSent) return; lastDndSent = on;
+    try { fetch('/api/push/dnd', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ on: on }) }).catch(function () { lastDndSent = null; }); } catch (e) {}
+  }
   function applyQsEffects() {
     var b = document.body;
     if (!b) return;
+    syncDndToServer();
     b.classList.toggle('qs-dnd', !!qsPrefs.dnd);
     b.classList.toggle('qs-focus', !!qsPrefs.focus);
     b.classList.toggle('qs-perf', !!qsPrefs.perf);

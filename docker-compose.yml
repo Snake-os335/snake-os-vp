@@ -28,6 +28,8 @@ services:
       - SNAKEOS_UBUNTU_SSH_KEY=/run/secrets/ubuntu_ssh_key
       - SNAKEOS_ASKBOX_BASE_URL=${SNAKEOS_ASKBOX_BASE_URL:-http://host.docker.internal:8066}
       - SNAKEOS_ASKBOX_KEY=${SNAKEOS_ASKBOX_KEY:-}
+      - SNAKEOS_VAPID_PUBLIC=${SNAKEOS_VAPID_PUBLIC:-}
+      - SNAKEOS_VAPID_PRIVATE_B64=${SNAKEOS_VAPID_PRIVATE_B64:-}
 
   cloudflared:
     image: cloudflare/cloudflared:latest

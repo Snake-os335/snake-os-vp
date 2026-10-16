@@ -137,6 +137,17 @@ self.addEventListener('push', function (event) {
     event.waitUntil(showLiveNotice(data));
     return;
   }
+  if (data.kind === 'notif') {
+    // Mensajes y avisos del sistema. Si Snake OS está abierto y a la vista, ya lo avisa la propia página.
+    event.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (list) {
+      for (var i = 0; i < list.length; i++) { if (list[i].visibilityState === 'visible' && list[i].focused) return; }
+      return showSnakeNotification(data.title || 'Snake OS!', {
+        body: data.body || '', tag: data.tag || 'snakeos-notif', icon: data.icon || undefined, badge: data.icon || undefined,
+        data: { url: data.url || '/', peerEmail: data.peerEmail || null, openApp: data.app === 'chat' ? 'chat' : (data.app || 'chat'), tag: data.tag || '' }
+      });
+    }));
+    return;
+  }
   var action = data.action || 'ring';
   var tag = data.tag || 'snakeos-call';
   var stopMsg = { type: 'snakeos-push-stop', tag: tag, callId: data.callId || '' };
