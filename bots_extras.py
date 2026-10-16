@@ -180,22 +180,18 @@ DESTRUCTIVE_OPS = {"delete_file", "call_contact"}
 BROWSE_OPS = {"search", "open", "click", "scroll", "read", "form"}
 
 
-_USER_DESK_RE = re.compile(r"\b(mi|mis)\s+(escritorio|pantalla|snake ?os|ordenador|pc)\b|\b(my|on my)\s+(desktop|screen)\b", re.I)
+# Regla de lugar (2026-10-16): el bot actúa en el escritorio de Snake OS del usuario SOLO si la
+# petición termina con «/en mi escritorio» (o «/on my desktop»). Si no, usa su propio Snake OS Lite.
+_DESK_SUFFIX_RE = re.compile(r"\s*/\s*(en\s+mi\s+escritorio|on\s+my\s+desktop)\s*[.!?]*\s*$", re.I)
 
 
-_MINI_DESK_RE = re.compile(r"\b(tu|su)\s+(snake ?os lite|mini ?os|escritorio|ordenador|pc)\b|\bsnake ?os lite\b", re.I)
-
-
-def _wants_user_desk(text, origin: str = "desktop") -> bool:
-    """¿Se hace en el escritorio de Snake OS del usuario (True) o en el Snake OS Lite del bot (False)?
-    1) Palabra explícita gana: «mi escritorio/mi Snake OS…» → usuario; «tu ordenador/tu Snake OS Lite…» → Lite.
-    2) Sin palabra: donde se escribió la petición (escritorio principal → usuario; Lite del bot → Lite)."""
+def _split_desk_suffix(text) -> tuple[bool, str]:
+    """(quiere_escritorio_usuario, texto_sin_el_sufijo)."""
     t = str(text or "")
-    if _USER_DESK_RE.search(t):
-        return True
-    if _MINI_DESK_RE.search(t):
-        return False
-    return str(origin or "desktop").lower() != "lite"
+    m = _DESK_SUFFIX_RE.search(t)
+    if not m:
+        return False, t
+    return True, t[:m.start()].rstrip()
 
 
 def _clean_desktop(steps: Any) -> list[dict[str, Any]]:
@@ -1479,6 +1475,9 @@ def build_router(
             raise HTTPException(422, "Escribe un mensaje o adjunta un archivo")
         history = _chat_load(uid, bot_id)[-16:]
         _chat_append(uid, bot_id, "user", text, **({"attachments": atts} if atts else {}))
+        user_desk, text = _split_desk_suffix(text)  # la IA no ve el sufijo «/en mi escritorio»
+        if not text and not atts:
+            raise HTTPException(422, "Escribe qué quieres que haga antes de /en mi escritorio")
         pages: list[dict[str, Any]] = []
         page_ctx = ""
         for u in list(dict.fromkeys(URL_RE.findall(text)))[:2]:
@@ -1568,12 +1567,12 @@ def build_router(
             elif action == "ui":
                 goal = str(d.get("goal") or text or "").strip()[:500]
                 if goal:
-                    extra["ui"] = {"goal": goal, "target": "user" if _wants_user_desk(text, getattr(body, "origin", None) or "desktop") else "mini"}
+                    extra["ui"] = {"goal": goal, "target": "user" if user_desk else "mini"}
             elif action == "desktop":
                 steps = _clean_desktop(d.get("steps"))
                 if steps:
                     extra["desktop"] = steps
-                    extra["target"] = "user" if (_wants_user_desk(text, getattr(body, "origin", None) or "desktop") or any(st.get("op") == "call_contact" for st in steps)) else "mini"
+                    extra["target"] = "user" if (user_desk or any(st.get("op") == "call_contact" for st in steps)) else "mini"
                     if any(st.get("confirm") for st in steps):
                         reply = (reply or "Voy a hacerlo en tu escritorio.") + "\n\n⚠️ Hay acciones que necesitan tu permiso (borrar o llamar): confírmalo abajo antes de que las haga."
                 else:
