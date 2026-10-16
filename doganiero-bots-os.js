@@ -436,7 +436,7 @@
   }
 
   // ---------------- Control del escritorio real ----------------
-  var WALLS = ['mint', 'ocean', 'sunset', 'nebula', 'snake-pixel', 'snake-vivid', 'snake-real-python-verde', 'snake-real-vibora-desierto', 'snake-real-coralillo', 'snake-real-piton-dorada'];
+  var WALLS = ['mint', 'ocean', 'sunset', 'nebula', 'snake-pixel', 'snake-vivid', 'snake-real-python-verde', 'snake-real-vibora-desierto', 'snake-real-coralillo', 'snake-real-piton-dorada', 'snake-selva', 'snake-neon', 'snake-minimal', 'snake-desierto'];
   function context() {
     var apps = [];
     try { var A = window.APPS || {}; Object.keys(A).forEach(function (k) { if (k !== 'dbots') apps.push({ id: k, title: A[k] && A[k].title || k }); }); } catch (e) {}

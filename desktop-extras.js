@@ -21,7 +21,11 @@
     { id: 'snake-real-python-verde', label: 'Pitón verde', swatch: '#0a1e0e url(/static/assets/wallpaper-snake-real-python-verde.jpg?v=1) center / cover no-repeat' },
     { id: 'snake-real-vibora-desierto', label: 'Víbora del desierto', swatch: '#a07040 url(/static/assets/wallpaper-snake-real-vibora-desierto.jpg?v=1) center / cover no-repeat' },
     { id: 'snake-real-coralillo', label: 'Coralillo', swatch: '#101014 url(/static/assets/wallpaper-snake-real-coralillo.jpg?v=1) center / cover no-repeat' },
-    { id: 'snake-real-piton-dorada', label: 'Pitón dorada', swatch: '#1a2a0c url(/static/assets/wallpaper-snake-real-piton-dorada.jpg?v=1) center / cover no-repeat' }
+    { id: 'snake-real-piton-dorada', label: 'Pitón dorada', swatch: '#1a2a0c url(/static/assets/wallpaper-snake-real-piton-dorada.jpg?v=1) center / cover no-repeat' },
+    { id: 'snake-selva', label: 'Selva', swatch: '#0c1f10 url(/static/assets/wallpaper-snake-selva.webp?v=1) center / cover no-repeat' },
+    { id: 'snake-neon', label: 'Neón', swatch: '#05060f url(/static/assets/wallpaper-snake-neon.webp?v=1) center / cover no-repeat' },
+    { id: 'snake-minimal', label: 'Minimal', swatch: '#0f2a18 url(/static/assets/wallpaper-snake-minimal.webp?v=1) center / cover no-repeat' },
+    { id: 'snake-desierto', label: 'Desierto nocturno', swatch: '#120f22 url(/static/assets/wallpaper-snake-desierto.webp?v=1) center / cover no-repeat' }
   ];
 
   var desktopPrefs = { theme: 'auto', wallpaper: 'snake-vivid' };
