@@ -171,6 +171,18 @@
   }
 
   /* =================== App nueva: Ajustes =================== */
+  function currentChanges() {
+    // Fuente única: window.SNAKE_OS_CHANGES (index.html). Ya traducido: no pasa por snake-i18n.
+    try {
+      var list = window.SNAKE_OS_CHANGES || [], cur = (window.SNAKE_OS_VERSION || '');
+      var e = list.filter(function (x) { return x.v === cur; })[0] || list[0];
+      if (!e) return '';
+      var en = !!(window.snakeI18n && window.snakeI18n.lang === 'en');
+      var items = (en ? e.en : e.es) || e.es || [];
+      return '<div data-noi18n translate="no"><h4>✨ ' + (en ? 'What\'s new in this version' : 'Novedades de esta versión') + ' (' + esc(e.v) + ')</h4><ul>' +
+        items.map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('') + '</ul></div>';
+    } catch (err) { return ''; }
+  }
   var CHANGELOG = [
     { t: 'Metaverse', items: ['Rueda de gestos (saludar, bailar, saltar, corazón…) que ven todos', 'Bocadillos de chat encima de las cabezas', 'Minimapa, ficha de jugador con «Llamar» y «Ver canal»', 'Ciclo de día y noche con estrellas, sol, luna y farolas', 'Panel de ajustes (música, sensibilidad y gráficos) y selector de mundos con vista previa'] },
     { t: 'Escritorio y sistema', items: ['Menú con clic derecho en el escritorio y selector de apps con Alt+Q', 'Notificaciones agrupadas, «No molestar» y «Todo al día»', 'Ajustes rápidos: tamaño del texto, sonidos y animaciones reducidas', 'Ventanas que recuerdan su tamaño y sitio, y ajuste a media pantalla'] },
@@ -418,7 +430,7 @@
       var html = '<div class="snk4a-about"><div class="snk4a-about-logo">🐍</div><h2>Snake OS!</h2>' +
         '<div class="ver">' + esc(SNK_VERSION) + '</div>' +
         '<div style="font-size:0.78rem;opacity:0.8">powered by Doganiero OS! 3</div>' +
-        '<div class="snk4a-log"><h4>🆕 Novedades</h4>';
+        '<div class="snk4a-log">' + currentChanges() + '<h4>🆕 Novedades</h4>';
       CHANGELOG.forEach(function (g) {
         html += '<h4>' + esc(g.t) + '</h4><ul>' + g.items.map(function (i) { return '<li>' + esc(i) + '</li>'; }).join('') + '</ul>';
       });
