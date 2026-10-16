@@ -299,6 +299,15 @@ def emailjs_config():
     return _emailjs_public_config()
 
 
+_UPDATING_FLAG = FsPath(os.path.dirname(os.path.abspath(__file__))) / ".updating"
+
+
+@app.get("/api/status")
+def os_status():
+    """Público y ligero: ¿se está actualizando Snake OS? (lo activan scripts/update-start.sh y update-end.sh)."""
+    return JSONResponse({"updating": _UPDATING_FLAG.exists()}, headers={"Cache-Control": "no-store"})
+
+
 @app.get("/api/os-gate")
 def os_gate_status(request: Request):
     return {"unlocked": is_os_gate_unlocked(request)}

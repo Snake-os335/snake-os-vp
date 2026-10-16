@@ -9,3 +9,4 @@ emailjs.local.json
 
 # Copias de seguridad
 *.bak.*
+.updating

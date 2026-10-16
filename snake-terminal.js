@@ -1,8 +1,8 @@
-/* ===== Snake OS Terminal (v2026.11): comandos tipo Linux sobre Snake OS ===== */
+/* ===== Snake OS Terminal (v2026.12): comandos tipo Linux sobre Snake OS ===== */
 (function(){
   if(window.SnakeTerminal) return;
   var BOOT = Date.now();
-  var VERSION = '2026.11', KERNEL = 'Doganiero OS! 3';
+  var VERSION = '2026.12', KERNEL = 'Doganiero OS! 3';
   function B(){ return window.SnakeTermBridge; }
   function user(){ return (B() && B().user()) || null; }
   function uname(){

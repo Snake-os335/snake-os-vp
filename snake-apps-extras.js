@@ -7,7 +7,7 @@
   if (window.__snk4a) return;
   window.__snk4a = true;
 
-  var SNK_VERSION = 'Snake OS 2026.11';
+  var SNK_VERSION = 'Snake OS 2026.12';
 
   function $(id) { return document.getElementById(id); }
   function esc(s) {

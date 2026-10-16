@@ -1369,8 +1369,22 @@ def build_router(
             if it.get("role") == "campo":
                 row += "|valor=" + str(it.get("value") or "")[:60]
             lines.append(row)
+        id_label = {}
+        for it in (body.get("ui") or [])[:70]:
+            if isinstance(it, dict):
+                id_label[str(it.get("id") or "")[:5]] = str(it.get("label") or "")[:60]
+        plan_in = [str(p)[:80] for p in (body.get("plan") or []) if isinstance(p, (str, int, float))][:8] if isinstance(body.get("plan"), list) else []
+        # Memoria: últimos mensajes de la conversación con este bot (para «y ahora bórralo», «el de antes»…)
+        mem = []
+        try:
+            for m in _chat_load(uid, bot_id)[-6:]:
+                t = str(m.get("text") or "").strip().replace("\n", " ")
+                if t:
+                    mem.append(("Usuario: " if m.get("role") == "user" else "Tú: ") + t[:200])
+        except Exception:
+            mem = []
         hist = []
-        for h in (body.get("history") or [])[-8:]:
+        for h in (body.get("history") or [])[-12:]:
             if isinstance(h, dict):
                 hist.append(f"- {str(h.get('action') or '')[:8]} {str(h.get('id') or '')[:5]} «{str(h.get('label') or '')[:50]}» {str(h.get('text') or '')[:80]} → {str(h.get('result') or '')[:80]}")
         page = body.get("page") if isinstance(body.get("page"), dict) else {}
@@ -1391,7 +1405,9 @@ def build_router(
             "type ya hace clic en el campo y escribe; después usa key Enter sobre ese mismo campo si hay que enviarlo. Para abrir una app, haz clic en su icono o botón. "
             "Céntrate SOLO en el objetivo pedido: no explores, no abras apps ni webs que no hagan falta y no añadas tareas extra. "
             "Mira el historial: no repitas lo que ya funcionó. Antes de actuar comprueba si el objetivo YA está cumplido según lo visible (app abierta, texto escrito, página cargada…): si es así responde done con goal_met true. "
-            "Si te dicen que estás atascado, cambia de estrategia (otro elemento, Enter, otra ruta) o responde done/fail; nunca repitas el mismo clic. Si es imposible, fail explicando por qué. "
+            "Cada paso del historial termina con su VERIFICACIÓN (la pantalla cambió / NO cambió, el campo contiene o NO el texto): úsala para saber si el paso funcionó; si no funcionó, prueba otra forma (otro elemento, doble comprobación, tecla Enter, abrir la app desde el menú 🐍). "
+            "Si te dicen que estás atascado, cambia de estrategia; nunca repitas el mismo clic. No te rindas mientras haya otra forma razonable; fail solo si es imposible, explicando por qué. No hay prisa: no menciones el número de pasos. "
+            "En el PRIMER paso añade \"plan\": lista corta (2-6) de subpasos concretos para cumplir el objetivo; después sigue ese plan. "
             "Añade siempre \"goal_met\": true|false. "
             "Nunca escribas contraseñas, claves, tokens ni datos privados; nunca inicies ni cierres sesión. Llamar, borrar, enviar, pagar o apagar requieren el permiso del usuario (el sistema lo pedirá)."
         )
@@ -1400,8 +1416,9 @@ def build_router(
         except (TypeError, ValueError):
             _step, _max = 1, 25
         stuck = str(body.get("stuck") or "")[:120]
-        prompt = (f"Objetivo (no te desvíes): {goal}\nPaso {_step} de {_max} como máximo"
-                  + (" — quedan pocos: termina ya o di done/fail." if _max - _step <= 4 else ".") + "\n"
+        prompt = (f"Objetivo (no te desvíes): {goal}\nPaso {_step}.\n"
+                  + ("Conversación reciente (contexto):\n" + "\n".join(mem) + "\n" if mem else "")
+                  + ("Tu plan: " + " → ".join(plan_in) + "\n" if plan_in else "Primer paso: incluye \"plan\".\n")
                   + (f"⚠️ AVISO: {stuck}. Cambia de estrategia o termina.\n" if stuck else "")
                   + (f"Estado: {page_s}\n" if page_s else "")
                   + ("Pasos ya hechos:\n" + "\n".join(hist) + "\n" if hist else "Aún no has hecho nada.\n")
@@ -1410,11 +1427,14 @@ def build_router(
             res = askbox_client.ask(prompt, system=system, tier="balanced", max_output_tokens=350, api_key=key)
             d = _parse_json(res.get("text") or "") or {}
         except Exception:
-            return {"action": "fail", "say": "No pude pensar el siguiente paso (AskBox no respondió)."}
+            # Fallo puntual de AskBox: el cliente reintenta (como mucho dos veces) antes de rendirse.
+            return {"action": "wait", "retry": True, "say": "AskBox tarda en responder; reintento…"}
         act = str(d.get("action") or "fail").lower()
         if act not in {"click", "type", "key", "scroll", "wait", "done", "fail"}:
             act = "fail"
-        return {"action": act, "id": str(d.get("id") or "")[:6], "text": str(d.get("text") or "")[:500],
+        aid = str(d.get("id") or "")[:6]
+        plan_out = [str(p)[:80] for p in d.get("plan") if isinstance(p, (str, int, float))][:8] if isinstance(d.get("plan"), list) and not plan_in else []
+        return {"action": act, "id": aid, "label": id_label.get(aid, ""), "plan": plan_out, "text": str(d.get("text") or "")[:500],
                 "key": str(d.get("key") or "Enter")[:12], "say": str(d.get("say") or d.get("thought") or "")[:200],
                 "goal_met": bool(d.get("goal_met")) and act in {"done", "wait"}}
 

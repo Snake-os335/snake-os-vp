@@ -476,7 +476,9 @@
       pane.addEventListener('drop', function (e) { pane.classList.remove('drag'); if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) { e.preventDefault(); addFiles(e.dataTransfer.files); } });
       ta.addEventListener('paste', function (e) { var it = (e.clipboardData && e.clipboardData.files) || []; if (it.length) { e.preventDefault(); addFiles(it); } });
       function send() {
-        var v = ta.value.trim(); if (S.sending) return;
+        var v = ta.value.trim();
+        if (/^(para|parar|stop|detente|basta)[.!]*$/i.test(v) && S.mos && S.mos.busy && S.mos.busy()) { S.mos.stop(); ta.value = ''; return; }
+        if (S.sending) return;
         if (S.pending.some(function (f) { return f.state === 'up'; })) { alert('Espera a que terminen de subirse los archivos'); return; }
         var ready = S.pending.filter(function (f) { return f.state === 'ok'; });
         if (!v && !ready.length) return;
@@ -579,6 +581,12 @@
         .catch(function (e) { line(errMsg(e), 'term-err'); if (!term) alert(errMsg(e)); });
     }
     // ---- Formulario crear/editar ----
+    // Plantillas: cara (figurita + color) y personalidad preparadas; el usuario puede cambiarlo todo.
+    var TPL = [
+      { ico: '🔎', name: 'Investigador', fig: 1, color: '#2f7de1', theme: 'oceano', role: 'Investigador curioso y riguroso. Busca en Doganiero Search, abre las fuentes, contrasta al menos dos y resume con viñetas claras citando de dónde sale cada dato. Si algo no está claro, lo dice.' },
+      { ico: '💻', name: 'Programador', fig: 2, color: '#16a34a', theme: 'selva', role: 'Programador paciente. Explica paso a paso, escribe código limpio y comentado en JavaScript o Python en su Code Lab y lo prueba. Solo texto y código: no hace juegos.' },
+      { ico: '🌍', name: 'Traductor', fig: 3, color: '#d9480f', theme: 'lava', role: 'Traductor amable entre español, inglés y otros idiomas. Traduce con naturalidad, respeta los nombres de marcas (Snake OS!, Doganiero…) y explica expresiones difíciles cuando hace falta.' }
+    ];
     function form(b) {
       main.classList.remove('chatmode');
       var used = {}; S.bots.forEach(function (x) { if (!b || x.id !== b.id) used[x.theme] = 1; });
@@ -587,6 +595,7 @@
       var fg = b && b.fig != null ? b.fig : S.bots.length % FIGS.length;
       var col = (b && b.color) || THEMES[theme][2];
       main.innerHTML = '<div class="dbots-form"><h2 style="margin:0">' + (b ? '✏️ Editar bot' : '➕ Nuevo bot') + '</h2>' +
+        (b ? '' : '<label>Empezar desde una plantilla</label><div class="dbots-pick" data-tpl>' + TPL.map(function (t, i) { return '<span data-v="' + i + '" title="' + esc(t.role) + '">' + t.ico + ' ' + esc(t.name) + '</span>'; }).join('') + '</div>') +
         '<label>Nombre</label><input data-n maxlength="40" value="' + esc(b ? b.name : '') + '" placeholder="Bot Noticias">' +
         '<label>Función</label><textarea data-r maxlength="600" placeholder="Busca noticias de Dogalandia">' + esc(b ? b.role : '') + '</textarea>' +
         '<label>Figurita</label><div class="dbots-pick dbots-figs" data-fg></div>' +
@@ -599,6 +608,11 @@
       drawFigs();
       main.querySelector('[data-col]').oninput = function (e) { col = e.target.value; drawFigs(); };
       pick('[data-th]', function (v) { theme = v; });
+      if (!b) pick('[data-tpl]', function (v) {
+        var t = TPL[+v]; main.querySelector('[data-n]').value = t.name; main.querySelector('[data-r]').value = t.role;
+        fg = t.fig % FIGS.length; col = t.color; main.querySelector('[data-col]').value = col; drawFigs();
+        if (THEMES[t.theme] && !used[t.theme]) { theme = t.theme; main.querySelectorAll('[data-th] span').forEach(function (o) { o.classList.toggle('on', o.getAttribute('data-v') === theme); }); }
+      });
       main.querySelector('[data-cancel]').onclick = drawMain;
       main.querySelector('[data-save]').onclick = function () {
         var payload = { name: main.querySelector('[data-n]').value.trim(), role: main.querySelector('[data-r]').value.trim(), avatar: av, theme: theme, fig: +fg, color: col };

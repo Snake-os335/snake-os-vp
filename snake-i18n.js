@@ -98,9 +98,11 @@
   }
   function autoLang() {
     try { var tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; if (/^(Europe\/Madrid|Atlantic\/Canary|Africa\/Ceuta)$/.test(tz)) return 'es'; } catch (e) {}
+    try { var ls = (navigator.languages && navigator.languages.length ? navigator.languages : [navigator.language || '']); for (var i = 0; i < ls.length; i++) if (/^es\b/i.test(String(ls[i]))) return 'es'; } catch (e) {}
     return 'en';
   }
-  function getLang() { var v = null; try { v = localStorage.getItem('snkLang'); } catch (e) {} return v === 'es' || v === 'en' ? v : autoLang(); }
+  // Solo una elección MANUAL (botón 🌐) se respeta; la clave antigua snkLang se ignora (podía guardar una detección automática errónea).
+  function getLang() { var v = null; try { v = localStorage.getItem('snkLangManual'); localStorage.removeItem('snkLang'); } catch (e) {} return v === 'es' || v === 'en' ? v : autoLang(); }
   var lang = getLang();
   function tr(t) {
     var k = t.trim(); if (!k || onlyBrand(k)) return null;
@@ -157,8 +159,8 @@
     }
     if (!qT) qT = setTimeout(pump, 60);
   });
-  function setLang(l) {
-    lang = l === 'en' ? 'en' : 'es'; try { localStorage.setItem('snkLang', lang); } catch (e) {}
+  function setLang(l, manual) {
+    lang = l === 'en' ? 'en' : 'es'; if (manual) { try { localStorage.setItem('snkLangManual', lang); } catch (e) {} }
     apply(); paintTile();
     try { window.dispatchEvent(new CustomEvent('snk-lang', { detail: lang })); } catch (e) {}
   }
@@ -171,8 +173,8 @@
     var g = document.getElementById('qsGrid'); if (!g || document.getElementById('qsLang')) return;
     var b = document.createElement('button'); b.type = 'button'; b.className = 'qs-tile qs-tile-action'; b.id = 'qsLang'; b.setAttribute('data-noi18n', '');
     b.title = 'ES / EN'; b.innerHTML = '<span class="qs-tile-ico">🌐</span><span class="qs-tile-lab"></span>';
-    b.onclick = function (e) { e.stopPropagation(); setLang(lang === 'en' ? 'es' : 'en'); };
-    g.appendChild(b); paintTile();
+    b.onclick = function (e) { e.stopPropagation(); setLang(lang === 'en' ? 'es' : 'en', true); };
+    g.insertBefore(b, g.firstChild); paintTile();
   }
   function start() {
     addTile(); apply();
@@ -180,6 +182,6 @@
     // Atributos que las apps cambian después de pintar (placeholder/title): repaso ligero de ventanas abiertas, sin observar atributos (evita bucles con otros observadores).
     setInterval(sweepAttrs, 2500);
   }
-  window.snakeI18n = { get lang() { return lang; }, set: setLang, t: function (s) { return lang === 'en' ? (tr(String(s)) || s) : s; } };
+  window.snakeI18n = { get lang() { return lang; }, set: function (l) { setLang(l, true); }, t: function (s) { return lang === 'en' ? (tr(String(s)) || s) : s; } };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
 })();
