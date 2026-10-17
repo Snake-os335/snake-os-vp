@@ -84,7 +84,16 @@ class SnakeRacingHub:
                 pass
 
     # ---------- conexión ----------
-    async def connect(self, ws: Any, email: str, name: str) -> None:
+    async def connect(self, ws: Any, email: str, name: str, kid_friends: set[str] | None = None) -> None:
+        # Snake OS Kids (modo «solo amigos»): si entra alguien que no es amigo aprobado, el niño sale de la sala.
+        for kws, kp in list(self.players.items()):
+            kf = kp.get("kid_friends")
+            if kf is not None and email not in kf:
+                try:
+                    await self._send(kws, {"type": "error", "detail": "Snake OS Kids: ha entrado un piloto que no es amigo aprobado"})
+                    await kws.close(code=4403)
+                except Exception:
+                    pass
         if len(self.players) >= MAX_PLAYERS:
             await self._send(ws, {"type": "error", "detail": "Sala llena"})
             return
@@ -92,6 +101,8 @@ class SnakeRacingHub:
         disp = (name or "Piloto")[:18] + (f" ({same + 1})" if same else "")
         p = {"id": f"p{next(_ids)}", "email": email, "name": disp, "color": self._free_color(),
              "ready": False, "in_race": False}
+        if kid_friends is not None:
+            p["kid_friends"] = set(kid_friends)
         self.players[ws] = p
         self.order.append(ws)
         await self._send(ws, {"type": "welcome", "you": p["id"], "color": p["color"], "name": disp})

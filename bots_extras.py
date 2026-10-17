@@ -22,6 +22,16 @@ from pydantic import BaseModel, Field
 
 import askbox_client
 import db
+import osx_extras
+
+CHAT_ASK_TIMEOUT = 60      # s por llamada a AskBox dentro del chat
+CHAT_DEADLINE = 170        # s máximo por respuesta del chat (después se para con aviso)
+_chat_jobs: dict[str, dict[str, Any]] = {}
+_chat_pool = ThreadPoolExecutor(max_workers=8, thread_name_prefix="dbots-chat")
+
+
+class _ChatCancelled(Exception):
+    pass
 from askbox_client import AskboxError
 
 MAX_BOTS = 12
@@ -1453,9 +1463,20 @@ def build_router(
                 "key": str(d.get("key") or "Enter")[:12], "say": str(d.get("say") or d.get("thought") or "")[:200],
                 "goal_met": bool(d.get("goal_met")) and act in {"done", "wait"}}
 
-    @r.post("/api/dbots/chat/{bot_id}")
-    def chat_send(bot_id: str, body: ChatBody, user=Depends(require_user)):
+    def _chat_core(bot_id: str, body: ChatBody, user: dict, stage: Callable[[str], None] | None = None, cancelled: Callable[[], bool] | None = None):
+        """Respuesta del bot en el chat. Se ejecuta en segundo plano (job) para no dejar Snake OS esperando."""
+        stage = stage or (lambda _s: None)
+        cancelled = cancelled or (lambda: False)
+
+        def _chk() -> None:
+            if cancelled():
+                raise _ChatCancelled()
+
         uid = int(user["id"])
+        _kp = osx_extras.kids_policy(uid)
+        if _kp is not None and _kp.get("bots") == "off":
+            osx_extras.log_blocked(uid, "bots", "Doganiero Bots desactivado")
+            raise HTTPException(403, "Snake OS Kids: Doganiero Bots está desactivado por un adulto")
         bots = _load_bots(uid)
         bot = next((b for b in bots if b.get("id") == bot_id), None)
         if not bot:
@@ -1480,7 +1501,14 @@ def build_router(
             raise HTTPException(422, "Escribe qué quieres que haga antes de /en mi escritorio")
         pages: list[dict[str, Any]] = []
         page_ctx = ""
+        stage("Leyendo tu mensaje…")
         for u in list(dict.fromkeys(URL_RE.findall(text)))[:2]:
+            _chk()
+            if _kp is not None and not osx_extras.host_allowed(_kp, u):
+                osx_extras.log_blocked(uid, "web", u[:150])
+                page_ctx += f"\n\n[No se pudo abrir {u}: web no permitida en Snake OS Kids]"
+                continue
+            stage("Abriendo " + u[:60] + "…")
             try:
                 pg = fetch_page(u)
                 pages.append({"url": pg["url"], "title": pg["title"][:120], "domain": pg["domain"]})
@@ -1520,9 +1548,16 @@ def build_router(
             "Nunca cierres sesión, cambies contraseñas ni inicies sesión en webs. "
             f"Apps disponibles: {ctx_apps}. Fondos disponibles: {ctx_walls}."
         )
+        if _kp is not None:
+            system += ("\nMODO INFANTIL (Snake OS Kids, tramo de edad " + str(_kp.get("age")) + "): hablas con un niño o niña. "
+                       "Usa lenguaje sencillo, amable y apropiado para su edad. No hables de violencia, sexo, drogas, apuestas, terror ni otros temas para adultos; "
+                       "si te lo piden, explica con cariño que eso es mejor preguntárselo a un adulto. No pidas ni guardes datos personales (dirección, teléfono, colegio, fotos). "
+                       "No uses action desktop con target user ni call_contact.")
         prompt = (f"Conversación previa:\n{convo}\n\n" if convo else "") + f"Usuario: {text}\nResponde con el JSON."
         try:
-            res = askbox_client.ask(prompt, system=system, tier="balanced", max_output_tokens=900, api_key=key)
+            _chk()
+            stage("Pensando la respuesta…")
+            res = askbox_client.ask(prompt, system=system, tier="balanced", max_output_tokens=900, api_key=key, timeout=CHAT_ASK_TIMEOUT)
             raw = res.get("text") or ""
             d = _parse_json(raw) or {"reply": raw, "action": "none"}
             reply = str(d.get("reply") or "").strip()
@@ -1539,26 +1574,38 @@ def build_router(
                     extra["memory"] = note
             if action == "search" and str(d.get("query") or "").strip():
                 q = str(d.get("query")).strip()[:150]
+                _chk()
+                stage("Buscando en internet: " + q[:60] + "…")
                 results = web_search(q, 5) or []
+                if _kp is not None:
+                    results = [x for x in results if osx_extras.host_allowed(_kp, x.get("url", ""))]
+                _chk()
+                stage("Leyendo los resultados…")
                 ctx = "\n".join(f"[{i+1}] {x.get('title','')}: {x.get('snippet','')} ({x.get('url','')})" for i, x in enumerate(results[:5])) or "(sin resultados)"
                 res2 = askbox_client.ask(
                     (f"Conversación previa:\n{convo}\n\n" if convo else "") + f"Usuario: {text}\n\nResultados de búsqueda para «{q}»:\n{ctx}\n\n"
                     "Contesta al usuario en español, natural y breve, citando fuentes como [n]. Solo texto, sin JSON.",
                     system=f"Eres «{bot.get('name')}», bot de Doganiero Bots. Tu función: {bot.get('role') or 'asistente general'}. Memoria:\n{mem}",
-                    tier="balanced", max_output_tokens=900, api_key=key,
+                    tier="balanced", max_output_tokens=900, api_key=key, timeout=CHAT_ASK_TIMEOUT,
                 )
                 reply = (res2.get("text") or reply).strip()
                 extra["search"] = q
                 extra["sources"] = [x.get("url", "")[:300] for x in results[:5] if x.get("url")]
+            elif action == "browse" and isinstance(d.get("steps"), list) and _kp is not None:
+                reply = (reply + "\n\n" if reply else "") + "🧸 En Snake OS Kids no navego por webs; pregúntame y te lo explico."
             elif action == "browse" and isinstance(d.get("steps"), list):
+                _chk()
+                stage("Navegando por la web…")
                 trace = run_browse(d.get("steps"), web_search)
+                _chk()
+                stage("Escribiendo la respuesta…")
                 extra["browse"] = trace
                 if trace:
                     res2 = askbox_client.ask(
                         (f"Conversación previa:\n{convo}\n\n" if convo else "") + f"Usuario: {text}\n\nLo que has visto navegando:\n{_trace_context(trace)}\n\n"
                         "Contesta al usuario en español, natural y breve, citando las URL que usaste. Solo texto, sin JSON.",
                         system=f"Eres «{bot.get('name')}», bot de Doganiero Bots. Tu función: {bot.get('role') or 'asistente general'}. Memoria:\n{mem}",
-                        tier="balanced", max_output_tokens=900, api_key=key,
+                        tier="balanced", max_output_tokens=900, api_key=key, timeout=CHAT_ASK_TIMEOUT,
                     )
                     reply = (res2.get("text") or reply).strip()
                     pg = [{"url": t["view"]["url"], "title": t["view"]["title"][:120], "domain": t["view"]["domain"]} for t in trace if t.get("view")]
@@ -1567,12 +1614,16 @@ def build_router(
             elif action == "ui":
                 goal = str(d.get("goal") or text or "").strip()[:500]
                 if goal:
-                    extra["ui"] = {"goal": goal, "target": "user" if user_desk else "mini"}
+                    extra["ui"] = {"goal": goal, "target": "user" if (user_desk and _kp is None) else "mini"}
             elif action == "desktop":
                 steps = _clean_desktop(d.get("steps"))
                 if steps:
                     extra["desktop"] = steps
                     extra["target"] = "user" if (user_desk or any(st.get("op") == "call_contact" for st in steps)) else "mini"
+                    if _kp is not None:
+                        steps = [st for st in steps if st.get("op") not in ("call_contact", "delete_file")]
+                        extra["desktop"] = steps
+                        extra["target"] = "mini"
                     if any(st.get("confirm") for st in steps):
                         reply = (reply or "Voy a hacerlo en tu escritorio.") + "\n\n⚠️ Hay acciones que necesitan tu permiso (borrar o llamar): confírmalo abajo antes de que las haga."
                 else:
@@ -1581,14 +1632,19 @@ def build_router(
                 lang = "py" if str(d.get("lang") or "").lower().startswith("py") else "js"
                 extra["code"] = {"lang": lang, "code": str(d.get("code"))[:20000]}
                 reply = reply or "Te lo programo en mi editor y lo ejecuto."
+            elif action == "open" and URL_RE.match(str(d.get("url") or "").strip()) and _kp is not None and not osx_extras.host_allowed(_kp, str(d.get("url"))):
+                osx_extras.log_blocked(uid, "web", str(d.get("url"))[:150])
+                reply = (reply + "\n\n" if reply else "") + "🧸 Esa web no está en la lista de webs permitidas."
             elif action == "open" and URL_RE.match(str(d.get("url") or "").strip()):
+                _chk()
+                stage("Abriendo la página…")
                 try:
                     pg = fetch_page(str(d.get("url")).strip())
                     res2 = askbox_client.ask(
                         (f"Conversación previa:\n{convo}\n\n" if convo else "") + f"Usuario: {text}\n\n" + _page_context(pg) +
                         "\nContesta al usuario en español, natural y breve, sobre esa página y cita su URL. Solo texto, sin JSON.",
                         system=f"Eres «{bot.get('name')}», bot de Doganiero Bots. Tu función: {bot.get('role') or 'asistente general'}. Memoria:\n{mem}",
-                        tier="balanced", max_output_tokens=900, api_key=key,
+                        tier="balanced", max_output_tokens=900, api_key=key, timeout=CHAT_ASK_TIMEOUT,
                     )
                     reply = (res2.get("text") or reply).strip()
                     extra["pages"] = (extra.get("pages") or []) + [{"url": pg["url"], "title": pg["title"][:120], "domain": pg["domain"]}]
@@ -1604,10 +1660,104 @@ def build_router(
             if not reply:
                 reply = "🤔 No sé qué decir. ¿Me lo explicas de otra forma?"
         except AskboxError as exc:
+            if cancelled():
+                raise _ChatCancelled() from exc
             msg = _chat_append(uid, bot_id, "bot", "❌ AskBox respondió un error: " + exc.message[:200], error=True)
             return {"message": msg}
+        _chk()
         msg = _chat_append(uid, bot_id, "bot", reply, **extra)
         return {"message": msg}
+
+    @r.post("/api/dbots/chat/{bot_id}")
+    def chat_send(bot_id: str, body: ChatBody, user=Depends(require_user)):
+        """Versión síncrona (compatibilidad). El escritorio usa /start + sondeo."""
+        try:
+            return _chat_core(bot_id, body, user)
+        except _ChatCancelled:
+            return {"message": None, "cancelled": True}
+
+    def _jobs_gc() -> None:
+        now = time.time()
+        for jid, j in list(_chat_jobs.items()):
+            if now - j["started"] > 900:
+                _chat_jobs.pop(jid, None)
+
+    def _job_run(jid: str, bot_id: str, body: ChatBody, user: dict) -> None:
+        j = _chat_jobs.get(jid)
+        if not j:
+            return
+        uid = int(user["id"])
+
+        def stage(t: str) -> None:
+            j["stage"] = t[:120]
+
+        def cancelled() -> bool:
+            if j["cancel"]:
+                return True
+            if time.time() - j["started"] > CHAT_DEADLINE:
+                j["timeout"] = True
+                return True
+            return False
+
+        try:
+            out = _chat_core(bot_id, body, user, stage, cancelled)
+            j["message"] = out.get("message")
+            j["status"] = "done"
+        except _ChatCancelled:
+            if j.get("timeout"):
+                j["status"] = "error"
+                j["error"] = "La petición tardó demasiado y la he parado. Prueba a pedirlo por partes o como tarea en segundo plano."
+                try:
+                    j["message"] = _chat_append(uid, bot_id, "bot", "⌛ " + j["error"], error=True)
+                except Exception:
+                    pass
+            else:
+                j["status"] = "cancelled"
+                try:
+                    j["message"] = _chat_append(uid, bot_id, "bot", "⏹ Petición cancelada.")
+                except Exception:
+                    pass
+        except HTTPException as exc:
+            j["status"] = "error"
+            j["error"] = str(exc.detail)
+        except Exception as exc:  # noqa: BLE001
+            j["status"] = "error"
+            j["error"] = "Algo falló al responder (" + type(exc).__name__ + "). Prueba otra vez."
+        j["stage"] = ""
+        j["ended"] = time.time()
+
+    @r.post("/api/dbots/chat/{bot_id}/start")
+    def chat_start(bot_id: str, body: ChatBody, user=Depends(require_user)):
+        """Arranca la respuesta en segundo plano y devuelve enseguida un id para sondear el progreso."""
+        uid = int(user["id"])
+        if not any(b.get("id") == bot_id for b in _load_bots(uid)):
+            raise HTTPException(404, "Bot no encontrado")
+        if not own_askbox_key(uid):
+            raise HTTPException(422, "No tienes clave de AskBox. Añádela en Ajustes → IA → Key de AskBox.")
+        _jobs_gc()
+        if sum(1 for j in _chat_jobs.values() if j["uid"] == uid and j["status"] == "running") >= 3:
+            raise HTTPException(429, "Ya tienes 3 respuestas en marcha; espera o cancela alguna.")
+        jid = uuid.uuid4().hex[:16]
+        _chat_jobs[jid] = {"uid": uid, "bot_id": bot_id, "status": "running", "stage": "En cola…", "started": time.time(),
+                           "cancel": False, "message": None, "error": ""}
+        _chat_pool.submit(_job_run, jid, bot_id, body, dict(user))
+        return {"job": jid}
+
+    @r.get("/api/dbots/chat-jobs/{jid}")
+    def chat_job(jid: str, user=Depends(require_user)):
+        j = _chat_jobs.get(jid)
+        if not j or j["uid"] != int(user["id"]):
+            raise HTTPException(404, "Petición no encontrada")
+        return {"status": j["status"], "stage": j["stage"], "elapsed": round(time.time() - j["started"], 1),
+                "message": j["message"], "error": j["error"]}
+
+    @r.post("/api/dbots/chat-jobs/{jid}/cancel")
+    def chat_job_cancel(jid: str, user=Depends(require_user)):
+        j = _chat_jobs.get(jid)
+        if not j or j["uid"] != int(user["id"]):
+            raise HTTPException(404, "Petición no encontrada")
+        j["cancel"] = True
+        return {"ok": True}
 
     @r.post("/api/dbots/tasks")
     def add_task(body: TaskBody, user=Depends(require_user)):

@@ -1205,7 +1205,10 @@ def normalize_desktop_prefs(value: Any) -> dict[str, Any]:
     theme = value.get("theme")
     if theme not in ("auto", "light", "dark"):
         theme = "auto"
-    return {"wallpaper": wp, "theme": theme}
+    out = {"wallpaper": wp, "theme": theme}
+    if isinstance(value.get("osx"), dict):
+        out["osx"] = value["osx"]  # brillo, salvapantallas, modo trabajo y Kids (osx_extras.py)
+    return out
 
 
 def get_json_field(user_id: int, field: str, default: Any) -> Any:

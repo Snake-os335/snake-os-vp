@@ -79,7 +79,7 @@ def _truncate_prompt(prompt: str) -> str:
     return text[-MAX_PROMPT_CHARS:]
 
 
-def _post(path: str, payload: dict[str, Any], api_key: str) -> tuple[int, Any, dict[str, str]]:
+def _post(path: str, payload: dict[str, Any], api_key: str, timeout: float | None = None) -> tuple[int, Any, dict[str, str]]:
     """POST JSON to Askbox. Returns (status, parsed_body, headers).
 
     Never raises for Askbox's own error responses (4xx/5xx with a JSON
@@ -98,7 +98,7 @@ def _post(path: str, payload: dict[str, Any], api_key: str) -> tuple[int, Any, d
         method="POST",
     )
     try:
-        with urlopen(req, timeout=_TIMEOUT_SEC) as resp:
+        with urlopen(req, timeout=timeout or _TIMEOUT_SEC) as resp:
             raw = resp.read().decode("utf-8", errors="replace")
             headers = {k: v for k, v in resp.headers.items()}
             try:
@@ -146,6 +146,7 @@ def ask(
     api_key: str | None = None,
     prompt_template: str | None = None,
     variables: dict[str, Any] | None = None,
+    timeout: float | None = None,
 ) -> dict[str, Any]:
     """Call Askbox's POST /v1/ask and return the parsed JSON response.
 
@@ -174,7 +175,7 @@ def ask(
     if variables is not None:
         payload["variables"] = variables
 
-    status, body, headers = _post("/v1/ask", payload, key)
+    status, body, headers = _post("/v1/ask", payload, key, timeout)
     if status < 200 or status >= 300:
         raise _error_from_body(status, body, headers)
     if not isinstance(body, dict):

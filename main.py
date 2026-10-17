@@ -38,6 +38,7 @@ import chat_extras
 import store_extras
 import calendar_extras
 import bots_extras
+import osx_extras
 import snake_tts
 import askbox_client
 import matrix_api
@@ -1703,6 +1704,8 @@ def put_desktop_prefs(payload: dict[str, Any], user=Depends(require_user)):
     cur = db.normalize_desktop_prefs(db.get_json_field(uid, "desktop_prefs", {}))
     if isinstance(payload, dict):
         if "wallpaper" in payload:
+            if payload.get("wallpaper") != cur["wallpaper"] and osx_extras.work_on(uid):
+                raise HTTPException(status_code=423, detail="El fondo está bloqueado mientras el modo trabajo esté activo")
             cur["wallpaper"] = payload.get("wallpaper")
         if "theme" in payload:
             cur["theme"] = payload.get("theme")
@@ -1745,6 +1748,8 @@ async def post_me_wallpaper(
     file: UploadFile = File(...),
     user=Depends(require_user),
 ):
+    if osx_extras.work_on(int(user["id"])):
+        raise HTTPException(status_code=423, detail="El fondo está bloqueado mientras el modo trabajo esté activo")
     raw = await file.read()
     try:
         url = db.save_wallpaper_bytes(int(user["id"]), raw)
@@ -1764,6 +1769,8 @@ async def post_me_wallpaper(
 @app.delete("/api/me/wallpaper")
 def delete_me_wallpaper(user=Depends(require_user)):
     uid = int(user["id"])
+    if osx_extras.work_on(uid):
+        raise HTTPException(status_code=423, detail="El fondo está bloqueado mientras el modo trabajo esté activo")
     db.clear_wallpaper_file(uid)
     prefs = db.normalize_desktop_prefs(db.get_json_field(uid, "desktop_prefs", {}))
     if prefs["wallpaper"] == "custom":
@@ -1808,6 +1815,13 @@ def get_store_apps(user=Depends(require_user)):
 @app.put("/api/store-apps")
 def put_store_apps(payload: list[Any], user=Depends(require_user)):
     cleaned = db.normalize_store_apps(payload)
+    _kp = osx_extras.kids_policy(int(user["id"]))
+    if _kp is not None:
+        before = {a.get("id") for a in db.normalize_store_apps(db.get_json_field(int(user["id"]), "store_apps", []))}
+        added = [a.get("id") for a in cleaned if a.get("id") not in before]
+        if added and not (_kp["store"] == "pin" and osx_extras.store_unlocked(int(user["id"]))):
+            osx_extras.log_blocked(int(user["id"]), "tienda", ", ".join(str(x) for x in added)[:120])
+            raise HTTPException(status_code=403, detail="Snake OS Kids: las descargas de la tienda necesitan el PIN del adulto")
     db.set_json_field(int(user["id"]), "store_apps", cleaned)
     return cleaned
 
@@ -4767,6 +4781,16 @@ async def metaverse_ws(websocket: WebSocket):
     pub = db.user_public(user_row)
     email = str(pub["email"]).strip().lower()
     uid = int(user_row["id"])
+    _kp = osx_extras.kids_policy(uid)
+    if _kp is not None and _kp["online"] != "allow":
+        osx_extras.log_blocked(uid, "online", "Metaverse")
+        try:
+            await websocket.send_text(json.dumps({"type": "error", "detail": "Snake OS Kids: el Metaverse es un mundo abierto y está bloqueado"}, ensure_ascii=False))
+        except Exception:
+            pass
+        await _ws_close_quiet(websocket, 4403)
+        _i9_untrack(websocket)
+        return
     progress = db.get_metaverse_progress(uid)
     avatar_wallet = db.get_avatar_wallet(uid)
     q_world = websocket.query_params.get("world")
@@ -5272,7 +5296,20 @@ async def snake_racing_ws(websocket: WebSocket):
     pub = db.user_public(user_row)
     email = str(pub["email"]).strip().lower()
     name = str(pub.get("name") or email.split("@")[0])
-    await snake_racing.racing_hub.connect(websocket, email, name)
+    _kp = osx_extras.kids_policy(int(user_row["id"]))
+    kid_friends = None
+    if _kp is not None and _kp["online"] != "allow":
+        kid_friends = set(_kp["friends"]) | {email}
+        others = {p["email"] for p in snake_racing.racing_hub.players.values()}
+        if _kp["online"] == "block" or not others <= kid_friends:
+            osx_extras.log_blocked(int(user_row["id"]), "online", "Snake Racing online")
+            try:
+                await websocket.send_text(json.dumps({"type": "error", "detail": "Snake OS Kids: el juego online está bloqueado" if _kp["online"] == "block" else "Snake OS Kids: en la sala hay pilotos que no son amigos aprobados"}, ensure_ascii=False))
+            except Exception:
+                pass
+            await _ws_close_quiet(websocket, 4403)
+            return
+    await snake_racing.racing_hub.connect(websocket, email, name, kid_friends=kid_friends)
     try:
         while True:
             raw = await websocket.receive_text()
@@ -6677,6 +6714,10 @@ async def chat_send(body: ChatSendBody, user=Depends(require_user)):
     peer_id = int(peer["id"])
     if peer_id == uid:
         raise HTTPException(status_code=400, detail="No puedes enviarte mensajes a ti mismo")
+    _kp = osx_extras.kids_policy(uid)
+    if _kp is not None and (_kp["chat"] == "off" or to_email not in _kp["contacts"]):
+        osx_extras.log_blocked(uid, "chat", to_email)
+        raise HTTPException(status_code=403, detail="Snake OS Kids: solo puedes escribir a los contactos que ha aprobado un adulto" if _kp["chat"] != "off" else "Snake OS Kids: el chat está desactivado")
     if not added_accounts.has(uid, peer_id):
         raise HTTPException(status_code=403, detail="Solo puedes chatear con cuentas que has añadido.")
     # Mobile ghost-click / double submit: reuse identical row within 2s
@@ -8374,6 +8415,7 @@ class _PublicStaticFiles(StaticFiles):
 
 # Doganiero Bots (2026-10-14)
 app.include_router(bots_extras.build_router(require_user, bots_extras.own_key, web_search_results))
+app.include_router(osx_extras.build_router(require_user))
 
 # Voz propia de Snake OS (Piper TTS local)
 def _tts_user(request):
