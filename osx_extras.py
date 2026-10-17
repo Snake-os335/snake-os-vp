@@ -131,7 +131,7 @@ def normalize(raw: Any) -> dict[str, Any]:
         "brightness": _int(r.get("brightness"), 20, 100, 100),
         "screensaver": {
             "id": ss.get("id") if ss.get("id") in SAVERS else "window",
-            "timeout": _int(ss.get("timeout"), 0, 30, 1) if _int(ss.get("timeout"), 0, 30, 1) in TIMEOUTS else 1,
+            "timeout": _int(ss.get("timeout"), 0, 30, 5) if _int(ss.get("timeout"), 0, 30, 5) in TIMEOUTS else 5,
         },
         "work": {
             "on": bool(wk.get("on")),

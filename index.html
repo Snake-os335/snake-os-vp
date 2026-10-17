@@ -121,8 +121,8 @@ window.SNAKE_OS_CHANGES=[
 <script src="/static/snake-update-screen.js?v=202610180010"></script>
 <script src="/static/snake-i18n.js?v=202610161800" defer></script>
 <script src="/static/snake-taskbar11.js?v=202610172345" defer></script>
-<script src="/static/snake-screensaver.js?v=202610180010" defer></script>
-<script src="/static/snake-osx.js?v=202610180040" defer></script>
+<script src="/static/snake-screensaver.js?v=202610180100" defer></script>
+<script src="/static/snake-osx.js?v=202610180100" defer></script>
 <script src="/static/snake-sidebar.js?v=202610180010" defer></script>
 <style>
   :root{
@@ -6351,6 +6351,9 @@ function buildIcons(){
     try { if(window.snakeCursor && window.snakeCursor.resetBusy) window.snakeCursor.resetBusy(); } catch(eR){}
   }
   function beginOsTutorialFromWelcome(){
+    // El clic en «Iniciar tutorial» es un gesto del usuario: desbloquea la voz aquí
+    // (si no, el primer «Siguiente» solo leía el paso 1 en voz alta y no avanzaba).
+    try { if(typeof primeOsTutorialSpeech === 'function') primeOsTutorialSpeech(); } catch(ePrime){}
     hideOsWelcome();
     if(!currentUser) return;
     // Mostrar apps para el tutorial
@@ -6615,10 +6618,14 @@ function buildIcons(){
       osTutFinish(!osTut.unlocked);
     });
     document.getElementById('osTutorialNext').addEventListener('click', function(){
-      if(!osTut.active) return;
+      if(!osTut.active || osTut.finishing) return;
+      // «Siguiente» siempre avanza. Si la voz aún no estaba desbloqueada, este clic la
+      // desbloquea y lee el paso nuevo (osTutAdvance → osTutSpeak dentro del gesto).
       if(!osTut.unlocked){
-        osTutSpeak(OS_TUT_STEPS[osTut.idx].text, true);
-        return;
+        osTut.unlocked = true;
+        osTut.hold = false;
+        osTut.holdUtt = null;
+        osTut.pendingAdvance = false;
       }
       osTutAdvance();
     });

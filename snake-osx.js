@@ -203,7 +203,7 @@
 
   /* ---------------- preferencias ---------------- */
   function defaults() {
-    return { brightness: 100, screensaver: { id: 'window', timeout: 1 }, work: { on: false, apps: ['notes', 'calendario', 'code', 'terminal', 'explorer', 'desk', 'browser', 'cloud'], links: [] }, kids: { on: false, asked: true, has_pin: false } };
+    return { brightness: 100, screensaver: { id: 'window', timeout: 5 }, work: { on: false, apps: ['notes', 'calendario', 'code', 'terminal', 'explorer', 'desk', 'browser', 'cloud'], links: [] }, kids: { on: false, asked: true, has_pin: false } };
   }
   function readLocal() { try { var v = JSON.parse(localStorage.getItem(lsKey()) || 'null'); return v && typeof v === 'object' && v.work && v.kids ? v : null; } catch (e) { return null; } }
   function writeLocal() { try { localStorage.setItem(lsKey(), JSON.stringify(S.prefs)); } catch (e) {} }
