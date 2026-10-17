@@ -101,6 +101,7 @@ window.SNAKE_OS_CHANGES=[
 <script src="/static/snake-keypad.js?v=202610161800" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-game-matrix.js?v=202610112000" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-racing.js?v=202610161920" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
+<script src="/static/los-snakes.js?v=202610171845"></script>
 <script src="/static/snake-i18n-dict.js?v=202610161940" defer></script>
 <script src="/static/snake-update-screen.js?v=202610161805"></script>
 <script src="/static/snake-i18n.js?v=202610161800" defer></script>
@@ -14632,11 +14633,12 @@ function renderStoreApp(container){
     notes:    { title:'Notas',       icon:'📝', width:350, height:480, render: renderNotesApp },
     games:    { title:'Juegos',      icon:'🎮', width:370, height:520, render: renderGamesApp },
     snake:    { title:'Snake',       icon:'🐍', width:330, height:580, render: renderSnakeApp },
-    'los-snakes': { title:'Los Snakes', icon:'🐍', iconImg: LOS_SNAKES_ICON_URL, iconImgClass: 'los-snakes-logo', iconHtml: appIconImgHtml(LOS_SNAKES_ICON_URL, 'los-snakes-logo'), width:520, height:380, render: function(body){
-      body.innerHTML = '<div style="height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:20px;box-sizing:border-box;background:linear-gradient(#e8f7ff,#b7e3ff);color:#123">' +
-        '<img src="/static/assets/los-snakes-logo.svg?v=202610171805" alt="Los Snakes" style="max-width:92%;max-height:60%;object-fit:contain">' +
-        '<div style="font:800 22px system-ui,sans-serif;letter-spacing:.5px;color:#1446b8">Próximamente</div></div>';
-      return function(){};
+    'los-snakes': { title:'Los Snakes', icon:'🐍', iconImg: LOS_SNAKES_ICON_URL, iconImgClass: 'los-snakes-logo', iconHtml: appIconImgHtml(LOS_SNAKES_ICON_URL, 'los-snakes-logo'), width:980, height:700, render: function(body){
+      if(typeof window.renderLosSnakesApp !== 'function'){
+        body.innerHTML = '<div style="padding:16px;color:#ff8a7a">No se pudo cargar Los Snakes. Recarga la página.</div>';
+        return function(){};
+      }
+      return window.renderLosSnakesApp(body);
     } },
     'snake-racing': { title:'Snake Racing', icon:'🏁', iconImg: SNAKE_RACING_ICON_URL, iconImgClass: 'snake-race-logo', iconHtml: appIconImgHtml(SNAKE_RACING_ICON_URL, 'snake-race-logo'), width:680, height:620, render: function(body){
       if(typeof window.renderSnakeRacingApp !== 'function'){

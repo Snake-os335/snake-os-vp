@@ -5346,6 +5346,85 @@ def snake_racing_commentary(body: SnakeRacingCommentaryBody, user=Depends(requir
     return {"ok": bool(text), "text": text}
 
 
+# ===== LOS SNAKES (simulador de vida) =====
+
+class LosSnakesAIBody(BaseModel):
+    kind: str = "thought"
+    facts: dict = Field(default_factory=dict)
+
+
+_los_snakes_ai_last: dict[int, float] = {}
+_LOS_SNAKES_DIR = FsPath(os.path.dirname(os.path.abspath(__file__))) / "data" / "los-snakes"
+
+
+@app.get("/api/los-snakes/ai")
+def los_snakes_ai_status(user=Depends(require_user)):
+    return {"llm": bool(resolve_askbox_key(int(user["id"])))}
+
+
+@app.post("/api/los-snakes/ai")
+def los_snakes_ai(body: LosSnakesAIBody, user=Depends(require_user)):
+    """Pensamientos cortos y entradas de diario con LLM (Askbox). Sin clave o si falla: ok=False y el cliente usa frases locales."""
+    uid = int(user["id"])
+    key = resolve_askbox_key(uid)
+    if not key:
+        return {"ok": False, "reason": "no_key"}
+    now = time.time()
+    if now - _los_snakes_ai_last.get(uid, 0) < 2.5:
+        return {"ok": False, "reason": "throttled"}
+    _los_snakes_ai_last[uid] = now
+    facts = json.dumps(body.facts, ensure_ascii=False)[:1500]
+    if body.kind == "diary":
+        prompt = "Escribe la entrada de diario de hoy (2-3 frases, primera persona, tono tierno y gracioso) de esta serpiente. Datos: " + facts
+        max_tok = 200
+    else:
+        prompt = "Escribe UN pensamiento muy corto (máximo 12 palabras, primera persona) de esta serpiente según su personalidad y situación. Datos: " + facts
+        max_tok = 60
+    try:
+        result = askbox_client.ask(
+            prompt,
+            system=("Eres el narrador de 'Los Snakes', un simulador de vida de serpientes que parodia a Los Sims. "
+                    "Escribe en español de España, con humor amable y juegos de palabras de serpientes. Responde solo con el texto, sin comillas."),
+            tier="fast", max_output_tokens=max_tok, api_key=key,
+        )
+    except AskboxError as exc:
+        return {"ok": False, "reason": exc.code or "error"}
+    except Exception:
+        return {"ok": False, "reason": "error"}
+    text = (result.get("text") or "").strip().strip(chr(34))[:500]
+    return {"ok": bool(text), "text": text}
+
+
+@app.get("/api/los-snakes/save")
+def los_snakes_load(user=Depends(require_user)):
+    path = _LOS_SNAKES_DIR / f"{int(user['id'])}.json"
+    if not path.is_file():
+        return {"ok": False}
+    try:
+        return {"ok": True, "save": json.loads(path.read_text("utf-8"))}
+    except Exception:
+        return {"ok": False}
+
+
+@app.put("/api/los-snakes/save")
+async def los_snakes_save(request: Request, user=Depends(require_user)):
+    raw = await request.body()
+    if len(raw) > 800_000:
+        raise HTTPException(status_code=413, detail="Partida demasiado grande")
+    try:
+        data = json.loads(raw)
+    except Exception:
+        raise HTTPException(status_code=400, detail="JSON inválido")
+    if not isinstance(data, dict) or "S" not in data:
+        raise HTTPException(status_code=400, detail="Formato inválido")
+    _LOS_SNAKES_DIR.mkdir(parents=True, exist_ok=True)
+    path = _LOS_SNAKES_DIR / f"{int(user['id'])}.json"
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(json.dumps(data, ensure_ascii=False), "utf-8")
+    tmp.replace(path)
+    return {"ok": True}
+
+
 # ===== DOGANIERO CHAT + NOTIFICATIONS =====
 
 class ChatHub:
