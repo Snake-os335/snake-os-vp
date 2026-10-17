@@ -5621,6 +5621,25 @@ def _ls_add_mail(host_id: int, item: dict) -> None:
         _ls_social_store(host_id, soc)
 
 
+_LS_PLACES = ("parque", "tienda", "cafeteria", "gimnasio")
+
+
+def _ls_can_meet(a: int, b: int) -> bool:
+    """¿Pueden verse dos jugadores en un lugar público del barrio? Solo amigos mutuos y respetando Snake OS Kids."""
+    a, b = int(a), int(b)
+    if a == b or not added_accounts.has(a, b) or not added_accounts.has(b, a):
+        return False
+    for me, other in ((a, b), (b, a)):
+        kp = _ls_kids(me)
+        if kp is not None and kp.get("online") != "allow":
+            if kp.get("online") == "block":
+                return False
+            row = db.get_user_by_id(other)
+            if not row or _ls_email(row) not in set(kp.get("friends") or []):
+                return False
+    return True
+
+
 class _LosSnakesHub:
     """Presencia y visitas en vivo: el invitado envía su serpiente, el anfitrión el estado de su casa."""
 
@@ -5628,6 +5647,29 @@ class _LosSnakesHub:
         self.conns: dict[int, set] = {}
         self.info: dict[Any, dict] = {}
         self.rooms: dict[int, dict[int, Any]] = {}
+        self.places: dict[str, dict[int, Any]] = {}
+
+    def place_of(self, uid: int) -> str | None:
+        for ws in self.conns.get(int(uid), ()):
+            pl = (self.info.get(ws) or {}).get("place")
+            if pl:
+                return pl
+        return None
+
+    async def place_leave(self, ws) -> None:
+        inf = self.info.get(ws)
+        if not inf or not inf.get("place"):
+            return
+        pl, uid = inf["place"], inf["uid"]
+        inf["place"] = None
+        room = self.places.get(pl)
+        if room and room.get(uid) is ws:
+            room.pop(uid, None)
+            if not room:
+                self.places.pop(pl, None)
+            for ouid, ows in list((room or {}).items()):
+                if _ls_can_meet(uid, ouid):
+                    await self.send(ows, {"t": "pleave", "from": uid})
 
     def online(self, uid: int) -> bool:
         return bool(self.conns.get(int(uid)))
@@ -5670,6 +5712,7 @@ class _LosSnakesHub:
         if not inf:
             return
         await self.leave(ws)
+        await self.place_leave(ws)
         self.info.pop(ws, None)
         uid = inf["uid"]
         bucket = self.conns.get(uid)
@@ -5712,6 +5755,36 @@ class _LosSnakesHub:
             await self.to_user(host, {"t": "guest_join", "from": uid, "name": inf["name"], "snake": inf["snake"]})
         elif kind == "leave":
             await self.leave(ws)
+        elif kind == "place":
+            pl = str(msg.get("id") or "")
+            if pl not in _LS_PLACES:
+                return
+            await self.leave(ws)
+            await self.place_leave(ws)
+            room = self.places.setdefault(pl, {})
+            old = room.get(uid)
+            if old is not None and old is not ws and old in self.info:
+                self.info[old]["place"] = None
+            inf["place"], inf["snake"] = pl, _ls_clean(msg.get("snake"))
+            room[uid] = ws
+            n = 0
+            for ouid, ows in list(room.items()):
+                if ouid == uid or not _ls_can_meet(uid, ouid):
+                    continue
+                oi = self.info.get(ows) or {}
+                n += 1
+                await self.send(ws, {"t": "pjoin", "from": ouid, "name": oi.get("name"), "snake": oi.get("snake"), "p": oi.get("pos")})
+                await self.send(ows, {"t": "pjoin", "from": uid, "name": inf["name"], "snake": inf["snake"]})
+            await self.send(ws, {"t": "place_ok", "id": pl, "friends": n})
+        elif kind == "pleave":
+            await self.place_leave(ws)
+        elif kind == "g" and inf.get("place"):
+            st = _ls_clean(msg.get("s"))
+            inf["pos"] = st
+            data = {"t": "g", "from": uid, "s": st, "place": 1}
+            for ouid, ows in list((self.places.get(inf["place"]) or {}).items()):
+                if ouid != uid and _ls_can_meet(uid, ouid):
+                    await self.send(ows, data)
         elif kind == "g" and inf.get("visiting"):
             await self.to_user(int(inf["visiting"]), {"t": "g", "from": uid, "s": _ls_clean(msg.get("s"))})
         elif kind == "h":
@@ -5721,7 +5794,16 @@ class _LosSnakesHub:
         elif kind == "soc":
             out = {"t": "soc", "from": uid, "id": str(msg.get("id") or "")[:12], "ok": bool(msg.get("ok")),
                    "hs": _ls_clean(msg.get("hs")), "gs": _ls_clean(msg.get("gs")), "by": str(msg.get("by") or "")[:6]}
-            if inf.get("visiting"):
+            if inf.get("place"):
+                try:
+                    to = int(msg.get("to"))
+                except Exception:
+                    return
+                tws = (self.places.get(inf["place"]) or {}).get(to)
+                if tws is not None and _ls_can_meet(uid, to):
+                    out["by"] = "p"
+                    await self.send(tws, out)
+            elif inf.get("visiting"):
                 await self.to_user(int(inf["visiting"]), out)
             else:
                 try:
@@ -5801,6 +5883,8 @@ def los_snakes_friends(user=Depends(require_user)):
         st = _ls_game(fid)
         item = {"id": fid, "name": str(row.get("name") or "")[:40], "avatar": str(row.get("avatar") or "🐶")[:8],
                 "online": _ls_hub.online(fid), "can": ok, "reason": reason}
+        if _ls_hub.online(fid) and _ls_can_meet(uid, fid):
+            item["at"] = _ls_hub.place_of(fid)
         if ok and st is not None:
             item["family"] = _ls_family(st)
         out.append(item)
