@@ -310,8 +310,8 @@ def os_status():
     return JSONResponse({"updating": _UPDATING_FLAG.exists(), "version": _os_version()}, headers={"Cache-Control": "no-store"})
 
 
-def _os_version() -> str:
-    """Versión desplegada = commit de git (cambia en cada actualización)."""
+def _git_version() -> str:
+    """Commit de git desplegado (12 caracteres)."""
     try:
         base = FsPath(os.path.dirname(os.path.abspath(__file__)))
         g = base / ".git"
@@ -336,6 +336,85 @@ def _os_version() -> str:
     except Exception:
         pass
     return "dev"
+
+
+_APP_DIR = FsPath(os.path.dirname(os.path.abspath(__file__)))
+_SIG_EXT = (".js", ".mjs", ".css", ".html", ".webmanifest")
+_sig_cache: dict[str, Any] = {"t": 0.0, "v": ""}
+
+
+def _assets_sig() -> str:
+    """Firma de los archivos que sirve Snake OS (mtime+tamaño de los .js/.css/.html de la raíz).
+    Cambia en cuanto se publica cualquier archivo estático, aunque no haya commit ni reinicio."""
+    now = time.time()
+    if now - _sig_cache["t"] < 2.0 and _sig_cache["v"]:
+        return _sig_cache["v"]
+    h = hashlib.sha1()
+    try:
+        with os.scandir(_APP_DIR) as it:
+            rows = []
+            for e in it:
+                n = e.name
+                if n.startswith((".", "_")) or not n.lower().endswith(_SIG_EXT) or ".bak" in n:
+                    continue
+                try:
+                    st = e.stat()
+                except OSError:
+                    continue
+                rows.append(f"{n}:{st.st_mtime_ns}:{st.st_size}")
+        for r in sorted(rows):
+            h.update(r.encode())
+    except OSError:
+        pass
+    v = h.hexdigest()[:8]
+    _sig_cache.update(t=now, v=v)
+    return v
+
+
+def _os_version() -> str:
+    """Versión desplegada = commit de git + firma de los archivos estáticos.
+    Cambia en cada despliegue (git pull, merge o copia de archivos), sin reiniciar el contenedor."""
+    return f"{_git_version()[:7]}-{_assets_sig()}"
+
+
+def _asset_token(rel: str) -> str:
+    """Token de caché de un archivo servido en /static (cambia cuando cambia el archivo)."""
+    try:
+        st = (_APP_DIR / rel).stat()
+    except OSError:
+        return ""
+    return hashlib.sha1(f"{rel}:{st.st_mtime_ns}:{st.st_size}".encode()).hexdigest()[:10]
+
+
+_STATIC_REF_RE = re.compile(
+    r"""(\b(?:src|href)=["'])/static/([A-Za-z0-9_./-]+?\.(?:js|mjs|css|png|jpe?g|gif|webp|svg|ico|mp3|m4a|ogg|wav|mp4|webm|webmanifest))(?:\?v=[A-Za-z0-9_.-]*)?(?=["'&])"""
+)
+_index_cache: dict[str, Any] = {"key": None, "body": b""}
+
+
+def _render_index() -> bytes:
+    """index.html con ?v= automático en cada <script src>/<link href>/<img src> de /static:
+    el ?v= es el token del archivo real, así que nadie tiene que acordarse de subirlo a mano
+    y ni el navegador ni Cloudflare pueden servir una versión vieja."""
+    try:
+        st = (_APP_DIR / "index.html").stat()
+        key = (st.st_mtime_ns, st.st_size, _assets_sig())
+    except OSError:
+        key = None
+    if key is not None and _index_cache["key"] == key:
+        return _index_cache["body"]
+    text = (_APP_DIR / "index.html").read_text(encoding="utf-8")
+
+    def _sub(m: "re.Match[str]") -> str:
+        rel = m.group(2)
+        tok = _asset_token(rel) if _PublicStaticFiles.is_public(rel) else ""
+        if not tok:
+            return m.group(0)
+        return f"{m.group(1)}/static/{rel}?v={tok}"
+
+    body = _STATIC_REF_RE.sub(_sub, text).encode("utf-8")
+    _index_cache.update(key=key, body=body)
+    return body
 
 
 _MAINT_HTML = FsPath(os.path.dirname(os.path.abspath(__file__))) / "maintenance.html"
@@ -8635,13 +8714,15 @@ def index(request: Request):
                             headers={"Cache-Control": "no-store", "Retry-After": "5"})
     # Siempre pedir login de cuenta otra vez: no reanudar perfil abierto.
     # También se limpia la cookie del gate OS (como antes).
-    resp = FileResponse(
-        "index.html",
+    resp = Response(
+        content=_render_index(),
+        media_type="text/html; charset=utf-8",
         headers={
             "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
             "CDN-Cache-Control": "no-store",
             "Cloudflare-CDN-Cache-Control": "no-store",
             "Pragma": "no-cache",
+            "X-Snake-Version": _os_version(),
         },
     )
     end_session(request.cookies.get(COOKIE_NAME))
@@ -9003,7 +9084,23 @@ class _PublicStaticFiles(StaticFiles):
     async def get_response(self, path: str, scope):
         if not self.is_public(path):
             raise _StarletteHTTPException(status_code=404)
-        return await super().get_response(path, scope)
+        resp = await super().get_response(path, scope)
+        if getattr(resp, "status_code", 0) in (200, 304):
+            # ?v= igual al token del archivo actual (lo pone _render_index) → caché larga e inmutable.
+            # Sin ?v= o con un ?v= viejo → no-cache: el navegador y Cloudflare revalidan con ETag,
+            # así un archivo publicado sin tocar su ?v= nunca se queda viejo (antes: 4 h de Cloudflare).
+            try:
+                qv = parse_qs((scope.get("query_string") or b"").decode("latin-1")).get("v", [""])[0]
+            except Exception:
+                qv = ""
+            rel = (path or "").replace("\\", "/").lstrip("/")
+            if qv and qv == _asset_token(rel):
+                cc = "public, max-age=31536000, immutable"
+            else:
+                cc = "no-cache"
+            resp.headers["Cache-Control"] = cc
+            resp.headers["CDN-Cache-Control"] = cc
+        return resp
 
 
 # Doganiero Bots (2026-10-14)

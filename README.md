@@ -2,15 +2,28 @@
 
 ## Actualizar Snake OS (obligatorio para agentes y personas)
 
-En cada actualización de la carpeta en vivo:
+**Norma:** cada actualización terminada se sube a git **y** se lanza la update de Snake OS con el script:
 
-1. Trabaja en una copia aparte (`git worktree` o clon), **nunca** en la carpeta en vivo.
-2. `scripts/update-start.sh`: todos los usuarios ven la pantalla «Snake OS! se está actualizando...» (`/api/status` devuelve `updating: true`).
-3. Despliega (`git checkout main && git pull`, reiniciar el contenedor si cambió Python).
-4. Comprueba que `/` responde 200 y que no hay errores al arrancar.
-5. `scripts/update-end.sh`: se quita la pantalla y los navegadores abiertos se recargan solos.
+```bash
+# 1) En tu worktree/rama (nunca en la carpeta en vivo):
+git fetch origin && git rebase origin/main
+git push origin HEAD:main            # fast-forward, NUNCA --force
+# 2) Lanzar la update en la VM (carpeta en vivo):
+bash /srv/juegos_david/snake-os-vp/scripts/publicar-update.sh
+```
 
-Si algo falla, no dejes la pantalla puesta indefinidamente: vuelve a la versión anterior y ejecuta `update-end.sh`.
+`scripts/publicar-update.sh` (comparte cerrojo con el auto-deploy): se niega si la carpeta en vivo no está en
+`main` o tiene cambios sin commit; fetch; backup (git bundle en `/srv/juegos_david/backups/snake-os-vp`);
+`scripts/update-start.sh` (pantalla «Snake OS! se está actualizando...» en todas las pestañas abiertas y 503
+`maintenance.html` para cargas nuevas); `git merge --ff-only origin/main`; reinicia **solo** `snake-os-vp` si cambió
+Python/Docker; health-check (rollback si falla); mantiene la pantalla al menos `UPDATE_MIN_SECONDS` (25 s) y
+`scripts/update-end.sh`. Sin commits nuevos también relanza la update. Log: `/srv/juegos_david/logs/snake-auto-deploy.log`.
+
+- **Versión automática:** `/api/status` → `version` = commit + firma (mtime/tamaño) de los .js/.css/.html servidos.
+  Cambia en cada despliegue, aunque solo cambien archivos estáticos y sin reiniciar.
+- **?v= automático:** `/` reescribe cada `src=/href="/static/..."` de `index.html` con el token real del archivo.
+  Ya no hace falta subir los `?v=` a mano. `/static` con el token correcto → caché inmutable; sin él → `no-cache`
+  (revalida con ETag; antes Cloudflare lo guardaba 4 h).
 
 ### Auto-deploy en la VM (sin depender del Mac)
 Cada 3 min, cron ejecuta `/srv/juegos_david/bin/snake-auto-deploy.sh` (copia de `scripts/auto-deploy.sh`):
@@ -21,6 +34,9 @@ Log: `/srv/juegos_david/logs/snake-auto-deploy.log`. Para desplegar basta con ha
 Si cambias `scripts/auto-deploy.sh`, vuelve a copiarlo a `/srv/juegos_david/bin/`.
 
 ### Qué ven los usuarios al actualizar
-- Durante el despliegue (`.updating` existe), las cargas NUEVAS de `/` reciben `maintenance.html` (503) y se recargan solas al terminar.
-- Sesiones ya abiertas: no se interrumpen ni se recargan; solo ven un aviso pequeño «Hay una actualización de Snake OS! — se instalará la próxima vez que lo abras».
-- Al abrir Snake OS con una versión nueva (`/api/status` → `version` = commit), se muestra 10,5 s la pantalla «Snake OS! se está actualizando...» mientras se refrescan cachés, y se entra en la versión nueva.
+- Pestañas abiertas (comprueban `/api/status` cada 20 s, cada 3 s durante la update y al volver a la pestaña):
+  con `updating: true` → pantalla completa «Snake OS! se está actualizando...»; al terminar (o si detectan una
+  versión nueva sin haber visto el flag) se recargan con la versión nueva. Sin sesión, en seguida; con sesión,
+  cuenta atrás de 10 s con «Actualizar ahora» / «Ahora no» (aviso con botón; se vuelve a lanzar a los 10 min).
+- Cargas nuevas durante el despliegue: `maintenance.html` (503) y se recargan solas al terminar.
+- Al abrir Snake OS con una versión nueva se muestra 10,5 s la pantalla mientras se refrescan cachés.
