@@ -596,7 +596,7 @@
       return Promise.resolve(null);
     }
     // Cache-bust: CF a veces cachea el SW; la query no cambia el scope (/)
-    var swUrl = '/snake-os-sw.js?v=202610161925';
+    var swUrl = '/snake-os-sw.js?v=202610172000';
     return navigator.serviceWorker.register(swUrl, { scope: '/' })
       .then(function (reg) {
         notifState.swReady = true;

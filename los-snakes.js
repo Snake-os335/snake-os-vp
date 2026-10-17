@@ -1032,7 +1032,30 @@
     S = sv.S; S.visitors = S.visitors || []; S.hidden = S.hidden || []; S.stats = S.stats || { births: 0, finds: 0 }; S.settings = S.settings || { freeWill: true, sound: true };
     S.snakes.forEach(function (sn) { sn.q = (sn.q || []).filter(function (a) { return a.id !== 'recv' && !a.soc; }); sn.q.forEach(function (a) { a.phase = 'walk'; a.started = false; }); sn.today = sn.today || { acts: {}, who: {}, ev: [] }; sn.seen = sn.seen || {}; if (sn.away && sn.away.kind === 'visita') { sn.away = null; sn.x = EXIT[0] + 0.5; sn.y = EXIT[1] + 0.5; } });
     S.visit = false; delete S.hosts; S.mail = S.mail || [];
-    rebuildCaches(); return true;
+    migrateSave(); rebuildCaches(); return true;
+  }
+  // Partidas antiguas (o editadas en otra versión): rellena campos que falten para que nombre, apellido, rasgos y aspiración se puedan editar siempre.
+  function migrateSave() {
+    S.name = String(S.name == null ? '' : S.name).trim().slice(0, 18) || 'Familia';
+    S.objects = S.objects || []; S.neighbors = S.neighbors || []; S.ach = S.ach || {};
+    if (typeof S.nid !== 'number' || isNaN(S.nid)) { var mx = 0; S.snakes.concat(S.objects).forEach(function (o) { if (typeof o.id === 'number' && o.id > mx) mx = o.id; }); S.nid = mx + 1; }
+    S.snakes.forEach(function (sn, i) {
+      var tpl = null;
+      ['color', 'pattern', 'patterns', 'traits', 'age', 'ageD', 'asp', 'aspDone', 'needs', 'skills', 'rel', 'school', 'x', 'y', 'fx', 'q', 'mood', 'ml', 'shed', 'shedAt', 'diary', 'finds', 'eggCd', 'idle'].forEach(function (k) {
+        if (sn[k] === undefined || sn[k] === null) { tpl = tpl || makeSnake({ pattern: sn.pattern, age: AGES[sn.age] ? sn.age : 'adulto' }); sn[k] = tpl[k]; }
+      });
+      if (!sn.id) sn.id = nid();
+      sn.name = String(sn.name == null ? '' : sn.name).replace(/\s+/g, ' ').trim().slice(0, 16) || ('Serpiente ' + (i + 1));
+      if (!AGES[sn.age]) sn.age = 'adulto';
+      if (!Array.isArray(sn.traits)) sn.traits = []; sn.traits = sn.traits.filter(function (t) { return TRAITS[t]; }).slice(0, 3);
+      if (!ASP[sn.asp]) sn.asp = Object.keys(ASP)[0];
+      if (!Array.isArray(sn.patterns) || !sn.patterns.length) sn.patterns = [sn.pattern || 'lisa'];
+      if (typeof sn.color !== 'string' || !/^#[0-9a-f]{3,8}$/i.test(sn.color)) sn.color = PALETTE[i % PALETTE.length].c;
+      NEEDS.forEach(function (n) { if (typeof sn.needs[n.k] !== 'number' || isNaN(sn.needs[n.k])) sn.needs[n.k] = 70; });
+      Object.keys(SKILLS).forEach(function (k) { if (typeof sn.skills[k] !== 'number') sn.skills[k] = 0; });
+      if (!Array.isArray(sn.ml)) sn.ml = []; if (!Array.isArray(sn.diary)) sn.diary = [];
+    });
+    if (!S.snakes.some(function (sn) { return sn.id === S.sel; }) && S.snakes[0]) S.sel = S.snakes[0].id;
   }
   // ---------- Render ----------
   function P(gx, gy, z) { return [(gx - gy) * 32, (gx + gy) * 16 - (z || 0)]; }
@@ -1345,7 +1368,7 @@
     // elementos ordenados por profundidad
     var items = [];
     S.walls.forEach(function (k) { var p = k.split(','); items.push({ k: +p[1] + +p[2] + 0.5, f: function () { drawWall(c, k); } }); });
-    S.objects.forEach(function (o) { if (ui && ui.moving && ui.moving.id === o.id) return; var f = fp(o); items.push({ k: o.x + f.w - 0.5 + o.y + f.h - 0.5, f: function () { drawObj(c, o); if (ui && ui.selObj === o.id) { poly(c, [P(o.x, o.y), P(o.x + f.w, o.y), P(o.x + f.w, o.y + f.h), P(o.x, o.y + f.h)], null, '#ffd23f', 3); } } }); });
+    S.objects.forEach(function (o) { if (ui && ui.moving && ui.moving.id === o.id) return; var f = fp(o); items.push({ k: o.x + f.w / 2 + o.y + f.h / 2, f: function () { drawObj(c, o); if (ui && ui.selObj === o.id) { poly(c, [P(o.x, o.y), P(o.x + f.w, o.y), P(o.x + f.w, o.y + f.h), P(o.x, o.y + f.h)], null, '#ffd23f', 3); } } }); });
     S.snakes.forEach(function (sn) { if (sn.away) return; items.push({ k: sn.x + sn.y + (sn._onTile ? 0.6 : 0.05), f: function () { var p = P(sn.x, sn.y); drawSnake(c, sn, p[0], p[1] + (sn._onTile ? -8 : 0)); } }); });
     S.visitors.forEach(function (v) { items.push({ k: v.x + v.y + 0.05, f: function () { var p = P(v.x, v.y); drawVisitor(c, v, p[0], p[1]); } }); });
     extraSnakes().forEach(function (sn) { items.push({ k: sn.x + sn.y + (sn._onTile ? 0.6 : 0.05), f: function () { var p = P(sn.x, sn.y); drawSnake(c, sn, p[0], p[1] + (sn._onTile ? -8 : 0)); } }); });
@@ -1374,28 +1397,50 @@
       c.fillStyle = 'rgba(255,255,255,.85)'; rain.forEach(function (r, i) { if (i % 2) return; var x = (r[0] * w + Math.sin(TT + i) * 20) % w, y = (r[1] * h + TT * 30 * r[2]) % h; c.beginPath(); c.arc(x, y, 1.5 * r[2], 0, 6.3); c.fill(); });
     }
     // superposiciones: plumbob, globos, nombres
-    var selS = sel();
+    var selS = sel(), nowP = performance.now();
     S.snakes.forEach(function (sn) {
       if (sn.away) return; var s = AGES[sn.age].s, hp = toScreen(sn.x, sn.y, (sn._onTile ? 8 : 0) + 48 * s);
-      if (sn === selS) drawPlumbob(c, hp[0], hp[1] - 14 * cam.z - Math.sin(TT * 2.4) * 3, cam.z, moodColor(sn.mood), sn.mood);
-      var th = sn._th; var tLow = null;
-      if (!th || th.until < performance.now()) { var lo = NEEDS.slice().sort(function (a, b) { return sn.needs[a.k] - sn.needs[b.k]; })[0]; if (sn.needs[lo.k] < 22 && (TT % 6) < 2.5) tLow = { i: lo.i }; }
-      var T = th && th.until > performance.now() ? th : tLow;
+      drawPlumbob(c, hp[0], hp[1] - 14 * cam.z - Math.sin(TT * 2.4 + sn.id) * 3, cam.z * (sn === selS ? 1 : 0.62), moodColor(sn.mood), sn.mood, sn !== selS);
+      var th = sn._th, lo = NEEDS.slice().sort(function (a, b) { return sn.needs[a.k] - sn.needs[b.k]; })[0], crit = sn.needs[lo.k] < 25 ? lo : null;
+      var T = th && th.until > nowP ? th : null;
       if (T) bubble(c, hp[0] + 16 * cam.z, hp[1] - 6 * cam.z, T.i, T.txt, cam.z);
+      else if (crit) chip(c, hp[0] + 17 * cam.z, hp[1] + 4 * cam.z, crit.i, sn.needs[crit.k] < 12 ? '#e74c3c' : '#f39c12', cam.z, sn.needs[crit.k] < 12);
+      var ic = useIcon(sn); if (ic) chip(c, hp[0] - 17 * cam.z, hp[1] + 4 * cam.z, ic, '#2f80ed', cam.z);
+      else if (sn.shedReady) chip(c, hp[0] - 17 * cam.z, hp[1] + 4 * cam.z, '✨', '#9b59b6', cam.z);
       if (ui && ui.hoverEnt === sn.id) nameTag(c, hp[0], hp[1] + 4, sn.name);
+      needAlerts(sn);
     });
     S.visitors.forEach(function (v) { var hp = toScreen(v.x, v.y, 30); nameTag(c, hp[0], hp[1], v.name + ' · ' + SPECIES[v.species].n); });
     extraSnakes().forEach(function (sn) {
       var s2 = (AGES[sn.age] || AGES.adulto).s, hp2 = toScreen(sn.x, sn.y, (sn._onTile ? 8 : 0) + 48 * s2), th2 = sn._th;
       if (th2 && th2.until > performance.now()) bubble(c, hp2[0] + 16 * cam.z, hp2[1] - 6 * cam.z, th2.i, th2.txt, cam.z);
+      else { var ic2 = sn._a || useIcon(sn); if (ic2) chip(c, hp2[0] - 17 * cam.z, hp2[1] + 4 * cam.z, ic2, '#2f80ed', cam.z); }
       if (sn.remote || (ui && ui.hoverEnt === sn.id)) nameTag(c, hp2[0], hp2[1] + 4, sn.remote ? sn.name + ' · de ' + sn.owner : sn.name);
     });
     S.objects.forEach(function (o) { if (o.t !== 'huevo') return; var p = toScreen(o.x + 0.5, o.y + 0.5, 34); c.beginPath(); c.arc(p[0], p[1], 7, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (o.prog || 0) / 100); c.strokeStyle = '#ffd23f'; c.lineWidth = 3; c.stroke(); });
   }
-  function drawPlumbob(c, x, y, z, col, mood) {
-    var s = clamp(z, 0.7, 1.6), w = 9 * s * (0.35 + 0.65 * Math.abs(Math.cos(TT * 1.6))), hU = 12 * s, hD = 16 * s;
+  // icono del objeto/acción que está usando (comer, leer, ducharse…)
+  function useIcon(sn) { var a = sn.q && sn.q[0]; if (!a || a.phase !== 'do' || a.id === 'go' || a.id === 'idle') return ''; var d = ACT[a.id] || SOC[a.id]; if (!d || d.sleeping) return ''; return d.i || ''; }
+  function chip(c, x, y, icon, ring, z, pulse) {
+    var s = clamp(z, 0.75, 1.5) * (pulse ? 1 + Math.sin(TT * 7) * 0.08 : 1), r = 11 * s;
+    c.save(); c.shadowColor = 'rgba(0,0,0,.25)'; c.shadowBlur = 4; c.fillStyle = '#fff'; c.beginPath(); c.arc(x, y, r, 0, 6.3); c.fill(); c.shadowBlur = 0;
+    c.lineWidth = 2.4 * s; c.strokeStyle = ring; c.stroke(); drawEmoji(c, icon, x, y + 0.5, 14 * s); c.restore();
+  }
+  var NEED_MSG = { hunger: 'tiene mucha hambre', energy: 'se cae de sueño', hygiene: 'necesita una ducha', fun: 'se aburre muchísimo', social: 'se siente sola', bladder: 'necesita ir al baño ya', warmth: 'tiene frío' };
+  var lastAlert = 0;
+  function needAlerts(sn) {
+    if (S.visit && sn !== S.snakes[0]) return; sn._warn = sn._warn || {};
+    NEEDS.forEach(function (n) {
+      var v = sn.needs[n.k];
+      if (v > 35) sn._warn[n.k] = 0;
+      else if (v < 15 && !sn._warn[n.k] && performance.now() - lastAlert > 2500) { sn._warn[n.k] = 1; lastAlert = performance.now(); toast(n.i + ' ' + sn.name + ' ' + NEED_MSG[n.k] + '.', 'warn'); }
+    });
+    if (sn.mood != null) { if (sn.mood > 40) sn._warn.mood = 0; else if (sn.mood < 20 && !sn._warn.mood && performance.now() - lastAlert > 2500) { sn._warn.mood = 1; lastAlert = performance.now(); toast('😞 ' + sn.name + ' está de muy mal humor. Mira sus necesidades.', 'warn'); } }
+  }
+  function drawPlumbob(c, x, y, z, col, mood, small) {
+    var s = clamp(z, small ? 0.45 : 0.7, 1.6), w = 9 * s * (0.35 + 0.65 * Math.abs(Math.cos(TT * 1.6))), hU = 12 * s, hD = 16 * s;
     var base = 'hsl(' + Math.round(clamp(mood, 0, 100) * 1.25) + ',';
-    c.save(); c.shadowColor = col; c.shadowBlur = 10;
+    c.save(); c.shadowColor = col; c.shadowBlur = small ? 4 : 10; if (small) c.globalAlpha = 0.9;
     poly(c, [[x, y - hU], [x + w, y], [x, y + hD], [x - w, y]], base + '75%,45%)');
     c.shadowBlur = 0;
     poly(c, [[x, y - hU], [x + w, y], [x, y]], base + '80%,62%)'); poly(c, [[x, y - hU], [x - w, y], [x, y]], base + '78%,52%)');
@@ -1511,7 +1556,7 @@
     '.lsx-speed{display:flex;gap:2px;background:rgba(0,0,0,.12);padding:2px;border-radius:11px}',
     '.lsx-speed button{padding:4px 8px;background:transparent;color:#fff;box-shadow:none;font-weight:800;letter-spacing:-2px !important}',
     '.lsx-speed button.on{background:#ffd23f;color:#1d2b3a}',
-    '.lsx-money{background:#27ae60;color:#fff;font-weight:800;padding:6px 11px;border-radius:10px;min-width:84px;text-align:center;font-variant-numeric:tabular-nums;box-shadow:inset 0 -2px 0 rgba(0,0,0,.15)}',
+    '.lsx-money{background:#1e8449;color:#fff;font-weight:800;padding:6px 11px;border-radius:10px;min-width:84px;text-align:center;font-variant-numeric:tabular-nums;box-shadow:inset 0 -2px 0 rgba(0,0,0,.15)}',
     '.lsx-money.neg{background:#e74c3c}',
     '.lsx-stage{position:relative;flex:1;min-height:0;touch-action:none;cursor:pointer}',
     '.lsx-stage canvas.main{position:absolute;inset:0;width:100%;height:100%;display:block}',
@@ -1571,7 +1616,7 @@
     '.lsx-item{white-space:normal !important;flex:0 0 92px;display:flex;flex-direction:column;align-items:center;gap:1px;padding:4px;border-radius:12px;background:#fff;font-size:10.5px;text-align:center;line-height:1.1}',
     '.lsx-item.on{outline:3px solid #2ecc71}',
     '.lsx-item canvas{width:50px;height:41px}',
-    '.lsx-item b{color:#27ae60}',
+    '.lsx-item b{color:#1e8449}',
     '.lsx-tool{display:flex;flex-direction:column;gap:5px;width:190px;flex-shrink:0;font-size:12px;justify-content:center}',
     '.lsx-sw{display:flex;flex-wrap:wrap;gap:6px;align-content:center;flex:1}',
     '.lsx-sw button{width:42px;height:42px;padding:0;border:3px solid #fff}',
@@ -1585,7 +1630,7 @@
     '.lsx-swatch{width:22px;height:22px;border-radius:50%;padding:0;border:3px solid #fff;box-shadow:0 0 0 1px #c5d3e2}',
     '.lsx-swatch.on{box-shadow:0 0 0 2px #1c64d1}',
     '.lsx-btnp{background:#2f80ed !important;color:#fff !important;font-weight:800}',
-    '.lsx-btng{background:#27ae60 !important;color:#fff !important;font-weight:800}',
+    '.lsx-btng{background:#1e8449 !important;color:#fff !important;font-weight:800}',
     '.lsx.narrow .lsx-bottom{flex-wrap:wrap;gap:8px;height:auto;max-height:46%;overflow:auto}',
     '.lsx.narrow .lsx-ports{max-width:none;width:100%;padding-bottom:12px}',
     '.lsx.narrow .lsx-port{width:44px;height:44px}',
@@ -1595,9 +1640,28 @@
     '.lsx.narrow .lsx-modes button{padding:4px 7px}',
     '.lsx.narrow .lsx-cats{display:flex;width:100%;overflow-x:auto}','.lsx.narrow .lsx-cats button{flex:0 0 auto}','.lsx.narrow .lsx-items{min-width:100%;height:96px}',
     '.lsx.narrow .lsx-tool{width:100%}',
-    '.lsx.narrow .lsx-mem{grid-template-columns:1fr}'
+    '.lsx.narrow .lsx-mem{grid-template-columns:1fr}',
+    /* Legibilidad: colores propios del juego por encima del tema de Snake OS (oscuro/claro), modo trabajo y Kids */
+    '.lsx.lsx{color-scheme:light;--text:#1d2b3a;--muted:#5b6b7b;--input-bg:#fff;--input-border:#b9c8d8;--accent:#2f80ed;color:#1d2b3a}',
+    '.lsx.lsx label{color:inherit;margin:0;font-size:inherit;font-weight:inherit;text-shadow:none}',
+    '.lsx.lsx p,.lsx.lsx small,.lsx.lsx h2,.lsx.lsx h3,.lsx.lsx h4,.lsx.lsx h5,.lsx.lsx li{text-shadow:none}',
+    '.lsx.lsx .lsx-card,.lsx.lsx .lsx-drawer,.lsx.lsx .lsx-pie{color:#1d2b3a}',
+    '.lsx.lsx input:not([type=checkbox]):not([type=radio]):not([type=range]),.lsx.lsx textarea,.lsx.lsx select{color:#1d2b3a !important;-webkit-text-fill-color:#1d2b3a !important;caret-color:#1c64d1 !important;background:#fff !important;background-image:none !important;opacity:1 !important;border:1px solid #b9c8d8 !important;text-shadow:none !important;backdrop-filter:none !important;-webkit-backdrop-filter:none !important;box-shadow:inset 0 1px 2px rgba(0,0,0,.06) !important;font-family:inherit;font-size:13px;padding:6px 9px;border-radius:9px;min-height:30px;box-sizing:border-box}',
+    '.lsx.lsx input:not([type=checkbox]):focus,.lsx.lsx textarea:focus,.lsx.lsx select:focus{outline:none;border-color:#2f80ed !important;box-shadow:0 0 0 3px rgba(47,128,237,.22) !important}',
+    '.lsx.lsx input::placeholder,.lsx.lsx textarea::placeholder{color:#7d8c9b !important;-webkit-text-fill-color:#7d8c9b !important;opacity:1 !important}',
+    '.lsx.lsx input:disabled,.lsx.lsx textarea:disabled,.lsx.lsx select:disabled{background:#eef2f6 !important;color:#5b6b7b !important;-webkit-text-fill-color:#5b6b7b !important}',
+    '.lsx.lsx option{color:#1d2b3a;background:#fff}',
+    '.lsx.lsx input::selection,.lsx.lsx textarea::selection{background:#b9d6ff;color:#1d2b3a;-webkit-text-fill-color:#1d2b3a}',
+    '.lsx.lsx input[type=checkbox]{accent-color:#2f80ed;opacity:1}',
+    '.lsx .lsx-pen{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;padding:0;margin:0 0 0 6px;border-radius:9px;border:1px solid #c5d3e2;background:#fff;color:#1d2b3a;font-size:14px;cursor:pointer;vertical-align:middle;box-shadow:none;flex:0 0 auto}',
+    '.lsx .lsx-pen:hover{background:#eaf3ff;border-color:#2f80ed}',
+    '.lsx .lsx-port .pen{position:absolute;top:-7px;right:-7px;width:20px;height:20px;border-radius:50%;background:#fff;border:1px solid #c5d3e2;font-size:11px;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.2);opacity:.9}',
+    '.lsx .lsx-port .pen:hover{opacity:1;background:#eaf3ff}',
+    '.lsx .lsx-names .lsx-row{gap:6px;margin:4px 0}.lsx .lsx-names canvas{width:30px;height:30px;flex:0 0 auto;border-radius:8px;background:#eef6ff}',
+    '.lsx .lsx-done{position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:6;padding:8px 16px;border-radius:999px;border:0;font-size:14px;box-shadow:0 4px 14px rgba(0,0,0,.25);cursor:pointer;width:auto;margin:0}.lsx .lsx-done small{opacity:.8;font-weight:600}',
+    '.lsx .lsx-fichahead{display:flex;align-items:center;gap:6px;margin:0 0 6px}.lsx .lsx-fichahead b{font-size:17px}'
   ].join('\n');
-  function ensureCss() { if (document.getElementById('lsx-css')) return; var st = document.createElement('style'); st.id = 'lsx-css'; st.textContent = CSS; document.head.appendChild(st); }
+  function ensureCss() { var st = document.getElementById('lsx-css'); if (!st) { st = document.createElement('style'); st.id = 'lsx-css'; } if (st.textContent !== CSS) st.textContent = CSS; document.head.appendChild(st); }
   function el(tag, cls, html) { var e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; }
   function needCol(v) { return v > 60 ? '#2ecc71' : v > 35 ? '#f1c40f' : v > 18 ? '#f39c12' : '#e74c3c'; }
   function drawPortrait(cv, sn, size) {
@@ -1654,6 +1718,8 @@
       mode = m; placing = null; ghost = null; moving = null; selObj = 0; hidePie();
       root.querySelectorAll('.lsx-modes button').forEach(function (b) { b.classList.toggle('on', b.dataset.mode === m); });
       if (m === 'live') { S.speed = prevSpeed || 1; }
+      var db = $('.lsx-done'); if (!db) { db = el('button', 'lsx-done lsx-btnp', emo('✅ Listo · Salir del editor <small>(Esc)</small>')); db.title = 'Volver al modo Vivir'; db.addEventListener('click', function () { setMode('live'); }); stage.appendChild(db); }
+      db.style.display = m === 'live' ? 'none' : 'block';
       buildBottom(); updateTop();
     }
     function setSpeed(i) { if (!S) return; if (mode !== 'live') setMode('live'); S.speed = i; updateTop(); }
@@ -1713,10 +1779,10 @@
     function buildPorts() {
       var box = bottom.querySelector('.lsx-ports'); if (!box) return; box.innerHTML = '';
       S.snakes.forEach(function (sn) {
-        var b = el('button', 'lsx-port' + (sn.id === S.sel ? ' on' : ''), '<canvas></canvas><span class="md"></span><span class="aw"></span><span class="nm"></span>'); b.dataset.id = sn.id; b.title = sn.name;
+        var b = el('button', 'lsx-port' + (sn.id === S.sel ? ' on' : ''), '<canvas></canvas><span class="md"></span><span class="aw"></span><span class="nm"></span>' + (S.visit ? '' : '<span class="pen" title="Cambiar nombre">' + emo('✏️') + '</span>')); b.dataset.id = sn.id; b.title = sn.name;
         box.appendChild(b); drawPortrait(b.querySelector('canvas'), sn, 48);
       });
-      box.onclick = function (e) { var b = e.target.closest('.lsx-port'); if (!b) return; var id = +b.dataset.id; if (S.sel === id) centerOn(sel()); S.sel = id; buildPorts(); updateBottom(); if (drawerTab) renderDrawer(); };
+      box.onclick = function (e) { var b = e.target.closest('.lsx-port'); if (!b) return; if (e.target.closest('.pen')) { var ps = snakeById(+b.dataset.id); if (ps) renameModal(ps); return; } var id = +b.dataset.id; if (S.sel === id) centerOn(sel()); S.sel = id; buildPorts(); updateBottom(); if (drawerTab) renderDrawer(); };
     }
     function centerOn(sn) { if (!sn || sn.away) return; var p = P(sn.x, sn.y); cam.x = W / 2 - p[0] * cam.z; cam.y = H / 2 - p[1] * cam.z; cam.fit = false; }
     function updateBottom() {
@@ -1755,8 +1821,9 @@
       var s = sel(), t = drawerTab, h = '', title = '';
       if (t === 'ficha' && s) {
         title = '👤 ' + s.name;
-        h += '<h5>Nombre</h5><div class="lsx-row"><input class="rn" value="' + esc(s.name) + '" maxlength="16" style="flex:1" aria-label="Nombre"><button class="lsx-btnp" data-a="rename">Guardar</button></div>';
-        h += '<div class="lsx-row"><small style="width:62px">Familia</small><input class="fam" value="' + esc(S.name) + '" maxlength="18" style="flex:1" aria-label="Apellido"' + (S.visit ? ' disabled' : '') + '></div>';
+        h += '<div class="lsx-fichahead"><b>' + esc(s.name) + ' ' + esc(S.name) + '</b>' + (S.visit ? '' : '<button class="lsx-pen" data-a="renm" title="Cambiar nombre y apellido">✏️</button>') + '</div>';
+        h += '<h5>Nombre</h5><div class="lsx-row"><input class="rn" value="' + esc(s.name) + '" maxlength="16" style="flex:1" aria-label="Nombre de la serpiente" placeholder="Nombre"' + (S.visit ? ' disabled' : '') + '><button class="lsx-btnp" data-a="rename"' + (S.visit ? ' disabled' : '') + '>Guardar</button></div>';
+        h += '<div class="lsx-row"><small style="width:62px">Apellido</small><input class="fam" value="' + esc(S.name) + '" maxlength="18" style="flex:1" aria-label="Apellido de la familia" placeholder="Apellido"' + (S.visit ? ' disabled' : '') + '></div>';
         h += '<h5>Color</h5><div class="lsx-row" style="flex-wrap:wrap;gap:5px">' + PALETTE.map(function (p) { return '<button class="lsx-swatch' + (s.color === p.c ? ' on' : '') + '" data-a="col" data-c="' + p.c + '" title="' + p.n + '" style="background:' + p.c + '"></button>'; }).join('') + '</div>';
         h += '<div>' + AGES[s.age].n + ' · día ' + (s.ageD + 1) + (AGES[s.age].days ? ' de ' + AGES[s.age].days : '') + (s.partner && entById(s.partner) ? ' · 💞 pareja de ' + esc(entById(s.partner).name) : '') + '</div>';
         h += '<h5>Rasgos <small style="text-transform:none;letter-spacing:0">(hasta 3, toca para cambiar)</small></h5><div>' + Object.keys(TRAITS).map(function (k) { var on = s.traits.indexOf(k) >= 0; return '<button class="lsx-chip' + (on ? ' on' : '') + '" data-a="tr" data-t="' + k + '">' + TRAITS[k].i + ' ' + TRAITS[k].n + '</button>'; }).join('') + '</div>';
@@ -1764,7 +1831,7 @@
         if (A) h += '<div style="margin-top:4px">' + A.d + (s.aspDone ? ' ✅' : '') + '</div>' + bar(A.p(s), 1, '#9b59b6');
         h += '<h5>Muda de piel</h5><div>' + (s.shedReady ? '✨ ¡Lista para mudar! Haz clic sobre ' + esc(s.name) + ' → «Mudar la piel».' : 'Próxima muda en ~' + Math.max(1, s.shedAt - s.shed) + ' día(s).') + '</div>';
         h += '<h5>Patrón de piel</h5><div>' + Object.keys(PATTERNS).map(function (p) { var un = s.patterns.indexOf(p) >= 0; return '<button class="lsx-chip' + (s.pattern === p ? ' on' : '') + '" data-a="pat" data-p="' + p + '"' + (un ? '' : ' disabled style="opacity:.4"') + '>' + (un ? '' : '🔒 ') + PATTERNS[p] + '</button>'; }).join('') + '</div>';
-        h += '<h5>Emociones</h5>' + (s.ml.length ? s.ml.map(function (m) { return '<div class="lsx-row"><span style="flex:1">' + esc(m.l) + '</span><b style="color:' + (m.v < 0 ? '#e74c3c' : '#27ae60') + '">' + (m.v > 0 ? '+' : '') + m.v + '</b></div>'; }).join('') : '<i>Nada especial</i>');
+        h += '<h5>Emociones</h5>' + (s.ml.length ? s.ml.map(function (m) { return '<div class="lsx-row"><span style="flex:1">' + esc(m.l) + '</span><b style="color:' + (m.v < 0 ? '#e74c3c' : '#1e8449') + '">' + (m.v > 0 ? '+' : '') + m.v + '</b></div>'; }).join('') : '<i>Nada especial</i>');
       } else if (t === 'rel' && s) {
         title = '👥 Relaciones de ' + s.name;
         var keys = Object.keys(s.rel).sort(function (a, b) { return s.rel[b].fr - s.rel[a].fr; });
@@ -1803,7 +1870,8 @@
         h += '<h5>Aspiraciones</h5>' + S.snakes.map(function (sn) { var A = ASP[sn.asp]; return A ? '<div class="lsx-row"><span style="width:84px">' + esc(sn.name) + '</span>' + bar(A.p(sn), 1, '#9b59b6') + '<small>' + A.i + '</small></div>' : ''; }).join('');
       } else if (t === 'opts') {
         title = '⚙️ Opciones';
-        h += '<h5>Familia</h5><div class="lsx-row"><input class="fam" value="' + esc(S.name) + '" maxlength="18" style="flex:1" aria-label="Apellido de la familia"' + (S.visit ? ' disabled' : '') + '><button class="lsx-btnp" data-a="rename">Guardar</button></div><small>Para cambiar nombre, color, rasgos o aspiración de una serpiente, abre su 👤 Ficha.</small><h5>Juego</h5>';
+        h += '<h5>Apellido de la familia</h5><div class="lsx-row"><input class="fam" value="' + esc(S.name) + '" maxlength="18" style="flex:1" aria-label="Apellido de la familia" placeholder="Apellido"' + (S.visit ? ' disabled' : '') + '><button class="lsx-btnp" data-a="rename"' + (S.visit ? ' disabled' : '') + '>Guardar</button></div>';
+        h += '<h5>Nombres de las serpientes</h5><div class="lsx-names">' + ((V && HOME) ? HOME : S).snakes.map(function (sn) { return '<div class="lsx-row"><canvas data-pid="' + sn.id + '"></canvas><input class="snm" data-id="' + sn.id + '" value="' + esc(sn.name) + '" maxlength="16" style="flex:1" aria-label="Nombre de ' + esc(sn.name) + '" placeholder="Nombre"' + (S.visit ? ' disabled' : '') + '><button class="lsx-pen" data-a="renm" data-id="' + sn.id + '" title="Cambiar nombre"' + (S.visit ? ' disabled' : '') + '>✏️</button></div>'; }).join('') + '</div><small>Escribe y pulsa Enter (o Guardar). Se guarda al momento en tu cuenta. Color, rasgos y aspiración: 👤 Ficha.</small><h5>Juego</h5>';
         h += '<label class="lsx-row"><input type="checkbox" data-a="fw"' + (S.settings.freeWill ? ' checked' : '') + '> Libre albedrío (actúan solas cuando no les mandas nada)</label>';
         h += '<label class="lsx-row"><input type="checkbox" data-a="snd"' + (S.settings.sound ? ' checked' : '') + '> Sonidos</label>';
         h += '<p><button class="lsx-btng" data-a="save">💾 Guardar ahora</button></p><small>Se guarda solo cada día de juego y al cerrar' + (userKey() !== 'anon' ? ', en este navegador y en tu cuenta de Snake OS.' : ' (en este navegador).') + '</small>';
@@ -1820,11 +1888,12 @@
           '<p><b>Atajos:</b> espacio = pausa, 1/2/3 = velocidad, rueda = zoom, arrastrar = mover cámara, Esc = cancelar.</p></small>';
       }
       setText(drawer.querySelector('.dt'), title);
-      var bd = drawer.querySelector('.bd'); if (bd._h !== h) { var st = bd.scrollTop; bd.innerHTML = emo(h); bd._h = h; bd.scrollTop = st; }
+      var bd = drawer.querySelector('.bd'); if (bd._h !== h) { var st = bd.scrollTop; bd.innerHTML = emo(h); bd._h = h; bd.scrollTop = st; bd.querySelectorAll('canvas[data-pid]').forEach(function (cv) { var sn = snakeById(+cv.dataset.pid); if (sn) drawPortrait(cv, sn, 30); }); }
     }
     drawer.addEventListener('click', function (e) {
       var b = e.target.closest('[data-a]'); if (!b || !S) return; var s = sel(), a = b.dataset.a;
-      if (a === 'rename' && s) { commitField(drawer.querySelector('.rn')); var fi = drawer.querySelector('.fam'); if (fi) commitField(fi); toast('Cambios guardados. 💾', 'good'); }
+      if (a === 'rename') { if (S.visit) return; drawer.querySelectorAll('.rn,.fam,.snm').forEach(function (i) { commitField(i, true); }); save(true); toast('Cambios guardados. 💾', 'good'); }
+      if (a === 'renm') { if (S.visit) return; var rs = b.dataset.id ? snakeById(+b.dataset.id) : s; if (rs) renameModal(rs); return; }
       if (a === 'col' && s) { s.color = b.dataset.c; buildPorts(); save(true); }
       if (a === 'tr' && s) { var tk = b.dataset.t, ti = s.traits.indexOf(tk); if (ti >= 0) s.traits.splice(ti, 1); else if (s.traits.length < 3) s.traits.push(tk); else toast('Máximo 3 rasgos: quita uno antes.', 'warn'); save(true); }
       if (a === 'pat' && s) { s.pattern = b.dataset.p; buildPorts(); }
@@ -1836,13 +1905,29 @@
       if (a === 'fw' || a === 'snd' || a === 'vis') return;
       drawer.querySelector('.bd')._h = ''; renderDrawer();
     });
-    function commitField(inp) {
-      if (!inp || !S) return; var s = sel(), v = String(inp.value || '').trim();
-      if (inp.classList.contains('rn') && s) { v = v.slice(0, 16); if (v && v !== s.name) { s.name = v; buildPorts(); save(true); } else inp.value = s.name; }
-      else if (inp.classList.contains('fam')) { v = v.slice(0, 18); if (v && v !== S.name && !S.visit) { S.name = v; updateTop(); save(true); } else inp.value = S.name; }
+    function snakeById(id) { var L = S ? S.snakes : []; for (var i = 0; i < L.length; i++) if (L[i].id === id) return L[i]; return null; }
+    function setSnakeName(sn, v) { v = String(v || '').replace(/\s+/g, ' ').trim().slice(0, 16); if (!v || v === sn.name) return false; sn.name = v; S.snakes.forEach(function (o) { var r = o.rel && o.rel[String(sn.id)]; if (r) r.n = v; }); return true; }
+    function setFamName(v) { v = String(v || '').replace(/\s+/g, ' ').trim().slice(0, 18); if (!v || v === S.name) return false; S.name = v; return true; }
+    function afterRename() { buildPorts(); updateTop(); updateBottom(); save(true); }
+    function commitField(inp, quiet) {
+      if (!inp || !S || S.visit) return; var s = sel(), ch = false;
+      if (inp.classList.contains('rn') && s) { ch = setSnakeName(s, inp.value); if (!ch) inp.value = s.name; }
+      else if (inp.classList.contains('snm')) { var sn = snakeById(+inp.dataset.id); if (sn) { ch = setSnakeName(sn, inp.value); if (!ch) inp.value = sn.name; } }
+      else if (inp.classList.contains('fam')) { ch = setFamName(inp.value); if (!ch) inp.value = S.name; }
+      if (ch) { if (!quiet) { afterRename(); toast('Nombre guardado. 💾', 'good'); } else { buildPorts(); updateTop(); } drawer.querySelector('.bd')._h = ''; setTimeout(function () { if (!typing(drawer)) renderDrawer(); }, 0); }
+    }
+    function renameModal(sn) {
+      openModal('<h2>✏️ Cambiar nombre</h2><div class="lsx-row" style="gap:12px;align-items:center"><canvas class="pp" style="width:64px;height:64px;border-radius:14px;background:#eef6ff"></canvas><div style="flex:1;display:flex;flex-direction:column;gap:8px">' +
+        '<label style="display:flex;flex-direction:column;gap:3px"><small>Nombre</small><input class="nn" maxlength="16" value="' + esc(sn.name) + '" placeholder="Nombre"></label>' +
+        '<label style="display:flex;flex-direction:column;gap:3px"><small>Apellido de la familia (lo comparten todas)</small><input class="nf" maxlength="18" value="' + esc(S.name) + '" placeholder="Apellido"></label></div></div>' +
+        '<div class="lsx-row" style="justify-content:flex-end;margin-top:12px"><button data-c="no">Cancelar</button><button class="lsx-btnp" data-c="ok">Guardar</button></div>', { esc: function () { closeModal(); }, enter: ok });
+      drawPortrait(card.querySelector('canvas.pp'), sn, 64);
+      function ok() { var a = setSnakeName(sn, card.querySelector('.nn').value), b = setFamName(card.querySelector('.nf').value); closeModal(); if (a || b) { afterRename(); if (drawerTab) { drawer.querySelector('.bd')._h = ''; renderDrawer(); } toast('Ahora se llama ' + sn.name + ' ' + S.name + '. 💾', 'good'); } }
+      card.onclick = function (e) { var b = e.target.closest('[data-c]'); if (!b) return; if (b.dataset.c === 'ok') ok(); else closeModal(); };
+      var i = card.querySelector('.nn'); setTimeout(function () { try { i.focus(); i.select(); } catch (e) {} }, 30);
     }
     drawer.addEventListener('change', function (e) {
-      var tg = e.target; if (tg.classList.contains('rn') || tg.classList.contains('fam')) { commitField(tg); return; }
+      var tg = e.target; if (tg.classList.contains('rn') || tg.classList.contains('fam') || tg.classList.contains('snm')) { commitField(tg); return; }
       if (tg.classList.contains('asp')) { var s0 = sel(); if (s0 && ASP[tg.value]) { s0.asp = tg.value; s0.aspDone = false; save(true); drawer.querySelector('.bd')._h = ''; renderDrawer(); } return; }
     });
     drawer.addEventListener('change', function (e) { var a = e.target.dataset.a; if (a === 'fw') S.settings.freeWill = e.target.checked; if (a === 'snd') S.settings.sound = e.target.checked; if (a === 'vis') setAllowVisits(e.target.checked); });
@@ -1931,11 +2016,12 @@
     function updateTool() {
       var box = bottom.querySelector('.lsx-tool'); if (!box || mode !== 'buy') return;
       var o = selObj ? objById(selObj) : null;
-      if (placing || moving) box.innerHTML = emo('<b>' + esc(CAT[(ghost || {}).t || placing].n) + '</b><small>Clic en el suelo para colocar · R o clic derecho: rotar · Esc: cancelar</small><div class="lsx-row"><button data-b="rot">⟳ Rotar</button><button data-b="cancel">Cancelar</button></div>');
+      if (placing || moving) box.innerHTML = emo('<b>' + esc(CAT[(ghost || {}).t || placing].n) + '</b><small>Clic en el suelo para colocar · R o clic derecho: rotar · Esc: cancelar</small><div class="lsx-row"><button data-b="rot">⟳ Rotar</button><button data-b="cancel">Cancelar</button></div><label class="lsx-row" style="margin:4px 0 0"><input type="checkbox" data-b="keep"' + (keepPlacing ? ' checked' : '') + '> Seguir colocando (o Shift + clic)</label>');
       else if (o) box.innerHTML = emo('<b>' + esc(CAT[o.t].n) + '</b><div class="lsx-row"><button data-b="move">✋ Mover</button><button data-b="rot">⟳ Rotar</button></div><button data-b="sell" style="background:#ffe3df">💰 Vender por ' + money(Math.round(CAT[o.t].p * 0.75)) + '</button>');
       else box.innerHTML = '<b>Modo Comprar</b><small>Elige un mueble para colocarlo, o haz clic en uno del solar para moverlo, rotarlo o venderlo. El tiempo está en pausa.</small>';
       box.onclick = function (e) {
         var b = e.target.closest('[data-b]'); if (!b) return; var k = b.dataset.b;
+        if (k === 'keep') { keepPlacing = b.checked; return; }
         if (k === 'rot') rotate(); if (k === 'cancel') cancelPlace();
         if (k === 'move' && o) { moving = o; ghost = { id: -1, t: o.t, x: o.x, y: o.y, r: o.r }; S.objects = S.objects.filter(function (x) { return x !== o; }); rebuildCaches(); selObj = 0; updateTool(); }
         if (k === 'sell' && o) sellObj(o);
@@ -1956,9 +2042,11 @@
     }
     function place() {
       if (!ghost || !fits(ghost, -1)) { toast('No cabe ahí.', 'warn'); return; }
-      if (moving) { moving.x = ghost.x; moving.y = ghost.y; moving.r = ghost.r; S.objects.push(moving); var mid = moving.id; moving = null; ghost = null; rebuildCaches(); selObj = mid; nudge(); updateTool(); return; }
+      if (moving) { moving.x = ghost.x; moving.y = ghost.y; moving.r = ghost.r; S.objects.push(moving); var mid = moving.id; moving = null; ghost = null; rebuildCaches(); nudge(); if (!(lastShift || keepPlacing)) { save(true); setMode('live'); toast('Mueble colocado. Vuelves a Vivir.', 'good'); return; } selObj = mid; updateTool(); return; }
       var c = CAT[ghost.t]; if (S.money < c.p) { toast('No tienes suficientes escamoleones.', 'bad'); return; }
       S.money -= c.p; S.objects.push({ id: nid(), t: ghost.t, x: ghost.x, y: ghost.y, r: ghost.r }); rebuildCaches(); nudge(); sfx('coin');
+      if (!(lastShift || keepPlacing)) { save(true); setMode('live'); toast(c.n + ' colocado. Vuelves a Vivir (mantén Shift o activa «Seguir colocando» para poner más).', 'good'); }
+      else updateTop();
     }
     function nudge() { S.snakes.concat(S.visitors).forEach(function (e) { if (e.away || e._onTile) return; var x = Math.floor(e.x), y = Math.floor(e.y); if (occ(x, y)) { var p = nearestFree(x, y); e.x = p[0] + 0.5; e.y = p[1] + 0.5; } if (e.q && e.q[0]) e.q[0]._path = null; }); }
     // ---- construir
@@ -1980,7 +2068,7 @@
     }
 
     // ---- entrada
-    var ptrs = {}, drag = null, pinch = null;
+    var ptrs = {}, drag = null, pinch = null, lastShift = false, keepPlacing = false;
     function local(e) { var r = cv.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; }
     stage.addEventListener('pointerdown', function (e) {
       if (e.target !== cv) return; root.focus({ preventScroll: true }); var p = local(e); ptrs[e.pointerId] = p;
@@ -2012,7 +2100,7 @@
       var d = drag; drag = null; if (d.moved || d.paint) return;
       if (e.type === 'pointercancel') return;
       if (d.btn === 2) { if (mode === 'buy') rotate(); return; }
-      onClick(p[0], p[1]);
+      lastShift = !!e.shiftKey; onClick(p[0], p[1]);
     }
     stage.addEventListener('pointerup', endPtr); stage.addEventListener('pointercancel', endPtr);
     stage.addEventListener('contextmenu', function (e) { e.preventDefault(); });
@@ -2049,7 +2137,7 @@
       if (k === ' ') { e.preventDefault(); setSpeed(S.speed ? 0 : (prevSpeed || 1)); if (S.speed) prevSpeed = S.speed; }
       else if (k === '1' || k === '2' || k === '3') setSpeed(+k);
       else if (k === 'r' || k === 'R') rotate();
-      else if (k === 'Escape') { hidePie(); if (ghost) cancelPlace(); else if (drawerTab) toggleDrawer(null); }
+      else if (k === 'Escape') { if (pie.style.display !== 'none' && pie.style.display) { hidePie(); return; } hidePie(); if (ghost) cancelPlace(); else if (mode !== 'live') setMode('live'); else if (drawerTab) toggleDrawer(null); }
       else if ((k === 'Delete' || k === 'Backspace') && mode === 'buy' && selObj) { var o = objById(selObj); if (o) sellObj(o); }
       else if (k.indexOf('Arrow') === 0) { e.preventDefault(); var st = 40; if (k === 'ArrowLeft') cam.x += st; if (k === 'ArrowRight') cam.x -= st; if (k === 'ArrowUp') cam.y += st; if (k === 'ArrowDown') cam.y -= st; cam.fit = false; }
     });
@@ -2161,7 +2249,7 @@
       document.removeEventListener('visibilitychange', onHide);
       if (UI === ui) UI = null;
     };
-    ui.setSpeed = setSpeed; ui.setMode = setMode; ui.openDrawer = toggleDrawer; ui.click = onClick; ui.root = root; ui.createFamily = createFamily; ui.startGame = startGame; ui.closeModal = closeModal;
+    ui.setSpeed = setSpeed; ui.setMode = setMode; ui.openDrawer = toggleDrawer; ui.click = onClick; ui.root = root; ui.createFamily = createFamily; ui.startGame = startGame; ui.closeModal = closeModal; ui.renameModal = renameModal;
     ui.objMenu = objMenu; ui.entMenu = entMenu; ui.startPlacing = startPlacing; ui.place = place; ui.paintAt = paintAt; ui.setTool = function (t, sw, rf) { tool = t; swatch = sw || 0; roomFill = !!rf; buildBottom(); };
     ui.ghost = function () { return ghost; }; ui.toScreen = toScreen;
     ui.openModal = openModal; ui.card = card; ui.root = root; ui.isModal = function () { return modalOn; };
