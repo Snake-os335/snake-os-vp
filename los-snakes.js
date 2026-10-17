@@ -1166,7 +1166,7 @@
         break;
       case 'hallazgo':
         m = P(cx, cy, 0); var bob = Math.sin(TT * 4) * 2; ell(c, m[0], m[1], 10, 4, 'rgba(0,0,0,.18)');
-        c.font = '18px sans-serif'; c.textAlign = 'center'; c.fillText({ raton: '🐁', monedas: '🪙', gema: '💎', juguete: '🧸' }[o.k] || '❔', m[0], m[1] - 6 + bob); c.textAlign = 'left';
+        drawEmoji(c, { raton: '🐁', monedas: '🪙', gema: '💎', juguete: '🧸' }[o.k] || '❔', m[0], m[1] - 12 + bob, 18); c.textAlign = 'left';
         break;
     }
   }
@@ -1395,7 +1395,7 @@
     } else {
       var r = 15; c.fillStyle = 'rgba(255,255,255,.96)'; c.strokeStyle = 'rgba(40,60,90,.25)';
       c.beginPath(); c.arc(x + 6, y - 22, r, 0, 6.3); c.fill(); c.stroke(); c.beginPath(); c.arc(x - 3, y - 4, 3.5, 0, 6.3); c.fill(); c.stroke(); c.beginPath(); c.arc(x - 8, y + 2, 2, 0, 6.3); c.fill(); c.stroke();
-      c.font = '16px system-ui,sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(icon, x + 6, y - 21);
+      drawEmoji(c, icon, x + 6, y - 21, 18);
     }
     c.restore();
   }
@@ -1404,6 +1404,39 @@
   // ---------- Interfaz ----------
   var UI = null;
   function sel() { if (!S) return null; for (var i = 0; i < S.snakes.length; i++) if (S.snakes[i].id === S.sel) return S.snakes[i]; return S.snakes[0] || null; }
+  // ---------- Emojis de Snake OS ya en el primer pintado (sin parpadeo sistema → Snake) ----------
+  var EMO_RE = null;
+  try { EMO_RE = new RegExp('(?:\\p{Regional_Indicator}{2})|(?:\\p{Extended_Pictographic}(?:\\uFE0F|[\\u{1F3FB}-\\u{1F3FF}])?(?:\\u200D\\p{Extended_Pictographic}\\uFE0F?)*)', 'gu'); } catch (e) {}
+  function snkE() { try { var se = global.snakeEmoji; return se && se.active && se.active() && se.url ? se : null; } catch (e) { return null; } }
+  function emoText(t) {
+    var se = snkE(); if (!se || !EMO_RE) return t;
+    return t.replace(EMO_RE, function (m) { var u = se.url(m); if (!u) return m; emoImg(m); return '<span class="snk-ew"><span class="snk-e" role="img"><img class="snk-e-img" alt="" draggable="false" src="' + u + '"><span class="snk-et">' + m + '</span></span></span>'; });
+  }
+  function emo(html) {
+    html = String(html == null ? '' : html); if (!snkE() || !EMO_RE) return html;
+    var parts = html.split(/(<[^>]*>)/), skip = 0, out = '';
+    for (var i = 0; i < parts.length; i++) {
+      var p = parts[i]; if (!p) continue;
+      if (p.charAt(0) === '<') { if (/^<(option|textarea|select|title|canvas)\b/i.test(p)) skip++; else if (/^<\/(option|textarea|select|title|canvas)>/i.test(p)) skip = Math.max(0, skip - 1); out += p; }
+      else out += skip ? p : emoText(p);
+    }
+    return out;
+  }
+  function setHTML(el, html) { if (!el || el._h === html) return; el._h = html; el.innerHTML = emo(html); }
+  function setText(el, t) { setHTML(el, esc(t)); }
+  var EIMG = {};
+  function emoImg(ch) {
+    var se = snkE(); if (!se) return null;
+    var im = EIMG[ch];
+    if (im === undefined) { var u = se.url(ch); if (!u) { EIMG[ch] = null; return null; } im = new Image(); im.decoding = 'async'; im.src = u; EIMG[ch] = im; }
+    return im && im.complete && im.naturalWidth ? im : null;
+  }
+  function preloadEmojis(str) { if (!snkE() || !EMO_RE) return; (String(str).match(EMO_RE) || []).forEach(function (c) { emoImg(c); }); }
+  function drawEmoji(c, ch, x, y, size) {
+    var im = emoImg(ch);
+    if (im) { c.drawImage(im, x - size / 2, y - size / 2, size, size); return; }
+    c.save(); c.font = size + 'px system-ui,sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(ch, x, y); c.restore();
+  }
   function toast(msg, type) { if (UI && UI.toast) UI.toast(msg, type); }
   var actx = null;
   function sfx(k) {
@@ -1423,7 +1456,7 @@
     ':where(.lsx) input,:where(.lsx) select{width:auto;margin:0;min-width:0;max-width:100%}',
     ':where(.lsx) input[type=checkbox]{width:16px;height:16px;padding:0;flex:0 0 auto}',
     '.lsx{position:relative;width:100%;height:100%;display:flex;flex-direction:column;font:13px system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#1d2b3a;background:#dff3ff;overflow:hidden;user-select:none;-webkit-user-select:none;outline:none}',
-    '.lsx *{box-sizing:border-box}',
+    '.lsx *{box-sizing:border-box}','.lsx .snk-e-img{width:1.15em;height:1.15em;vertical-align:-0.2em}',
     '.lsx button{font:inherit;cursor:pointer;border:0;border-radius:10px;background:#fff;color:#1d2b3a;padding:5px 10px;box-shadow:0 1px 2px rgba(0,0,0,.12);transition:transform .08s,background .15s}',
     '.lsx button:active{transform:scale(.96)}',
     '.lsx-top{display:flex;align-items:center;gap:8px;padding:6px 8px;background:linear-gradient(#3a8bf0,#1c64d1);color:#fff;flex-wrap:nowrap;min-height:44px;overflow:hidden}',
@@ -1542,15 +1575,16 @@
   }
   function createUI(body) {
     ensureCss();
-    var root = el('div', 'lsx'); root.tabIndex = 0;
-    root.innerHTML =
+    try { preloadEmojis(JSON.stringify([NEEDS, TRAITS, SEASONS, ACH, CAREERS, ASP]) + Object.keys(ACT).map(function (k) { return ACT[k].i; }).join('') + Object.keys(SOC).map(function (k) { return SOC[k].i; }).join('') + '🏠🛋️🎨⚙️🏘️📬🎁👤👥⭐💼📔🏆❔💤🎒✨💭💚💗💢❓⏳🤷❗😾😒🔥🐁🪙💎🧸🟫🧱💾🐣🌡️👣👅🐭👆⟳✋💰🗑️➕🎲⛈️🍼🛁🪀🌙🧁👋🔔🐢🎉🧾🎂📈😬💞💔🥚🏅🌟'); } catch (e) {}
+    var root = el('div', 'lsx'); root.tabIndex = 0; root.setAttribute('data-keyboard-game', '1');
+    root.innerHTML = emo(
       '<div class="lsx-top"><div class="lsx-brand"><img src="/static/assets/los-snakes-icon-64.png?v=202610171812" alt=""><b>Los Snakes</b><small class="hh"></small></div>' +
       '<div class="lsx-modes"><button data-mode="live" class="on" title="Vivir">🏠<em> Vivir</em></button><button data-mode="buy" title="Comprar">🛋️<em> Comprar</em></button><button data-mode="build" title="Construir">🎨<em> Construir</em></button></div>' +
       '<div class="lsx-sp"></div><div class="lsx-clock"><span class="sea"></span><b class="tm">08:00</b></div>' +
       '<div class="lsx-speed"><button data-sp="0" title="Pausa (espacio)">❚❚</button><button data-sp="1" title="Velocidad 1 (1)">▶</button><button data-sp="2" title="Velocidad 2 (2)">▶▶</button><button data-sp="3" title="Velocidad 3 (3)">▶▶▶</button></div>' +
       '<div class="lsx-money">§0</div><button class="lsx-opt" title="Opciones" style="background:rgba(255,255,255,.18);color:#fff;box-shadow:none">⚙️</button></div>' +
       '<div class="lsx-stage"><canvas class="main"></canvas><div class="lsx-queue"></div><div class="lsx-toasts"></div><div class="lsx-pie"></div><div class="lsx-drawer"><header><span class="dt"></span><button class="dx">✕</button></header><div class="bd"></div></div></div>' +
-      '<div class="lsx-bottom"></div><div class="lsx-modal"><div class="lsx-card"></div></div>';
+      '<div class="lsx-bottom"></div><div class="lsx-modal"><div class="lsx-card"></div></div>');
     body.innerHTML = ''; body.appendChild(root);
     var $ = function (q) { return root.querySelector(q); };
     var stage = $('.lsx-stage'), cv = $('canvas.main'), ctx = cv.getContext('2d'), pie = $('.lsx-pie'), drawer = $('.lsx-drawer'), bottom = $('.lsx-bottom'), modal = $('.lsx-modal'), card = $('.lsx-card');
@@ -1561,7 +1595,7 @@
 
     // ---- toasts
     function addToast(msg, type) {
-      var box = $('.lsx-toasts'); var t = el('div', 'lsx-toast ' + (type || ''), esc(msg)); box.appendChild(t);
+      var box = $('.lsx-toasts'); var t = el('div', 'lsx-toast ' + (type || ''), emo(esc(msg))); box.appendChild(t);
       while (box.children.length > 3) box.removeChild(box.firstChild);
       setTimeout(function () { if (t.parentNode) { t.style.transition = 'opacity .4s'; t.style.opacity = '0'; setTimeout(function () { if (t.parentNode) t.parentNode.removeChild(t); }, 400); } }, type === 'ach' ? 5200 : 4200);
     }
@@ -1590,11 +1624,11 @@
 
     function updateTop() {
       if (!S) return;
-      root.querySelector('.hh').textContent = 'Familia ' + S.name;
+      setText(root.querySelector('.hh'), 'Familia ' + S.name);
       var se = SEASONS[season()];
-      $('.sea').textContent = se.i + ' ' + se.n + ' · ' + WEEK[weekday()] + ' · Día ' + (dayIdx() + 1) + (S.weather.k === 'tormenta' ? ' · ⛈️' : '');
-      $('.tm').textContent = hhmm(S.time);
-      var mo = $('.lsx-money'); mo.textContent = money(S.money); mo.classList.toggle('neg', S.money < 0);
+      setText($('.sea'), se.i + ' ' + se.n + ' · ' + WEEK[weekday()] + ' · Día ' + (dayIdx() + 1) + (S.weather.k === 'tormenta' ? ' · ⛈️' : ''));
+      setText($('.tm'), hhmm(S.time));
+      var mo = $('.lsx-money'); setText(mo, money(S.money)); mo.classList.toggle('neg', S.money < 0);
       var sp = mode === 'live' ? S.speed : 0;
       root.querySelectorAll('.lsx-speed button').forEach(function (b) { b.classList.toggle('on', +b.dataset.sp === sp); });
     }
@@ -1603,10 +1637,10 @@
     function buildBottom() {
       if (!S) { bottom.innerHTML = ''; return; }
       if (mode === 'live') {
-        bottom.innerHTML = '<div class="lsx-ports"></div><div class="lsx-needs"></div><div class="lsx-side"><div class="lsx-mood"></div><div class="lsx-ml"></div><div class="lsx-tabs">' +
-          [['ficha', '👤', 'Ficha'], ['rel', '👥', 'Relaciones'], ['skills', '⭐', 'Habilidades'], ['job', '💼', 'Trabajo'], ['diary', '📔', 'Diario'], ['ach', '🏆', 'Logros'], ['help', '❔', 'Cómo jugar']].map(function (t) { return '<button data-tab="' + t[0] + '" title="' + t[2] + '">' + t[1] + '</button>'; }).join('') + '</div></div>';
+        bottom.innerHTML = emo('<div class="lsx-ports"></div><div class="lsx-needs"></div><div class="lsx-side"><div class="lsx-mood"></div><div class="lsx-ml"></div><div class="lsx-tabs">' +
+          [['ficha', '👤', 'Ficha'], ['rel', '👥', 'Relaciones'], ['skills', '⭐', 'Habilidades'], ['job', '💼', 'Trabajo'], ['diary', '📔', 'Diario'], ['ach', '🏆', 'Logros'], ['help', '❔', 'Cómo jugar']].map(function (t) { return '<button data-tab="' + t[0] + '" title="' + t[2] + '">' + t[1] + '</button>'; }).join('') + '</div></div>');
         var nh = ''; NEEDS.forEach(function (n) { nh += '<div class="lsx-need" data-k="' + n.k + '"><span class="l">' + n.i + ' ' + n.n + '</span><div class="lsx-bar"><i></i></div></div>'; });
-        bottom.querySelector('.lsx-needs').innerHTML = nh;
+        bottom.querySelector('.lsx-needs').innerHTML = emo(nh);
         bottom.querySelector('.lsx-tabs').addEventListener('click', function (e) { var b = e.target.closest('button'); if (b) toggleDrawer(b.dataset.tab); });
         buildPorts(); updateBottom();
       } else if (mode === 'buy') {
@@ -1621,7 +1655,7 @@
         items.addEventListener('click', function (e) { var b = e.target.closest('.lsx-item'); if (!b) return; startPlacing(b.dataset.t); });
         updateTool();
       } else {
-        bottom.innerHTML = '<div class="lsx-tool"><div class="lsx-row"><button data-tool="floor">🟫 Suelo</button><button data-tool="wall">🧱 Paredes</button></div><label class="lsx-row" style="gap:6px"><input type="checkbox" class="rf"> Habitación entera</label><small class="hint"></small></div><div class="lsx-sw"></div>';
+        bottom.innerHTML = emo('<div class="lsx-tool"><div class="lsx-row"><button data-tool="floor">🟫 Suelo</button><button data-tool="wall">🧱 Paredes</button></div><label class="lsx-row" style="gap:6px"><input type="checkbox" class="rf"> Habitación entera</label><small class="hint"></small></div><div class="lsx-sw"></div>');
         bottom.querySelector('.rf').checked = roomFill;
         bottom.querySelector('.rf').addEventListener('change', function (e) { roomFill = e.target.checked; });
         bottom.querySelectorAll('[data-tool]').forEach(function (b) { b.classList.toggle('lsx-btnp', b.dataset.tool === tool); b.addEventListener('click', function () { tool = b.dataset.tool; swatch = 0; buildBottom(); }); });
@@ -1648,15 +1682,15 @@
       var s = sel(); if (!s) return;
       var ports = bottom.querySelectorAll('.lsx-port');
       if (ports.length !== S.snakes.length) { buildPorts(); ports = bottom.querySelectorAll('.lsx-port'); }
-      ports.forEach(function (b) { var sn = entById(+b.dataset.id); if (!sn) return; b.querySelector('.md').style.background = moodColor(sn.mood); b.querySelector('.aw').textContent = sn.away ? (sn.away.kind === 'job' ? '💼' : '🎒') : (sn.q[0] && (ACT[sn.q[0].id] || {}).sleeping && sn.q[0].phase === 'do' ? '💤' : ''); b.querySelector('.nm').textContent = sn.name; });
+      ports.forEach(function (b) { var sn = entById(+b.dataset.id); if (!sn) return; b.querySelector('.md').style.background = moodColor(sn.mood); setText(b.querySelector('.aw'), sn.away ? (sn.away.kind === 'job' ? '💼' : '🎒') : (sn.q[0] && (ACT[sn.q[0].id] || {}).sleeping && sn.q[0].phase === 'do' ? '💤' : '')); setText(b.querySelector('.nm'), sn.name); });
       NEEDS.forEach(function (n) { var row = bottom.querySelector('.lsx-need[data-k="' + n.k + '"]'); if (!row) return; var v = s.needs[n.k]; var i = row.querySelector('i'); i.style.width = v.toFixed(0) + '%'; i.style.background = needCol(v); });
       var shedTxt = s.shedReady ? ' · ✨ lista para mudar' : '';
-      bottom.querySelector('.lsx-mood').innerHTML = '<span class="dot" style="background:' + moodColor(s.mood) + '"></span>' + esc(s.name) + ' · ' + moodLabel(s.mood) + ' <small>' + AGES[s.age].n + (s.away ? ' · fuera hasta ' + hhmm(s.away.until) : '') + shedTxt + '</small>';
-      bottom.querySelector('.lsx-ml').innerHTML = s.ml.slice(-5).map(function (m) { return '<span class="' + (m.v < 0 ? 'neg' : '') + '">' + esc(m.l) + ' ' + (m.v > 0 ? '+' : '') + m.v + '</span>'; }).join('') || '<span>Sin emociones especiales</span>';
+      setHTML(bottom.querySelector('.lsx-mood'), '<span class="dot" style="background:' + moodColor(s.mood) + '"></span>' + esc(s.name) + ' · ' + moodLabel(s.mood) + ' <small>' + AGES[s.age].n + (s.away ? ' · fuera hasta ' + hhmm(s.away.until) : '') + shedTxt + '</small>');
+      setHTML(bottom.querySelector('.lsx-ml'), s.ml.slice(-5).map(function (m) { return '<span class="' + (m.v < 0 ? 'neg' : '') + '">' + esc(m.l) + ' ' + (m.v > 0 ? '+' : '') + m.v + '</span>'; }).join('') || '<span>Sin emociones especiales</span>');
       bottom.querySelectorAll('.lsx-tabs button').forEach(function (b) { b.classList.toggle('on', b.dataset.tab === drawerTab); });
     }
     function updateQueue() {
-      var q = $('.lsx-queue'); if (!S || mode !== 'live') { q.innerHTML = ''; return; }
+      var q = $('.lsx-queue'); if (!S || mode !== 'live') { setHTML(q, ''); return; }
       var s = sel(); if (!s) return;
       var h = '';
       if (s.away) h = '<div class="lsx-qlabel">' + (s.away.kind === 'job' ? '💼 En el trabajo' : '🎒 En el colegio') + ' hasta las ' + hhmm(s.away.until) + '</div>';
@@ -1665,22 +1699,27 @@
         h += '<button class="lsx-qi' + (i === 0 ? ' cur' : '') + (a.user ? '' : ' auto') + '" data-i="' + i + '" title="' + esc(a.label || d.l) + '">' + (d.i || '•') + (a.id !== 'recv' ? '<span class="x">✕</span>' : '') + (i === 0 ? '<span class="pg"><i style="width:' + pr.toFixed(0) + '%"></i></span>' : '') + '</button>';
         if (i === 0) h += '<div class="lsx-qlabel">' + esc(a.label || d.l) + (a.phase === 'walk' && a.id !== 'go' ? ' <span style="opacity:.6">(yendo)</span>' : '') + '</div>';
       });
-      if (q._h !== h) { q.innerHTML = h; q._h = h; }
+      setHTML(q, h);
     }
     $('.lsx-queue').addEventListener('click', function (e) { var b = e.target.closest('.lsx-qi'); if (!b) return; var s = sel(); if (s) { cancelAt(s, +b.dataset.i); updateQueue(); } });
 
     // ---- panel lateral
     function toggleDrawer(tab) { drawerTab = (tab && drawerTab !== tab) ? tab : null; drawer.style.display = drawerTab ? 'flex' : 'none'; if (drawerTab) renderDrawer(); updateBottom(); }
     function bar(v, max, col) { return '<div class="lsx-bar" style="height:9px"><i style="width:' + clamp(v / max * 100, 0, 100) + '%;background:' + col + '"></i></div>'; }
-    function renderDrawer() {
+    function typing(box) { var a = document.activeElement; return !!(a && box && box.contains(a) && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)); }
+    function renderDrawer(periodic) {
       if (!drawerTab || !S) return;
+      if (periodic && typing(drawer)) return;
       var s = sel(), t = drawerTab, h = '', title = '';
       if (t === 'ficha' && s) {
         title = '👤 ' + s.name;
-        h += '<div class="lsx-row"><input class="rn" value="' + esc(s.name) + '" maxlength="16" style="flex:1"><button class="lsx-btnp" data-a="rename">Renombrar</button></div>';
+        h += '<h5>Nombre</h5><div class="lsx-row"><input class="rn" value="' + esc(s.name) + '" maxlength="16" style="flex:1" aria-label="Nombre"><button class="lsx-btnp" data-a="rename">Guardar</button></div>';
+        h += '<div class="lsx-row"><small style="width:62px">Familia</small><input class="fam" value="' + esc(S.name) + '" maxlength="18" style="flex:1" aria-label="Apellido"' + (S.visit ? ' disabled' : '') + '></div>';
+        h += '<h5>Color</h5><div class="lsx-row" style="flex-wrap:wrap;gap:5px">' + PALETTE.map(function (p) { return '<button class="lsx-swatch' + (s.color === p.c ? ' on' : '') + '" data-a="col" data-c="' + p.c + '" title="' + p.n + '" style="background:' + p.c + '"></button>'; }).join('') + '</div>';
         h += '<div>' + AGES[s.age].n + ' · día ' + (s.ageD + 1) + (AGES[s.age].days ? ' de ' + AGES[s.age].days : '') + (s.partner && entById(s.partner) ? ' · 💞 pareja de ' + esc(entById(s.partner).name) : '') + '</div>';
-        h += '<h5>Rasgos</h5>' + (s.traits.length ? s.traits.map(function (k) { return '<span class="lsx-chip">' + TRAITS[k].i + ' ' + TRAITS[k].n + '</span>'; }).join('') : '<i>Sin rasgos</i>');
-        var A = ASP[s.asp]; if (A) h += '<h5>Aspiración</h5><div>' + A.i + ' <b>' + A.n + '</b> — ' + A.d + (s.aspDone ? ' ✅' : '') + '</div>' + bar(A.p(s), 1, '#9b59b6');
+        h += '<h5>Rasgos <small style="text-transform:none;letter-spacing:0">(hasta 3, toca para cambiar)</small></h5><div>' + Object.keys(TRAITS).map(function (k) { var on = s.traits.indexOf(k) >= 0; return '<button class="lsx-chip' + (on ? ' on' : '') + '" data-a="tr" data-t="' + k + '">' + TRAITS[k].i + ' ' + TRAITS[k].n + '</button>'; }).join('') + '</div>';
+        var A = ASP[s.asp]; h += '<h5>Aspiración</h5><select class="asp" style="width:100%">' + Object.keys(ASP).map(function (k) { return '<option value="' + k + '"' + (s.asp === k ? ' selected' : '') + '>' + ASP[k].i + ' ' + ASP[k].n + '</option>'; }).join('') + '</select>';
+        if (A) h += '<div style="margin-top:4px">' + A.d + (s.aspDone ? ' ✅' : '') + '</div>' + bar(A.p(s), 1, '#9b59b6');
         h += '<h5>Muda de piel</h5><div>' + (s.shedReady ? '✨ ¡Lista para mudar! Haz clic sobre ' + esc(s.name) + ' → «Mudar la piel».' : 'Próxima muda en ~' + Math.max(1, s.shedAt - s.shed) + ' día(s).') + '</div>';
         h += '<h5>Patrón de piel</h5><div>' + Object.keys(PATTERNS).map(function (p) { var un = s.patterns.indexOf(p) >= 0; return '<button class="lsx-chip' + (s.pattern === p ? ' on' : '') + '" data-a="pat" data-p="' + p + '"' + (un ? '' : ' disabled style="opacity:.4"') + '>' + (un ? '' : '🔒 ') + PATTERNS[p] + '</button>'; }).join('') + '</div>';
         h += '<h5>Emociones</h5>' + (s.ml.length ? s.ml.map(function (m) { return '<div class="lsx-row"><span style="flex:1">' + esc(m.l) + '</span><b style="color:' + (m.v < 0 ? '#e74c3c' : '#27ae60') + '">' + (m.v > 0 ? '+' : '') + m.v + '</b></div>'; }).join('') : '<i>Nada especial</i>');
@@ -1722,6 +1761,7 @@
         h += '<h5>Aspiraciones</h5>' + S.snakes.map(function (sn) { var A = ASP[sn.asp]; return A ? '<div class="lsx-row"><span style="width:84px">' + esc(sn.name) + '</span>' + bar(A.p(sn), 1, '#9b59b6') + '<small>' + A.i + '</small></div>' : ''; }).join('');
       } else if (t === 'opts') {
         title = '⚙️ Opciones';
+        h += '<h5>Familia</h5><div class="lsx-row"><input class="fam" value="' + esc(S.name) + '" maxlength="18" style="flex:1" aria-label="Apellido de la familia"' + (S.visit ? ' disabled' : '') + '><button class="lsx-btnp" data-a="rename">Guardar</button></div><small>Para cambiar nombre, color, rasgos o aspiración de una serpiente, abre su 👤 Ficha.</small><h5>Juego</h5>';
         h += '<label class="lsx-row"><input type="checkbox" data-a="fw"' + (S.settings.freeWill ? ' checked' : '') + '> Libre albedrío (actúan solas cuando no les mandas nada)</label>';
         h += '<label class="lsx-row"><input type="checkbox" data-a="snd"' + (S.settings.sound ? ' checked' : '') + '> Sonidos</label>';
         h += '<p><button class="lsx-btng" data-a="save">💾 Guardar ahora</button></p><small>Se guarda solo cada día de juego y al cerrar' + (userKey() !== 'anon' ? ', en este navegador y en tu cuenta de Snake OS.' : ' (en este navegador).') + '</small>';
@@ -1736,12 +1776,14 @@
           '<p><b>Comprar / Construir:</b> coloca, mueve, rota (R o clic derecho) y vende muebles; pinta suelos y paredes. El tiempo se detiene en estos modos.</p>' +
           '<p><b>Atajos:</b> espacio = pausa, 1/2/3 = velocidad, rueda = zoom, arrastrar = mover cámara, Esc = cancelar.</p></small>';
       }
-      drawer.querySelector('.dt').textContent = title;
-      var bd = drawer.querySelector('.bd'); if (bd._h !== h) { var st = bd.scrollTop; bd.innerHTML = h; bd._h = h; bd.scrollTop = st; }
+      setText(drawer.querySelector('.dt'), title);
+      var bd = drawer.querySelector('.bd'); if (bd._h !== h) { var st = bd.scrollTop; bd.innerHTML = emo(h); bd._h = h; bd.scrollTop = st; }
     }
     drawer.addEventListener('click', function (e) {
       var b = e.target.closest('[data-a]'); if (!b || !S) return; var s = sel(), a = b.dataset.a;
-      if (a === 'rename' && s) { var v = drawer.querySelector('.rn').value.trim().slice(0, 16); if (v) { s.name = v; buildPorts(); } }
+      if (a === 'rename' && s) { commitField(drawer.querySelector('.rn')); var fi = drawer.querySelector('.fam'); if (fi) commitField(fi); toast('Cambios guardados. 💾', 'good'); }
+      if (a === 'col' && s) { s.color = b.dataset.c; buildPorts(); save(true); }
+      if (a === 'tr' && s) { var tk = b.dataset.t, ti = s.traits.indexOf(tk); if (ti >= 0) s.traits.splice(ti, 1); else if (s.traits.length < 3) s.traits.push(tk); else toast('Máximo 3 rasgos: quita uno antes.', 'warn'); save(true); }
       if (a === 'pat' && s) { s.pattern = b.dataset.p; buildPorts(); }
       if (a === 'quit' && s) confirmBox('¿Seguro que ' + s.name + ' deja su trabajo?', function () { s.job = null; toast(s.name + ' ha dejado el trabajo.', ''); renderDrawer(); });
       if (a === 'jobs' && s) careerModal(s);
@@ -1751,6 +1793,15 @@
       if (a === 'fw' || a === 'snd') return;
       drawer.querySelector('.bd')._h = ''; renderDrawer();
     });
+    function commitField(inp) {
+      if (!inp || !S) return; var s = sel(), v = String(inp.value || '').trim();
+      if (inp.classList.contains('rn') && s) { v = v.slice(0, 16); if (v && v !== s.name) { s.name = v; buildPorts(); save(true); } else inp.value = s.name; }
+      else if (inp.classList.contains('fam')) { v = v.slice(0, 18); if (v && v !== S.name && !S.visit) { S.name = v; updateTop(); save(true); } else inp.value = S.name; }
+    }
+    drawer.addEventListener('change', function (e) {
+      var tg = e.target; if (tg.classList.contains('rn') || tg.classList.contains('fam')) { commitField(tg); return; }
+      if (tg.classList.contains('asp')) { var s0 = sel(); if (s0 && ASP[tg.value]) { s0.asp = tg.value; s0.aspDone = false; save(true); drawer.querySelector('.bd')._h = ''; renderDrawer(); } return; }
+    });
     drawer.addEventListener('change', function (e) { var a = e.target.dataset.a; if (a === 'fw') S.settings.freeWill = e.target.checked; if (a === 'snd') S.settings.sound = e.target.checked; });
 
     // ---- menú contextual
@@ -1758,7 +1809,7 @@
     function showPie(sx, sy, title, items) {
       var h = '<h4><span>' + title + '</span></h4>';
       items.forEach(function (it, i) { h += '<button data-i="' + i + '"' + (it.dis ? ' disabled' : '') + '><span class="ic">' + it.ic + '</span><span>' + esc(it.l) + (it.sub ? '<small>' + esc(it.sub) + '</small>' : '') + '</span></button>'; });
-      pie.innerHTML = h; pie.style.display = 'flex';
+      pie.innerHTML = emo(h); pie.style.display = 'flex';
       var pw = 240, ph = pie.offsetHeight; pie.style.left = clamp(sx + 12, 6, W - pw - 6) + 'px'; pie.style.top = clamp(sy - 20, 6, Math.max(6, H - ph - 6)) + 'px';
       pie.onclick = function (e) { var b = e.target.closest('button'); if (!b || b.disabled) return; var it = items[+b.dataset.i]; hidePie(); if (it && it.fn) it.fn(); };
     }
@@ -1837,8 +1888,8 @@
     function updateTool() {
       var box = bottom.querySelector('.lsx-tool'); if (!box || mode !== 'buy') return;
       var o = selObj ? objById(selObj) : null;
-      if (placing || moving) box.innerHTML = '<b>' + esc(CAT[(ghost || {}).t || placing].n) + '</b><small>Clic en el suelo para colocar · R o clic derecho: rotar · Esc: cancelar</small><div class="lsx-row"><button data-b="rot">⟳ Rotar</button><button data-b="cancel">Cancelar</button></div>';
-      else if (o) box.innerHTML = '<b>' + esc(CAT[o.t].n) + '</b><div class="lsx-row"><button data-b="move">✋ Mover</button><button data-b="rot">⟳ Rotar</button></div><button data-b="sell" style="background:#ffe3df">💰 Vender por ' + money(Math.round(CAT[o.t].p * 0.75)) + '</button>';
+      if (placing || moving) box.innerHTML = emo('<b>' + esc(CAT[(ghost || {}).t || placing].n) + '</b><small>Clic en el suelo para colocar · R o clic derecho: rotar · Esc: cancelar</small><div class="lsx-row"><button data-b="rot">⟳ Rotar</button><button data-b="cancel">Cancelar</button></div>');
+      else if (o) box.innerHTML = emo('<b>' + esc(CAT[o.t].n) + '</b><div class="lsx-row"><button data-b="move">✋ Mover</button><button data-b="rot">⟳ Rotar</button></div><button data-b="sell" style="background:#ffe3df">💰 Vender por ' + money(Math.round(CAT[o.t].p * 0.75)) + '</button>');
       else box.innerHTML = '<b>Modo Comprar</b><small>Elige un mueble para colocarlo, o haz clic en uno del solar para moverlo, rotarlo o venderlo. El tiempo está en pausa.</small>';
       box.onclick = function (e) {
         var b = e.target.closest('[data-b]'); if (!b) return; var k = b.dataset.b;
@@ -1934,8 +1985,22 @@
       var ob = hitObj(sx, sy, gx, gy); if (ob) { objMenu(ob, sx, sy); return; }
       if (inLot(gx, gy)) tileMenu(gx, gy, sx, sy); else hidePie();
     }
+    function stopKey(e) { e.stopPropagation(); }
+    root.addEventListener('keyup', stopKey); root.addEventListener('keypress', stopKey);
     root.addEventListener('keydown', function (e) {
-      if (!S || modalOn || /INPUT|SELECT|TEXTAREA/.test((e.target || {}).tagName || '')) return;
+      e.stopPropagation();
+      var tg = e.target || {}, field = /^(INPUT|SELECT|TEXTAREA)$/.test(tg.tagName || '') || tg.isContentEditable;
+      if (modalOn) {
+        if (e.key === 'Escape' && modalEsc) { e.preventDefault(); modalEsc(); }
+        else if (e.key === 'Enter' && modalEnter && tg.tagName !== 'TEXTAREA') { e.preventDefault(); modalEnter(); }
+        return;
+      }
+      if (field) {
+        if (e.key === 'Enter' && tg.tagName === 'INPUT' && drawer.contains(tg)) { e.preventDefault(); commitField(tg); tg.blur(); }
+        else if (e.key === 'Escape') tg.blur();
+        return;
+      }
+      if (!S) return;
       var k = e.key;
       if (k === ' ') { e.preventDefault(); setSpeed(S.speed ? 0 : (prevSpeed || 1)); if (S.speed) prevSpeed = S.speed; }
       else if (k === '1' || k === '2' || k === '3') setSpeed(+k);
@@ -1946,10 +2011,11 @@
     });
 
     // ---- modales
-    function openModal(html) { card.innerHTML = html; modal.style.display = 'flex'; modalOn = true; }
-    function closeModal() { modal.style.display = 'none'; card.innerHTML = ''; modalOn = false; }
+    var modalEsc = null, modalEnter = null;
+    function openModal(html, opt) { opt = opt || {}; card.innerHTML = emo(html); card.onclick = null; card.onchange = null; card.oninput = null; modal.style.display = 'flex'; modalOn = true; modalEsc = opt.esc || null; modalEnter = opt.enter || null; }
+    function closeModal() { modal.style.display = 'none'; card.innerHTML = ''; modalOn = false; modalEsc = modalEnter = null; try { root.focus({ preventScroll: true }); } catch (e) {} }
     function confirmBox(msg, ok) {
-      openModal('<h2>¿Seguro?</h2><p>' + esc(msg) + '</p><div class="lsx-row" style="justify-content:flex-end"><button data-c="no">Cancelar</button><button class="lsx-btnp" data-c="yes">Sí</button></div>');
+      openModal('<h2>¿Seguro?</h2><p>' + esc(msg) + '</p><div class="lsx-row" style="justify-content:flex-end"><button data-c="no">Cancelar</button><button class="lsx-btnp" data-c="yes">Sí</button></div>', { esc: function () { closeModal(); } });
       card.onclick = function (e) { var b = e.target.closest('[data-c]'); if (!b) return; closeModal(); if (b.dataset.c === 'yes') ok(); };
     }
     function careerModal(s, pc) {
@@ -1959,13 +2025,15 @@
       var h = '<h2>💼 Ofertas de trabajo para ' + esc(s.name) + '</h2><div style="display:grid;gap:8px">';
       Object.keys(CAREERS).forEach(function (k) { var C = CAREERS[k]; h += '<button data-k="' + k + '" style="text-align:left;background:#f0f6fc;padding:9px 12px"><b>' + C.i + ' ' + C.n + '</b> — ' + C.lv[0][0] + '<br><small>' + hhmm(C.h[0] * 60) + '–' + hhmm(C.h[1] * 60) + ' (L-V) · ' + money(C.lv[0][1]) + '/h · habilidad clave: ' + SKILLS[C.skill] + '</small></button>'; });
       h += '</div><div class="lsx-row" style="justify-content:flex-end;margin-top:10px"><button data-k="">Cerrar</button></div>';
-      openModal(h);
+      openModal(h, { esc: function () { closeModal(); } });
       card.onclick = function (e) { var b = e.target.closest('[data-k]'); if (!b) return; var k = b.dataset.k; closeModal(); if (k) act('pcjob', { obj: comp.id, arg: k, label: 'Buscar trabajo: ' + CAREERS[k].n }); };
     }
     function askName(sn) {
       if (modalOn) { setTimeout(function () { askName(sn); }, 1500); return; }
-      openModal('<h2>🐣 ¡Ha nacido una cría!</h2><p>¿Cómo se va a llamar?</p><div class="lsx-row"><input class="nn" value="' + esc(sn.name) + '" maxlength="16" style="flex:1"><button class="lsx-btng" data-c="ok">¡Bienvenida!</button></div>');
-      card.onclick = function (e) { var b = e.target.closest('[data-c]'); if (!b) return; var v = card.querySelector('.nn').value.trim(); if (v) sn.name = v.slice(0, 16); closeModal(); buildPorts(); };
+      openModal('<h2>🐣 ¡Ha nacido una cría!</h2><p>¿Cómo se va a llamar?</p><div class="lsx-row"><input class="nn" value="' + esc(sn.name) + '" maxlength="16" style="flex:1"><button class="lsx-btng" data-c="ok">¡Bienvenida!</button></div>', { enter: done, esc: done });
+      function done() { var inp = card.querySelector('.nn'); var v = inp ? inp.value.trim() : ''; if (v) sn.name = v.slice(0, 16); closeModal(); buildPorts(); save(true); }
+      card.onclick = function (e) { var b = e.target.closest('[data-c]'); if (b) done(); };
+      setTimeout(function () { var inp = card.querySelector('.nn'); if (inp) { inp.focus(); inp.select(); } }, 50);
     }
     function createFamily() {
       var mem = [
@@ -1985,11 +2053,12 @@
             '<div>' + Object.keys(TRAITS).map(function (t) { return '<button class="lsx-chip' + (m.traits.indexOf(t) >= 0 ? ' on' : '') + '" data-tr="' + t + '">' + TRAITS[t].i + ' ' + TRAITS[t].n + '</button>'; }).join('') + '</div><small style="color:#8592a0">Hasta 3 rasgos</small></div></div>';
         });
         h += '<div class="lsx-row" style="justify-content:space-between;margin-top:8px"><div class="lsx-row">' + (mem.length < 6 ? '<button data-c="add">➕ Añadir serpiente</button>' : '') + '<button data-c="rnd">🎲 Aleatoria</button></div><button class="lsx-btng" data-c="go" style="padding:9px 18px;font-size:15px">¡A vivir! ▶</button></div>';
-        openModal(h);
+        openModal(h, { esc: S ? function () { closeModal(); } : null });
+        bindFam();
         card.querySelectorAll('.lsx-mem').forEach(function (d) { var m = mem[+d.dataset.i]; drawPortrait(d.querySelector('canvas'), { id: +d.dataset.i, age: m.age, color: m.color, pattern: 'lisa' }, 70); });
       }
       function sync() { var fn = card.querySelector('.fn'); if (fn) fam.name = fn.value.trim() || 'Escamosa'; var cp = card.querySelector('.cp'); if (cp) fam.couple = cp.checked; card.querySelectorAll('.lsx-mem').forEach(function (d) { var m = mem[+d.dataset.i]; d.querySelectorAll('[data-f]').forEach(function (inp) { m[inp.dataset.f] = inp.value; }); }); }
-      render();
+      function bindFam() {
       card.onclick = function (e) {
         var b = e.target.closest('button'); if (!b) return; sync(); var d = b.closest('.lsx-mem'), m = d ? mem[+d.dataset.i] : null;
         if (b.dataset.col && m) m.color = b.dataset.col;
@@ -2001,6 +2070,9 @@
         render();
       };
       card.onchange = function (e) { sync(); if (e.target.dataset.f === 'age') render(); };
+      card.oninput = function () { sync(); };
+      }
+      render();
     }
     function startGame(fresh) {
       S.speed = S.speed == null ? 1 : S.speed; cam.fit = true; resize(); buildBottom(); updateTop();
@@ -2017,7 +2089,7 @@
         if (mode === 'live' && !modalOn) advance(dt * SPEEDS[S.speed || 0]);
         try { renderScene(ctx, W, H, dpr, { hoverTiles: hoverTiles, hoverEnt: hoverEnt, ghost: ghost, ghostOk: ghostOk, selObj: selObj, moving: moving }); } catch (er) { if (!frame._err) { frame._err = 1; console.error('[Los Snakes] render', er); } }
         if (t - lastUi > 250) { lastUi = t; updateTop(); updateBottom(); updateQueue(); }
-        if (drawerTab && t - lastDrawer > 1000) { lastDrawer = t; renderDrawer(); }
+        if (drawerTab && t - lastDrawer > 1000) { lastDrawer = t; renderDrawer(true); }
         if (t - lastSave > 60000) { lastSave = t; save(false); }
       }
       raf = requestAnimationFrame(frame);
@@ -2025,11 +2097,16 @@
     resize();
     openModal('<h2>Los Snakes</h2><p>Cargando tu barrio…</p>');
     var loc = loadLocal();
-    loadServer().then(function (srv) {
-      if (dead) return; closeModal();
+    var booted = false;
+    function boot(srv) {
+      if (dead || booted) return; booted = true; closeModal();
       var best = loc; if (srv && (!loc || (srv.savedAt || 0) > (loc.savedAt || 0))) best = srv;
-      if (best && applySave(best)) startGame(false); else createFamily();
-    });
+      var ok = false; try { ok = !!(best && applySave(best)); } catch (e) { console.error('[Los Snakes] partida dañada', e); ok = false; }
+      if (!ok && loc && best !== loc) { try { ok = applySave(loc); } catch (e2) { ok = false; } }
+      if (ok) startGame(false); else { S = null; createFamily(); }
+    }
+    loadServer().then(boot, function () { boot(null); });
+    setTimeout(function () { boot(null); }, 6000);
     raf = requestAnimationFrame(frame);
     function onHide() { if (document.hidden) save(true); }
     document.addEventListener('visibilitychange', onHide);
