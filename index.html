@@ -47,9 +47,9 @@ window.addEventListener('error', function(e){
 <script src="/static/snake-voice.js?v=202610161905"></script>
 <script src="/static/metaverse.js?v=202610121930" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-notify-sound.js?v=202610172200"></script>
-<script src="/static/doganiero-chat.js?v=202610172000" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
-<script src="/static/doganiero-desk.js?v=202610072130" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
-<script src="/static/desktop-extras.js?v=202610172345" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
+<script src="/static/doganiero-chat.js?v=202610180120" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
+<script src="/static/doganiero-desk.js?v=202610180120" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
+<script src="/static/desktop-extras.js?v=202610180120" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script>window.SNAKE_OS_VERSION='2026.13';/* versión de Snake OS: cambiar SOLO aquí */</script>
 <script>/* Novedades por versión (Ajustes › Acerca de). En cada actualización: cambia SNAKE_OS_VERSION y AÑADE una entrada al principio. */
 window.SNAKE_OS_CHANGES=[
@@ -103,8 +103,8 @@ window.SNAKE_OS_CHANGES=[
 <script src="/static/snake-win-resize.js?v=202610152140"></script>
 <script src="/static/doganiero-tv.js?v=202610091150" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/prism.js?v=202610080900" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
-<script src="/static/doganiero-phone.js?v=202610161800" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
-<script src="/static/snake-apps-extras.js?v=202610180040" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
+<script src="/static/doganiero-phone.js?v=202610180120" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
+<script src="/static/snake-apps-extras.js?v=202610180120" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-cursor.js?v=202610171930" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-emoji-data.js?v=202610100831" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-emoji.js?v=202610140900" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
@@ -116,14 +116,13 @@ window.SNAKE_OS_CHANGES=[
 <script src="/static/snake-keypad.js?v=202610161800" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-game-matrix.js?v=202610112000" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-racing.js?v=202610180010" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
-<script src="/static/los-snakes.js?v=202610180020"></script>
+<script src="/static/los-snakes.js?v=202610180120"></script>
 <script src="/static/snake-i18n-dict.js?v=202610161940" defer></script>
 <script src="/static/snake-update-screen.js?v=202610180010"></script>
 <script src="/static/snake-i18n.js?v=202610161800" defer></script>
-<script src="/static/snake-taskbar11.js?v=202610172345" defer></script>
+<script src="/static/snake-taskbar11.js?v=202610180130" defer></script>
 <script src="/static/snake-screensaver.js?v=202610180100" defer></script>
-<script src="/static/snake-osx.js?v=202610180100" defer></script>
-<script src="/static/snake-sidebar.js?v=202610180010" defer></script>
+<script src="/static/snake-osx.js?v=202610180130" defer></script>
 <style>
   :root{
     --text:#ffffff; --muted:rgba(255,255,255,0.82);
@@ -3429,7 +3428,7 @@ window.SNAKE_OS_CHANGES=[
 
   .os-tut-hot{outline:3px solid #ffe14a !important;outline-offset:3px;border-radius:14px;}
 </style>
-<link rel="stylesheet" href="/static/snake-taskbar11.css?v=202610172345">
+<link rel="stylesheet" href="/static/snake-taskbar11.css?v=202610180130">
 </head>
 <body>
   <div id="bootError" role="alert">
@@ -3682,19 +3681,24 @@ window.SNAKE_OS_CHANGES=[
   const AVATARS = ['🐶','🐱','🦊','🐼','🐧','🦉','🐸','🐵','🦄','🐯','🐰','🐨'];
 
   function isPhotoAvatar(av){
-    const a = String(av || '');
-    return a.indexOf('/api/avatars/') === 0 || a.indexOf('data:image/') === 0;
+    const a = String(av || '').trim();
+    return a.indexOf('/api/avatars/') === 0 || a.indexOf('data:image/') === 0 || /^https?:\/\/[^\/]+\/api\/avatars\//.test(a);
   }
   function escAttr(s){
     return String(s || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
   }
   function avatarImgHtml(av, className){
     const cls = className || 'avatar-img';
-    return '<img class="' + cls + '" src="' + escAttr(av) + '" alt="" draggable="false">';
+    /* foto o GIF (animado) con <img>; si no carga, la serpiente */
+    return '<img class="' + cls + '" src="' + escAttr(String(av).trim()) + '" alt="" draggable="false" decoding="async" onerror="this.onerror=null;this.replaceWith(document.createTextNode(\'🐍\'))">';
   }
+  /* Avatar común para cualquier usuario: <img> si es foto/GIF, emoji si es texto corto, 🐍 si falta.
+     Nunca pinta la URL como texto. window.snkAvatarHtml(av, clase) / window.avatarMarkup. */
   function avatarMarkup(av, className){
     if(isPhotoAvatar(av)) return avatarImgHtml(av, className || 'avatar-img');
-    return String(av || '🐶');
+    const t = String(av || '').trim();
+    if(!t || t.length > 16 || /[\/:]/.test(t)) return '🐍';
+    return escAttr(t);
   }
   function avatarLabelHtml(av, name){
     return avatarMarkup(av) + ' ' + String(name || '');
@@ -4229,6 +4233,8 @@ window.SNAKE_OS_CHANGES=[
 
   window.isPhotoAvatar = isPhotoAvatar;
   window.avatarMarkup = avatarMarkup;
+  window.snkAvatarHtml = avatarMarkup;
+  window.snkIsPhotoAvatar = isPhotoAvatar;
   window.avatarLabelHtml = avatarLabelHtml;
   window.openAvatarCamera = openAvatarCamera;
   window.uploadProfilePhoto = uploadProfilePhoto;
@@ -5118,6 +5124,9 @@ window.SNAKE_OS_CHANGES=[
     b.id = 'task-' + appId;
     b.innerHTML = (app.iconImg ? appIconMarkup(app) : (app.icon || '')) + ' ' + app.title;
     b.addEventListener('click', function(){ taskItemClick(appId); });
+    /* clic central (rueda) cierra la ventana */
+    b.addEventListener('mousedown', function(e){ if(e.button === 1) e.preventDefault(); });
+    b.addEventListener('auxclick', function(e){ if(e.button === 1){ e.preventDefault(); closeApp(appId); } });
     taskItemsEl.appendChild(b);
   }
   function updateTaskItem(appId){
@@ -5129,7 +5138,18 @@ window.SNAKE_OS_CHANGES=[
     const rec = openApps[appId];
     if(!rec) return;
     if(rec.minimized){ restoreApp(appId); return; }
-    else{ minimizeApp(appId); return; }
+    /* Ya en primer plano → minimizar; detrás de otra ventana → traerla delante */
+    if(isFrontWin(rec.win)){ minimizeApp(appId); return; }
+    focusWindow(rec.win);
+  }
+  function isFrontWin(win){
+    let best = null, z = -1;
+    document.querySelectorAll('#windows > .app-window').forEach(function(w){
+      if(w.classList.contains('minimized') || w.classList.contains('win-closing') || w.classList.contains('snk-vd-off')) return;
+      const zi = parseInt(w.style.zIndex, 10) || 0;
+      if(zi >= z){ z = zi; best = w; }
+    });
+    return best === win;
   }
 
   function openWindowGeneric(id, title, icon, width, height, renderFn){
@@ -5264,12 +5284,14 @@ window.SNAKE_OS_CHANGES=[
     Object.keys(openApps).forEach(function(id){ closeApp(id, true); });
   }
   window.closeAllApps = closeAllApps;
-  /* API para la barra lateral de apps abiertas (snake-sidebar.js) */
+  /* API de ventanas (barra de tareas, menú contextual de apps abiertas) */
   window.snkWin = {
     focus: function(appId){ const rec = openApps[appId]; if(!rec || rec._closing) return; if(rec.minimized){ restoreApp(appId); return; } focusWindow(rec.win); },
     minimize: minimizeApp,
     close: function(appId){ closeApp(appId); },
-    list: function(){ return Object.keys(openApps).filter(function(id){ return !openApps[id]._closing; }); }
+    list: function(){ return Object.keys(openApps).filter(function(id){ return !openApps[id]._closing; }); },
+    maximize: function(appId){ toggleMaximize(appId); },
+    isFront: function(appId){ const rec = openApps[appId]; return !!(rec && isFrontWin(rec.win)); }
   };
 
   document.getElementById('startBtn').addEventListener('click', function(){ startMenuEl.classList.toggle('open'); });

@@ -5990,6 +5990,14 @@ def los_snakes_social_set(payload: dict, user=Depends(require_user)):
     return {"ok": True, "allow": allow}
 
 
+def _ls_avatar(av) -> str:
+    """Avatar de un amigo: la foto/GIF completa (/api/avatars/...) o un emoji corto. Nunca una URL recortada."""
+    a = str(av or "🐶").strip()
+    if db.is_photo_avatar(a):
+        return a[:200]
+    return a[:16] if "/" not in a else "🐍"
+
+
 @app.get("/api/los-snakes/friends")
 def los_snakes_friends(user=Depends(require_user)):
     uid = int(user["id"])
@@ -5998,7 +6006,7 @@ def los_snakes_friends(user=Depends(require_user)):
         fid = int(row["id"])
         ok, reason = _ls_check_visit(uid, fid)
         st = _ls_game(fid)
-        item = {"id": fid, "name": str(row.get("name") or "")[:40], "avatar": str(row.get("avatar") or "🐶")[:8],
+        item = {"id": fid, "name": str(row.get("name") or "")[:40], "avatar": _ls_avatar(row.get("avatar")),
                 "online": _ls_hub.online(fid), "can": ok, "reason": reason}
         if _ls_hub.online(fid) and _ls_can_meet(uid, fid):
             item["at"] = _ls_hub.place_of(fid)

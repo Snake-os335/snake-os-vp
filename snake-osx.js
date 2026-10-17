@@ -297,6 +297,7 @@
   function fitDock() {
     var d = $('#osxWorkDock'), c = $('#tb11Center'); if (!d) return;
     if (!work() || !c || document.body.classList.contains('phone-mode')) { d.style.maxWidth = ''; return; }
+    if (window.snkTbOpen && window.snkTbOpen.refresh) { window.snkTbOpen.refresh(); return; } /* reparte el hueco con las apps abiertas (#tbOpen) */
     var avail = c.getBoundingClientRect().left - d.getBoundingClientRect().left - 14;
     d.style.maxWidth = Math.max(44, Math.round(avail)) + 'px';
   }

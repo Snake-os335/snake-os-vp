@@ -90,14 +90,16 @@
 
   function avatarEl(av) {
     var wrap = el('span', 'dph-av');
-    var a = String(av || '👤');
-    if (a.indexOf('/api/avatars/') === 0 || a.indexOf('data:image/') === 0) {
+    var a = String(av || '👤').trim();
+    var photo = window.snkIsPhotoAvatar ? window.snkIsPhotoAvatar(a) : (a.indexOf('/api/avatars/') === 0 || a.indexOf('data:image/') === 0);
+    if (photo) {
       var img = document.createElement('img');
       img.alt = '';
+      img.onerror = function () { wrap.textContent = '🐍'; };
       img.src = a;
       wrap.appendChild(img);
     } else {
-      wrap.textContent = a;
+      wrap.textContent = (a.length > 16 || /[\/:]/.test(a)) ? '🐍' : a;
     }
     return wrap;
   }

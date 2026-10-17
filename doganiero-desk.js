@@ -17,6 +17,7 @@
   }
 
   function avHtml(av) {
+    if (typeof window.snkAvatarHtml === 'function') return window.snkAvatarHtml(av, 'avatar-img');
     if (typeof window.avatarMarkup === 'function') return window.avatarMarkup(av, 'avatar-img');
     var a = String(av || '\uD83D\uDDA5\uFE0F');
     if (a.indexOf('/api/avatars/') === 0 || a.indexOf('data:image/') === 0) {

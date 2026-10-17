@@ -27,6 +27,7 @@
       .replace(/"/g, '&quot;');
   }
   function avHtml(av) {
+    if (typeof window.snkAvatarHtml === 'function') return window.snkAvatarHtml(av || '🐶', 'avatar-img');
     var a = av || '🐶';
     if (String(a).indexOf('/api/avatars/') === 0 || String(a).indexOf('data:image/') === 0) {
       return '<img class="avatar-img" src="' + esc(a) + '" alt="">';
@@ -2053,7 +2054,7 @@ function handleRealtimePayload(msg) {
       var av = document.createElement('span');
       av.className = 'dc-call-av';
       av.style.cssText = 'width:30px;height:30px;flex:0 0 30px;border-radius:50%;overflow:hidden;display:inline-flex;align-items:center;justify-content:center;font-size:1.2rem;background:rgba(255,255,255,0.16)';
-      if (avSrc.indexOf('/api/avatars/') === 0 || avSrc.indexOf('data:image/') === 0) {
+      if (window.snkIsPhotoAvatar ? window.snkIsPhotoAvatar(avSrc) : (avSrc.indexOf('/api/avatars/') === 0 || avSrc.indexOf('data:image/') === 0)) {
         var avImg = document.createElement('img');
         avImg.alt = '';
         avImg.src = avSrc;

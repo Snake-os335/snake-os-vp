@@ -185,3 +185,167 @@
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', hook); else hook();
 })();
+
+/* ===== Apps abiertas a la izquierda de la barra de tareas (2026-10-17) =====
+   Como el dock del modo trabajo: #taskItems (los botones de ventanas abiertas de siempre) se mueve a #tbOpen,
+   junto al avatar. Icono + nombre si cabe (si no, solo icono; si aún no cabe, scroll con la rueda y difuminado).
+   La ventana en primer plano se resalta (.tb-front), las minimizadas se atenúan. Clic: traer delante / restaurar /
+   minimizar si ya está delante (index.html). Clic central o menú contextual: cerrar. En modo teléfono vuelve a su sitio.
+   Sustituye a la barra lateral vertical (snake-sidebar.js), cuya preferencia guardada se borra. */
+(function () {
+  'use strict';
+  function $(id) { return document.getElementById(id); }
+  function T(es, en) { try { return window.snakeI18n && window.snakeI18n.lang === 'en' ? en : es; } catch (e) { return es; } }
+  function email() { var u = window.currentUser; return (u && u.email) || 'anon'; }
+  function key() { return 'snkTbOpen:' + email(); }
+  function prefs() { var p = {}; try { p = JSON.parse(localStorage.getItem(key()) || '{}') || {}; } catch (e) {} return { labels: p.labels !== false }; }
+  try { Object.keys(localStorage).forEach(function (k) { if (k.indexOf('snkSidebar:') === 0) localStorage.removeItem(k); }); } catch (e) {}
+  try { document.body && document.body.classList.remove('snk-side-on', 'snk-side-left', 'snk-side-right', 'snk-side-mini'); } catch (e) {}
+  var box, raf = 0, menu = null;
+
+  function phone() { return document.body.classList.contains('phone-mode'); }
+  function place() {
+    var bar = $('taskbar'), items = $('taskItems'), center = $('tb11Center');
+    if (!bar || !items || !center) return false;
+    if (!box) {
+      box = document.createElement('div'); box.id = 'tbOpen';
+      box.setAttribute('role', 'group'); box.setAttribute('aria-label', T('Apps abiertas', 'Open apps'));
+      box.addEventListener('wheel', function (e) {
+        if (box.scrollWidth <= box.clientWidth + 1) return;
+        var d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+        box.scrollLeft += d; e.preventDefault(); paintFade();
+      }, { passive: false });
+      box.addEventListener('scroll', paintFade, { passive: true });
+      box.addEventListener('contextmenu', onMenu);
+    }
+    if (phone()) {
+      if (items.parentNode !== center) center.appendChild(items);
+      if (box.parentNode) box.remove();
+    } else {
+      var ub = $('userBadge');
+      if (box.parentNode !== bar) bar.insertBefore(box, ub && ub.parentNode === bar ? ub.nextSibling : bar.firstChild);
+      if (items.parentNode !== box) box.appendChild(items);
+      var vd = $('snkVd'); if (vd && vd.parentNode !== center) center.appendChild(vd);
+    }
+    return true;
+  }
+  function front() {
+    var best = null, z = -1;
+    document.querySelectorAll('#windows > .app-window').forEach(function (w) {
+      if (w.classList.contains('minimized') || w.classList.contains('win-closing') || w.classList.contains('snk-vd-off')) return;
+      var zi = parseInt(w.style.zIndex, 10) || 0; if (zi >= z) { z = zi; best = w; }
+    });
+    return best ? best.id.replace(/^win-/, '') : '';
+  }
+  function schedule() { if (!raf) raf = requestAnimationFrame(paint); }
+  function paint() {
+    raf = 0;
+    if (!place()) return;
+    var f = front(), items = $('taskItems');
+    Array.prototype.forEach.call(items.querySelectorAll('.task-item'), function (t) {
+      var id = t.id.replace(/^task-/, ''), w = $('win-' + id);
+      var on = id === f, min = !!(w && w.classList.contains('minimized'));
+      if (t.classList.contains('tb-front') !== on) t.classList.toggle('tb-front', on);
+      if (t.classList.contains('tb-min') !== min) t.classList.toggle('tb-min', min);
+      t.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+    fit();
+  }
+  /* nombres si caben; si no, solo iconos; si aún no, scroll */
+  function fit() {
+    if (!box || phone()) return;
+    var bar = $('taskbar'), center = $('tb11Center'), body = document.body;
+    var p = prefs();
+    var absCenter = center && getComputedStyle(center).position === 'absolute';
+    var lim, n = box.querySelectorAll('.task-item:not(.snk-vd-off)').length;
+    var dock = $('osxWorkDock'), dockOn = dock && body.classList.contains('osx-work') && getComputedStyle(dock).display !== 'none';
+    if (absCenter) {
+      var startX = (dockOn ? dock : box).getBoundingClientRect().left;
+      var avail = center.getBoundingClientRect().left - startX - 14;
+      if (dockOn) {
+        /* modo trabajo: el dock de trabajo y las apps abiertas se reparten el hueco */
+        var need = n ? Math.min(n * 43 + 14, avail / 2) : 0;
+        dock.style.maxWidth = '';
+        var dw = Math.max(44, Math.min(dock.scrollWidth + 2, avail - need - 6));
+        dock.style.maxWidth = Math.round(dw) + 'px';
+        avail -= dw + 6;
+      }
+      lim = avail;
+    } else {
+      var bw = bar.getBoundingClientRect().width;
+      lim = Math.round(bw * (dockOn ? 0.17 : 0.3));
+      if (dockOn) dock.style.maxWidth = Math.round(bw * 0.15) + 'px';
+    }
+    lim = Math.max(46, Math.round(lim));
+    box.style.maxWidth = lim + 'px';
+    box.classList.toggle('empty', !n);
+    var wantLabels = p.labels && window.innerWidth >= 900;
+    /* ancho por botón con nombre: reparte el hueco; por debajo de 92 px, solo iconos */
+    var per = n ? Math.floor((lim - 14 - (n - 1) * 3) / n) : 172;
+    if (wantLabels && per >= 92) {
+      body.classList.remove('tb-open-icons');
+      box.style.setProperty('--tbo-w', Math.min(172, per) + 'px');
+    } else { body.classList.add('tb-open-icons'); box.style.removeProperty('--tbo-w'); }
+    paintFade();
+  }
+  function paintFade() {
+    if (!box) return;
+    var over = box.scrollWidth > box.clientWidth + 1;
+    box.classList.toggle('fade-l', over && box.scrollLeft > 2);
+    box.classList.toggle('fade-r', over && box.scrollLeft + box.clientWidth < box.scrollWidth - 2);
+  }
+  /* menú contextual: traer delante / minimizar / maximizar / cerrar */
+  function closeMenu() { if (menu) { menu.remove(); menu = null; } }
+  function onMenu(e) {
+    var t = e.target.closest('.task-item'); if (!t) return;
+    e.preventDefault(); e.stopPropagation(); closeMenu();
+    var id = t.id.replace(/^task-/, ''), W = window.snkWin || {}, w = $('win-' + id);
+    var min = w && w.classList.contains('minimized'), max = w && w.classList.contains('maximized');
+    menu = document.createElement('div'); menu.id = 'tbOpenMenu'; menu.setAttribute('role', 'menu');
+    var name = (t.getAttribute('aria-label') || t.textContent || id).trim();
+    menu.innerHTML = '<div class="h"></div>' +
+      '<button type="button" role="menuitem" data-a="focus">' + (min ? T('Restaurar', 'Restore') : T('Traer delante', 'Bring to front')) + '</button>' +
+      (min ? '' : '<button type="button" role="menuitem" data-a="min">' + T('Minimizar', 'Minimize') + '</button>') +
+      (phone() ? '' : '<button type="button" role="menuitem" data-a="max">' + (max ? T('Restaurar tamaño', 'Restore size') : T('Maximizar', 'Maximize')) + '</button>') +
+      '<button type="button" role="menuitem" data-a="close" class="x">✕ ' + T('Cerrar ventana', 'Close window') + '</button>';
+    menu.querySelector('.h').textContent = name;
+    document.body.appendChild(menu);
+    var r = t.getBoundingClientRect(), mw = menu.offsetWidth, mh = menu.offsetHeight;
+    menu.style.left = Math.max(8, Math.min(window.innerWidth - mw - 8, r.left)) + 'px';
+    menu.style.top = Math.max(8, r.top - mh - 8) + 'px';
+    menu.addEventListener('click', function (ev) {
+      var b = ev.target.closest('[data-a]'); if (!b) return;
+      var a = b.dataset.a; closeMenu();
+      if (a === 'focus' && W.focus) W.focus(id);
+      else if (a === 'min' && W.minimize) W.minimize(id);
+      else if (a === 'max' && W.maximize) { if (min && W.focus) W.focus(id); W.maximize(id); }
+      else if (a === 'close' && W.close) W.close(id);
+      schedule();
+    });
+    setTimeout(function () { var fb = menu && menu.querySelector('button'); if (fb) fb.focus(); }, 0);
+  }
+  document.addEventListener('pointerdown', function (e) { if (menu && !menu.contains(e.target)) closeMenu(); }, true);
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && menu) closeMenu(); });
+  window.addEventListener('blur', closeMenu);
+
+  window.snkTbOpen = {
+    get: prefs,
+    setLabels: function (v) { try { localStorage.setItem(key(), JSON.stringify({ labels: !!v })); } catch (e) {} schedule(); },
+    refresh: schedule
+  };
+  function start() {
+    if (!$('taskItems') || !$('tb11Center')) { setTimeout(start, 300); return; }
+    paint();
+    var wo = new MutationObserver(schedule);
+    function watchWins() { document.querySelectorAll('#windows > .app-window').forEach(function (w) { if (!w._snkTbo) { w._snkTbo = 1; wo.observe(w, { attributes: true, attributeFilter: ['class', 'style'] }); } }); }
+    var wl = $('windows');
+    if (wl) { new MutationObserver(function () { watchWins(); schedule(); }).observe(wl, { childList: true }); watchWins(); }
+    new MutationObserver(schedule).observe($('taskItems'), { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
+    var bodyCls = document.body.className;
+    new MutationObserver(function () { if (document.body.className !== bodyCls) { bodyCls = document.body.className; schedule(); } }).observe(document.body, { attributes: true, attributeFilter: ['class'] });
+    var bar = $('taskbar'); if (bar) new MutationObserver(schedule).observe(bar, { childList: true });
+    window.addEventListener('resize', schedule);
+    var em = email(); setInterval(function () { if (email() !== em) { em = email(); schedule(); } }, 1500);
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function () { setTimeout(start, 0); }); else setTimeout(start, 0);
+})();

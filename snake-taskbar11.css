@@ -189,3 +189,85 @@ body.tb11:not(.phone-mode) #tb11Center .task-item::before{ box-shadow:0 0 6px rg
 #startMenu .start-item.poweroff .snk-pwr-ico{ width:16px; height:16px; vertical-align:-3px; margin-right:6px; display:inline-block; }
 #startMenu .snk-sm-av{ display:inline-flex; width:26px; height:26px; border-radius:50%; overflow:hidden; align-items:center; justify-content:center; vertical-align:middle; }
 #startMenu .snk-sm-av img{ width:100%; height:100%; object-fit:cover; display:block; border-radius:50%; }
+
+/* ===== Apps abiertas a la izquierda de la barra (#tbOpen, como el dock del modo trabajo) ===== */
+body.tb11:not(.phone-mode) #taskbar > *{ order:5; }
+body.tb11:not(.phone-mode) #taskbar > #userBadge{ order:1; margin-right:0 !important; }
+body.tb11:not(.phone-mode) #taskbar > #osxWorkDock,
+body.tb11:not(.phone-mode) #taskbar > #osxKidsBadge{ order:2; margin:0 0 0 6px !important; }
+body.tb11:not(.phone-mode) #taskbar > #tbOpen{ order:3; }
+body.tb11:not(.phone-mode) #tbOpen{
+  display:flex; align-items:center; height:100%; min-width:0; flex:0 1 auto; margin:0 auto 0 6px;
+  padding:0 6px; border-left:1px solid rgba(127,127,127,0.35); border-right:1px solid rgba(127,127,127,0.35);
+  overflow-x:auto; overflow-y:hidden; scrollbar-width:none; box-sizing:border-box; color:var(--tb11-fg);
+}
+body.tb11:not(.phone-mode) #tbOpen::-webkit-scrollbar{ display:none; }
+body.tb11:not(.phone-mode) #tbOpen.empty{ display:none; }
+body.tb11:not(.phone-mode) #tbOpen.fade-r{ -webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 26px),transparent); mask-image:linear-gradient(90deg,#000 calc(100% - 26px),transparent); }
+body.tb11:not(.phone-mode) #tbOpen.fade-l{ -webkit-mask-image:linear-gradient(90deg,transparent,#000 26px); mask-image:linear-gradient(90deg,transparent,#000 26px); }
+body.tb11:not(.phone-mode) #tbOpen.fade-l.fade-r{ -webkit-mask-image:linear-gradient(90deg,transparent,#000 26px,#000 calc(100% - 26px),transparent); mask-image:linear-gradient(90deg,transparent,#000 26px,#000 calc(100% - 26px),transparent); }
+body.tb11:not(.phone-mode) #tbOpen #taskItems{ flex:0 0 auto !important; display:flex; align-items:center; gap:3px; height:100%; overflow:visible !important; min-width:0; }
+body.tb11:not(.phone-mode) #tbOpen .task-item{
+  position:relative; flex:0 0 auto !important; display:inline-flex !important; align-items:center; gap:7px;
+  width:auto !important; min-width:0 !important; max-width:var(--tbo-w,172px) !important; height:40px !important;
+  margin:0 !important; padding:0 11px 0 7px !important; border-radius:12px !important;
+  background:transparent !important; border:1px solid transparent !important; box-shadow:none !important;
+  color:var(--tb11-fg) !important; font-size:12.5px !important; font-weight:600; line-height:1; white-space:nowrap;
+  backdrop-filter:none !important; -webkit-backdrop-filter:none !important; transform:none !important; opacity:1;
+  cursor:pointer; transition:background .15s ease, opacity .15s ease;
+}
+body.tb11:not(.phone-mode) #tbOpen .task-item:hover{ background:var(--tb11-hover) !important; border-color:rgba(255,255,255,0.28) !important; }
+body.tb11:not(.phone-mode) #tbOpen .task-item:active{ background:var(--tb11-press) !important; }
+body.tb11:not(.phone-mode) #tbOpen .task-item .tb11-ico{ flex:0 0 24px; width:24px; height:24px; display:inline-flex; align-items:center; justify-content:center; font-size:19px; line-height:1; }
+body.tb11:not(.phone-mode) #tbOpen .task-item .tb11-ico img{ width:24px !important; height:24px !important; margin:0 !important; border-radius:6px; object-fit:contain; vertical-align:0 !important; }
+body.tb11:not(.phone-mode) #tbOpen .task-item .tb11-emo{ font-size:19px; }
+body.tb11:not(.phone-mode) #tbOpen .task-item .tb11-lab{ display:block !important; min-width:0; flex:0 1 auto; overflow:hidden; text-overflow:ellipsis; }
+body.tb11:not(.phone-mode) #tbOpen .task-item.tb11-hide{ display:inline-flex !important; }
+body.tb11:not(.phone-mode) #tbOpen .task-item.snk-vd-off{ display:none !important; }
+/* primer plano: píldora resaltada + línea de acento; minimizada: atenuada */
+body.tb11:not(.phone-mode) #tbOpen .task-item.tb-front{ background:rgba(255,255,255,0.20) !important; border-color:rgba(255,255,255,0.38) !important; box-shadow:inset 0 1px 0 rgba(255,255,255,0.35) !important; }
+body.tb11:not(.phone-mode) #tbOpen .task-item::before{
+  content:""; position:absolute; left:50%; bottom:2px; width:6px; height:3px; border-radius:3px; transform:translateX(-50%);
+  background:var(--tb11-dot); transition:width .2s ease;
+}
+body.tb11:not(.phone-mode) #tbOpen .task-item.tb-front::before{ width:18px; background:var(--tb11-accent); box-shadow:0 0 6px rgba(160,255,200,0.7); }
+body.tb11:not(.phone-mode) #tbOpen .task-item.tb-min{ opacity:.55; }
+body.tb11:not(.phone-mode) #tbOpen .task-item.tb-min::before{ width:4px; opacity:.6; }
+body.tb11:not(.phone-mode) #tbOpen .task-item.tb-min .tb11-lab{ font-style:italic; }
+body.tb11:not(.phone-mode) #tbOpen .task-item[data-badge]::after{ top:1px !important; right:1px !important; margin-top:0 !important; font-size:9px; }
+/* solo iconos (no cabe, pantalla estrecha o nombres desactivados en Ajustes) */
+body.tb11.tb-open-icons:not(.phone-mode) #tbOpen .task-item{ padding:0 !important; width:40px !important; min-width:40px !important; max-width:40px !important; justify-content:center; }
+body.tb11.tb-open-icons:not(.phone-mode) #tbOpen .task-item .tb11-lab{ display:none !important; }
+/* tema claro */
+body.tb11.theme-light:not(.phone-mode) #tbOpen .task-item.tb-front{ background:rgba(255,255,255,0.62) !important; border-color:rgba(18,165,86,0.45) !important; }
+body.tb11.theme-light:not(.phone-mode) #tbOpen{ border-color:rgba(13,58,34,0.18); }
+/* modo trabajo: grises */
+body.osx-work.tb11:not(.phone-mode) #tbOpen .task-item.tb-front{ background:rgba(255,255,255,0.14) !important; border-color:rgba(255,255,255,0.28) !important; box-shadow:none !important; }
+body.osx-work.tb11:not(.phone-mode) #tbOpen .task-item.tb-front::before{ background:#c9ccd1; box-shadow:none; }
+/* Kids */
+body.osx-kids.tb11:not(.phone-mode) #tbOpen{ border-color:rgba(255,255,255,0.7); }
+body.osx-kids.tb11:not(.phone-mode) #tbOpen .task-item{ color:#26214a !important; font-weight:800; text-shadow:0 1px 0 rgba(255,255,255,0.6); }
+body.osx-kids.tb11:not(.phone-mode) #tbOpen .task-item.tb-front{ background:rgba(255,255,255,0.75) !important; border-color:#fff !important; }
+body.osx-kids.tb11:not(.phone-mode) #tbOpen .task-item.tb-front::before{ background:#8b5cf6; box-shadow:none; }
+/* alto contraste */
+body.snk-hc.tb11:not(.phone-mode) #tbOpen .task-item.tb-front{ background:#ffd400 !important; color:#000 !important; }
+/* centro: sin #taskItems ya no necesita tanto margen */
+@media (max-width:1240px){
+  body.tb11:not(.phone-mode) #tb11Center{ position:relative !important; left:auto; transform:none; max-width:none; flex:1 1 auto; top:auto; bottom:auto; height:100%; justify-content:center; }
+  body.tb11:not(.phone-mode) #tbOpen{ margin-right:6px; }
+  /* sin sitio: los anclados (salvo Buscar) se ocultan; siguen en el menú de inicio y las apps abiertas están a la izquierda */
+  body.tb11:not(.phone-mode) #tb11Center .tb11-pin:not(#tb11pin-search){ display:none !important; }
+}
+@media (max-width:1000px){ body.tb11:not(.phone-mode) #taskbar #tbBattery{ display:none !important; } body.tb11:not(.phone-mode) #tb11Center{ min-width:0; } }
+/* menú contextual de una app abierta */
+#tbOpenMenu{ position:fixed; z-index:100060; min-width:190px; padding:6px; border-radius:14px; color:#f4fff8;
+  background:rgba(18,40,28,0.92); border:1px solid rgba(255,255,255,0.22); box-shadow:0 14px 40px rgba(0,0,0,0.4);
+  backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px); font-size:13px; }
+#tbOpenMenu .h{ padding:6px 10px 7px; font-weight:800; font-size:12px; opacity:.8; border-bottom:1px solid rgba(255,255,255,0.14); margin-bottom:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:240px; }
+#tbOpenMenu button{ display:block; width:100%; margin:0; padding:8px 10px; min-height:0; border:0; border-radius:9px; background:transparent; color:inherit; text-align:left; cursor:pointer; box-shadow:none; font:inherit; font-weight:600; }
+#tbOpenMenu button:hover, #tbOpenMenu button:focus-visible{ background:rgba(255,255,255,0.14); outline:0; }
+#tbOpenMenu button.x:hover, #tbOpenMenu button.x:focus-visible{ background:#e5484d; color:#fff; }
+body.theme-light #tbOpenMenu{ background:rgba(250,255,252,0.96); color:#0d3a22; border-color:rgba(0,0,0,0.12); }
+body.theme-light #tbOpenMenu .h{ border-bottom-color:rgba(0,0,0,0.1); }
+body.theme-light #tbOpenMenu button:hover{ background:rgba(0,0,0,0.06); }
+body.osx-work #tbOpenMenu{ background:#1e1f23; border-color:#2c2d33; backdrop-filter:none; -webkit-backdrop-filter:none; }

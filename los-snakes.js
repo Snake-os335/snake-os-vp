@@ -1530,6 +1530,7 @@
     '.lsx-fr{display:grid;grid-template-columns:150px 1fr;gap:12px;align-items:center;background:#f4f8fc;border-radius:14px;padding:10px;margin:8px 0}',
     '.lsx-fr canvas.hs{width:150px;height:96px;border-radius:10px;background:#cfe9c4;display:block}',
     '.lsx-fr .fm{display:flex;gap:4px;flex-wrap:wrap;margin:4px 0}','.lsx-fr .fm canvas{width:34px;height:34px;border-radius:8px;background:#fff}',
+    '.lsx-fav{display:inline-flex;width:24px;height:24px;border-radius:50%;overflow:hidden;align-items:center;justify-content:center;vertical-align:-6px;font-size:18px}.lsx-fav-img{width:100%;height:100%;object-fit:cover;display:block}',
     '.lsx-fr .dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:#b8c2cc;margin-right:5px}','.lsx-fr .dot.on{background:#2ecc71}',
     '.lsx-fr .why{color:#a05a00;font-size:12px}',
     '.lsx-gifts{display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:8px;margin:8px 0}',
@@ -2407,7 +2408,7 @@
       fr.forEach(function (f, i) {
         var fam = f.family;
         h += '<div class="lsx-fr" data-i="' + i + '">' + (fam ? '<canvas class="hs"></canvas>' : '<div style="width:150px;height:96px;border-radius:10px;background:#e5ecf3;display:flex;align-items:center;justify-content:center;font-size:30px">🏚️</div>') +
-          '<div><div class="lsx-row" style="margin:0"><b style="font-size:15px">' + esc(f.avatar) + ' ' + esc(f.name) + '</b><small><span class="dot' + (f.online ? ' on' : '') + '"></span>' + (f.online ? 'jugando ahora (visita en vivo)' : 'no está jugando') + '</small></div>' +
+          '<div><div class="lsx-row" style="margin:0"><b style="font-size:15px"><span class="lsx-fav">' + (typeof window.snkAvatarHtml === 'function' ? window.snkAvatarHtml(f.avatar, 'lsx-fav-img') : (/[\/:]/.test(String(f.avatar || '')) ? '🐍' : esc(f.avatar || '🐍'))) + '</span> ' + esc(f.name) + '</b><small><span class="dot' + (f.online ? ' on' : '') + '"></span>' + (f.online ? 'jugando ahora (visita en vivo)' : 'no está jugando') + '</small></div>' +
           (fam ? '<div>Familia <b>' + esc(fam.name) + '</b> · día ' + fam.day + ' · ' + fam.objects + ' muebles</div><div class="fm">' + fam.members.map(function () { return '<canvas></canvas>'; }).join('') + '</div><small>' + fam.members.map(function (m) { return esc(m.name); }).join(', ') + '</small>' : '') +
           (f.can ? '<div style="margin-top:6px"><button class="lsx-btnp" data-v="' + i + '"' + (mine.length ? '' : ' disabled') + '>🚪 Visitar</button></div>' : '<div class="why">' + esc(f.reason) + '</div>') + '</div></div>';
       });

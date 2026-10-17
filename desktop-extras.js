@@ -2776,7 +2776,7 @@
       var id = (el.id || '').replace(/^task-/, '');
       var w = $('win-' + id);
       var name = el.textContent.trim();
-      var st = w && w.classList.contains('minimized') ? ' (minimizada — clic para abrir)' : ' (clic para minimizar)';
+      var st = w && w.classList.contains('minimized') ? ' (minimizada — clic para abrir)' : (el.classList.contains('tb-front') ? ' (clic para minimizar)' : ' (clic para traerla delante)');
       var n = parseInt(el.getAttribute('data-badge') || '0', 10);
       return name + (n ? ' · ' + n + ' sin leer' : '') + st;
     }
