@@ -8883,6 +8883,47 @@ class _PublicStaticFiles(StaticFiles):
 app.include_router(bots_extras.build_router(require_user, bots_extras.own_key, web_search_results))
 app.include_router(osx_extras.build_router(require_user))
 
+
+# --- Snake OS Kids: entrega del resumen semanal y códigos al Dogaemail del adulto (notificaciones de Snake OS) ---
+_osx_loop_ref: dict[str, Any] = {"loop": None}
+
+
+def _osx_notify(to_id: int, kind: str, title: str, body: str, data: dict[str, Any]) -> dict[str, Any]:
+    notif = db.create_notification(user_id=int(to_id), kind=kind, title=title, body=body, data=data or {}, created_at=time_mod.time())
+
+    async def _send() -> None:
+        unread = db.count_unread_notifications(user_id=int(to_id))
+        await chat_hub.send_to_user(int(to_id), {"type": "notification", "notification": notif, "unread": unread})
+        _queue_notif_push(int(to_id), notif)
+
+    loop = _osx_loop_ref.get("loop")
+    if loop is not None:
+        try:
+            asyncio.run_coroutine_threadsafe(_send(), loop)
+        except Exception:
+            pass
+    return notif
+
+
+osx_extras.NOTIFY = _osx_notify
+
+
+@app.on_event("startup")
+async def _osx_kids_weekly_start() -> None:
+    _osx_loop_ref["loop"] = asyncio.get_running_loop()
+
+    async def _loop() -> None:
+        while True:
+            await asyncio.sleep(600)
+            try:
+                n = await asyncio.to_thread(osx_extras.send_weekly_due)
+                if n:
+                    print(f"[osx] resúmenes Kids enviados: {n}", flush=True)
+            except Exception as exc:  # noqa: BLE001
+                print("[osx] resumen semanal:", type(exc).__name__, flush=True)
+
+    asyncio.create_task(_loop())
+
 # Voz propia de Snake OS (Piper TTS local)
 def _tts_user(request):
     try:

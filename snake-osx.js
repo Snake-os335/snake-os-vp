@@ -138,6 +138,40 @@
       '.osx-bars{display:flex;align-items:flex-end;gap:6px;height:120px;padding-top:6px}.osx-bars div{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:3px;font-size:.68rem;height:100%}.osx-bars i{display:block;width:100%;max-width:34px;border-radius:6px 6px 2px 2px;background:linear-gradient(#a78bfa,#ec4899);min-height:2px}',
       '.osx-list{margin:0;padding:0;list-style:none;font-size:.8rem}.osx-list li{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:4px 0;border-bottom:1px dashed rgba(127,127,127,.25)}.osx-list .osx-ai{width:16px;height:16px;vertical-align:-3px}',
       '.osx-kidslogo{display:block;width:min(300px,80%);margin:2px auto 8px}',
+      '.osx-modal .box{--text:#2b2550;--muted:#4f4875;--input-bg:#fff;--input-border:#cfc6f5;--accent:#6d28d9;color:#2b2550}',
+      '.osx-modal .box label,.osx-modal .box p,.osx-modal .box li,.osx-modal .box small,.osx-modal .box h4,.osx-modal .osx-field>label,.osx-modal .feat div{color:#2b2550 !important;opacity:1}',
+      '.osx-modal .box h2,.osx-modal .box h3{color:#3b2a7a !important}',
+      '.osx-modal .osx-note{color:#4f4875 !important;opacity:1}.osx-modal .osx-err{color:#b91c1c !important}',
+      '.osx-modal .osx-in{background:#fff !important;color:#2b2550 !important;border-color:#cfc6f5 !important}',
+      '.osx-modal .osx-in::placeholder{color:#6b6490 !important;opacity:1}.osx-modal option{background:#fff;color:#2b2550}',
+      '.osx-modal .osx-seg button,.osx-modal .osx-chip{background:#fff !important;color:#2b2550 !important;border-color:#d9d2ff !important}',
+      '.osx-modal .osx-seg button.on{background:#6d28d9 !important;border-color:#6d28d9 !important;color:#fff !important}',
+      '.osx-modal .osx-chip.on{background:#efe8ff !important;border-color:#6d28d9 !important}',
+      '.osx-modal .osx-b{background:#fff;color:#3b2a7a !important}',
+      '.osx-modal .osx-b.pri{background:linear-gradient(135deg,#6d28d9,#be185d) !important;color:#fff !important}',
+      '.osx-modal .osx-b.ok{background:linear-gradient(135deg,#15803d,#0369a1) !important;color:#fff !important}',
+      '.osx-modal .osx-b:focus-visible,.osx-modal .osx-seg button:focus-visible,.osx-modal .osx-chip:focus-visible,.osx-modal .osx-in:focus-visible{outline:3px solid #f59e0b;outline-offset:2px}',
+      '.osx-panel .osx-card{background:rgba(22,24,32,.9);border-color:rgba(255,255,255,.16);color:#f2f2f6}',
+      '.osx-panel .osx-card p,.osx-panel .osx-note{opacity:1;color:#d0d2dc !important}',
+      '.osx-panel .osx-card label,.osx-panel .osx-card h3,.osx-panel .osx-card h4,.osx-panel .osx-list li,.osx-panel .osx-bars div,.osx-panel .osx-card b{color:#f2f2f6 !important}',
+      '.osx-panel .osx-in{background:rgba(255,255,255,.08) !important;color:#f2f2f6 !important;border-color:rgba(255,255,255,.3) !important}',
+      '.osx-panel .osx-in::placeholder{color:#b9bbc8;opacity:1}.osx-panel option{background:#1d1f27;color:#f2f2f6}',
+      '.osx-panel .osx-seg button,.osx-panel .osx-chip{color:#f2f2f6 !important;border-color:rgba(255,255,255,.32) !important;background:rgba(255,255,255,.04) !important}',
+      '.osx-panel .osx-seg button.on{background:#34d17a !important;border-color:#34d17a !important;color:#04170c !important}',
+      '.osx-panel .osx-chip.on{background:rgba(52,209,122,.22) !important;border-color:#34d17a !important}',
+      '.osx-panel .osx-err{color:#ff8a8a !important}',
+      'body.theme-light .osx-panel .osx-card{background:rgba(255,255,255,.95);border-color:rgba(20,40,30,.16);color:#14261d}',
+      'body.theme-light .osx-panel .osx-card p,body.theme-light .osx-panel .osx-note{color:#3a4b42 !important}',
+      'body.theme-light .osx-panel .osx-card label,body.theme-light .osx-panel .osx-card h3,body.theme-light .osx-panel .osx-card h4,body.theme-light .osx-panel .osx-list li,body.theme-light .osx-panel .osx-bars div,body.theme-light .osx-panel .osx-card b{color:#14261d !important}',
+      'body.theme-light .osx-panel .osx-in{background:#fff !important;color:#14261d !important;border-color:rgba(20,40,30,.3) !important}',
+      'body.theme-light .osx-panel .osx-in::placeholder{color:#5a6a62}body.theme-light .osx-panel option{background:#fff;color:#14261d}',
+      'body.theme-light .osx-panel .osx-seg button,body.theme-light .osx-panel .osx-chip{color:#14261d !important;border-color:rgba(20,40,30,.32) !important;background:#fff !important}',
+      'body.theme-light .osx-panel .osx-seg button.on{background:#15803d !important;border-color:#15803d !important;color:#fff !important}',
+      'body.theme-light .osx-panel .osx-chip.on{background:#dcfce7 !important;border-color:#15803d !important}',
+      'body.theme-light .osx-panel .osx-err{color:#b91c1c !important}',
+      '.osx-panel select.osx-in{appearance:auto}',
+      '.osx-chip.na{text-decoration:line-through;border-style:dashed !important;cursor:not-allowed}.osx-chip.na .osx-ai{opacity:.45}',
+      '.osx-modal .osx-chip.na{color:#5b5578 !important;background:#f4f2fa !important}.osx-panel .osx-chip.na{color:#b9bbc8 !important}body.theme-light .osx-panel .osx-chip.na{color:#4d5b54 !important;background:#f3f5f4 !important}',
       '@media (max-width:600px){.osx-modal .box{padding:16px;border-radius:18px}#osxOsd{bottom:120px}}'
     ].join('\n');
     document.head.appendChild(s);
@@ -316,7 +350,7 @@
       var k = kids(); if (!k) return orig(c);
       var what = (c && c.video ? 'cámara' : '') + (c && c.audio ? (c.video ? ' y el micrófono' : 'micrófono') : '');
       if (k.media === 'block') { toast('🧸 La ' + what + ' está bloqueada en Snake OS Kids'); logBlocked('cámara/micro', what); return Promise.reject(new DOMException('Bloqueado por el control parental', 'NotAllowedError')); }
-      return askPin('Para usar el ' + what + ' hace falta el permiso de un adulto').then(function (ok) {
+      return askPin('Para usar el ' + what + ' hace falta el permiso de un adulto', 'perm').then(function (ok) {
         if (!ok) { logBlocked('cámara/micro', what + ' (sin permiso)'); throw new DOMException('Sin permiso del adulto', 'NotAllowedError'); }
         return orig(c);
       });
@@ -417,11 +451,11 @@
       '<button type="button" data-ext>🔑 Un adulto puede dar más tiempo</button>';
     document.body.appendChild(el);
     el.querySelector('[data-ext]').onclick = function () {
-      askPin('PIN del adulto para dar más tiempo').then(function (ok) {
+      askPin('PIN del adulto para dar más tiempo', 'extend').then(function (ok) {
         if (!ok) return;
         if (kind === 'bed') { chooseExtra(function (m) { S.bedOverride = Date.now() + m * 60000; el.remove(); }); return; }
         chooseExtra(function (m) {
-          papi('/api/osx/kids/extend', { method: 'POST', body: { minutes: m, token: S.token } }).then(function (p) { setPrefs(p); el.remove(); toast('✅ +' + m + ' min'); }).catch(function (e) { toast(errMsg(e)); });
+          papi('/api/osx/kids/extend', { method: 'POST', body: { minutes: m, token: S.otok || S.token } }).then(function (p) { setPrefs(p); el.remove(); toast('✅ +' + m + ' min'); }).catch(function (e) { toast(errMsg(e)); });
         });
       });
     };
@@ -446,8 +480,10 @@
     return { el: m, box: box, close: function () { if (m.parentNode) m.remove(); } };
   }
   function tokenValid() { return S.token && S.tokenExp > Date.now(); }
-  function askPin(msg, purpose) {
-    if (tokenValid() && purpose !== 'store') return Promise.resolve(true);
+  function askPin(msg, purpose, raw) {
+    purpose = purpose || 'parent';
+    // Solo la sesión parental (5 min) evita volver a pedir el PIN, y nunca para desactivar (raw).
+    if (!raw && purpose === 'parent' && tokenValid()) return Promise.resolve(true);
     return new Promise(function (res) {
       var prev = $('.osx-modal'); if (prev) prev.style.display = 'none';
       var m = document.createElement('div'); m.id = 'osxPinModal'; m.setAttribute('role', 'dialog'); m.setAttribute('aria-modal', 'true');
@@ -461,8 +497,10 @@
       function done(v) { m.remove(); if (prev) prev.style.display = ''; res(v); }
       function go() {
         var pin = inp.value.trim(); if (!pin) { err.textContent = 'Escribe el PIN'; return; }
+        if (raw) { done(pin); return; }
         api('/api/osx/kids/verify', { method: 'POST', body: { pin: pin, purpose: purpose || '' } }).then(function (r) {
-          S.token = r.token; S.tokenExp = Date.now() + (r.ttl || 900) * 1000 - 5000; done(true);
+          if ((r.scope || 'parent') === 'parent') { S.token = r.token; S.tokenExp = Date.now() + (r.ttl || 300) * 1000 - 3000; } else { S.otok = r.token; }
+          done(true);
         }).catch(function (e) { err.textContent = errMsg(e); inp.value = ''; inp.focus(); });
       }
       m.querySelector('[data-ok]').onclick = go; m.querySelector('[data-x]').onclick = function () { done(false); };
@@ -494,7 +532,7 @@
       return '<p>Toca para permitir o quitar. Las que no son para su edad aparecen tachadas. La terminal, el servidor y el escritorio remoto nunca están disponibles.</p><div class="osx-chips">' +
         candidateApps().map(function (id) {
           var r = RATING.hasOwnProperty(id) ? RATING[id] : 13, ok = r <= max;
-          return '<button type="button" class="osx-chip ' + (ok && c.apps.indexOf(id) >= 0 ? 'on' : '') + '" data-app-chip="' + esc(id) + '" ' + (ok ? '' : 'disabled style="opacity:.4;text-decoration:line-through"') + '>' + appIcon(id) + esc(appTitle(id)) + '</button>';
+          return '<button type="button" class="osx-chip ' + (ok ? (c.apps.indexOf(id) >= 0 ? 'on' : '') : 'na') + '" data-app-chip="' + esc(id) + '" ' + (ok ? '' : 'disabled aria-disabled="true" title="No es adecuada para esta edad"') + '>' + appIcon(id) + esc(appTitle(id)) + '</button>';
         }).join('') + '</div>';
     }, bind: function (r, c) {
       r.querySelectorAll('[data-app-chip]').forEach(function (b) { b.onclick = function () { var id = b.dataset.appChip, i = c.apps.indexOf(id); if (i >= 0) c.apps.splice(i, 1); else c.apps.push(id); b.classList.toggle('on', i < 0); }; });
@@ -606,7 +644,7 @@
       if (p1 !== p2) { err.textContent = 'Los dos PIN no coinciden'; return; }
       var btn = this; btn.disabled = true;
       api('/api/osx/kids/setup', { method: 'POST', body: { pin: p1, pin2: p2, config: c, on: true } }).then(function (r) {
-        S.token = r.token; S.tokenExp = Date.now() + 890000; setPrefs(r.prefs); m.close();
+        S.token = ''; S.tokenExp = 0; setPrefs(r.prefs); m.close();
         try { sessionStorage.removeItem('snkosx_new:' + S.email); } catch (e) {}
         kidsDone();
       }).catch(function (e) { btn.disabled = false; err.textContent = errMsg(e); });
@@ -689,6 +727,43 @@
     el._draw = draw;
     draw();
   }
+  function relockParent() { var had = !!S.token; S.token = ''; S.tokenExp = 0; if (had) api('/api/osx/kids/lock', { method: 'POST' }).catch(function () {}); }
+  function mailCard(box) {
+    if (!box) return;
+    function draw(t) {
+      var r = (S.prefs.kids && S.prefs.kids.report) || {};
+      var opts = [t.profile_email].concat(S._acc || []).concat(r.to ? [r.to] : []).map(function (x) { return String(x || '').toLowerCase(); }).filter(function (x, i, a) { return x && !/@(gmail|googlemail)\.com$/.test(x) && a.indexOf(x) === i; });
+      box.innerHTML =
+        (r.to ? '<p style="margin:0 0 8px"><b>Destino:</b> ' + esc(r.to) + ' · ' + (r.verified ? '✅ verificado' : (r.pending ? '⏳ falta el código' : '⚠️ sin verificar')) + (r.last_sent ? ' · último envío ' + new Date(r.last_sent * 1000).toLocaleDateString('es-ES') : '') + '</p>' : '') +
+        '<div class="osx-field"><label for="osxMailSel">Cuenta Dogaemail del adulto</label>' +
+        '<select class="osx-in" id="osxMailSel" data-msel>' + opts.map(function (e) { return '<option value="' + esc(e) + '"' + (e === r.to ? ' selected' : '') + '>' + esc(e) + '</option>'; }).join('') + '<option value="">Otra cuenta…</option></select>' +
+        '<input class="osx-in" data-mother type="email" placeholder="adulto@dogaemail.com" style="margin-top:6px;display:none" aria-label="Otra cuenta Dogaemail"></div>' +
+        '<div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="snk4a-btn" data-msend>' + (r.to ? 'Enviar código otra vez' : 'Enviar código de verificación') + '</button></div>' +
+        (r.pending ? '<div class="osx-field"><label for="osxMailCode">Código de 6 cifras (llega a las notificaciones de esa cuenta)</label><div style="display:flex;gap:8px;flex-wrap:wrap"><input class="osx-in" id="osxMailCode" data-mcode inputmode="numeric" maxlength="6" placeholder="123456" style="max-width:160px"><button type="button" class="snk4a-btn" data-mver>Verificar</button></div></div>' : '') +
+        (r.verified ? '<label style="display:flex;align-items:center;margin-top:10px"><input type="checkbox" data-mweek ' + (r.weekly ? 'checked' : '') + '>Enviar el resumen cada domingo</label><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"><button type="button" class="snk4a-btn" data-mtest>Enviar resumen de prueba</button><button type="button" class="snk4a-btn" data-mrm>Quitar correo</button></div>' : '') +
+        '<p class="osx-note" style="margin-top:8px">Gmail no está disponible: ' + esc(t.gmail_reason || 'Snake OS no puede enviar a Gmail.') + '</p><div class="osx-err" data-merr aria-live="polite"></div>';
+      var sel = box.querySelector('[data-msel]'), oth = box.querySelector('[data-mother]'), err = box.querySelector('[data-merr]');
+      function pick() { return (sel.value || oth.value || '').trim(); }
+      sel.onchange = function () { oth.style.display = sel.value ? 'none' : ''; if (!sel.value) oth.focus(); };
+      if (!opts.length) { sel.value = ''; oth.style.display = ''; }
+      function call(p, body, okMsg) {
+        err.textContent = '';
+        if (!tokenValid()) { err.textContent = 'La sesión parental ha caducado: vuelve a escribir el PIN.'; return; }
+        return papi(p, { method: 'POST', body: Object.assign({ token: S.token }, body || {}) }).then(function (res) {
+          var pr = res && res.prefs ? res.prefs : (res && res.kids ? res : null); if (pr) setPrefs(pr); if (okMsg) toast(okMsg); draw(t); return res;
+        }).catch(function (e) { err.textContent = errMsg(e); });
+      }
+      box.querySelector('[data-msend]').onclick = function () { var e = pick(); if (!e) { err.textContent = 'Elige o escribe la cuenta Dogaemail del adulto'; return; } call('/api/osx/kids/report-to', { email: e }, '📨 Código enviado a las notificaciones de ' + e); };
+      var v = box.querySelector('[data-mver]'); if (v) v.onclick = function () { call('/api/osx/kids/report-verify', { code: box.querySelector('[data-mcode]').value.trim() }, '✅ Correo verificado'); };
+      var wk = box.querySelector('[data-mweek]'); if (wk) wk.onchange = function () { call('/api/osx/kids/report-settings', { weekly: wk.checked }); };
+      var ts = box.querySelector('[data-mtest]'); if (ts) ts.onclick = function () { call('/api/osx/kids/report-test', {}, '📊 Resumen de prueba enviado'); };
+      var rm = box.querySelector('[data-mrm]'); if (rm) rm.onclick = function () { call('/api/osx/kids/report-settings', { remove: true }, 'Correo quitado'); };
+    }
+    Promise.all([papi('/api/osx/kids/report-targets'), api('/api/added-accounts').catch(function () { return { accounts: [] }; })]).then(function (a) {
+      S._acc = ((a[1] && a[1].accounts) || []).map(function (x) { return String((x && x.email) || ''); });
+      draw(a[0] || {});
+    }).catch(function (e) { box.textContent = errMsg(e); });
+  }
   function panelKids(el) {
     var k = S.prefs.kids;
     if (!k.on) {
@@ -710,10 +785,20 @@
     el.innerHTML = '<div class="osx-panel"><img class="osx-kidslogo" src="' + LOGO_WIDE + '" alt="Snake OS Kids">' +
       card('📊 Informe de la semana', 'Uso de los últimos 7 días e intentos bloqueados.', '<div data-rep class="osx-note">Cargando…</div>') +
       Object.keys(EDITORS).map(function (key) { return card(EDITORS[key].title, '', '<div data-ed="' + key + '"></div>'); }).join('') +
-      card('💾 Guardar', 'Los cambios se aplican al momento en este perfil.', '<button type="button" class="snk4a-btn" data-save>Guardar ajustes parentales</button><div class="osx-err" data-serr></div>') +
+      card('💾 Guardar', 'Solo se guardan con la sesión parental activa (5 minutos tras escribir el PIN).', '<button type="button" class="snk4a-btn" data-save>Guardar ajustes parentales</button><p class="osx-note" data-sess style="margin-top:8px"></p><div class="osx-err" data-serr></div>') +
+      card('📧 Resumen semanal por correo', 'Cada domingo por la tarde se envía el uso por app y los intentos bloqueados a la cuenta Dogaemail del adulto (llega a sus notificaciones de Snake OS).', '<div data-mail>Cargando…</div>') +
       card('🔑 PIN y modo Kids', '', '<div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="snk4a-btn" data-chpin>Cambiar PIN</button><button type="button" class="snk4a-btn" data-off>Desactivar Snake OS Kids</button><button type="button" class="snk4a-btn" data-lock>Bloquear el panel</button></div>') + '</div>';
     function drawEd(key) { var box = el.querySelector('[data-ed="' + key + '"]'); box.innerHTML = EDITORS[key].render(c); EDITORS[key].bind(box, c, function () { drawEd('age'); drawEd('apps'); drawEd('time'); }); }
     Object.keys(EDITORS).forEach(drawEd);
+    // Sesión parental: cuenta atrás visible; se cierra sola al caducar, al salir del panel o al cerrar Ajustes.
+    clearInterval(el._sessT);
+    el._sessT = setInterval(function () {
+      if (!document.body.contains(el) || !el.querySelector('[data-save]')) { clearInterval(el._sessT); relockParent(); return; }
+      var left = Math.max(0, Math.round((S.tokenExp - Date.now()) / 1000)), sn = el.querySelector('[data-sess]');
+      if (sn) sn.textContent = '🔓 Sesión parental activa · se bloquea sola en ' + Math.floor(left / 60) + ':' + String(left % 60).padStart(2, '0');
+      if (!left) { clearInterval(el._sessT); relockParent(); panelKids(el); }
+    }, 1000);
+    mailCard(el.querySelector('[data-mail]'));
     papi('/api/osx/kids/report').then(function (r) {
       var max = Math.max.apply(null, r.days.map(function (d) { return d.seconds; }).concat([60]));
       var dn = ['D', 'L', 'M', 'X', 'J', 'V', 'S'];
@@ -722,14 +807,18 @@
         '<h4 style="margin:10px 0 4px">Por app</h4><ul class="osx-list">' + (r.apps.length ? r.apps.slice(0, 10).map(function (a) { return '<li><span>' + appIcon(a.app) + ' ' + esc(appTitle(a.app)) + '</span><b>' + fmtMin(a.seconds) + '</b></li>'; }).join('') : '<li>Sin uso todavía</li>') + '</ul>' +
         '<h4 style="margin:10px 0 4px">Intentos bloqueados</h4><ul class="osx-list">' + (r.blocked_recent.length ? r.blocked_recent.slice(0, 12).map(function (b) { var d = new Date(b.at * 1000); return '<li><span>🚫 <b>' + esc(b.what) + '</b> ' + esc(b.detail) + '</span><span class="osx-note">' + d.toLocaleDateString('es-ES', { weekday: 'short' }) + ' ' + d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) + '</span></li>'; }).join('') : '<li>Ninguno</li>') + '</ul>';
     }).catch(function (e) { el.querySelector('[data-rep]').textContent = errMsg(e); });
-    el.querySelector('[data-save]').onclick = function () {
+    function saveNow() {
       papi('/api/osx/prefs', { method: 'PUT', body: { kids: c, token: S.token } }).then(function (p) { setPrefs(p); el.querySelector('[data-serr]').textContent = ''; toast('✅ Ajustes parentales guardados'); })
-        .catch(function (e) { el.querySelector('[data-serr]').textContent = errMsg(e); if (/PIN/.test(errMsg(e))) { S.token = ''; } });
+        .catch(function (e) { el.querySelector('[data-serr]').textContent = errMsg(e); if (/PIN/.test(errMsg(e))) { S.token = ''; S.tokenExp = 0; } });
+    }
+    el.querySelector('[data-save]').onclick = function () {
+      if (tokenValid()) { saveNow(); return; }
+      askPin('La sesión parental ha caducado. PIN del adulto para guardar', 'parent').then(function (ok) { if (ok) saveNow(); });
     };
-    el.querySelector('[data-lock]').onclick = function () { S.token = ''; S.tokenExp = 0; panelKids(el); };
+    el.querySelector('[data-lock]').onclick = function () { relockParent(); panelKids(el); };
     el.querySelector('[data-off]').onclick = function () {
-      askPin('Confirma con el PIN para desactivar Snake OS Kids').then(function (ok) {
-        if (!ok) return; papi('/api/osx/kids/disable', { method: 'POST', body: { token: S.token } }).then(function (p) { setPrefs(p); panelKids(el); toast('Snake OS Kids desactivado'); }).catch(function (e) { toast(errMsg(e)); });
+      askPin('Confirma con el PIN para desactivar Snake OS Kids', 'parent', true).then(function (pin) {
+        if (!pin) return; papi('/api/osx/kids/disable', { method: 'POST', body: { token: S.token, pin: pin } }).then(function (p) { setPrefs(p); panelKids(el); toast('Snake OS Kids desactivado'); }).catch(function (e) { toast(errMsg(e)); });
       });
     };
     el.querySelector('[data-chpin]').onclick = function () {
@@ -737,7 +826,7 @@
       m.box.querySelector('[data-x]').onclick = m.close;
       m.box.querySelector('[data-ok]').onclick = function () {
         var p1 = m.box.querySelector('[data-p1]').value.trim(), p2 = m.box.querySelector('[data-p2]').value.trim();
-        papi('/api/osx/kids/setup', { method: 'POST', body: { pin: p1, pin2: p2, config: c, on: true, token: S.token } }).then(function (r) { S.token = r.token; S.tokenExp = Date.now() + 890000; setPrefs(r.prefs); m.close(); toast('✅ PIN cambiado'); })
+        papi('/api/osx/kids/setup', { method: 'POST', body: { pin: p1, pin2: p2, config: c, on: true, token: S.token } }).then(function (r) { S.token = r.token; S.tokenExp = Date.now() + (r.ttl || 300) * 1000 - 3000; setPrefs(r.prefs); m.close(); toast('✅ PIN cambiado'); })
           .catch(function (e) { m.box.querySelector('.osx-err').textContent = errMsg(e); });
       };
     };
@@ -796,7 +885,7 @@
     hideBrightnessOsd: function () { osd.hold = false; var e = $('#osxOsd'); if (e) e.classList.remove('on'); },
     setPerfNote: function (t) { S.perfNote = t; },
     refresh: function () { return pull(); },
-    lockParent: function () { S.token = ''; S.tokenExp = 0; },
+    lockParent: function () { relockParent(); S.otok = ''; },
     logos: { square: LOGO, wide: LOGO_WIDE }
   };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();

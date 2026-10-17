@@ -22,9 +22,12 @@ import db
 
 TZ = ZoneInfo("Europe/Madrid")
 _lock = threading.RLock()
-_tokens: dict[str, tuple[int, float]] = {}  # token -> (uid, caduca)
+_tokens: dict[str, tuple[int, float, str]] = {}  # token -> (uid, caduca, ámbito)
 _store_unlock: dict[int, float] = {}  # uid -> caduca (tienda desbloqueada con PIN)
-TOKEN_TTL = 15 * 60
+TOKEN_TTL = 5 * 60        # sesión parental (ajustes Kids) tras introducir el PIN
+OTHER_TTL = 2 * 60        # permisos puntuales (tienda, cámara, más tiempo): no abren los ajustes
+CODE_TTL = 15 * 60        # código de verificación del correo del adulto
+NOTIFY: Callable[..., Any] | None = None  # lo pone main.py: entrega en las notificaciones del Dogaemail
 PIN_ITER = 200_000
 MAX_FAILS = 5
 
@@ -161,9 +164,28 @@ def normalize(raw: Any) -> dict[str, Any]:
             "fails": _int(k.get("fails"), 0, 1000, 0),
             "lock_until": float(k.get("lock_until") or 0) if isinstance(k.get("lock_until"), (int, float)) else 0.0,
             "locks": _int(k.get("locks"), 0, 100, 0),
+            "report": _report(k.get("report")),
         },
     }
     return out
+
+
+def _report(v: Any) -> dict[str, Any]:
+    r = v if isinstance(v, dict) else {}
+    to = str(r.get("to") or "").strip().lower()
+    ok = bool(EMAIL_RE.match(to))
+    return {
+        "to": to if ok else "",
+        "to_uid": _int(r.get("to_uid"), 0, 10**12, 0) if ok else 0,
+        "verified": bool(r.get("verified")) and ok,
+        "weekly": r.get("weekly", True) is not False,
+        "last_week": str(r.get("last_week") or "")[:10],
+        "last_sent": float(r.get("last_sent") or 0) if isinstance(r.get("last_sent"), (int, float)) else 0.0,
+        "code_hash": str(r.get("code_hash") or "")[:128],
+        "code_exp": float(r.get("code_exp") or 0) if isinstance(r.get("code_exp"), (int, float)) else 0.0,
+        "code_tries": _int(r.get("code_tries"), 0, 100, 0),
+        "code_sent": float(r.get("code_sent") or 0) if isinstance(r.get("code_sent"), (int, float)) else 0.0,
+    }
 
 
 def public(o: dict[str, Any]) -> dict[str, Any]:
@@ -176,6 +198,9 @@ def public(o: dict[str, Any]) -> dict[str, Any]:
     k.pop("blocked", None)
     k["usage_today"] = k.get("usage", {}).get(today(), {})
     k.pop("usage", None)
+    rp = dict(k.get("report") or {})
+    k["report"] = {"to": rp.get("to", ""), "verified": bool(rp.get("verified")), "weekly": bool(rp.get("weekly", True)),
+                   "last_sent": rp.get("last_sent", 0), "pending": bool(rp.get("code_hash")) and rp.get("code_exp", 0) > time.time()}
     return {"brightness": o["brightness"], "screensaver": o["screensaver"], "work": o["work"], "kids": k}
 
 
@@ -243,24 +268,63 @@ def _check_pin_format(pin: Any) -> str:
     return s
 
 
-def _new_token(uid: int) -> str:
+def _new_token(uid: int, scope: str = "parent") -> str:
     now = time.time()
-    for t, (_u, exp) in list(_tokens.items()):
-        if exp < now:
+    for t, rec in list(_tokens.items()):
+        if rec[1] < now:
             _tokens.pop(t, None)
     tok = secrets.token_urlsafe(24)
-    _tokens[tok] = (uid, now + TOKEN_TTL)
+    _tokens[tok] = (uid, now + (TOKEN_TTL if scope == "parent" else OTHER_TTL), scope)
     return tok
 
 
-def _token_ok(uid: int, request: Request | None, body: dict[str, Any] | None = None) -> bool:
-    tok = ""
+def drop_tokens(uid: int) -> None:
+    for t, rec in list(_tokens.items()):
+        if rec[0] == uid:
+            _tokens.pop(t, None)
+
+
+def _token_ok(uid: int, request: Request | None, body: dict[str, Any] | None = None, scopes: tuple[str, ...] = ("parent",)) -> bool:
+    """Sesión parental válida: token emitido por el servidor tras un PIN correcto, del mismo perfil, sin caducar y del ámbito pedido."""
+    toks = []
     if request is not None:
-        tok = request.headers.get("x-osx-parent") or ""
-    if not tok and isinstance(body, dict):
-        tok = str(body.get("token") or "")
-    rec = _tokens.get(tok)
-    return bool(rec and rec[0] == uid and rec[1] > time.time())
+        toks.append(request.headers.get("x-osx-parent") or "")
+    if isinstance(body, dict):
+        toks.append(str(body.get("token") or ""))
+    now = time.time()
+    for tok in toks:
+        rec = _tokens.get(tok) if tok else None
+        if rec and rec[0] == uid and rec[1] > now and rec[2] in scopes:
+            return True
+    return False
+
+
+def _verify_pin(uid: int, o: dict[str, Any], pin: Any) -> None:
+    """Comprueba el PIN contra el hash con límite de intentos; lanza HTTPException si no vale. Guarda contadores."""
+    k = o["kids"]
+    if not k["pin"]:
+        raise HTTPException(400, "Este perfil no tiene PIN de adulto")
+    now = time.time()
+    if k["lock_until"] > now:
+        raise HTTPException(429, f"Demasiados intentos. Espera {int(k['lock_until'] - now) // 60 + 1} min.")
+    pin = str(pin or "").strip()
+    ok = bool(re.match(r"^\d{4,8}$", pin)) and hmac.compare_digest(_hash_pin(pin, k["pin"]["salt"]), k["pin"]["hash"])
+    if not ok:
+        k["fails"] += 1
+        left = MAX_FAILS - k["fails"]
+        if left <= 0:
+            k["locks"] += 1
+            mins = min(60, 5 * (2 ** (k["locks"] - 1)))
+            k["lock_until"] = now + mins * 60
+            k["fails"] = 0
+            save(uid, o)
+            log_blocked(uid, "pin", f"PIN incorrecto {MAX_FAILS} veces: bloqueado {mins} min")
+            raise HTTPException(429, f"PIN incorrecto. Bloqueado durante {mins} min.")
+        save(uid, o)
+        raise HTTPException(403, f"PIN incorrecto. Te quedan {left} intentos.")
+    k["fails"] = 0
+    k["locks"] = 0
+    save(uid, o)
 
 
 def build_router(require_user: Callable) -> APIRouter:
@@ -328,41 +392,19 @@ def build_router(require_user: Callable) -> APIRouter:
             if o["kids"]["on"]:
                 o["work"]["on"] = False
             save(uid, o)
-        return {"prefs": public(load(uid)), "token": _new_token(uid)}
+        return {"prefs": public(load(uid)), "token": _new_token(uid), "ttl": TOKEN_TTL}
 
     @r.post("/api/osx/kids/verify")
     def kids_verify(payload: dict[str, Any], user=Depends(require_user)):
         uid = int(user["id"])
         with _lock:
             o = load(uid)
-            k = o["kids"]
-            if not k["pin"]:
-                raise HTTPException(400, "Este perfil no tiene PIN de adulto")
-            now = time.time()
-            if k["lock_until"] > now:
-                raise HTTPException(429, f"Demasiados intentos. Espera {int(k['lock_until'] - now) // 60 + 1} min.")
-            pin = str(payload.get("pin") or "").strip()
-            ok = bool(re.match(r"^\d{4,8}$", pin)) and hmac.compare_digest(_hash_pin(pin, k["pin"]["salt"]), k["pin"]["hash"])
-            if not ok:
-                k["fails"] += 1
-                left = MAX_FAILS - k["fails"]
-                if left <= 0:
-                    k["locks"] += 1
-                    mins = min(60, 5 * (2 ** (k["locks"] - 1)))
-                    k["lock_until"] = now + mins * 60
-                    k["fails"] = 0
-                    save(uid, o)
-                    log_blocked(uid, "pin", f"PIN incorrecto {MAX_FAILS} veces: bloqueado {mins} min")
-                    raise HTTPException(429, f"PIN incorrecto. Bloqueado durante {mins} min.")
-                save(uid, o)
-                raise HTTPException(403, f"PIN incorrecto. Te quedan {left} intentos.")
-            k["fails"] = 0
-            k["locks"] = 0
-            save(uid, o)
+            _verify_pin(uid, o, payload.get("pin"))
         purpose = str(payload.get("purpose") or "")
-        if purpose == "store":
+        scope = purpose if purpose in ("store", "perm", "extend") else "parent"
+        if scope == "store":
             _store_unlock[uid] = time.time() + 10 * 60
-        return {"token": _new_token(uid), "ttl": TOKEN_TTL}
+        return {"token": _new_token(uid, scope), "ttl": TOKEN_TTL if scope == "parent" else OTHER_TTL, "scope": scope}
 
     @r.post("/api/osx/kids/disable")
     def kids_disable(payload: dict[str, Any], request: Request, user=Depends(require_user)):
@@ -370,6 +412,8 @@ def build_router(require_user: Callable) -> APIRouter:
         if not _token_ok(uid, request, payload):
             raise HTTPException(403, "Hace falta el PIN del adulto")
         with _lock:
+            o = load(uid)
+            _verify_pin(uid, o, payload.get("pin"))
             o = load(uid)
             o["kids"]["on"] = False
             if payload.get("forget_pin"):
@@ -394,7 +438,7 @@ def build_router(require_user: Callable) -> APIRouter:
     @r.post("/api/osx/kids/extend")
     def kids_extend(payload: dict[str, Any], request: Request, user=Depends(require_user)):
         uid = int(user["id"])
-        if not _token_ok(uid, request, payload):
+        if not _token_ok(uid, request, payload, ("parent", "extend")):
             raise HTTPException(403, "Hace falta el PIN del adulto")
         mins = _int(payload.get("minutes"), 5, 240, 15)
         with _lock:
@@ -434,7 +478,118 @@ def build_router(require_user: Callable) -> APIRouter:
         uid = int(user["id"])
         if not _token_ok(uid, request):
             raise HTTPException(403, "Hace falta el PIN del adulto")
-        k = load(uid)["kids"]
+        return report_data(load(uid)["kids"])
+
+    @r.post("/api/osx/kids/lock")
+    def kids_lock(user=Depends(require_user)):
+        """Cierra la sesión parental (botón Bloquear o al cerrar Ajustes)."""
+        drop_tokens(int(user["id"]))
+        return {"ok": True}
+
+    @r.get("/api/osx/kids/report-targets")
+    def report_targets(request: Request, user=Depends(require_user)):
+        uid = int(user["id"])
+        if not _token_ok(uid, request):
+            raise HTTPException(403, "Hace falta el PIN del adulto")
+        return {
+            "dogaemail": NOTIFY is not None,
+            "gmail": False,
+            "gmail_reason": "Snake OS no tiene servidor de correo ni integración con Gmail, así que no puede enviar a direcciones de Gmail.",
+            "profile_email": str(user["email"] or ""),
+        }
+
+    @r.post("/api/osx/kids/report-to")
+    def report_to(payload: dict[str, Any], request: Request, user=Depends(require_user)):
+        """Asigna la cuenta Dogaemail del adulto y le envía un código de verificación a sus notificaciones."""
+        uid = int(user["id"])
+        if not _token_ok(uid, request, payload):
+            raise HTTPException(403, "Hace falta el PIN del adulto")
+        email = str(payload.get("email") or "").strip().lower()
+        if not EMAIL_RE.match(email):
+            raise HTTPException(400, "Escribe un correo válido")
+        dom = email.rsplit("@", 1)[1]
+        if dom in ("gmail.com", "googlemail.com"):
+            raise HTTPException(400, "Snake OS no puede enviar a Gmail. Usa la cuenta Dogaemail del adulto.")
+        target = db.get_user_by_email(email)
+        if not target:
+            raise HTTPException(404, "No hay ninguna cuenta Dogaemail de Snake OS con ese correo")
+        if NOTIFY is None:
+            raise HTTPException(503, "El envío a Dogaemail no está disponible ahora")
+        with _lock:
+            o = load(uid)
+            rp = o["kids"]["report"]
+            if time.time() - rp["code_sent"] < 45:
+                raise HTTPException(429, "Espera un momento antes de pedir otro código")
+            code = f"{secrets.randbelow(1000000):06d}"
+            salt = secrets.token_hex(8)
+            rp.update({"to": email, "to_uid": int(target["id"]), "verified": False, "code_tries": 0,
+                       "code_hash": salt + ":" + hashlib.sha256((salt + code).encode()).hexdigest(),
+                       "code_exp": time.time() + CODE_TTL, "code_sent": time.time()})
+            save(uid, o)
+        who = str(user["name"] or user["email"])
+        NOTIFY(int(target["id"]), "kids_code", "🔐 Código de Snake OS Kids",
+               f"Tu código es {code}. Escríbelo en el control parental de {who} para recibir allí el resumen semanal de Snake OS Kids. Caduca en 15 min.",
+               {"app": "ajustes", "kind": "kids_code"})
+        return {"ok": True, "to": email, "prefs": public(load(uid))}
+
+    @r.post("/api/osx/kids/report-verify")
+    def report_verify(payload: dict[str, Any], request: Request, user=Depends(require_user)):
+        uid = int(user["id"])
+        if not _token_ok(uid, request, payload):
+            raise HTTPException(403, "Hace falta el PIN del adulto")
+        code = str(payload.get("code") or "").strip()
+        with _lock:
+            o = load(uid)
+            rp = o["kids"]["report"]
+            if not rp["code_hash"] or rp["code_exp"] < time.time():
+                raise HTTPException(400, "El código ha caducado. Pide otro.")
+            if rp["code_tries"] >= 5:
+                rp["code_hash"] = ""
+                save(uid, o)
+                raise HTTPException(429, "Demasiados intentos. Pide otro código.")
+            salt, h = (rp["code_hash"].split(":", 1) + [""])[:2]
+            if not (re.match(r"^\d{6}$", code) and hmac.compare_digest(hashlib.sha256((salt + code).encode()).hexdigest(), h)):
+                rp["code_tries"] += 1
+                save(uid, o)
+                raise HTTPException(403, f"Código incorrecto. Te quedan {5 - rp['code_tries']} intentos.")
+            rp.update({"verified": True, "code_hash": "", "code_exp": 0, "code_tries": 0})
+            save(uid, o)
+        return public(load(uid))
+
+    @r.post("/api/osx/kids/report-settings")
+    def report_settings(payload: dict[str, Any], request: Request, user=Depends(require_user)):
+        uid = int(user["id"])
+        if not _token_ok(uid, request, payload):
+            raise HTTPException(403, "Hace falta el PIN del adulto")
+        with _lock:
+            o = load(uid)
+            rp = o["kids"]["report"]
+            if payload.get("remove"):
+                o["kids"]["report"] = _report({})
+            elif "weekly" in payload:
+                rp["weekly"] = bool(payload.get("weekly"))
+            save(uid, o)
+        return public(load(uid))
+
+    @r.post("/api/osx/kids/report-test")
+    def report_test(payload: dict[str, Any], request: Request, user=Depends(require_user)):
+        uid = int(user["id"])
+        if not _token_ok(uid, request, payload):
+            raise HTTPException(403, "Hace falta el PIN del adulto")
+        if not send_report(uid, test=True):
+            raise HTTPException(400, "Primero asigna y verifica el correo Dogaemail del adulto")
+        return {"ok": True}
+
+    return r
+
+
+def _fmt_min(sec: int) -> str:
+    m = int(round(sec / 60))
+    return f"{m // 60} h {m % 60:02d} min" if m >= 60 else f"{m} min"
+
+
+def report_data(k: dict[str, Any]) -> dict[str, Any]:
+    if True:
         now = datetime.now(TZ)
         days = [(now - timedelta(days=i)).strftime("%Y-%m-%d") for i in range(6, -1, -1)]
         per_day = [{"day": d, "seconds": sum(k["usage"].get(d, {}).values())} for d in days]
@@ -456,4 +611,55 @@ def build_router(require_user: Callable) -> APIRouter:
             "blocked_recent": blocked[-30:][::-1],
         }
 
-    return r
+
+def send_report(uid: int, test: bool = False) -> bool:
+    """Envía el resumen semanal a las notificaciones de la cuenta Dogaemail verificada del adulto."""
+    if NOTIFY is None:
+        return False
+    o = load(uid)
+    rp = o["kids"]["report"]
+    if not (rp["verified"] and rp["to_uid"]):
+        return False
+    target = db.get_user_by_id(int(rp["to_uid"]))
+    if not target or str(target["email"] or "").strip().lower() != rp["to"]:
+        return False
+    me = db.get_user_by_id(int(uid))
+    who = str((me["name"] if me else "") or (me["email"] if me else "") or "el perfil Kids")
+    d = report_data(o["kids"])
+    top = ", ".join(f"{a['app']} {_fmt_min(a['seconds'])}" for a in [x for x in d["apps"] if x["seconds"] >= 60][:4]) or "sin uso"
+    bt = ", ".join(f"{w} {n}" for w, n in sorted(d["blocked_by_type"].items(), key=lambda x: -x[1])[:4])
+    body = (f"{'(Prueba) ' if test else ''}Últimos 7 días de {who}: {_fmt_min(d['total_seconds'])} en total. "
+            f"Más usadas: {top}. Intentos bloqueados: {d['blocked_total']}" + (f" ({bt})" if bt else "") + ".")
+    NOTIFY(int(rp["to_uid"]), "kids_report", f"📊 Resumen semanal de Snake OS Kids · {who}"[:200], body[:500],
+           {"app": "ajustes", "kind": "kids_report", "profile": str(me["email"] if me else ""), "report": {
+               "total_seconds": d["total_seconds"], "days": d["days"], "apps": d["apps"][:12],
+               "blocked_total": d["blocked_total"], "blocked_by_type": d["blocked_by_type"]}})
+    if not test:
+        with _lock:
+            o = load(uid)
+            o["kids"]["report"]["last_week"] = datetime.now(TZ).strftime("%G-W%V")
+            o["kids"]["report"]["last_sent"] = time.time()
+            save(uid, o)
+    return True
+
+
+def send_weekly_due() -> int:
+    """Llamado cada 10 min desde main.py: los domingos desde las 19:00 (Madrid) envía el resumen pendiente de la semana."""
+    now = datetime.now(TZ)
+    if now.weekday() != 6 or now.hour < 19:
+        return 0
+    week = now.strftime("%G-W%V")
+    sent = 0
+    with db.get_conn() as conn:
+        rows = conn.execute("SELECT id FROM users WHERE desktop_prefs LIKE '%to_uid%'").fetchall()
+    for row in rows:
+        uid = int(row[0])
+        try:
+            o = load(uid)
+            rp = o["kids"]["report"]
+            if o["kids"]["pin"] and rp["verified"] and rp["weekly"] and rp["last_week"] != week:
+                if send_report(uid):
+                    sent += 1
+        except Exception:
+            continue
+    return sent
