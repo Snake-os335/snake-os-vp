@@ -32,8 +32,12 @@
   function cu() { try { return (typeof currentUser !== 'undefined' && currentUser) || window.currentUser || null; } catch (e) { return window.currentUser || null; } }
   function email() { var u = cu(); return u && u.email ? String(u.email).toLowerCase() : ''; }
   function key() { return 'snkcur:' + (email() || 'guest'); }
-  function getPref() { try { return localStorage.getItem(key()) === 'system' ? 'system' : 'snake'; } catch (e) { return 'snake'; } }
-  function setPref(v) { try { localStorage.setItem(key(), v === 'system' ? 'system' : 'snake'); } catch (e) {} apply(); }
+  /* 2026-10-17: ya no se puede elegir el cursor del sistema. Siempre el puntero de Snake OS en todos los perfiles;
+     la preferencia antigua 'system' guardada en este navegador se borra (migración). */
+  function migratePrefs() { try { for (var i = localStorage.length - 1; i >= 0; i--) { var k = localStorage.key(i); if (k && k.indexOf('snkcur:') === 0) localStorage.removeItem(k); } } catch (e) {} }
+  migratePrefs();
+  function getPref() { return 'snake'; }
+  function setPref() { migratePrefs(); apply(); }
 
   function varsCss() {
     var out = '';
@@ -420,8 +424,8 @@
   window.snakeCursor = {
     get: getPref,
     set: setPref,
-    toggle: function () { setPref(getPref() === 'snake' ? 'system' : 'snake'); },
-    label: function () { return getPref() === 'snake' ? 'Snake' : 'Sistema'; },
+    toggle: function () { setPref('snake'); },
+    label: function () { return 'Snake'; },
     active: function () { return document.documentElement.classList.contains('snk-cur'); },
     refresh: function () { regen(); apply(); },
     beginBusy: beginBusy,
