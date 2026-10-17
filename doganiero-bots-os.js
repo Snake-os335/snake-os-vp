@@ -7,6 +7,10 @@
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function api(p, o) { return window.api ? window.api(p, o) : Promise.reject(new Error('api')); }
   function wait(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+  // Ritmo de las animaciones del bot (antes: puntero 560-750 ms, clic 350-380 ms, tecleo 45-130 ms por letra hasta ~4,5 s).
+  var SPD = { move: 300, click: 170, settle: 140, tMin: 16, tMax: 55, tTotal: 1300 };
+  function typeMs(n) { return Math.max(SPD.tMin, Math.min(SPD.tMax, SPD.tTotal / Math.max(1, n))); }
+  var LAST_T = null;
   function errMsg(e) { return (e && (e.message || e.detail)) || 'Error'; }
   var css = document.createElement('style');
   css.textContent = [
@@ -37,7 +41,7 @@
     '.mos .mos-bar button{height:24px !important;padding:0 8px !important;border-radius:8px !important;border:0 !important;background:rgba(255,255,255,.08) !important;color:#fff !important;font-size:.72rem !important;cursor:pointer}',
     '.mos .mos-bar button.on{background:rgba(124,252,154,.28) !important}.mos-bar .clk{margin-left:auto;opacity:.8}',
     '.mos-stopbtn{position:absolute;top:8px;right:8px;z-index:6;border:0;border-radius:999px;padding:4px 12px;background:#e5484d;color:#fff;font-weight:700;font-size:.75rem;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.3)}' +
-    '.mos-status{position:absolute;left:8px;right:8px;bottom:10px;z-index:3;background:rgba(0,0,0,.75);color:#fff;border-radius:10px;padding:4px 8px;font-size:.7rem;display:none}.mos-status.on{display:block}',
+    '.mos-status{position:absolute;left:8px;right:8px;bottom:10px;z-index:3;background:rgba(0,0,0,.75);color:#fff;border-radius:10px;padding:4px 8px;font-size:.7rem;display:none}.mos-status.on{display:block}.mos-cancel{float:right;border:0;border-radius:999px;background:#e5484d;color:#fff;font-weight:700;font-size:.65rem;padding:1px 8px;margin-left:6px;cursor:pointer;pointer-events:auto}',
     '.mos-cur{position:absolute;left:50%;top:50%;width:16px;height:16px;z-index:4;pointer-events:none;transition:left .55s cubic-bezier(.3,.7,.3,1),top .55s cubic-bezier(.3,.7,.3,1);display:none}.mos-cur.on{display:block}',
     '.mos-cur.click::after,.dbp-ptr.click::after{content:"";position:absolute;left:-10px;top:-10px;width:22px;height:22px;border-radius:50%;border:2px solid currentColor;animation:mosRip .45s ease-out}',
     '@keyframes mosRip{from{transform:scale(.3);opacity:1}to{transform:scale(1.6);opacity:0}}',
@@ -206,7 +210,7 @@
     fadd.onclick = function () { var v = fname.value.trim(); if (!v) return; mfiles.push({ name: v, dir: !/\.\w{1,5}$/.test(v) }); fname.value = ''; paintFiles(); };
     function typeEl(inp, text, append) {
       text = String(text || ''); if (!append) inp.value = ''; inp.classList.add('typing');
-      var i = 0; return new Promise(function (res) { (function step() { if (i >= text.length) { inp.classList.remove('typing'); return res(); } inp.value += text[i++]; try { inp.scrollTop = inp.scrollHeight; } catch (e) {} setTimeout(step, Math.max(45, Math.min(110, 4000 / Math.max(1, text.length)))); })(); });
+      var i = 0; return new Promise(function (res) { (function step() { if (i >= text.length) { inp.classList.remove('typing'); return res(); } inp.value += text[i++]; try { inp.scrollTop = inp.scrollHeight; } catch (e) {} setTimeout(step, typeMs(text.length)); })(); });
     }
     var MINI_APP = { calendario: 'cal', calendar: 'cal', agenda: 'cal', browser: 'web', web: 'web', navegador: 'web', chrome: 'web', terminal: 'term', term: 'term', code: 'code', codelab: 'code', notes: 'notes', notas: 'notes', explorer: 'files', files: 'files', archivos: 'files', cloud: 'files' };
     function miniWin(w) { return el.querySelector('.mos-win[data-w="' + w + '"]'); }
@@ -305,7 +309,11 @@
       return api('/api/dbots/browse', { method: 'POST', body: { url: url } }).then(renderView).catch(function (e) { page.innerHTML = '<div class="mos-err">' + esc(errMsg(e)) + '</div>'; });
     }
     el.querySelector('[data-reader]').onclick = function () { if (!curUrl) return; if (frame) reader(curUrl); else { el.querySelector('[data-reader]').classList.remove('on'); proxyOpen(curUrl); } };
-    function say(t) { status.textContent = t; status.classList.toggle('on', !!t); }
+    function say(t) {
+      status.textContent = t;
+      if (t && agentStop) { var cb = document.createElement('button'); cb.type = 'button'; cb.className = 'mos-cancel'; cb.textContent = '✕ Cancelar'; cb.onclick = function (e) { e.stopPropagation(); if (agentStop) agentStop(); status.textContent = '⏹ Parando…'; }; status.appendChild(cb); }
+      status.classList.toggle('on', !!t);
+    }
     function home() {
       clearFrame(); curUrl = '';
       q.value = '';
@@ -374,9 +382,9 @@
       if (target && target.getBoundingClientRect) { var r = target.getBoundingClientRect(); x = r.left - sr.left + Math.min(r.width / 2, 40); y = r.top - sr.top + r.height / 2; }
       else { x = sr.width / 2; y = sr.height / 2; }
       cur.classList.add('on'); cur.style.left = (x - 2) + 'px'; cur.style.top = (y - 1) + 'px';
-      return wait(600);
+      return wait(SPD.move);
     }
-    function click() { cur.classList.remove('click'); void cur.offsetWidth; cur.classList.add('click'); return wait(350); }
+    function click() { cur.classList.remove('click'); void cur.offsetWidth; cur.classList.add('click'); return wait(SPD.click); }
     // El bot abre las apps de su mini OS con el puntero: va al icono exacto de la barra, hace clic y abre la ventana
     function launch(w) {
       try { if (typeof wake === 'function' && sleepEl && sleepEl.classList.contains('on')) wake(); } catch (e) {}
@@ -389,7 +397,7 @@
     }
     function typeInto(input, text) {
       bar.classList.add('typing'); input.value = '';
-      var i = 0; return new Promise(function (res) { (function step() { if (i >= text.length) { bar.classList.remove('typing'); return res(); } input.value += text[i++]; try { input.focus({ preventScroll: true }); input.setSelectionRange(input.value.length, input.value.length); } catch (e) {} setTimeout(step, Math.max(55, Math.min(120, 4000 / Math.max(1, text.length)))); })(); });
+      var i = 0; return new Promise(function (res) { (function step() { if (i >= text.length) { bar.classList.remove('typing'); return res(); } input.value += text[i++]; try { input.focus({ preventScroll: true }); input.setSelectionRange(input.value.length, input.value.length); } catch (e) {} setTimeout(step, typeMs(text.length)); })(); });
     }
     function findLink(t) {
       var all = page.querySelectorAll('[data-go]'), want = String(t.url || t.text || '').toLowerCase();
@@ -402,7 +410,7 @@
       var p = launch('web');
       trace.forEach(function (t) {
         p = p.then(function () {
-          if (t.op === 'search') { say('🔎 Buscando «' + t.q + '»'); return curTo(bar).then(click).then(function () { return typeInto(q, t.q); }).then(function () { return search(t.q, t.results || []); }).then(function () { return wait(700); }); }
+          if (t.op === 'search') { say('🔎 Buscando «' + t.q + '»'); return curTo(bar).then(click).then(function () { return typeInto(q, t.q); }).then(function () { return search(t.q, t.results || []); }).then(function () { return wait(450); }); }
           if (t.error) { say('⚠️ ' + t.error); return wait(900); }
           if ((t.op === 'open' || t.op === 'click' || t.op === 'form') && t.view) {
             say((t.op === 'form' ? '⌨️ Buscando en la página: ' + t.q : t.op === 'click' ? '👆 Abriendo «' + (t.text || '') + '»' : '🌐 Abriendo ' + t.view.domain));
@@ -411,19 +419,19 @@
               return cmd('locate', { text: t.text, url: t.url }).then(function (r) {
                 if (!r.ok) return curTo(bar).then(click).then(function () { return typeInto(q, target); }).then(function () { hist.push({ t: 'u', v: target }); return proxyOpen(target); });
                 return curTo(frameXY(r.rect)).then(click).then(function () { var w = waitLoaded(); cmd('click', { text: t.text, url: t.url }); hist.push({ t: 'u', v: target }); return w; });
-              }).then(function () { return wait(700); });
+              }).then(function () { return wait(450); });
             }
             if (live() && t.op === 'form') {
               return cmd('type', { text: t.q, submit: false }, 8000).then(function (r) {
                 if (!r.ok) return proxyOpen(target);
                 return curTo(frameXY(r.rect)).then(click).then(function () { hist.push({ t: 'u', v: target }); return proxyOpen(target); });
-              }).then(function () { return wait(700); });
+              }).then(function () { return wait(450); });
             }
             var a = !live() && findLink(t);
             var pre = a ? (a.scrollIntoView({ block: 'center' }), a.classList.add('mos-hl'), curTo(a).then(click)) : curTo(bar).then(click).then(function () { return typeInto(q, t.url || target); });
             return pre.then(function () { hist.push({ t: 'u', v: target }); curUrl = target; return proxyOpen(target); }).then(function (m) { if (!m || m.timeout || m.error) { renderView(t.view); showFallback((m && m.error) || 'La página no cargó; muestro la vista de lectura'); } return wait(800); });
           }
-          if (t.op === 'scroll') { say('📜 Desplazando'); if (live()) return cmd('scroll', {}).then(function () { return wait(700); }); page.scrollTop += page.clientHeight * 0.8; return wait(700); }
+          if (t.op === 'scroll') { say('📜 Desplazando'); if (live()) return cmd('scroll', {}).then(function () { return wait(450); }); page.scrollTop += page.clientHeight * 0.8; return wait(450); }
           if (t.op === 'read') { say('📖 Leyendo'); if (live()) return curTo(frame).then(function () { return cmd('read', {}, 4000); });
             var ps = page.querySelectorAll('.mos-pg p'); var k = 0; return (function hl() { if (k >= Math.min(4, ps.length)) return Promise.resolve(); var el2 = ps[k++]; el2.classList.add('mos-hl'); return curTo(el2).then(function () { return wait(250); }).then(function () { el2.classList.remove('mos-hl'); return hl(); }); })(); }
           return wait(200);
@@ -466,9 +474,9 @@
     document.body.appendChild(ptr);
     var bar = document.createElement('div');
     bar.className = 'dbp-stop';
-    bar.innerHTML = '<span>🤖 <b>' + esc(bot.name) + '</b> está usando tu escritorio <i data-st style="opacity:.85"></i></span><small style="opacity:.75;margin-left:8px">Esc o «para» en el chat para detener</small>';
+    bar.innerHTML = '<span>🤖 <b>' + esc(bot.name) + '</b> está usando tu escritorio <i data-st style="opacity:.85"></i></span><small style="opacity:.75;margin-left:8px">Esc o «para» en el chat para detener</small><button type="button" data-cancel style="margin-left:10px;border:0;border-radius:999px;background:#e5484d;color:#fff;font-weight:700;padding:3px 12px;cursor:pointer;pointer-events:auto">✕ Cancelar</button>';
     document.body.appendChild(bar);
-    var st = { cancelled: false, stop: function () { st.cancelled = true; } };
+    var st = { cancelled: false, stop: function () { st.cancelled = true; } }; bar.querySelector('[data-cancel]').onclick = function (e) { e.stopPropagation(); st.stop(); };
     running = st;
     function onKey(e) { if (e.key === 'Escape') st.stop(); }
     document.addEventListener('keydown', onKey, true);
@@ -478,11 +486,11 @@
       if (el && el.getBoundingClientRect) { try { var ic0 = el.querySelector && el.querySelector('.ic'); if (ic0) el = ic0; var r0 = el.getBoundingClientRect(); if (r0.bottom > innerHeight || r0.top < 0 || r0.right > innerWidth || r0.left < 0) el.scrollIntoView({ block: 'center', inline: 'center' }); } catch (e) {} var r = el.getBoundingClientRect(); x = r.left + r.width / 2; y = r.top + r.height / 2; }
       else { x = fx != null ? fx : innerWidth / 2; y = fy != null ? fy : innerHeight / 2; }
       ptr.style.left = (Math.max(0, Math.min(innerWidth - 4, x)) - 3) + 'px'; ptr.style.top = (Math.max(0, Math.min(innerHeight - 4, y)) - 2) + 'px';
-      return wait(750);
+      return wait(SPD.move);
     }
-    function clk() { ptr.classList.remove('click'); void ptr.offsetWidth; ptr.classList.add('click'); return wait(380); }
+    function clk() { ptr.classList.remove('click'); void ptr.offsetWidth; ptr.classList.add('click'); return wait(SPD.click); }
     var tbox = document.createElement('div'); tbox.className = 'dbp-type'; tbox.style.setProperty('--bc', color); document.body.appendChild(tbox);
-    function typeStep(n) { return Math.max(55, Math.min(130, 4500 / Math.max(1, n))); }
+    function typeStep(n) { return typeMs(n); }
     function typeVis(text) {
       text = String(text || '').slice(0, 300);
       var x = parseFloat(ptr.style.left) || innerWidth / 2, y = parseFloat(ptr.style.top) || innerHeight / 2;
@@ -560,7 +568,7 @@
           return confirmBox('¿Llamar a ' + label + '?', bot).then(function (ok) {
             if (!ok) return 'No llamé a ' + label + ' (cancelado)';
             if (!(window.APPS || {}).phone) throw new Error('Teléfono no disponible');
-            return moveTo(appIcon('phone')).then(clk).then(function () { window.openApp('phone'); return wait(700); }).then(function () {
+            return moveTo(appIcon('phone')).then(clk).then(function () { window.openApp('phone'); return wait(450); }).then(function () {
               var w = win('phone'), disp = w && w.querySelector('.dph-display'), btn = w && w.querySelector('.dph-call');
               if (!disp || !btn) throw new Error('No encontré el marcador del Teléfono');
               return moveTo(disp).then(clk).then(function () { return typeInput(disp, String(c.number)).then(function () { return wait(300); }); })
@@ -623,15 +631,16 @@
   function agentLoop(bot, goal, surface, snapFn, execFn, log, stopped, status) {
     // Bucle del agente: ve la pantalla, la IA decide UN paso, se ejecuta y se VERIFICA el resultado.
     // Sin límite de pasos: sigue hasta cumplir el objetivo o hasta que el usuario pulse Parar.
+    var T = { start: Date.now(), think: 0, exec: 0, steps: [] }; LAST_T = T;
     var MAX = Infinity, hist = [], said = [], n = 0, noChange = 0, warned = 0, sigs = [], plan = null, apiErr = 0, lastErr = '';
     status = status || function () {};
     function fp(s) { return (s.items || []).map(function (x) { return x.label + '|' + (x.value || '') + '|' + (x.win || ''); }).join('~') + '#' + JSON.stringify(s.page || {}); }
-    function fin(ok, msg) { status(''); if (msg) said.push(msg); return { done: said, ok: ok, stopped: !!(stopped && stopped()), plan: plan }; }
+    function fin(ok, msg) { status(''); if (msg) said.push(msg); T.end = Date.now(); T.total = T.end - T.start; try { log('⏱ ' + T.steps.length + ' pasos en ' + (T.total / 1000).toFixed(1) + ' s (IA ' + (T.think / 1000).toFixed(1) + ' s · acciones ' + (T.exec / 1000).toFixed(1) + ' s)'); console.info('[dbots] agente', JSON.stringify(T)); } catch (e) {} return { done: said, ok: ok, stopped: !!(stopped && stopped()), plan: plan }; }
     function summary() { var d = hist.filter(function (h) { return !/error|NO /.test(h.result); }).slice(-4).map(function (h) { return h.label || h.action; }); return d.length ? d.join(', ') : 'nada aún'; }
     function step() {
       if (stopped && stopped()) return Promise.resolve(fin(false, '⏹ Parado. Lo último que hice: ' + summary() + '.'));
       n++;
-      var s = snapFn(), before = fp(s);
+      var tS = performance.now(), s = snapFn(), before = fp(s), snapMs = Math.round(performance.now() - tS);
       var loopish = sigs.length >= 4 && sigs.slice(-4).every(function (x, i, a) { return x === a[i % 2]; });
       var rep3 = sigs.length >= 3 && sigs.slice(-3).every(function (x) { return x === sigs[sigs.length - 1]; });
       var stuck = noChange >= 2 || loopish || rep3;
@@ -641,14 +650,17 @@
         log('🔁 Eso no funcionó; pruebo otra forma');
       }
       status('🧠 Paso ' + n + ' · pensando…');
-      var stepAc = typeof AbortController !== 'undefined' ? new AbortController() : null, stepTo = setTimeout(function () { if (stepAc) stepAc.abort(); }, 75000);
+      var stepAc = typeof AbortController !== 'undefined' ? new AbortController() : null, stepTo = setTimeout(function () { if (stepAc) stepAc.abort(); }, 40000), tT = Date.now(),
+        tick = setInterval(function () { if (stopped && stopped()) { if (stepAc) stepAc.abort(); return; } status('🧠 Paso ' + n + ' · pensando… ' + ((Date.now() - tT) / 1000).toFixed(1) + ' s'); }, 250);
       return api('/api/dbots/agent/' + encodeURIComponent(bot.id), { signal: stepAc ? stepAc.signal : undefined, method: 'POST', body: { goal: goal, surface: surface, ui: s.items, page: s.page || null, history: hist.slice(-12), step: n, max: null, plan: plan, tries: warned, stuck: stuck ? (noChange >= 2 ? 'la pantalla no cambia tras tus últimos pasos' : 'estás repitiendo las mismas acciones') : '' } })
         .then(function (a) {
-          clearTimeout(stepTo);
+          clearTimeout(stepTo); clearInterval(tick);
+          var thinkMs = Date.now() - tT, tE = Date.now(); T.think += thinkMs;
           a = a || {}; apiErr = 0;
           if (stopped && stopped()) return fin(false, '⏹ Parado.');
           if (a.plan && a.plan.length && !plan) { plan = a.plan.slice(0, 8); log('🗺️ Plan: ' + plan.join(' → ')); }
-          if (a.retry) { n--; status('⏳ Un momento…'); return wait(1500).then(step); }
+          if (a.retry) { n--; status('⏳ Un momento…'); return wait(800).then(step); }
+          if (a.action === 'done' || a.goal_met) { T.steps.push({ n: n, action: 'done', snap: snapMs, think: thinkMs, exec: 0 }); }
           if (a.action === 'done' || a.goal_met) return fin(true, '✅ ' + (a.say || 'Hecho'));
           if (a.action === 'fail') return fin(false, '⚠️ ' + (a.say || 'No pude hacerlo'));
           if (a.say) log('🤔 ' + a.say);
@@ -662,7 +674,7 @@
           sigs.push(a.action + ':' + (it ? it.label : a.id || '') + ':' + (a.text || a.key || ''));
           return Promise.resolve(execFn(a, el, it)).then(function (r) {
             if (r === 'el usuario no lo permitió') { hist.push({ action: a.action, label: it ? it.label : '', result: r }); return fin(false, '🛑 No lo hice porque no diste permiso.'); }
-            return wait(260).then(function () {
+            return wait(SPD.settle).then(function () {
               var after = fp(snapFn()), changed = after !== before, ver = String(r || 'ok');
               if (a.action === 'type' && el) {
                 var okv = String(el.value || '').indexOf(String(a.text || '').slice(0, 40)) >= 0;
@@ -670,6 +682,7 @@
                 noChange = okv ? 0 : noChange + 1;
               } else if (a.action !== 'wait') { ver += changed ? ' · la pantalla cambió' : ' · la pantalla NO cambió'; noChange = changed ? 0 : noChange + 1; }
               hist.push({ action: a.action, id: a.id || '', label: it ? it.label : '', text: a.text || a.key || '', result: ver });
+              var exMs = Date.now() - tE; T.exec += exMs; T.steps.push({ n: n, action: a.action, snap: snapMs, think: thinkMs, exec: exMs });
               if (a.say) said.push('• ' + a.say);
               return step();
             });
@@ -679,7 +692,9 @@
             return step();
           });
         }, function (e) {
-          var m = errMsg(e); apiErr++;
+          clearTimeout(stepTo); clearInterval(tick);
+          if (stopped && stopped()) return fin(false, '⏹ Parado. Lo último que hice: ' + summary() + '.');
+          var m = errMsg(e); if (/abort/i.test(m)) m = 'La IA tardó más de 40 s en este paso'; apiErr++;
           // Límite de la IA: esperar y seguir, nunca rendirse.
           if (/429|rápido|seguidos|límite|limit/i.test(m) && !/clave|AskBox\. Añád/i.test(m)) { n--; var wt = Math.min(30000, 4000 * apiErr); status('⏳ La IA va saturada; espero ' + Math.round(wt / 1000) + ' s…'); return wait(wt).then(step); }
           if (apiErr <= 3 && !/clave|AskBox\. Añád|no encontrado/i.test(m)) { n--; status('⏳ Reintentando…'); return wait(1200 * apiErr + (/429|rápido|seguidos/.test(m) ? 4000 : 0)).then(step); }
@@ -695,7 +710,7 @@
       if (!RISKY.test(lbl) || (el && el.hasAttribute && el.hasAttribute('data-cadd'))) return Promise.resolve(true);
       return confirmBox('¿Dejo que ' + bot.name + ' haga «' + (it ? it.label : a.action) + '»?', bot);
     }
-    if (a.action === 'wait') return wait(900).then(function () { return 'esperé'; });
+    if (a.action === 'wait') return wait(600).then(function () { return 'esperé'; });
     if (!el && a.action !== 'key') return Promise.reject(new Error('Ese elemento ya no está en pantalla'));
     if (a.action === 'click') return guard().then(function (ok) { if (!ok) return 'el usuario no lo permitió'; return ui.move(el).then(ui.click).then(function () { var pr = (typeof el.onclick === 'function') ? el.onclick({ stopPropagation: function () {}, preventDefault: function () {}, target: el }) : (el.click(), null); try { el.focus({ preventScroll: true }); } catch (e) {} return Promise.resolve(pr).then(function () { return 'clic hecho'; }); }); });
     if (a.action === 'type') {
@@ -724,15 +739,15 @@
     ptr.innerHTML = cursorSvg(color, 26) + '<span class="lab" style="background:' + color + '">' + esc(bot.name) + '</span>';
     document.body.appendChild(ptr);
     var bar = document.createElement('div'); bar.className = 'dbp-stop';
-    bar.innerHTML = '<span>🤖 <b>' + esc(bot.name) + '</b> está usando tu escritorio <i data-st style="opacity:.85"></i></span><small style="opacity:.75;margin-left:8px">Esc o «para» en el chat para detener</small>';
+    bar.innerHTML = '<span>🤖 <b>' + esc(bot.name) + '</b> está usando tu escritorio <i data-st style="opacity:.85"></i></span><small style="opacity:.75;margin-left:8px">Esc o «para» en el chat para detener</small><button type="button" data-cancel style="margin-left:10px;border:0;border-radius:999px;background:#e5484d;color:#fff;font-weight:700;padding:3px 12px;cursor:pointer;pointer-events:auto">✕ Cancelar</button>';
     document.body.appendChild(bar);
-    var st = { cancelled: false, stop: function () { st.cancelled = true; } }; running = st;
+    var st = { cancelled: false, stop: function () { st.cancelled = true; } }; bar.querySelector('[data-cancel]').onclick = function (e) { e.stopPropagation(); st.stop(); }; running = st;
     function onKey(e) { if (e.key === 'Escape') st.stop(); }
     document.addEventListener('keydown', onKey, true); 
     var ui = {
-      move: function (el) { var t = (el.querySelector && el.querySelector('.ic')) || el; try { var r0 = t.getBoundingClientRect(); if (r0.bottom > innerHeight || r0.top < 0) t.scrollIntoView({ block: 'center' }); } catch (e) {} var r = t.getBoundingClientRect(); ptr.style.left = (r.left + r.width / 2 - 3) + 'px'; ptr.style.top = (r.top + r.height / 2 - 2) + 'px'; return wait(560); },
-      click: function () { ptr.classList.remove('click'); void ptr.offsetWidth; ptr.classList.add('click'); return wait(380); },
-      type: function (inp, text) { inp.value = ''; try { inp.focus({ preventScroll: true }); } catch (e) {} var i = 0; return new Promise(function (res) { (function s() { if (st.cancelled || i >= text.length) return res(); inp.value += text[i++]; inp.dispatchEvent(new Event('input', { bubbles: true })); setTimeout(s, Math.max(55, Math.min(130, 4500 / Math.max(1, text.length)))); })(); }); }
+      move: function (el) { var t = (el.querySelector && el.querySelector('.ic')) || el; try { var r0 = t.getBoundingClientRect(); if (r0.bottom > innerHeight || r0.top < 0) t.scrollIntoView({ block: 'center' }); } catch (e) {} var r = t.getBoundingClientRect(); ptr.style.left = (r.left + r.width / 2 - 3) + 'px'; ptr.style.top = (r.top + r.height / 2 - 2) + 'px'; return wait(SPD.move); },
+      click: function () { ptr.classList.remove('click'); void ptr.offsetWidth; ptr.classList.add('click'); return wait(SPD.click); },
+      type: function (inp, text) { inp.value = ''; try { inp.focus({ preventScroll: true }); } catch (e) {} var i = 0; return new Promise(function (res) { (function s() { if (st.cancelled || i >= text.length) return res(); inp.value += text[i++]; inp.dispatchEvent(new Event('input', { bubbles: true })); setTimeout(s, typeMs(text.length)); })(); }); }
     };
     function snap() { return snapshot(document.body, null, '.dbp-stop,.dbp-ptr,#win-dbots,.dbx,[data-mos]'); }
     function end() { document.removeEventListener('keydown', onKey, true); ptr.remove(); bar.remove(); if (running === st) running = null; }
@@ -741,5 +756,5 @@
       .then(function (r) { end(); return r; }, function (e) { end(); throw e; });
   }
   function stopDesktop() { if (running) { running.stop(); return true; } return false; }
-  window.DogBotsOS = { stopDesktop: stopDesktop, mount: mount, runDesktop: runDesktop, agentDesktop: agentDesktop, context: context, cursorSvg: cursorSvg };
+  window.DogBotsOS = { timings: function () { return LAST_T; }, stopDesktop: stopDesktop, mount: mount, runDesktop: runDesktop, agentDesktop: agentDesktop, context: context, cursorSvg: cursorSvg };
 })();

@@ -24,7 +24,14 @@ import askbox_client
 import db
 import osx_extras
 
-CHAT_ASK_TIMEOUT = 60      # s por llamada a AskBox dentro del chat
+CHAT_ASK_TIMEOUT = 45      # s por llamada a AskBox dentro del chat
+# Latencia: el chat y el agente usan el tier rápido (mismo gpt-4o-mini en AskBox y, si OpenRouter falla,
+# cae a un flash-lite en ~1 s en vez de la cascada lenta de modelos medianos).
+import os as _os
+CHAT_TIER = _os.environ.get("SNAKEOS_BOTS_CHAT_TIER", "fast")
+AGENT_TIER = _os.environ.get("SNAKEOS_BOTS_AGENT_TIER", "fast")
+CHAT_HISTORY_MSGS = 10    # mensajes previos que se envían a la IA
+CHAT_HISTORY_CHARS = 700  # recorte por mensaje previo
 CHAT_DEADLINE = 170        # s máximo por respuesta del chat (después se para con aviso)
 _chat_jobs: dict[str, dict[str, Any]] = {}
 _chat_pool = ThreadPoolExecutor(max_workers=8, thread_name_prefix="dbots-chat")
@@ -963,7 +970,7 @@ def build_router(
                 f"Tarea: {text}\n\nResultados de búsqueda:\n{ctx}\n\n"
                 "Responde en español, claro y breve, citando las fuentes como [n].",
                 system=f"Eres un bot de Doganiero Bots dentro de Snake OS. Tu función: {role}",
-                tier="balanced", max_output_tokens=900, api_key=key,
+                tier=CHAT_TIER, max_output_tokens=900, api_key=key, timeout=CHAT_ASK_TIMEOUT,
             )
             out = (ans.get("text") or "").strip()
             if results:
@@ -1449,7 +1456,7 @@ def build_router(
                   + ("Pasos ya hechos:\n" + "\n".join(hist) + "\n" if hist else "Aún no has hecho nada.\n")
                   + "Elementos visibles ahora:\n" + ("\n".join(lines) or "(ninguno)") + "\nDevuelve el JSON del siguiente paso.")
         try:
-            res = askbox_client.ask(prompt, system=system, tier="balanced", max_output_tokens=350, api_key=key)
+            res = askbox_client.ask(prompt, system=system, tier=AGENT_TIER, max_output_tokens=350, api_key=key, timeout=30)
             d = _parse_json(res.get("text") or "") or {}
         except Exception:
             # Fallo puntual de AskBox: el cliente reintenta (como mucho dos veces) antes de rendirse.
@@ -1494,7 +1501,7 @@ def build_router(
         atts = [m for m in (_file_meta(uid, f) for f in (body.attachments or [])[:6]) if m and m["bot_id"] == bot_id]
         if not text and not atts:
             raise HTTPException(422, "Escribe un mensaje o adjunta un archivo")
-        history = _chat_load(uid, bot_id)[-16:]
+        history = _chat_load(uid, bot_id)[-CHAT_HISTORY_MSGS:]
         _chat_append(uid, bot_id, "user", text, **({"attachments": atts} if atts else {}))
         user_desk, text = _split_desk_suffix(text)  # la IA no ve el sufijo «/en mi escritorio»
         if not text and not atts:
@@ -1519,7 +1526,7 @@ def build_router(
             text = text + page_ctx + "\n(Contesta sobre esa página y cita su URL.)"
         if atts:
             text = (text or "Mira estos archivos.") + "\n\n" + "\n\n".join(_attachment_context(uid, m) for m in atts)
-        convo = "\n".join(("Usuario: " if m.get("role") == "user" else "Bot: ") + str(m.get("text") or "")[:1500] for m in history)
+        convo = "\n".join(("Usuario: " if m.get("role") == "user" else "Bot: ") + str(m.get("text") or "")[:CHAT_HISTORY_CHARS] for m in history)
         mem = "\n".join("- " + x for x in (bot.get("memory") or [])) or "(vacía)"
         _ctx = body.ctx if isinstance(body.ctx, dict) else {}
         ctx_apps = ", ".join(f"{str(a.get('id'))[:30]}={str(a.get('title'))[:30]}" for a in (_ctx.get("apps") or [])[:60] if isinstance(a, dict)) or "(desconocidas)"
@@ -1557,7 +1564,7 @@ def build_router(
         try:
             _chk()
             stage("Pensando la respuesta…")
-            res = askbox_client.ask(prompt, system=system, tier="balanced", max_output_tokens=900, api_key=key, timeout=CHAT_ASK_TIMEOUT)
+            res = askbox_client.ask(prompt, system=system, tier=CHAT_TIER, max_output_tokens=900, api_key=key, timeout=CHAT_ASK_TIMEOUT)
             raw = res.get("text") or ""
             d = _parse_json(raw) or {"reply": raw, "action": "none"}
             reply = str(d.get("reply") or "").strip()
@@ -1586,7 +1593,7 @@ def build_router(
                     (f"Conversación previa:\n{convo}\n\n" if convo else "") + f"Usuario: {text}\n\nResultados de búsqueda para «{q}»:\n{ctx}\n\n"
                     "Contesta al usuario en español, natural y breve, citando fuentes como [n]. Solo texto, sin JSON.",
                     system=f"Eres «{bot.get('name')}», bot de Doganiero Bots. Tu función: {bot.get('role') or 'asistente general'}. Memoria:\n{mem}",
-                    tier="balanced", max_output_tokens=900, api_key=key, timeout=CHAT_ASK_TIMEOUT,
+                    tier=CHAT_TIER, max_output_tokens=900, api_key=key, timeout=CHAT_ASK_TIMEOUT,
                 )
                 reply = (res2.get("text") or reply).strip()
                 extra["search"] = q
@@ -1605,7 +1612,7 @@ def build_router(
                         (f"Conversación previa:\n{convo}\n\n" if convo else "") + f"Usuario: {text}\n\nLo que has visto navegando:\n{_trace_context(trace)}\n\n"
                         "Contesta al usuario en español, natural y breve, citando las URL que usaste. Solo texto, sin JSON.",
                         system=f"Eres «{bot.get('name')}», bot de Doganiero Bots. Tu función: {bot.get('role') or 'asistente general'}. Memoria:\n{mem}",
-                        tier="balanced", max_output_tokens=900, api_key=key, timeout=CHAT_ASK_TIMEOUT,
+                        tier=CHAT_TIER, max_output_tokens=900, api_key=key, timeout=CHAT_ASK_TIMEOUT,
                     )
                     reply = (res2.get("text") or reply).strip()
                     pg = [{"url": t["view"]["url"], "title": t["view"]["title"][:120], "domain": t["view"]["domain"]} for t in trace if t.get("view")]
@@ -1644,7 +1651,7 @@ def build_router(
                         (f"Conversación previa:\n{convo}\n\n" if convo else "") + f"Usuario: {text}\n\n" + _page_context(pg) +
                         "\nContesta al usuario en español, natural y breve, sobre esa página y cita su URL. Solo texto, sin JSON.",
                         system=f"Eres «{bot.get('name')}», bot de Doganiero Bots. Tu función: {bot.get('role') or 'asistente general'}. Memoria:\n{mem}",
-                        tier="balanced", max_output_tokens=900, api_key=key, timeout=CHAT_ASK_TIMEOUT,
+                        tier=CHAT_TIER, max_output_tokens=900, api_key=key, timeout=CHAT_ASK_TIMEOUT,
                     )
                     reply = (res2.get("text") or reply).strip()
                     extra["pages"] = (extra.get("pages") or []) + [{"url": pg["url"], "title": pg["title"][:120], "domain": pg["domain"]}]
@@ -1688,7 +1695,14 @@ def build_router(
             return
         uid = int(user["id"])
 
+        _t0 = [time.time(), ""]
+        j["timings"] = []
+
         def stage(t: str) -> None:
+            now = time.time()
+            if _t0[1]:
+                j["timings"].append([_t0[1][:40], int((now - _t0[0]) * 1000)])
+            _t0[0], _t0[1] = now, t
             j["stage"] = t[:120]
 
         def cancelled() -> bool:
@@ -1725,6 +1739,12 @@ def build_router(
             j["error"] = "Algo falló al responder (" + type(exc).__name__ + "). Prueba otra vez."
         j["stage"] = ""
         j["ended"] = time.time()
+        try:
+            if _t0[1]:
+                j["timings"].append([_t0[1][:40], int((j["ended"] - _t0[0]) * 1000)])
+            print("[dbots] chat job", jid, j["status"], int((j["ended"] - j["started"]) * 1000), "ms", j["timings"], flush=True)
+        except Exception:
+            pass
 
     @r.post("/api/dbots/chat/{bot_id}/start")
     def chat_start(bot_id: str, body: ChatBody, user=Depends(require_user)):

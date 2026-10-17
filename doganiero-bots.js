@@ -517,7 +517,7 @@
                 api('/api/dbots/chat-jobs/' + encodeURIComponent(job.id)).then(function (j) {
                   if (S.job !== job) { res(null); return; }
                   job.fails = 0;
-                  if (j.status === 'running') { job.stage = j.stage || 'Pensando…'; updJob(); setTimeout(tick, 900); return; }
+                  if (j.status === 'running') { job.stage = j.stage || 'Pensando…'; updJob(); setTimeout(tick, 450); return; }
                   res(j);
                 }).catch(function (e) { if (++job.fails > 6) rej(e); else setTimeout(tick, 1500); });
               }
