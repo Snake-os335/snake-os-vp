@@ -2709,7 +2709,7 @@
       prof.title = 'Mi perfil';
       prof.addEventListener('click', function () { if (window.openApp) window.openApp('profile'); sm.classList.remove('open'); });
       foot.appendChild(prof);
-      if (power) { power.title = 'Apagar Snake OS'; foot.appendChild(power); }
+      if (power) { power.title = 'Apagar Snake OS'; if (window.snkPowerSvg && !power.querySelector('svg')) power.innerHTML = window.snkPowerSvg + '<span>' + esc(power.textContent || 'Apagar') + '</span>'; foot.appendChild(power); }
       if (out) { out.title = 'Cerrar sesión'; foot.appendChild(out); }
       sm.appendChild(foot);
     }
@@ -2717,7 +2717,7 @@
       var pb = foot.querySelector('.snk-sm-profile');
       var u = window.currentUser || {};
       var av = document.querySelector('#phoneProfileChip .pp-av');
-      var avHtml = av && av.innerHTML.trim() ? av.innerHTML : esc(u.avatar && String(u.avatar).length <= 4 ? u.avatar : '👤');
+      var avHtml = (u.avatar && typeof window.avatarMarkup === 'function') ? window.avatarMarkup(u.avatar, 'avatar-img') : (av && av.innerHTML.trim() ? av.innerHTML : esc(u.avatar && String(u.avatar).length <= 4 ? u.avatar : '👤'));
       if (pb) pb.innerHTML = '<span class="snk-sm-av">' + avHtml + '</span><span class="snk-sm-name">' + esc(u.name || 'Mi perfil') + '</span>';
     }
     var inp2 = sm.querySelector('.snk-sm-search input');

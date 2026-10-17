@@ -91,6 +91,8 @@
   function T(es, en) { try { return window.snakeI18n && window.snakeI18n.lang === 'en' ? en : es; } catch (e) { return es; } }
   function esc(t) { return String(t == null ? '' : t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
   function tr(s) { try { return window.snakeI18n && window.snakeI18n.t ? window.snakeI18n.t(s) : s; } catch (e) { return s; } }
+  var POWER_SVG = '<svg class="snk-pwr-ico" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false"><path d="M12 3.2v8.3" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/><path d="M7.1 6.4a7.9 7.9 0 1 0 9.8 0" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>';
+  window.snkPowerSvg = POWER_SVG;
   function key() { var u = window.currentUser; return 'snkRecentApps:' + ((u && u.email) || 'anon'); }
   function recent() { try { return JSON.parse(localStorage.getItem(key()) || '[]').filter(function (id) { return (window.APPS || {})[id]; }); } catch (e) { return []; } }
   function remember(id) {
@@ -114,7 +116,13 @@
     rw.hidden = !!q || !r.length;
     panel.querySelector('[data-rec]').innerHTML = r.map(tile).join('');
     var u = window.currentUser || {};
-    panel.querySelector('[data-av]').textContent = (u.avatar && String(u.avatar).length <= 4) ? u.avatar : '🐍';
+    var avEl = panel.querySelector('[data-av]'), av = String(u.avatar || '');
+    if (av && typeof window.avatarMarkup === 'function' && (av.indexOf('/api/avatars/') === 0 || av.indexOf('data:image/') === 0)) {
+      if (avEl.dataset.src !== av) {
+        avEl.dataset.src = av; avEl.innerHTML = window.avatarMarkup(av, 'sm11-av-img');
+        var im = avEl.querySelector('img'); if (im) im.onerror = function () { avEl.dataset.src = ''; avEl.textContent = '🐍'; };
+      }
+    } else { avEl.dataset.src = ''; avEl.textContent = av || '🐍'; }
     panel.querySelector('[data-name]').textContent = u.name || u.email || '';
   }
   function build() {
@@ -125,7 +133,7 @@
       '<div class="sm11-grid" data-grid></div>' +
       '<div data-recw><div class="sm11-h"><b data-rech></b></div><div class="sm11-grid sm11-rec" data-rec></div></div>' +
       '<div class="sm11-foot"><div class="sm11-user"><span class="sm11-av" data-av></span><span data-name></span></div>' +
-      '<div class="sm11-pw"><button type="button" data-out></button><button type="button" data-power>⏻</button></div></div>';
+      '<div class="sm11-pw"><button type="button" data-out></button><button type="button" class="sm11-pwr" data-power>' + POWER_SVG + '<span class="sm11-pwr-t"></span></button></div></div>';
     document.body.appendChild(panel);
     panel.addEventListener('click', function (e) {
       var b = e.target.closest('[data-app]');
@@ -157,7 +165,7 @@
     panel.querySelector('[data-more]').textContent = T('Más opciones ›', 'More options ›');
     panel.querySelector('[data-rech]').textContent = T('Recientes', 'Recent');
     panel.querySelector('[data-out]').textContent = T('Cerrar sesión', 'Sign out');
-    panel.querySelector('[data-power]').title = T('Apagar', 'Power off');
+    var pw = panel.querySelector('[data-power]'); pw.title = T('Apagar', 'Power off'); pw.setAttribute('aria-label', T('Apagar Snake OS', 'Power off Snake OS')); pw.querySelector('.sm11-pwr-t').textContent = T('Apagar', 'Power off');
     render('');
     panel.hidden = false; open = true; place();
     requestAnimationFrame(function () { panel.classList.add('on'); });

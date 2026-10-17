@@ -46,7 +46,7 @@ window.addEventListener('error', function(e){
 <script src="/static/snake-notify-sound.js?v=202610172200"></script>
 <script src="/static/doganiero-chat.js?v=202610172000" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/doganiero-desk.js?v=202610072130" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
-<script src="/static/desktop-extras.js?v=202610172200" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
+<script src="/static/desktop-extras.js?v=202610172345" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script>window.SNAKE_OS_VERSION='2026.13';/* versión de Snake OS: cambiar SOLO aquí */</script>
 <script>/* Novedades por versión (Ajustes › Acerca de). En cada actualización: cambia SNAKE_OS_VERSION y AÑADE una entrada al principio. */
 window.SNAKE_OS_CHANGES=[
@@ -99,7 +99,7 @@ window.SNAKE_OS_CHANGES=[
 <script src="/static/doganiero-tv.js?v=202610091150" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/prism.js?v=202610080900" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/doganiero-phone.js?v=202610161800" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
-<script src="/static/snake-apps-extras.js?v=202610171930" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
+<script src="/static/snake-apps-extras.js?v=202610172345" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-cursor.js?v=202610171930" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-emoji-data.js?v=202610100831" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-emoji.js?v=202610140900" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
@@ -115,9 +115,10 @@ window.SNAKE_OS_CHANGES=[
 <script src="/static/snake-i18n-dict.js?v=202610161940" defer></script>
 <script src="/static/snake-update-screen.js?v=202610161805"></script>
 <script src="/static/snake-i18n.js?v=202610161800" defer></script>
-<script src="/static/snake-taskbar11.js?v=202610161945" defer></script>
+<script src="/static/snake-taskbar11.js?v=202610172345" defer></script>
 <script src="/static/snake-screensaver.js?v=202610172200" defer></script>
 <script src="/static/snake-osx.js?v=202610172300" defer></script>
+<script src="/static/snake-sidebar.js?v=202610172345" defer></script>
 <style>
   :root{
     --text:#ffffff; --muted:rgba(255,255,255,0.82);
@@ -3423,7 +3424,7 @@ window.SNAKE_OS_CHANGES=[
 
   .os-tut-hot{outline:3px solid #ffe14a !important;outline-offset:3px;border-radius:14px;}
 </style>
-<link rel="stylesheet" href="/static/snake-taskbar11.css?v=202610161945">
+<link rel="stylesheet" href="/static/snake-taskbar11.css?v=202610172345">
 </head>
 <body>
   <div id="bootError" role="alert">
@@ -5258,6 +5259,13 @@ window.SNAKE_OS_CHANGES=[
     Object.keys(openApps).forEach(function(id){ closeApp(id, true); });
   }
   window.closeAllApps = closeAllApps;
+  /* API para la barra lateral de apps abiertas (snake-sidebar.js) */
+  window.snkWin = {
+    focus: function(appId){ const rec = openApps[appId]; if(!rec || rec._closing) return; if(rec.minimized){ restoreApp(appId); return; } focusWindow(rec.win); },
+    minimize: minimizeApp,
+    close: function(appId){ closeApp(appId); },
+    list: function(){ return Object.keys(openApps).filter(function(id){ return !openApps[id]._closing; }); }
+  };
 
   document.getElementById('startBtn').addEventListener('click', function(){ startMenuEl.classList.toggle('open'); });
   function closeStartMenu(){ startMenuEl.classList.remove('open'); }

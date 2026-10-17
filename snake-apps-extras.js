@@ -232,6 +232,12 @@
     row('rendimiento', 'perf', '⚡', 'Modo rendimiento', 'Menos efectos para equipos lentos', 'toggle', { tile: 'qsPerf' });
     row('escritorio', 'arrange', '🔀', 'Ordenar iconos', 'Coloca los iconos del escritorio en su cuadrícula', 'action', { btn: 'Ordenar', run: function () { if (typeof window.snakeArrangeDesktopIcons === 'function' && window.snakeArrangeDesktopIcons()) toast('Iconos ordenados'); else toast('Solo en el modo ordenador'); } });
     row('escritorio', 'widgets', '🧩', 'Widgets de escritorio', 'Reloj, próximos eventos, notas fijadas y saldo (modo ordenador). Arrástralos para moverlos', 'toggle', { get: function () { return b5Get('widgets'); }, set: function (v) { b5Set('widgets', v); } });
+    row('escritorio', 'sidebar', '🗂️', 'Barra lateral de apps abiertas', 'Lista las ventanas abiertas a un lado, como en el modo trabajo: clic para ir a una, ✕ para cerrarla y « para plegarla a solo iconos', 'toggle', { get: function () { return !window.snkSidebar || window.snkSidebar.get().on; }, set: function (v) { if (window.snkSidebar) window.snkSidebar.setOn(v); } });
+    row('escritorio', 'sidebarside', '↔️', 'Lado de la barra lateral', 'Elige si las apps abiertas aparecen a la izquierda o a la derecha', 'action', {
+      label: function () { return window.snkSidebar && window.snkSidebar.get().side === 'right' ? 'A la derecha' : 'A la izquierda'; },
+      btn: 'Cambiar de lado',
+      run: function () { if (!window.snkSidebar) return; var s = window.snkSidebar.toggleSide(); toast(s === 'right' ? 'Barra lateral a la derecha' : 'Barra lateral a la izquierda'); try { var a = document.querySelector('.snk4a-set-nav button.on'); if (a) a.click(); } catch (e) {} }
+    });
     row('escritorio', 'search', '🔎', 'Búsqueda global', 'Apps, notas, archivos, eventos, contactos y ajustes · Ctrl+K o Ctrl+Espacio', 'action', { btn: 'Buscar', run: function () { setTimeout(openSearch, 50); } });
     row('escritorio', 'clip', '📋', 'Historial del portapapeles', 'Lo que copias dentro de Snake OS · Alt+V', 'action', { btn: 'Abrir', run: function () { setTimeout(openClipboard, 50); } });
     row('accesibilidad', 'hc', '◐', 'Alto contraste', 'Fondos negros, texto blanco y bordes marcados', 'toggle', { get: function () { return b5Get('hc'); }, set: function (v) { b5Set('hc', v); } });

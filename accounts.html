@@ -131,6 +131,12 @@
     }
   }
 
+  function avatarHtml(av){
+    var a = String(av || '');
+    if(a.indexOf('/api/avatars/') === 0 || a.indexOf('data:image/') === 0)
+      return '<img src="' + escapeHtml(a) + '" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;display:block" onerror="this.replaceWith(document.createTextNode(\'🐍\'))">';
+    return escapeHtml(a || '🐍');
+  }
   function render(accounts){
     listEl.innerHTML = '';
     if(!accounts || !accounts.length){
@@ -142,7 +148,7 @@
       btn.type = 'button';
       btn.className = 'account';
       btn.innerHTML =
-        '<span class="avatar">' + escapeHtml(acc.avatar || '🐶') + '</span>' +
+        '<span class="avatar">' + avatarHtml(acc.avatar) + '</span>' +
         '<span class="meta">' +
           '<div class="name">' + escapeHtml(acc.name || 'Sin nombre') + '</div>' +
           '<div class="email">' + escapeHtml(acc.email || '') + '</div>' +
