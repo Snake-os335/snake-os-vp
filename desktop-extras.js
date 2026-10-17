@@ -946,6 +946,7 @@
   }
 
   function applyWallpaper(id) {
+    if (window.snkOsxWallpaperLocked && window.snkOsxWallpaperLocked()) return;
     paintWallpaper(id);
     var key = profileWallpaperKey();
     if (!key) return;
@@ -1021,6 +1022,7 @@
 
   function handleWallpaperUpload(file) {
     if (!file) return;
+    if (window.snkOsxWallpaperLocked && window.snkOsxWallpaperLocked()) return;
     var key = profileWallpaperKey();
     if (!key) {
       showShotToast('Inicia sesión para subir un fondo');
@@ -1721,7 +1723,7 @@
     var qsBtn = document.getElementById('tbQsBtn');
     if (searchBtn) searchBtn.addEventListener('click', function () { toggleAppLauncher(); });
     if (shotBtn) shotBtn.addEventListener('click', function () { takeDesktopScreenshot(); });
-    if (wpBtn) wpBtn.addEventListener('click', function (e) { e.stopPropagation(); toggleWpPanel(); });
+    if (wpBtn) wpBtn.addEventListener('click', function (e) { e.stopPropagation(); if (window.snkOsxWallpaperLocked && window.snkOsxWallpaperLocked()) return; toggleWpPanel(); });
     if (qsBtn) qsBtn.addEventListener('click', function (e) { e.stopPropagation(); toggleQsPanel(); });
 
     var clock = document.getElementById('clock');
@@ -2290,6 +2292,7 @@
   }
   // Usado por la melodía de inicio de sesión (y otros sonidos del sistema)
   window.snakeOsSoundsMuted = function () {
+    if (document.body && document.body.classList.contains('osx-work')) return true; // modo trabajo: sin sonidos del sistema
     if (profileEmail()) {
       var p = lsGet(EXTRA_PREFIX + profileEmail(), null);
       return !!(p && p.soundsOff);

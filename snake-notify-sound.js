@@ -6,7 +6,7 @@
   var SRC = '/static/assets/notif-chime.wav?v=202610161830';
   var VOL = 0.6, base = null, last = 0, ctx = null, buf = null, loading = false, keep = null;
   function muted() {
-    try { if (document.body && document.body.classList.contains('qs-dnd')) return true; } catch (e) {}
+    try { if (document.body && (document.body.classList.contains('qs-dnd') || document.body.classList.contains('osx-work'))) return true; } catch (e) {}
     try { if (localStorage.getItem('snkNotifSound') === '0') return true; } catch (e) {}
     return false;
   }

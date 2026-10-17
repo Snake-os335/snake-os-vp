@@ -240,6 +240,10 @@
     row('accesibilidad', 'focus', '⌨️', 'Foco visible', 'Marca en amarillo dónde estás al moverte con el teclado (Tab)', 'toggle', { get: function () { return b5Get('focusRing'); }, set: function (v) { b5Set('focusRing', v); } });
     row('escritorio', 'shot', '📸', 'Captura de pantalla', 'También con Ctrl+Shift+S', 'action', { btn: 'Capturar', run: function () { var b = $('tbShotBtn'); if (b) b.click(); } });
     row('escritorio', 'fullscreen', '⛶', 'Pantalla completa', 'Usa Snake OS a pantalla completa', 'action', { btn: 'Activar', run: function () { clickTile('qsFullscreen'); } });
+    row('pantalla', 'osx-screen', '🔆', 'Brillo', 'Brillo de la pantalla · teclas F5 y F6', 'osx');
+    row('salvapantallas', 'osx-saver', '🌌', 'Salvapantallas', 'Tiempo de espera, estilo y vista previa', 'osx');
+    row('trabajo', 'osx-work', '💼', 'Modo trabajo', 'Fondo negro bloqueado, menos efectos y dock con apps de trabajo y enlaces', 'osx');
+    row('kids', 'osx-kids', '🧸', 'Snake OS Kids · control parental', 'Modo infantil con PIN: apps por edad, tiempo de pantalla, chat, web, juegos online, tienda, archivos, cámara e informe semanal', 'osx');
     row('ia', 'keys', '✨', 'Key de AskBox', 'Clave de AskBox de tu cuenta. Vacío usa la clave del sistema', 'aiform');
     row('cuenta', 'who', '🪪', 'Sesión iniciada', 'Tus ajustes se guardan por perfil', 'info', { label: function () { var u = cu(); return u ? (u.name || '') + ' · ' + (u.email || '') : ''; } });
     row('cuenta', 'profile', '👤', 'Mi perfil', 'Nombre, foto o emoji y contraseña', 'action', { btn: 'Abrir', run: function () { if (window.openApp) window.openApp('profile'); } });
@@ -263,6 +267,10 @@
 
   var SETTINGS_SECTIONS = [
     { id: 'apariencia', ico: '🎨', name: 'Apariencia' },
+    { id: 'pantalla', ico: '🔆', name: 'Pantalla' },
+    { id: 'salvapantallas', ico: '🌌', name: 'Salvapantallas' },
+    { id: 'trabajo', ico: '💼', name: 'Modo trabajo' },
+    { id: 'kids', ico: '🧸', name: 'Snake OS Kids' },
     { id: 'sonido', ico: '🔊', name: 'Sonido' },
     { id: 'notificaciones', ico: '🔔', name: 'Notificaciones' },
     { id: 'rendimiento', ico: '⚡', name: 'Rendimiento' },
@@ -406,6 +414,7 @@
 
   function renderSettingsApp(body, startSec) {
     var sec = startSec || 'apariencia';
+    if (window.snkOsx && !window.snkOsx.settingsVisible(sec)) sec = 'kids';
     var query = '';
     body.innerHTML =
       '<div class="snk4a-set">' +
@@ -418,6 +427,7 @@
     var search = body.querySelector('input[type=search]');
     var list = body.querySelector('.snk4a-set-list');
     SETTINGS_SECTIONS.forEach(function (s) {
+      if (window.snkOsx && !window.snkOsx.settingsVisible(s.id)) return;
       var b = document.createElement('button');
       b.type = 'button';
       b.dataset.sec = s.id;
@@ -447,6 +457,7 @@
         var s = SETTINGS_SECTIONS.filter(function (x) { return x.id === r.sec; })[0];
         return (r.title + ' ' + r.desc + ' ' + (s ? s.name : '')).toLowerCase().indexOf(q) >= 0;
       }) : rows.filter(function (r) { return r.sec === sec; });
+      if (window.snkOsx) shown = shown.filter(function (r) { return window.snkOsx.settingsVisible(r.sec); });
       list.innerHTML = '';
       if (!q) {
         var sd = SETTINGS_SECTIONS.filter(function (x) { return x.id === sec; })[0];
@@ -482,6 +493,20 @@
             list.appendChild(jump);
           } else {
             list.appendChild(buildAiKeysPanel());
+          }
+          return;
+        }
+        if (r.kind === 'osx') {
+          if (q || !window.snkOsx) {
+            var jo = document.createElement('div');
+            jo.className = 'snk4a-set-row';
+            jo.innerHTML = '<span class="snk4a-set-ico">' + r.ico + '</span><span class="snk4a-set-txt"><b>' + esc(r.title) + '</b><span>' + esc(r.desc) + '</span></span>';
+            var bj = document.createElement('button'); bj.type = 'button'; bj.className = 'snk4a-btn'; bj.textContent = 'Abrir';
+            bj.addEventListener('click', function () { sec = r.sec; query = ''; search.value = ''; paint(); });
+            jo.appendChild(bj);
+            list.appendChild(jo);
+          } else {
+            list.appendChild(window.snkOsx.panel(r.id));
           }
           return;
         }

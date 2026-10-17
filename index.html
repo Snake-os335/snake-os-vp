@@ -43,13 +43,20 @@ window.addEventListener('error', function(e){
 </script>
 <script src="/static/snake-voice.js?v=202610161905"></script>
 <script src="/static/metaverse.js?v=202610121930" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
-<script src="/static/snake-notify-sound.js?v=202610161830"></script>
+<script src="/static/snake-notify-sound.js?v=202610172200"></script>
 <script src="/static/doganiero-chat.js?v=202610161925" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/doganiero-desk.js?v=202610072130" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
-<script src="/static/desktop-extras.js?v=202610161910" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
-<script>window.SNAKE_OS_VERSION='2026.12';/* versión de Snake OS: cambiar SOLO aquí */</script>
+<script src="/static/desktop-extras.js?v=202610172200" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
+<script>window.SNAKE_OS_VERSION='2026.13';/* versión de Snake OS: cambiar SOLO aquí */</script>
 <script>/* Novedades por versión (Ajustes › Acerca de). En cada actualización: cambia SNAKE_OS_VERSION y AÑADE una entrada al principio. */
 window.SNAKE_OS_CHANGES=[
+ {v:'2026.13',es:[
+  'Brillo de pantalla con F5 (bajar) y F6 (subir), guardado por perfil',
+  'Snake OS Kids: modo infantil con control parental y PIN (apps por edad, tiempo de pantalla, chat, web, juegos online, tienda, archivos, cámara e informe semanal)',
+  'Modo trabajo: fondo negro bloqueado, sin efectos y dock de apps de trabajo',
+  'Salvapantallas configurable: tiempo y 5 estilos con vista previa',
+  'Doganiero Bots ya no se queda colgado: progreso, botón Cancelar y límite de tiempo'
+ ]},
  {v:'2026.12',es:[
   'Doganiero Bots más listos: planifican, comprueban cada paso y crean eventos en el Calendario',
   'Idioma español automático en España y botón 🌐 Idioma arriba en Ajustes rápidos',
@@ -89,14 +96,14 @@ window.SNAKE_OS_CHANGES=[
 <script src="/static/doganiero-tv.js?v=202610091150" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/prism.js?v=202610080900" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/doganiero-phone.js?v=202610161800" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
-<script src="/static/snake-apps-extras.js?v=202610161925" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
+<script src="/static/snake-apps-extras.js?v=202610172200" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-cursor.js?v=202610142010" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-emoji-data.js?v=202610100831" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-emoji.js?v=202610140900" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-maps.js?v=202610141800" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-locshare.js?v=202610141830"></script>
-<script src="/static/doganiero-bots-os.js?v=202610161910"></script>
-<script src="/static/doganiero-bots.js?v=202610161940"></script>
+<script src="/static/doganiero-bots-os.js?v=202610172200"></script>
+<script src="/static/doganiero-bots.js?v=202610172200"></script>
 <script src="/static/snake-bluetooth.js?v=202610111725" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-keypad.js?v=202610161800" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-game-matrix.js?v=202610112000" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
@@ -106,7 +113,8 @@ window.SNAKE_OS_CHANGES=[
 <script src="/static/snake-update-screen.js?v=202610161805"></script>
 <script src="/static/snake-i18n.js?v=202610161800" defer></script>
 <script src="/static/snake-taskbar11.js?v=202610161945" defer></script>
-<script src="/static/snake-screensaver.js?v=202610161950" defer></script>
+<script src="/static/snake-screensaver.js?v=202610172200" defer></script>
+<script src="/static/snake-osx.js?v=202610172200" defer></script>
 <style>
   :root{
     --text:#ffffff; --muted:rgba(255,255,255,0.82);
@@ -5163,6 +5171,7 @@ window.SNAKE_OS_CHANGES=[
   function openApp(appId){
     const app = APPS[appId];
     if(!app) return;
+    if(window.snkOsxCanOpen && !window.snkOsxCanOpen(appId)) return;
     openWindowGeneric(appId, app.title, appIconMarkup(app), app.width, app.height, app.render);
     if(typeof onOsTutorialAppOpened === 'function') onOsTutorialAppOpened(appId);
   }
@@ -6393,6 +6402,7 @@ function buildIcons(){
         } finally {
           finishOsInstall._busy = false;
         }
+        try { if(window.snkOsxProfileReady) window.snkOsxProfileReady(); } catch(eK){}
       }, 2800);
     };
     api('/api/setup/done', { method:'POST' }).then(function(u){
@@ -6417,7 +6427,9 @@ function buildIcons(){
     { id:'chat', title:'Doganiero Chat', text:'Doganiero Chat es para mensajes y llamadas con otras cuentas.', sel:'.desktop-icon[data-app="chat"]', app:'chat' },
     { id:'store', title:'Doganiero Store', text:'Doganiero Store es la tienda. Aquí descargas juegos y herramientas.', sel:'.desktop-icon[data-app="store"]', app:'store' },
     { id:'metaverse', title:'Metaverse', text:'Doganiero Metaverse es el mundo en tres dimensiones.', sel:'.desktop-icon[data-app="metaverse"]', app:'metaverse' },
-    { id:'password', title:'Contraseña', text:'La contraseña de tu cuenta Dogaemail no se comparte.', sel:'#userBadge' }
+    { id:'password', title:'Contraseña', text:'La contraseña de tu cuenta Dogaemail no se comparte.', sel:'#userBadge' },
+    { id:'brightness', title:'Brillo', text:'Con la tecla F5 bajas el brillo de la pantalla y con F6 lo subes. Pruébalo ahora.', sel:'#osxOsd' },
+    { id:'settings', title:'Ajustes', text:'En Ajustes eliges el salvapantallas, el modo trabajo y Snake OS Kids, el modo para niños con control parental.', sel:'.desktop-icon[data-app="ajustes"]', app:'ajustes' }
   ];
 
   function pickOsTutorialVoice(){
@@ -6572,6 +6584,7 @@ function buildIcons(){
     var t = document.getElementById('osTutorialText');
     if(k) k.textContent = step.title + ' · ' + (osTut.idx + 1) + '/' + OS_TUT_STEPS.length;
     if(t) t.textContent = step.text;
+    try { if(window.snkOsx){ if(step.id === 'brightness') window.snkOsx.showBrightnessOsd(true); else window.snkOsx.hideBrightnessOsd(); } } catch(eOsx){}
     if(step.id !== 'taskbar') osTutUncover();
     osTutPlace();
   }
@@ -6608,7 +6621,7 @@ function buildIcons(){
     if(!osTut.active || osTut.finishing) return;
     var step = OS_TUT_STEPS[osTut.idx];
     if(!step) return;
-    var match = (kind === 'start' && step.act === 'start') || (kind === 'desktop' && step.id === 'desktop') || (kind === 'badge' && step.id === 'password') || (step.app && kind === step.app);
+    var match = (kind === 'start' && step.act === 'start') || (kind === 'desktop' && step.id === 'desktop') || (kind === 'badge' && step.id === 'password') || (kind === 'brightness' && step.id === 'brightness') || (step.app && kind === step.app);
     if(!match) return;
     if(!osTut.unlocked){
       osTut.pendingAdvance = true;
@@ -6619,6 +6632,7 @@ function buildIcons(){
   }
 
   function onOsTutorialAppOpened(appId){ osTutNote(appId); }
+  window.snkOsTutNote = osTutNote;
 
   function osTutAdvance(){
     if(!osTut.active) return;
@@ -6637,6 +6651,7 @@ function buildIcons(){
     osTut.pendingAdvance = false;
     if(osTut.timer){ clearInterval(osTut.timer); osTut.timer = null; }
     osTutClearHot();
+    try { if(window.snkOsx) window.snkOsx.hideBrightnessOsd(); } catch(eOsx){}
     var root = document.getElementById('osTutorial');
     if(root) root.remove();
   }
@@ -7888,6 +7903,7 @@ function buildIcons(){
       // Sin login forzado de Snake OS: si la web es accounts.google, se abre como cualquier otra URL.
 
       try{ var ux = new URL(url, location.origin); if(ux.pathname === '/api/dbots/proxy' && ux.searchParams.get('u')) url = toUrl(ux.searchParams.get('u')); }catch(eU){}
+      if(window.snkOsxUrlAllowed && !window.snkOsxUrlAllowed(url)){ input.value = displayUrl(url); hideBlocked(); setMode('embed'); frame.src = window.snkOsxBlockedPage(); return; }
       if(push !== false) histRecord(url);
       input.value = displayUrl(url);
       syncHistBtns();

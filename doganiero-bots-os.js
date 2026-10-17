@@ -641,8 +641,10 @@
         log('🔁 Eso no funcionó; pruebo otra forma');
       }
       status('🧠 Paso ' + n + ' · pensando…');
-      return api('/api/dbots/agent/' + encodeURIComponent(bot.id), { method: 'POST', body: { goal: goal, surface: surface, ui: s.items, page: s.page || null, history: hist.slice(-12), step: n, max: null, plan: plan, tries: warned, stuck: stuck ? (noChange >= 2 ? 'la pantalla no cambia tras tus últimos pasos' : 'estás repitiendo las mismas acciones') : '' } })
+      var stepAc = typeof AbortController !== 'undefined' ? new AbortController() : null, stepTo = setTimeout(function () { if (stepAc) stepAc.abort(); }, 75000);
+      return api('/api/dbots/agent/' + encodeURIComponent(bot.id), { signal: stepAc ? stepAc.signal : undefined, method: 'POST', body: { goal: goal, surface: surface, ui: s.items, page: s.page || null, history: hist.slice(-12), step: n, max: null, plan: plan, tries: warned, stuck: stuck ? (noChange >= 2 ? 'la pantalla no cambia tras tus últimos pasos' : 'estás repitiendo las mismas acciones') : '' } })
         .then(function (a) {
+          clearTimeout(stepTo);
           a = a || {}; apiErr = 0;
           if (stopped && stopped()) return fin(false, '⏹ Parado.');
           if (a.plan && a.plan.length && !plan) { plan = a.plan.slice(0, 8); log('🗺️ Plan: ' + plan.join(' → ')); }

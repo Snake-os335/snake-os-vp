@@ -444,8 +444,19 @@
           if (m.role === 'user') h += '<div class="dbots-msg user">' + att + txt + '<small>' + meta + '</small></div>';
           else h += '<div class="dbots-row">' + botFig(b, 30) + '<div class="dbots-msg bot">' + att + txt + actHtml(m) + '<small>' + meta + '</small></div></div>';
         });
-        if (S.sending) h += '<div class="dbots-row">' + botFig(b, 52) + '<div class="dbots-msg bot dbots-typing"><span></span><span></span><span></span></div></div>';
+        if (S.sending) h += '<div class="dbots-row">' + botFig(b, 52) + '<div class="dbots-msg bot"><div class="dbots-typing"><span></span><span></span><span></span></div><div data-progress style="font-size:12px;opacity:.85;margin-top:4px">' + esc(jobLabel()) + '</div><button type="button" data-cancel-job style="margin:6px 0 0;width:auto;min-height:0;padding:4px 10px;border-radius:10px;font-size:12px;cursor:pointer">✕ Cancelar</button></div></div>';
         box.innerHTML = h; emo(box); wireActs(box, b); box.scrollTop = box.scrollHeight;
+        var cj = box.querySelector('[data-cancel-job]'); if (cj) cj.onclick = function () { cancelJob(); };
+      }
+      function jobLabel() { var j = S.job; if (!j) return 'Pensando…'; var s = Math.round((Date.now() - j.t0) / 1000); return (j.stage || 'Pensando…') + ' · ' + s + ' s'; }
+      function updJob() { var p = box.querySelector('[data-progress]'); if (p) p.textContent = jobLabel(); }
+      function cancelJob(msg) {
+        var j = S.job; if (!j) return false;
+        S.job = null; S.sending = false; setMood(b.id, null); clearInterval(j.iv);
+        if (j.id) api('/api/dbots/chat-jobs/' + encodeURIComponent(j.id) + '/cancel', { method: 'POST', body: {} }).catch(function () {});
+        (S.msgs[j.bot] = S.msgs[j.bot] || []).push({ role: 'bot', text: msg || '⏹ Petición cancelada.', at: Date.now() / 1000 });
+        paint(); setTimeout(function () { if (!S.sending) refresh().catch(function () {}); }, 2500);
+        return true;
       }
       S.paintChat = paint;
       function refresh() { return api('/api/dbots/chat/' + encodeURIComponent(b.id)).then(function (r) { S.msgs[b.id] = r.messages || []; if (S.chatBot === b.id && box.isConnected) paint(); }); }
@@ -482,7 +493,7 @@
       ta.addEventListener('paste', function (e) { var it = (e.clipboardData && e.clipboardData.files) || []; if (it.length) { e.preventDefault(); addFiles(it); } });
       function send() {
         var v = ta.value.trim();
-        if (/^(para|parar|stop|detente|basta)[.!]*$/i.test(v)) { var stopped0 = false; if (S.mos && S.mos.busy && S.mos.busy()) { S.mos.stop(); stopped0 = true; } if (window.DogBotsOS && window.DogBotsOS.stopDesktop && window.DogBotsOS.stopDesktop()) stopped0 = true; if (stopped0) { ta.value = ''; return; } }
+        if (/^(para|parar|stop|detente|basta)[.!]*$/i.test(v)) { var stopped0 = false; if (S.job && cancelJob()) stopped0 = true; if (S.mos && S.mos.busy && S.mos.busy()) { S.mos.stop(); stopped0 = true; } if (window.DogBotsOS && window.DogBotsOS.stopDesktop && window.DogBotsOS.stopDesktop()) stopped0 = true; if (stopped0) { ta.value = ''; return; } }
         if (S.sending) return;
         if (S.pending.some(function (f) { return f.state === 'up'; })) { alert('Espera a que terminen de subirse los archivos'); return; }
         var ready = S.pending.filter(function (f) { return f.state === 'ok'; });
@@ -492,10 +503,35 @@
         var ids = ready.map(function (f) { return f.id; });
         (S.msgs[b.id] = S.msgs[b.id] || []).push({ role: 'user', text: v, at: Date.now() / 1000, attachments: ready.map(function (f) { return { id: f.id, name: f.name, type: f.type, size: f.size }; }) });
         S.pending = []; drawChips(); paint();
-        api('/api/dbots/chat/' + encodeURIComponent(b.id), { method: 'POST', body: { text: v, attachments: ids, origin: 'desktop', ctx: window.DogBotsOS ? window.DogBotsOS.context() : {} } })
-          .then(function (r) { S.sending = false; setMood(b.id, 'happy'); var m = r && r.message; return refresh().then(function () { handleBot(b, m); }); })
-          .then(function () { poll(); })
-          .catch(function (e) { S.sending = false; setMood(b.id, null); S.msgs[b.id].push({ role: 'bot', text: '❌ ' + errMsg(e), at: Date.now() / 1000 }); paint(); });
+        /* Trabajo en segundo plano: /start devuelve un id y se sondea el progreso. Se puede cancelar y tiene límite de tiempo. */
+        var job = S.job = { bot: b.id, id: null, stage: 'Enviando…', t0: Date.now(), fails: 0 };
+        job.iv = setInterval(function () { if (S.job === job) updJob(); else clearInterval(job.iv); }, 1000);
+        api('/api/dbots/chat/' + encodeURIComponent(b.id) + '/start', { method: 'POST', body: { text: v, attachments: ids, origin: 'desktop', ctx: window.DogBotsOS ? window.DogBotsOS.context() : {} } })
+          .then(function (r) {
+            if (S.job !== job) { if (r && r.job) api('/api/dbots/chat-jobs/' + encodeURIComponent(r.job) + '/cancel', { method: 'POST', body: {} }).catch(function () {}); return null; }
+            job.id = r.job; job.stage = 'En cola…'; updJob();
+            return new Promise(function (res, rej) {
+              function tick() {
+                if (S.job !== job) { res(null); return; }
+                if (Date.now() - job.t0 > 200000) { cancelJob('⌛ Ha tardado demasiado y lo he parado. Prueba a pedirlo por partes o como tarea en segundo plano.'); res(null); return; }
+                api('/api/dbots/chat-jobs/' + encodeURIComponent(job.id)).then(function (j) {
+                  if (S.job !== job) { res(null); return; }
+                  job.fails = 0;
+                  if (j.status === 'running') { job.stage = j.stage || 'Pensando…'; updJob(); setTimeout(tick, 900); return; }
+                  res(j);
+                }).catch(function (e) { if (++job.fails > 6) rej(e); else setTimeout(tick, 1500); });
+              }
+              setTimeout(tick, 500);
+            });
+          })
+          .then(function (j) {
+            if (!j || S.job !== job) return;
+            S.job = null; clearInterval(job.iv); S.sending = false;
+            if (j.status === 'done') { setMood(b.id, 'happy'); var m = j.message; return refresh().then(function () { handleBot(b, m); }).then(function () { poll(); }); }
+            setMood(b.id, null);
+            return refresh().catch(function () {}).then(function () { if (j.status === 'error' && !j.message) { S.msgs[b.id].push({ role: 'bot', text: '❌ ' + (j.error || 'Error'), at: Date.now() / 1000 }); paint(); } });
+          })
+          .catch(function (e) { if (S.job !== job) return; S.job = null; clearInterval(job.iv); S.sending = false; setMood(b.id, null); S.msgs[b.id].push({ role: 'bot', text: '❌ ' + errMsg(e), at: Date.now() / 1000 }); paint(); });
       }
       btn.onclick = send;
       ta.onkeydown = function (e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } };
