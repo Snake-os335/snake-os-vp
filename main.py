@@ -1512,24 +1512,62 @@ def put_trash(payload: list[Any], user=Depends(require_user)):
 
 
 
-def _ai_keys_payload(keys: dict[str, str]) -> dict[str, Any]:
+def _mask_key(key: str) -> str:
+    key = str(key or "")
+    if not key:
+        return ""
+    if len(key) <= 10:
+        return "•" * 6
+    return key[:4] + "••••••" + key[-4:]
+
+
+def _ai_keys_payload(keys: dict[str, str], uid: int | None = None) -> dict[str, Any]:
+    """Nunca devuelve la clave completa: solo si hay una propia y una versión enmascarada."""
     askbox = keys.get("askbox") or ""
+    kids_on = bool(uid and osx_extras.kids_policy(int(uid)))
     return {
-        "askbox": askbox,
+        "askbox": "",
         "askboxCustom": bool(askbox),
+        "askboxMasked": _mask_key(askbox),
+        "systemKey": bool(ASKBOX_SYSTEM_KEY_PRESENT()),
+        "kidsLocked": kids_on,
     }
+
+
+def ASKBOX_SYSTEM_KEY_PRESENT() -> bool:
+    try:
+        return bool((askbox_client.default_key() or "").strip())
+    except Exception:
+        return False
 
 
 @app.get("/api/ai-keys")
 def get_ai_keys(user=Depends(require_user)):
-    """Clave propia de Askbox. Vacío = clave del sistema."""
-    return _ai_keys_payload(db.get_ai_keys(int(user["id"])))
+    """Clave propia de Askbox (enmascarada). Vacío = clave del sistema."""
+    return _ai_keys_payload(db.get_ai_keys(int(user["id"])), int(user["id"]))
+
+
+@app.post("/api/ai-keys/test")
+def test_ai_keys(user=Depends(require_user)):
+    """Prueba la clave guardada del perfil (o la del sistema si no hay propia) sin mostrarla."""
+    uid = int(user["id"])
+    own = (db.get_ai_keys(uid).get("askbox") or "").strip()
+    key = own or resolve_askbox_key(uid)
+    if not key:
+        return {"valid": False, "which": "none", "message": "No hay ninguna clave de Askbox configurada"}
+    try:
+        valid = bool(askbox_client.validate_key(key))
+    except AskboxError as exc:
+        return {"valid": False, "which": "own" if own else "system", "message": exc.message}
+    return {"valid": valid, "which": "own" if own else "system"}
 
 
 @app.put("/api/ai-keys")
-def put_ai_keys(payload: dict[str, Any], user=Depends(require_user)):
+def put_ai_keys(payload: dict[str, Any], request: Request, user=Depends(require_user)):
     if not isinstance(payload, dict):
         raise HTTPException(status_code=400, detail="Datos no válidos")
+    if osx_extras.kids_policy(int(user["id"])) and not osx_extras.parent_ok(int(user["id"]), request):
+        raise HTTPException(status_code=403, detail="Hace falta el PIN del adulto (Snake OS Kids)")
     cur = db.get_ai_keys(int(user["id"]))
     nxt = {"askbox": cur.get("askbox") or ""}
     if "askbox" in payload:
@@ -1538,7 +1576,7 @@ def put_ai_keys(payload: dict[str, Any], user=Depends(require_user)):
         saved = db.set_ai_keys(int(user["id"]), nxt)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return _ai_keys_payload(saved)
+    return _ai_keys_payload(saved, int(user["id"]))
 
 
 def resolve_askbox_key(user_id: int) -> str:

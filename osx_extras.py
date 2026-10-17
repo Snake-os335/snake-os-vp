@@ -278,6 +278,11 @@ def _new_token(uid: int, scope: str = "parent") -> str:
     return tok
 
 
+def parent_ok(uid: int, request: Request | None) -> bool:
+    """Para otros módulos: sesión parental válida (cabecera X-Osx-Parent) del perfil."""
+    return _token_ok(int(uid), request)
+
+
 def drop_tokens(uid: int) -> None:
     for t, rec in list(_tokens.items()):
         if rec[0] == uid:
@@ -408,12 +413,20 @@ def build_router(require_user: Callable) -> APIRouter:
 
     @r.post("/api/osx/kids/disable")
     def kids_disable(payload: dict[str, Any], request: Request, user=Depends(require_user)):
+        # Desactivar pide SIEMPRE el PIN (con límite de intentos). No depende de la sesión parental en memoria,
+        # que se pierde al reiniciar el servidor y dejaba el botón respondiendo 403 sin ventana de PIN.
         uid = int(user["id"])
-        if not _token_ok(uid, request, payload):
+        if not str(payload.get("pin") or "").strip():
             raise HTTPException(403, "Hace falta el PIN del adulto")
         with _lock:
             o = load(uid)
-            _verify_pin(uid, o, payload.get("pin"))
+            if not o["kids"]["on"]:
+                return public(o)
+            try:
+                _verify_pin(uid, o, payload.get("pin"))
+            except HTTPException as exc:
+                print(f"[osx] desactivar Kids rechazado uid={uid}: {exc.status_code} {exc.detail}", flush=True)
+                raise
             o = load(uid)
             o["kids"]["on"] = False
             if payload.get("forget_pin"):

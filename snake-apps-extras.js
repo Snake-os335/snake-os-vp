@@ -249,7 +249,7 @@
     row('salvapantallas', 'osx-saver', '🌌', 'Salvapantallas', 'Tiempo de espera, estilo y vista previa', 'osx');
     row('trabajo', 'osx-work', '💼', 'Modo trabajo', 'Fondo negro bloqueado, menos efectos y dock con apps de trabajo y enlaces', 'osx');
     row('kids', 'osx-kids', '🧸', 'Snake OS Kids · control parental', 'Modo infantil con PIN: apps por edad, tiempo de pantalla, chat, web, juegos online, tienda, archivos, cámara e informe semanal', 'osx');
-    row('ia', 'keys', '✨', 'Key de AskBox', 'Clave de AskBox de tu cuenta. Vacío usa la clave del sistema', 'aiform');
+    row('ia', 'keys', '✨', 'Clave de Askbox (IA)', 'Introducir o cambiar la clave de Askbox de tu cuenta: estado, probar conexión y quitar', 'aiform');
     row('cuenta', 'who', '🪪', 'Sesión iniciada', 'Tus ajustes se guardan por perfil', 'info', { label: function () { var u = cu(); return u ? (u.name || '') + ' · ' + (u.email || '') : ''; } });
     row('cuenta', 'profile', '👤', 'Mi perfil', 'Nombre, foto o emoji y contraseña', 'action', { btn: 'Abrir', run: function () { if (window.openApp) window.openApp('profile'); } });
     row('cuenta', 'lock', '🔒', 'Bloquear cuenta', 'Bloquea tu sesión sin cerrarla', 'action', { btn: 'Bloquear', run: function () { clickTile('qsLock'); } });
@@ -281,7 +281,7 @@
     { id: 'rendimiento', ico: '⚡', name: 'Rendimiento' },
     { id: 'escritorio', ico: '🖥️', name: 'Escritorio' },
     { id: 'accesibilidad', ico: '♿', name: 'Accesibilidad' },
-    { id: 'ia', ico: '✨', name: 'IA' },
+    { id: 'ia', ico: '✨', name: 'Askbox (IA)' },
     { id: 'cuenta', ico: '👤', name: 'Cuenta' },
     { id: 'almacenamiento', ico: '💾', name: 'Almacenamiento' },
     { id: 'atajos', ico: '⌨️', name: 'Atajos' },
@@ -325,6 +325,8 @@
     '.snk4a-ai label em{font-style:normal;font-weight:700;font-size:0.72rem;color:var(--accent,#34d17a);}' +
     '.snk4a-ai-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px;}' +
     '.snk4a-ai-msg{min-height:1.2em;font-size:0.75rem;font-weight:700;}' +
+    '.snk4a-ai-status{padding:8px 10px;border-radius:10px;background:var(--input-bg,rgba(255,255,255,0.06));border:1px solid var(--input-border,rgba(255,255,255,0.14));font-size:0.8rem;}' +
+    '.snk4a-ai-status code{font-family:ui-monospace,monospace;font-size:0.78rem;}' +
     '.snk4a-ai-msg.err{color:#ff8a7a;}' +
     '.snk4a-ai-msg.ok{color:var(--accent,#34d17a);}' +
     '@media (max-width:560px){.snk4a-set{flex-direction:column;}.snk4a-set-nav{flex:0 0 auto;flex-direction:row;overflow-x:auto;border-right:none;border-bottom:1px solid var(--input-border,rgba(255,255,255,0.14));padding:0 0 8px;margin-bottom:8px;}' +
@@ -335,84 +337,78 @@
     'body.phone-mode .snk4a-set-main{padding-left:0;}'
   );
 
-  function aiKeyStatus(custom) { return custom ? 'Tu clave' : 'Clave del sistema'; }
-  function buildAiKeysPanel() {
+  function buildAiKeysPanel(repaint) {
     var box = document.createElement('div');
     box.className = 'snk4a-ai';
-    var api = window.snakeAiKeys;
-    var snap = (api && api.snapshot) ? api.snapshot() : { askbox: '', askboxCustom: false };
+    var osx = window.snkOsx;
+    var kidsOn = !!(osx && osx.isKids && osx.isKids());
+    if (kidsOn && !(osx.parentToken && osx.parentToken())) {
+      box.innerHTML =
+        '<p><b>🔒 Protegido por Snake OS Kids.</b> Para ver o cambiar la clave de Askbox hace falta el PIN del adulto.</p>' +
+        '<div class="snk4a-ai-actions"><button type="button" class="snk4a-btn primary" data-act="unlock">🔑 Introducir PIN del adulto</button></div>';
+      box.querySelector('[data-act="unlock"]').addEventListener('click', function () {
+        osx.askParent('PIN del adulto para la clave de Askbox').then(function (ok) { if (ok && repaint) repaint(); });
+      });
+      return box;
+    }
+    function hdrs() { var t = osx && osx.parentToken ? osx.parentToken() : ''; return t ? { 'X-Osx-Parent': t } : {}; }
     box.innerHTML =
-      '<p>Esta clave es solo de tu cuenta y se usa en Doganiero AI y en Code Lab. Si la dejas vacía, Snake OS usa la clave del sistema (AskBox).</p>' +
-      '<label>Key de AskBox <em data-for="askbox">' + esc(aiKeyStatus(snap.askboxCustom)) + '</em></label>' +
-      '<input class="snk4a-input" type="password" data-key="askbox" autocomplete="off" spellcheck="false" placeholder="Vacío = clave del sistema">' +
+      '<p>Clave de Askbox de tu cuenta. La usan Doganiero AI, Code Lab, Snake Racing (comentarista), Los Snakes y Doganiero Bots. Si no pones ninguna, Snake OS usa la clave del sistema (si existe).</p>' +
+      '<div class="snk4a-ai-status" data-status>Cargando…</div>' +
+      '<label for="snkAskboxKey">Nueva clave de Askbox</label>' +
+      '<input class="snk4a-input" id="snkAskboxKey" type="password" data-key="askbox" name="snk-askbox-key" autocomplete="new-password" data-lpignore="true" data-1p-ignore spellcheck="false" placeholder="Pega aquí la clave (no se muestra la guardada)">' +
       '<div class="snk4a-ai-actions">' +
-        '<button type="button" class="snk4a-btn" data-act="toggle">Mostrar</button>' +
-        '<button type="button" class="snk4a-btn primary" data-act="save">Guardar</button>' +
-        '<button type="button" class="snk4a-btn" data-act="reset">Usar la del sistema</button>' +
-        '<button type="button" class="snk4a-btn" data-act="check">Comprobar</button>' +
+        '<button type="button" class="snk4a-btn" data-act="toggle">👁 Mostrar</button>' +
+        '<button type="button" class="snk4a-btn primary" data-act="save">💾 Guardar</button>' +
+        '<button type="button" class="snk4a-btn" data-act="check">🔌 Probar conexión</button>' +
+        '<button type="button" class="snk4a-btn" data-act="reset">Quitar mi clave</button>' +
       '</div>' +
       '<div class="snk4a-ai-msg" data-msg></div>';
     var askInput = box.querySelector('[data-key="askbox"]');
     var msg = box.querySelector('[data-msg]');
-    function fill(data) {
-      data = data || ((api && api.snapshot) ? api.snapshot() : snap);
-      askInput.value = data.askbox || '';
-      var st = box.querySelector('[data-for="askbox"]');
-      if (st) st.textContent = aiKeyStatus(!!(data.askboxCustom || data.askbox));
-      dirty = false;
+    var stEl = box.querySelector('[data-status]');
+    var state = { askboxCustom: false, askboxMasked: '', systemKey: false };
+    function paintStatus(d) {
+      state = d || state;
+      if (state.askboxCustom) stEl.innerHTML = '✅ <b>Configurada</b> · tu clave: <code>' + esc(state.askboxMasked || '••••••') + '</code>';
+      else if (state.systemKey) stEl.innerHTML = 'ℹ️ <b>Sin clave propia</b> · se usa la clave del sistema';
+      else stEl.innerHTML = '⚠️ <b>No configurada</b> · pega tu clave de Askbox para usar la IA';
+      box.querySelector('[data-act="reset"]').style.display = state.askboxCustom ? '' : 'none';
     }
-    var dirty = false;
-    askInput.addEventListener('input', function () { dirty = true; });
-    fill(snap);
-    if (api && api.load) {
-      api.load().then(function (data) {
-        if (!box.isConnected || !data || dirty) return;
-        fill(data);
-      }).catch(function () {});
-    }
-    function say(text, kind) {
-      msg.textContent = text || '';
-      msg.className = 'snk4a-ai-msg' + (kind ? ' ' + kind : '');
-    }
+    function say(text, kind) { msg.textContent = text || ''; msg.className = 'snk4a-ai-msg' + (kind ? ' ' + kind : ''); }
+    function load() { return apiCall('/api/ai-keys').then(function (d) { if (box.isConnected || true) paintStatus(d); return d; }).catch(function (e) { stEl.textContent = (e && e.message) || 'No se pudo leer el estado'; }); }
+    load();
     box.querySelector('[data-act="toggle"]').addEventListener('click', function () {
       var show = askInput.type === 'password';
       askInput.type = show ? 'text' : 'password';
-      this.textContent = show ? 'Ocultar' : 'Mostrar';
+      this.textContent = show ? '🙈 Ocultar' : '👁 Mostrar';
     });
-    box.querySelector('[data-act="save"]').addEventListener('click', function () {
-      if (!api || !api.save) { say('No se puede guardar la clave ahora', 'err'); return; }
-      say('Guardando…', '');
-      api.save(askInput.value).then(function (data) {
-        fill(data);
-        say('Clave guardada', 'ok');
-        toast('Key de AskBox guardada');
-      }).catch(function (err) {
-        say((err && err.message) ? err.message : 'No se pudo guardar', 'err');
+    function put(val, okText) {
+      return apiCall('/api/ai-keys', { method: 'PUT', headers: hdrs(), body: { askbox: val } }).then(function (d) {
+        paintStatus(d); askInput.value = ''; say(okText, 'ok'); toast(okText);
+        try { if (window.snakeAiKeys && window.snakeAiKeys.load) window.snakeAiKeys.load(); } catch (e) {}
       });
+    }
+    box.querySelector('[data-act="save"]').addEventListener('click', function () {
+      var key = String(askInput.value || '').trim();
+      if (!key) { say('Pega primero la clave nueva (la guardada no se borra si lo dejas vacío)', 'err'); askInput.focus(); return; }
+      say('Guardando…', '');
+      put(key, 'Clave de Askbox guardada').catch(function (err) { say((err && err.message) || 'No se pudo guardar', 'err'); });
     });
     box.querySelector('[data-act="reset"]').addEventListener('click', function () {
-      if (!api || !api.save) { say('No se puede guardar la clave ahora', 'err'); return; }
-      say('Restaurando…', '');
-      api.save('').then(function (data) {
-        fill(data);
-        say('Otra vez la clave del sistema', 'ok');
-        toast('Clave del sistema');
-      }).catch(function (err) {
-        say((err && err.message) ? err.message : 'No se pudo restaurar', 'err');
-      });
+      if (!confirm('¿Quitar tu clave de Askbox? Se usará la del sistema, si existe.')) return;
+      put('', 'Clave propia quitada').catch(function (err) { say((err && err.message) || 'No se pudo quitar', 'err'); });
     });
     box.querySelector('[data-act="check"]').addEventListener('click', function () {
       var key = String(askInput.value || '').trim();
-      if (!key) { say('Escribe una clave para comprobar', 'err'); return; }
-      say('Comprobando…', '');
-      apiCall('/api/ai/validate-key', { method: 'POST', body: { askbox: key } }).then(function (data) {
+      say('Probando conexión con Askbox…', '');
+      var req = key ? apiCall('/api/ai/validate-key', { method: 'POST', body: { askbox: key } }) : apiCall('/api/ai-keys/test', { method: 'POST', body: {} });
+      req.then(function (data) {
         var ok = data && (data.valid === true || data.ok === true);
-        if (ok) say('La clave es válida', 'ok');
-        else say((data && data.message) ? String(data.message) : 'La clave no es válida', 'err');
-      }).catch(function (err) {
-        if (err && err.status === 404) say('Comprobar no disponible en este servidor', '');
-        else say((err && err.message) ? err.message : 'No se pudo comprobar', 'err');
-      });
+        var which = key ? 'La clave escrita' : (data && data.which === 'system' ? 'La clave del sistema' : 'Tu clave guardada');
+        if (ok) say('✅ ' + which + ' funciona: Askbox responde', 'ok');
+        else say('❌ ' + ((data && data.message) ? String(data.message) : which + ' no es válida'), 'err');
+      }).catch(function (err) { say((err && err.message) ? err.message : 'No se pudo probar', 'err'); });
     });
     return box;
   }
@@ -497,7 +493,7 @@
             jump.appendChild(openAi);
             list.appendChild(jump);
           } else {
-            list.appendChild(buildAiKeysPanel());
+            list.appendChild(buildAiKeysPanel(paint));
           }
           return;
         }

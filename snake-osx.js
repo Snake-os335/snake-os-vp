@@ -43,7 +43,25 @@
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function cu() { return window.currentUser || null; }
   function api(p, o) { return window.api ? window.api(p, o) : Promise.reject(new Error('api')); }
-  function papi(p, o) { o = o || {}; o.headers = Object.assign({}, o.headers || {}, { 'X-Osx-Parent': S.token || '' }); return api(p, o); }
+  function needsPin(e) { return e && (e.status === 401 || e.status === 403) && /Hace falta el PIN|sesi[oó]n parental/i.test(errMsg(e)); }
+  function papi(p, o) {
+    o = o || {}; var retried = !!o._retried;
+    var go = function () {
+      var oo = Object.assign({}, o); delete oo._retried;
+      oo.headers = Object.assign({}, o.headers || {}, { 'X-Osx-Parent': S.token || '' });
+      if (oo.body && typeof oo.body === 'object' && 'token' in oo.body) oo.body = Object.assign({}, oo.body, { token: S.token || '' });
+      return api(p, oo);
+    };
+    return go().catch(function (e) {
+      // Sesión parental perdida en el servidor (p. ej. tras una actualización): ventana del PIN visible y reintento.
+      if (retried || !needsPin(e) || (o.method || 'GET') === 'GET') throw e;
+      S.token = ''; S.tokenExp = 0;
+      return askPin('La sesión parental se ha cerrado. Escribe otra vez el PIN del adulto').then(function (ok) {
+        if (!ok) throw e;
+        return papi(p, Object.assign({}, o, { _retried: true }));
+      });
+    });
+  }
   function errMsg(e) { return (e && (e.message || e.detail)) || 'Error'; }
   function toast(t) {
     var el = $('#osxToast'); if (!el) { el = document.createElement('div'); el.id = 'osxToast'; el.setAttribute('role', 'status'); document.body.appendChild(el); }
@@ -138,6 +156,12 @@
       '.osx-bars{display:flex;align-items:flex-end;gap:6px;height:120px;padding-top:6px}.osx-bars div{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:3px;font-size:.68rem;height:100%}.osx-bars i{display:block;width:100%;max-width:34px;border-radius:6px 6px 2px 2px;background:linear-gradient(#a78bfa,#ec4899);min-height:2px}',
       '.osx-list{margin:0;padding:0;list-style:none;font-size:.8rem}.osx-list li{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:4px 0;border-bottom:1px dashed rgba(127,127,127,.25)}.osx-list .osx-ai{width:16px;height:16px;vertical-align:-3px}',
       '.osx-kidslogo{display:block;width:min(300px,80%);margin:2px auto 8px}',
+      '.osx-kidslogo.sm{width:auto;max-width:min(260px,70%);max-height:64px;object-fit:contain;margin:0 auto 6px}',
+      '.osx-pinmodal .osx-pin{-webkit-text-security:disc;text-security:disc}',
+      '.osx-quick{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 4px}.osx-quick .snk4a-btn{flex:1 1 180px}',
+      '.osx-card.osx-mail{border:2px solid var(--accent,#34d17a)}.osx-card.osx-flash{box-shadow:0 0 0 3px var(--accent,#34d17a)}',
+      '.osx-card .osx-where{margin:6px 0 10px;padding:8px 10px;border-radius:10px;background:rgba(52,209,122,.14);font-size:.78rem;line-height:1.4;opacity:1}',
+      '.snk4a-btn.osx-danger{border-color:#e5484d !important;color:#fff !important;background:#c62f3a !important}',
       '.osx-modal .box{--text:#2b2550;--muted:#4f4875;--input-bg:#fff;--input-border:#cfc6f5;--accent:#6d28d9;color:#2b2550}',
       '.osx-modal .box label,.osx-modal .box p,.osx-modal .box li,.osx-modal .box small,.osx-modal .box h4,.osx-modal .osx-field>label,.osx-modal .feat div{color:#2b2550 !important;opacity:1}',
       '.osx-modal .box h2,.osx-modal .box h3{color:#3b2a7a !important}',
@@ -480,34 +504,57 @@
     return { el: m, box: box, close: function () { if (m.parentNode) m.remove(); } };
   }
   function tokenValid() { return S.token && S.tokenExp > Date.now(); }
-  function askPin(msg, purpose, raw) {
+  function askPin(msg, purpose, raw, submit, title) {
     purpose = purpose || 'parent';
-    // Solo la sesión parental (5 min) evita volver a pedir el PIN, y nunca para desactivar (raw).
-    if (!raw && purpose === 'parent' && tokenValid()) return Promise.resolve(true);
+    // Solo la sesión parental (5 min) evita volver a pedir el PIN, y nunca para desactivar (raw/submit).
+    if (!raw && !submit && purpose === 'parent' && tokenValid()) return Promise.resolve(true);
     return new Promise(function (res) {
+      var old = $('#osxPinModal'); if (old) old.remove();
       var prev = $('.osx-modal'); if (prev) prev.style.display = 'none';
       var m = document.createElement('div'); m.id = 'osxPinModal'; m.setAttribute('role', 'dialog'); m.setAttribute('aria-modal', 'true');
-      m.style.zIndex = '2147483550';
-      m.className = 'osx-modal'; m.innerHTML = '<div class="box" style="width:min(400px,100%);text-align:center">' +
-        '<img class="logo" src="' + LOGO + '" alt="Snake OS Kids" style="width:150px"><h2>🔑 PIN del adulto</h2><p>' + esc(msg || 'Introduce el PIN') + '</p>' +
-        '<input class="osx-in osx-pin" type="password" inputmode="numeric" autocomplete="off" maxlength="8" aria-label="PIN">' +
-        '<div class="osx-err" aria-live="polite"></div><div class="row" style="justify-content:center"><button type="button" class="osx-b" data-x>Cancelar</button><button type="button" class="osx-b pri" data-ok>Aceptar</button></div></div>';
+      m.style.zIndex = '2147483600';
+      var nm = 'snkpin' + Math.random().toString(36).slice(2, 8);
+      m.className = 'osx-modal osx-pinmodal'; m.innerHTML = '<div class="box" style="width:min(420px,100%);text-align:center">' +
+        '<img class="logo" src="' + LOGO + '" alt="Snake OS Kids" style="width:150px"><h2>' + esc(title || '🔑 PIN del adulto') + '</h2><p>' + esc(msg || 'Introduce el PIN') + '</p>' +
+        '<form autocomplete="off" onsubmit="return false"><input class="osx-in osx-pin" type="text" name="' + nm + '" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other" maxlength="8" aria-label="PIN del adulto" placeholder="••••"></form>' +
+        '<div class="osx-err" aria-live="assertive"></div><div class="row" style="justify-content:center"><button type="button" class="osx-b" data-x>Cancelar</button><button type="button" class="osx-b pri" data-ok>' + (submit ? 'Confirmar' : 'Aceptar') + '</button></div></div>';
       document.body.appendChild(m);
-      var inp = m.querySelector('input'), err = m.querySelector('.osx-err');
-      function done(v) { m.remove(); if (prev) prev.style.display = ''; res(v); }
+      var inp = m.querySelector('input'), err = m.querySelector('.osx-err'), okb = m.querySelector('[data-ok]'), busy = false;
+      inp.value = '';
+      inp.addEventListener('input', function () { var v = inp.value.replace(/\D+/g, '').slice(0, 8); if (v !== inp.value) inp.value = v; err.textContent = ''; });
+      function done(v) { m.remove(); if (prev && document.body.contains(prev)) prev.style.display = ''; res(v); }
+      function fail(e) { busy = false; okb.disabled = false; err.textContent = errMsg(e); inp.value = ''; inp.focus(); }
       function go() {
-        var pin = inp.value.trim(); if (!pin) { err.textContent = 'Escribe el PIN'; return; }
-        if (raw) { done(pin); return; }
+        if (busy) return;
+        var pin = inp.value.replace(/\D+/g, '');
+        if (pin.length < 4) { err.textContent = 'Escribe el PIN del adulto (4 a 8 números)'; inp.focus(); return; }
+        if (raw && !submit) { done(pin); return; }
+        busy = true; okb.disabled = true; err.textContent = 'Comprobando…';
+        if (submit) { Promise.resolve().then(function () { return submit(pin); }).then(function (v) { done(v === undefined ? true : v); }).catch(fail); return; }
         api('/api/osx/kids/verify', { method: 'POST', body: { pin: pin, purpose: purpose || '' } }).then(function (r) {
           if ((r.scope || 'parent') === 'parent') { S.token = r.token; S.tokenExp = Date.now() + (r.ttl || 300) * 1000 - 3000; } else { S.otok = r.token; }
           done(true);
-        }).catch(function (e) { err.textContent = errMsg(e); inp.value = ''; inp.focus(); });
+        }).catch(fail);
       }
-      m.querySelector('[data-ok]').onclick = go; m.querySelector('[data-x]').onclick = function () { done(false); };
-      inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') go(); if (e.key === 'Escape') done(false); });
-      setTimeout(function () { inp.focus(); }, 30);
+      okb.onclick = go; m.querySelector('[data-x]').onclick = function () { done(false); };
+      inp.addEventListener('keydown', function (e) { e.stopPropagation(); if (e.key === 'Enter') { e.preventDefault(); go(); } if (e.key === 'Escape') done(false); });
+      m.addEventListener('keydown', function (e) { e.stopPropagation(); });
+      setTimeout(function () { try { inp.focus(); } catch (e) {} }, 30);
     });
   }
+  /** Desactivar Snake OS Kids: SIEMPRE abre la ventana del PIN (no depende de la sesión parental) y muestra los errores dentro. */
+  function disableKids(after) {
+    if (!kids()) { toast('Snake OS Kids ya está desactivado'); if (after) after(false); return Promise.resolve(false); }
+    return askPin('Escribe el PIN del adulto para desactivar Snake OS Kids en este perfil.', 'parent', true, function (pin) {
+      return api('/api/osx/kids/disable', { method: 'POST', headers: { 'X-Osx-Parent': S.token || '' }, body: { pin: pin, token: S.token || '' } }).then(function (p) { setPrefs(p); return true; });
+    }, '⏻ Desactivar Snake OS Kids').then(function (ok) {
+      if (ok) { relockParent(); toast('Snake OS Kids desactivado'); refreshKidsPanels(); }
+      if (after) after(!!ok);
+      return !!ok;
+    });
+  }
+  function refreshKidsPanels() { document.querySelectorAll('.osx-panel[data-osx="osx-kids"]').forEach(function (el) { try { panelKids(el); } catch (e) {} }); }
+  function scrollToMail(el) { setTimeout(function () { var t = el.querySelector('[data-mailcard]'); if (t && t.scrollIntoView) { t.scrollIntoView({ block: 'start', behavior: 'smooth' }); t.classList.add('osx-flash'); setTimeout(function () { t.classList.remove('osx-flash'); }, 1600); } }, 60); }
 
   /* ---------------- editores de la configuración Kids (asistente y ajustes) ---------------- */
   function seg(name, opts, val) {
@@ -748,7 +795,7 @@
       if (!opts.length) { sel.value = ''; oth.style.display = ''; }
       function call(p, body, okMsg) {
         err.textContent = '';
-        if (!tokenValid()) { err.textContent = 'La sesión parental ha caducado: vuelve a escribir el PIN.'; return; }
+        if (!tokenValid()) { return askPin('La sesión parental ha caducado. PIN del adulto para seguir').then(function (ok) { if (ok) return call(p, body, okMsg); err.textContent = 'Hace falta el PIN del adulto.'; }); }
         return papi(p, { method: 'POST', body: Object.assign({ token: S.token }, body || {}) }).then(function (res) {
           var pr = res && res.prefs ? res.prefs : (res && res.kids ? res : null); if (pr) setPrefs(pr); if (okMsg) toast(okMsg); draw(t); return res;
         }).catch(function (e) { err.textContent = errMsg(e); });
@@ -776,18 +823,27 @@
       return;
     }
     if (!tokenValid()) {
-      el.innerHTML = '<div class="osx-panel">' + card('<img class="osx-kidslogo" src="' + LOGO + '" alt="Snake OS Kids">', 'Control parental. Para ver el informe o cambiar los ajustes hace falta el PIN del adulto.',
-        '<button type="button" class="snk4a-btn" data-unl>🔑 Introducir PIN del adulto</button>') + '</div>';
+      el.innerHTML = '<div class="osx-panel">' + card('<img class="osx-kidslogo sm" src="' + LOGO_WIDE + '" alt="Snake OS Kids">', '🔒 Snake OS Kids está activado. Para ver el informe, cambiar los ajustes, vincular el correo del adulto o desactivarlo hace falta el PIN del adulto.',
+        '<div class="osx-quick"><button type="button" class="snk4a-btn" data-unl>🔑 Abrir el control parental</button>' +
+        '<button type="button" class="snk4a-btn" data-unlmail>📧 Resumen semanal por correo (Dogaemail)</button>' +
+        '<button type="button" class="snk4a-btn osx-danger" data-off>⏻ Desactivar Snake OS Kids</button></div>') + '</div>';
       el.querySelector('[data-unl]').onclick = function () { askPin('PIN del adulto para el control parental').then(function (ok) { if (ok) panelKids(el); }); };
+      el.querySelector('[data-unlmail]').onclick = function () { askPin('PIN del adulto para configurar el resumen semanal por correo').then(function (ok) { if (ok) { panelKids(el); scrollToMail(el); } }); };
+      el.querySelector('[data-off]').onclick = function () { disableKids(); };
       return;
     }
     var c = cfgFrom(k);
-    el.innerHTML = '<div class="osx-panel"><img class="osx-kidslogo" src="' + LOGO_WIDE + '" alt="Snake OS Kids">' +
+    el.innerHTML = '<div class="osx-panel"><img class="osx-kidslogo sm" src="' + LOGO_WIDE + '" alt="Snake OS Kids">' +
+      '<div class="osx-quick"><button type="button" class="snk4a-btn" data-gomail>📧 Correo del adulto</button><button type="button" class="snk4a-btn osx-danger" data-off>⏻ Desactivar Snake OS Kids</button><button type="button" class="snk4a-btn" data-lock>🔒 Bloquear el panel</button></div>' +
+      '<p class="osx-note" data-sess style="margin:0"></p>' +
+      '<div class="osx-card osx-mail" data-mailcard><h4>📧 Resumen semanal por correo (Dogaemail)</h4><p>Cada domingo por la tarde se envía el uso por app y los intentos bloqueados a la cuenta Dogaemail del adulto.</p>' +
+        '<div class="osx-where">📍 <b>¿Dónde llega el código?</b> El código de 6 cifras llega a las <b>notificaciones de Snake OS</b> (la campana 🔔 de la barra de tareas) <b>de la cuenta Dogaemail que elijas</b>. Entra en Snake OS con esa cuenta, abre la campana y cópialo aquí. Caduca a los 15 minutos. Gmail no está disponible.</div>' +
+        '<div data-mail>Cargando…</div></div>' +
+      card('🔑 PIN y modo Kids', '', '<div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="snk4a-btn" data-chpin>Cambiar PIN</button><button type="button" class="snk4a-btn osx-danger" data-off2>⏻ Desactivar Snake OS Kids</button></div>') +
       card('📊 Informe de la semana', 'Uso de los últimos 7 días e intentos bloqueados.', '<div data-rep class="osx-note">Cargando…</div>') +
       Object.keys(EDITORS).map(function (key) { return card(EDITORS[key].title, '', '<div data-ed="' + key + '"></div>'); }).join('') +
-      card('💾 Guardar', 'Solo se guardan con la sesión parental activa (5 minutos tras escribir el PIN).', '<button type="button" class="snk4a-btn" data-save>Guardar ajustes parentales</button><p class="osx-note" data-sess style="margin-top:8px"></p><div class="osx-err" data-serr></div>') +
-      card('📧 Resumen semanal por correo', 'Cada domingo por la tarde se envía el uso por app y los intentos bloqueados a la cuenta Dogaemail del adulto (llega a sus notificaciones de Snake OS).', '<div data-mail>Cargando…</div>') +
-      card('🔑 PIN y modo Kids', '', '<div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="snk4a-btn" data-chpin>Cambiar PIN</button><button type="button" class="snk4a-btn" data-off>Desactivar Snake OS Kids</button><button type="button" class="snk4a-btn" data-lock>Bloquear el panel</button></div>') + '</div>';
+      card('💾 Guardar', 'Solo se guardan con la sesión parental activa (5 minutos tras escribir el PIN).', '<button type="button" class="snk4a-btn" data-save>Guardar ajustes parentales</button><div class="osx-err" data-serr></div>') + '</div>';
+    el.querySelector('[data-gomail]').onclick = function () { scrollToMail(el); };
     function drawEd(key) { var box = el.querySelector('[data-ed="' + key + '"]'); box.innerHTML = EDITORS[key].render(c); EDITORS[key].bind(box, c, function () { drawEd('age'); drawEd('apps'); drawEd('time'); }); }
     Object.keys(EDITORS).forEach(drawEd);
     // Sesión parental: cuenta atrás visible; se cierra sola al caducar, al salir del panel o al cerrar Ajustes.
@@ -816,11 +872,8 @@
       askPin('La sesión parental ha caducado. PIN del adulto para guardar', 'parent').then(function (ok) { if (ok) saveNow(); });
     };
     el.querySelector('[data-lock]').onclick = function () { relockParent(); panelKids(el); };
-    el.querySelector('[data-off]').onclick = function () {
-      askPin('Confirma con el PIN para desactivar Snake OS Kids', 'parent', true).then(function (pin) {
-        if (!pin) return; papi('/api/osx/kids/disable', { method: 'POST', body: { token: S.token, pin: pin } }).then(function (p) { setPrefs(p); panelKids(el); toast('Snake OS Kids desactivado'); }).catch(function (e) { toast(errMsg(e)); });
-      });
-    };
+    el.querySelector('[data-off]').onclick = function () { disableKids(); };
+    el.querySelector('[data-off2]').onclick = function () { disableKids(); };
     el.querySelector('[data-chpin]').onclick = function () {
       var m = modal('<h2>🔑 Cambiar PIN</h2><div class="osx-field"><label>Nuevo PIN (4 a 8 números)</label><input class="osx-in osx-pin" type="password" inputmode="numeric" maxlength="8" data-p1></div><div class="osx-field"><label>Repite el PIN</label><input class="osx-in osx-pin" type="password" inputmode="numeric" maxlength="8" data-p2></div><div class="osx-err"></div><div class="row"><button type="button" class="osx-b" data-x>Cancelar</button><button type="button" class="osx-b pri" data-ok>Guardar</button></div>');
       m.box.querySelector('[data-x]').onclick = m.close;
@@ -839,7 +892,7 @@
   }
   function settingsVisible(secId) {
     if (!kids()) return true;
-    return ['apariencia', 'pantalla', 'salvapantallas', 'sonido', 'accesibilidad', 'kids', 'acerca'].indexOf(secId) >= 0;
+    return ['apariencia', 'pantalla', 'salvapantallas', 'sonido', 'accesibilidad', 'kids', 'ia', 'acerca'].indexOf(secId) >= 0;
   }
 
   /* ---------------- aplicar todo y ciclo de vida ---------------- */
@@ -886,6 +939,9 @@
     setPerfNote: function (t) { S.perfNote = t; },
     refresh: function () { return pull(); },
     lockParent: function () { relockParent(); S.otok = ''; },
+    disableKids: disableKids,
+    askParent: function (msg) { return askPin(msg || 'PIN del adulto'); },
+    parentToken: function () { return tokenValid() ? S.token : ''; },
     logos: { square: LOGO, wide: LOGO_WIDE }
   };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
