@@ -1518,7 +1518,7 @@
   }
   var CSS = [
     '.lsx-top .lsx-tb{background:rgba(255,255,255,.18);color:#fff;box-shadow:none;position:relative;padding:5px 8px}',
-    '.lsx-tb .bdg{position:absolute;top:-4px;right:-4px;min-width:17px;height:17px;border-radius:9px;background:#e74c3c;color:#fff;font:700 10.5px system-ui,sans-serif;font-style:normal;display:none;align-items:center;justify-content:center;padding:0 4px;box-shadow:0 1px 3px rgba(0,0,0,.3)}',
+    '.lsx-tb .bdg{position:absolute;top:-4px;right:-4px;min-width:17px;height:17px;border-radius:9px;background:#e74c3c;color:#fff;font:700 10.5px Inter,system-ui,sans-serif;font-style:normal;display:none;align-items:center;justify-content:center;padding:0 4px;box-shadow:0 1px 3px rgba(0,0,0,.3)}',
     '.lsx-modes button.dis{opacity:.4}',
     '.lsx-vbar{display:none;align-items:center;gap:8px;padding:5px 10px;background:linear-gradient(#fff6d8,#ffeeb8);border-bottom:1px solid #f0d98a;min-height:38px;flex-wrap:nowrap;overflow:hidden}',
     '.lsx-vbar .vt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}','.lsx-vbar .vt small{color:#8a6d1d;margin-left:4px}',
@@ -1539,7 +1539,7 @@
     ':where(.lsx) button{width:auto;min-width:0;margin:0;border:0;white-space:nowrap;line-height:1.2;text-transform:none;letter-spacing:normal;font-weight:inherit}',
     ':where(.lsx) input,:where(.lsx) select{width:auto;margin:0;min-width:0;max-width:100%}',
     ':where(.lsx) input[type=checkbox]{width:16px;height:16px;padding:0;flex:0 0 auto}',
-    '.lsx{position:relative;width:100%;height:100%;display:flex;flex-direction:column;font:13px system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#1d2b3a;background:#dff3ff;overflow:hidden;user-select:none;-webkit-user-select:none;outline:none}',
+    '.lsx{position:relative;width:100%;height:100%;display:flex;flex-direction:column;font:13px Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#1d2b3a;background:#dff3ff;overflow:hidden;user-select:none;-webkit-user-select:none;outline:none}',
     '.lsx *{box-sizing:border-box}','.lsx .snk-e-img{width:1.15em;height:1.15em;vertical-align:-0.2em}',
     '.lsx button{font:inherit;cursor:pointer;border:0;border-radius:10px;background:#fff;color:#1d2b3a;padding:5px 10px;box-shadow:0 1px 2px rgba(0,0,0,.12);transition:transform .08s,background .15s}',
     '.lsx button:active{transform:scale(.96)}',

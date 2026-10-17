@@ -55,7 +55,7 @@
     var old = document.getElementById('snkLocNotice'); if (old) old.remove();
     var box = document.createElement('div');
     box.id = 'snkLocNotice'; box.setAttribute('role', 'alertdialog');
-    box.style.cssText = 'position:fixed;left:50%;bottom:90px;transform:translateX(-50%);z-index:2147483646;max-width:min(440px,calc(100vw - 24px));padding:14px 16px;border-radius:16px;background:rgba(8,26,16,.97);color:#eafff0;border:1px solid rgba(52,209,122,.55);box-shadow:0 14px 40px rgba(0,0,0,.5);font:14px/1.4 system-ui,sans-serif;display:flex;flex-direction:column;gap:10px;';
+    box.style.cssText = 'position:fixed;left:50%;bottom:90px;transform:translateX(-50%);z-index:2147483646;max-width:min(440px,calc(100vw - 24px));padding:14px 16px;border-radius:16px;background:rgba(8,26,16,.97);color:#eafff0;border:1px solid rgba(52,209,122,.55);box-shadow:0 14px 40px rgba(0,0,0,.5);font:14px/1.4 Inter,system-ui,sans-serif;display:flex;flex-direction:column;gap:10px;';
     var t = document.createElement('div'); t.innerHTML = '<b>📡 Compartir ubicación activado</b><br>'; t.appendChild(document.createTextNode(NOTICE));
     var row = document.createElement('div'); row.style.cssText = 'display:flex;gap:8px;justify-content:flex-end;';
     var off = document.createElement('button'); off.type = 'button'; off.textContent = 'Desactivar';

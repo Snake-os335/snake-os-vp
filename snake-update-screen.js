@@ -18,7 +18,7 @@
     '<path d="M208 131l9 2-9 2" fill="none" stroke="#e5484d" stroke-width="2" stroke-linecap="round"/></svg>';
   function screen() {
     var d = document.createElement('div'); d.id = 'snkUpdating'; d.setAttribute('translate', 'no'); d.setAttribute('data-noi18n', '');
-    d.innerHTML = '<style>#snkUpdating{position:fixed;inset:0;z-index:2147483000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:radial-gradient(circle at 50% 35%,#1b6b3c,#06180d 70%);color:#eafff0;font-family:system-ui,sans-serif;text-align:center;transition:opacity .4s}' +
+    d.innerHTML = '<style>#snkUpdating{position:fixed;inset:0;z-index:2147483000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:radial-gradient(circle at 50% 35%,#1b6b3c,#06180d 70%);color:#eafff0;font-family:var(--snake-font,system-ui,sans-serif);text-align:center;transition:opacity .4s}' +
       '#snkUpdating .su-arrow{animation:suDown 1.2s ease-in-out infinite}@keyframes suDown{0%,100%{transform:translateY(-4px)}50%{transform:translateY(6px)}}' +
       '#snkUpdating h1{margin:0;font-size:1.6rem}#snkUpdating p{margin:0;opacity:.8;font-size:.9rem}</style>' + SVG +
       '<h1>' + (en() ? 'Snake OS! is updating...' : 'Snake OS! se está actualizando...') + '</h1>' +
@@ -43,9 +43,9 @@
     host.style.cssText = 'all:initial;position:fixed;left:0;right:0;bottom:calc(72px + env(safe-area-inset-bottom,0px));z-index:2147482000;display:flex;justify-content:center;pointer-events:none';
     var root = host.attachShadow ? host.attachShadow({ mode: 'open' }) : host;
     var msg = en() ? '🐍 There is a Snake OS! update — it will be installed the next time you open it.' : '🐍 Hay una actualización de Snake OS! — se instalará la próxima vez que lo abras.';
-    root.innerHTML = '<style>.t{pointer-events:auto;box-sizing:border-box;display:flex;align-items:flex-start;gap:10px;max-width:min(440px,calc(100vw - 24px));margin:0 12px;padding:10px 10px 10px 14px;background:rgba(10,30,18,.96);color:#eafff0;border:1px solid #2fae5f;border-radius:12px;box-shadow:0 6px 20px rgba(0,0,0,.35);font:14px/1.35 system-ui,-apple-system,Segoe UI,sans-serif;text-align:left}' +
+    root.innerHTML = '<style>.t{pointer-events:auto;box-sizing:border-box;display:flex;align-items:flex-start;gap:10px;max-width:min(440px,calc(100vw - 24px));margin:0 12px;padding:10px 10px 10px 14px;background:rgba(10,30,18,.96);color:#eafff0;border:1px solid #2fae5f;border-radius:12px;box-shadow:0 6px 20px rgba(0,0,0,.35);font:14px/1.35 Inter,system-ui,-apple-system,Segoe UI,sans-serif;text-align:left}' +
       '.m{flex:1 1 auto;min-width:0;white-space:normal;overflow-wrap:anywhere}' +
-      '.x{flex:0 0 auto;width:26px;height:26px;margin:-2px 0 0;padding:0;border:0;border-radius:8px;background:transparent;color:#eafff0;font:16px/26px system-ui,sans-serif;cursor:pointer;box-shadow:none;backdrop-filter:none}' +
+      '.x{flex:0 0 auto;width:26px;height:26px;margin:-2px 0 0;padding:0;border:0;border-radius:8px;background:transparent;color:#eafff0;font:16px/26px Inter,system-ui,sans-serif;cursor:pointer;box-shadow:none;backdrop-filter:none}' +
       '.x:hover{background:rgba(255,255,255,.12)}</style>' +
       '<div class="t" role="status"><span class="m"></span><button class="x" type="button">✕</button></div>';
     root.querySelector('.m').textContent = msg;

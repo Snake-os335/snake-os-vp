@@ -15,6 +15,9 @@
 <!-- ai-voice ?v=202610032030 -->
 <!-- tutorial ?v=202610092033 -->
 <!-- doganiero-chat-video-min-202610031850 -->
+<link rel="preload" as="font" type="font/woff2" crossorigin href="/static/assets/fonts/inter-latin-wght-normal.woff2">
+<link rel="preload" as="font" type="font/woff2" crossorigin href="/static/assets/fonts/outfit-latin-wght-normal.woff2">
+<link rel="stylesheet" href="/static/snake-fonts.css?v=202610180010">
 <link rel="manifest" href="/manifest.webmanifest?v=202610161925">
 <meta name="theme-color" content="#1f9e57">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -104,21 +107,21 @@ window.SNAKE_OS_CHANGES=[
 <script src="/static/snake-emoji-data.js?v=202610100831" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-emoji.js?v=202610140900" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-maps.js?v=202610141800" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
-<script src="/static/snake-locshare.js?v=202610141830"></script>
-<script src="/static/doganiero-bots-os.js?v=202610172300"></script>
-<script src="/static/doganiero-bots.js?v=202610172300"></script>
+<script src="/static/snake-locshare.js?v=202610180010"></script>
+<script src="/static/doganiero-bots-os.js?v=202610180010"></script>
+<script src="/static/doganiero-bots.js?v=202610180010"></script>
 <script src="/static/snake-bluetooth.js?v=202610111725" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-keypad.js?v=202610161800" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-game-matrix.js?v=202610112000" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
-<script src="/static/snake-racing.js?v=202610161920" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
-<script src="/static/los-snakes.js?v=202610172000"></script>
+<script src="/static/snake-racing.js?v=202610180010" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
+<script src="/static/los-snakes.js?v=202610180010"></script>
 <script src="/static/snake-i18n-dict.js?v=202610161940" defer></script>
-<script src="/static/snake-update-screen.js?v=202610161805"></script>
+<script src="/static/snake-update-screen.js?v=202610180010"></script>
 <script src="/static/snake-i18n.js?v=202610161800" defer></script>
 <script src="/static/snake-taskbar11.js?v=202610172345" defer></script>
-<script src="/static/snake-screensaver.js?v=202610172200" defer></script>
-<script src="/static/snake-osx.js?v=202610172300" defer></script>
-<script src="/static/snake-sidebar.js?v=202610172345" defer></script>
+<script src="/static/snake-screensaver.js?v=202610180010" defer></script>
+<script src="/static/snake-osx.js?v=202610180010" defer></script>
+<script src="/static/snake-sidebar.js?v=202610180010" defer></script>
 <style>
   :root{
     --text:#ffffff; --muted:rgba(255,255,255,0.82);
@@ -155,7 +158,7 @@ window.SNAKE_OS_CHANGES=[
       radial-gradient(ellipse 50% 40% at 88% 12%, rgba(60,200,255,0.5), transparent 55%),
       linear-gradient(125deg, #ff8a2b 0%, #ffd36a 28%, #7ee0c8 58%, #3db8f0 82%, #2a7dff 100%);
     color:var(--text);
-    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font-family:var(--snake-font);
   }
   .hidden{ display:none !important; }
 
@@ -1159,7 +1162,7 @@ window.SNAKE_OS_CHANGES=[
   .dc-loc-tiles img{ position:absolute; width:256px; height:256px; display:block; }
   .dc-loc-pin{
     position:absolute; z-index:2; transform:translate(-50%, calc(-100% - 6px));
-    background:#1fa85a; color:#fff; font:700 11px/1.2 system-ui,sans-serif;
+    background:#1fa85a; color:#fff; font:700 11px/1.2 Inter,system-ui,sans-serif;
     padding:3px 8px; border-radius:999px; white-space:nowrap;
     box-shadow:0 1px 4px rgba(0,0,0,.45);
   }
@@ -1545,7 +1548,7 @@ window.SNAKE_OS_CHANGES=[
   #boot .boot-brand span{
     color:#fff; font-weight:500; letter-spacing:-0.03em; line-height:1;
     font-size:clamp(1.7rem, 4vw, 2.35rem);
-    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font-family:var(--snake-font);
   }
   body.phone-mode #boot .boot-logo-img{ width:min(240px, 58vw); }
   body.phone-mode #boot .boot-brand{ gap:12px; }
@@ -1655,14 +1658,14 @@ window.SNAKE_OS_CHANGES=[
   #bootError .i9-bang{
     color:#fff; font-weight:800; line-height:0.8;
     font-size:clamp(5.5rem, 18vw, 9.5rem);
-    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font-family:var(--snake-font);
   }
   #i9OffView .i9-off-line,
   #bootError .i9-off-line{
     display:block; margin:0; max-width:16em;
     color:#fff; font-weight:650; text-align:center;
     font-size:clamp(1.45rem, 4.6vw, 2.6rem); line-height:1.25;
-    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font-family:var(--snake-font);
   }
   #bootError{
     position:fixed; inset:0; z-index:9990;
@@ -2392,7 +2395,7 @@ window.SNAKE_OS_CHANGES=[
   .prism-wrap{
     display:flex; height:100%; min-height:0; box-sizing:border-box;
     background:linear-gradient(145deg,#0a0e1a 0%,#12182c 55%,#16122a 100%);
-    color:#e8ecff; font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+    color:#e8ecff; font-family:var(--snake-font);
   }
   .prism-side{
     width:42%; min-width:220px; max-width:420px; display:flex; flex-direction:column;
@@ -2524,7 +2527,7 @@ window.SNAKE_OS_CHANGES=[
   #deskSnapGhost.on{ display:block; }
   #deskReservedZone{ position:absolute; z-index:3; pointer-events:none; box-sizing:border-box; border:2px dashed rgba(255,90,90,0.9); border-radius:16px; background:repeating-linear-gradient(45deg,rgba(255,80,80,0.14) 0 10px,rgba(255,80,80,0.04) 10px 20px); display:none; }
   #deskReservedZone.on{ display:block; }
-  #deskReservedZone.on::after{ content:'Zona reservada'; position:absolute; left:8px; top:6px; font:600 11px system-ui,sans-serif; color:#fff; text-shadow:0 1px 2px #000; }
+  #deskReservedZone.on::after{ content:'Zona reservada'; position:absolute; left:8px; top:6px; font:600 11px Inter,system-ui,sans-serif; color:#fff; text-shadow:0 1px 2px #000; }
   .desktop-icon.trash-drop-target,
   .desktop-icon[data-app="trash"].trash-hot{
     background:rgba(255,80,80,0.28) !important;

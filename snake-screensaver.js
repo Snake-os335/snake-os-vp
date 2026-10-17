@@ -34,7 +34,7 @@
     s.textContent =
       '#snkSaver{position:fixed;inset:0;z-index:2147483000;background:#020403;opacity:0;transition:opacity .8s ease;cursor:none;overflow:hidden}' +
       '#snkSaver.on{opacity:1}body.osx-work #snkSaver{transition:none;opacity:1}' +
-      '.ss-stage{position:absolute;inset:0;overflow:hidden;background:radial-gradient(circle at 50% 45%,#0d2a1a 0,#050c08 60%,#020403 100%);display:flex;align-items:center;justify-content:center;color:#fff;font-family:system-ui,sans-serif}' +
+      '.ss-stage{position:absolute;inset:0;overflow:hidden;background:radial-gradient(circle at 50% 45%,#0d2a1a 0,#050c08 60%,#020403 100%);display:flex;align-items:center;justify-content:center;color:#fff;font-family:var(--snake-font,system-ui,sans-serif)}' +
       '.ss-stage .ss-wrap{width:min(46%,46vmin,420px);aspect-ratio:1;animation:ssFloat 9s ease-in-out infinite;filter:drop-shadow(0 18px 40px rgba(0,0,0,.6)) drop-shadow(0 0 30px rgba(61,220,132,.18))}' +
       '.ss-stage.small .ss-wrap{width:58%;filter:none}' +
       '.ss-stage svg{width:100%;height:100%;display:block}' +

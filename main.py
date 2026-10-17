@@ -8845,8 +8845,13 @@ def snake_os_matrix_ino():
     )
 
 
+import mimetypes as _snk_mimetypes
+_snk_mimetypes.add_type("font/woff2", ".woff2")
+_snk_mimetypes.add_type("font/woff", ".woff")
+
+
 class _PublicStaticFiles(StaticFiles):
-    ALLOWED_DIRS = {"", "assets"}
+    ALLOWED_DIRS = {"", "assets", "assets/fonts"}
     ALLOWED_EXT = {
         "js", "mjs", "css", "png", "jpg", "jpeg", "gif", "webp", "svg", "ico",
         "mp3", "m4a", "ogg", "wav", "mp4", "webm", "woff", "woff2", "ttf", "webmanifest",

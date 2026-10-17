@@ -2,14 +2,14 @@
 (function () {
   var css = document.createElement("style");
   css.textContent =
-    ".where-app{display:flex;flex-direction:column;gap:12px;height:100%;min-height:240px;padding:18px 16px;background:#07140d;color:#f4fff8;font-family:ui-sans-serif,system-ui,sans-serif;box-sizing:border-box;overflow:auto;}" +
+    ".where-app{display:flex;flex-direction:column;gap:12px;height:100%;min-height:240px;padding:18px 16px;background:#07140d;color:#f4fff8;font-family:var(--snake-font,ui-sans-serif,system-ui,sans-serif);box-sizing:border-box;overflow:auto;}" +
     ".where-app h2{margin:0;font-size:1.35rem;}" +
     ".where-app input{width:100%;box-sizing:border-box;border:0;border-radius:12px;padding:12px 14px;font-size:1rem;background:rgba(255,255,255,0.12);color:#fff;}" +
     ".where-app button{border:0;border-radius:12px;padding:10px 14px;font-weight:700;background:#1f9e57;color:#fff;cursor:pointer;}" +
     ".where-out{margin:0;font-size:1.35rem;font-weight:800;line-height:1.3;}" +
     ".where-note{margin:0;color:rgba(244,255,248,0.72);font-size:0.92rem;}" +
     ".where-map{height:240px;min-height:240px;border-radius:12px;overflow:hidden;background:#10261a;}" +
-    ".where-map.leaflet-container{width:100%;height:240px;font:12px/1.4 system-ui,sans-serif;}";
+    ".where-map.leaflet-container{width:100%;height:240px;font:12px/1.4 Inter,system-ui,sans-serif;}";
   document.head.appendChild(css);
 
   var leafletPromise = null;

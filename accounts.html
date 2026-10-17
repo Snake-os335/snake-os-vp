@@ -22,7 +22,7 @@
     min-height:100%;
     background:linear-gradient(160deg,#07150d,#0e2d1b 55%,#07150d);
     color:var(--text);
-    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font-family:var(--snake-font,system-ui,sans-serif);
   }
   .blob{ position:fixed; border-radius:50%; filter:blur(70px); z-index:0; opacity:0.5; pointer-events:none; }
   .blob1{ width:420px; height:420px; top:-120px; left:-100px; background:radial-gradient(circle at 30% 30%,#4be38a,#1f9e57 60%,transparent 75%); }
@@ -90,6 +90,7 @@
     border-radius:12px;
   }
 </style>
+<link rel="stylesheet" href="/static/snake-fonts.css?v=202610180010">
 </head>
 <body>
   <div class="blob blob1"></div>

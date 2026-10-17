@@ -257,7 +257,7 @@
   }
 
   var CSS = '' +
-    '.srx{container-type:size;--sat:env(safe-area-inset-top,0px);--sar:env(safe-area-inset-right,0px);--sab:env(safe-area-inset-bottom,0px);--sal:env(safe-area-inset-left,0px);--btn:clamp(44px,12.5cqw,64px);position:relative;height:100%;width:100%;background:#0b0d12;overflow:hidden;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#fff;outline:none;user-select:none;-webkit-user-select:none;touch-action:none}' +
+    '.srx{container-type:size;--sat:env(safe-area-inset-top,0px);--sar:env(safe-area-inset-right,0px);--sab:env(safe-area-inset-bottom,0px);--sal:env(safe-area-inset-left,0px);--btn:clamp(44px,12.5cqw,64px);position:relative;height:100%;width:100%;background:#0b0d12;overflow:hidden;font-family:var(--snake-font,system-ui,sans-serif);color:#fff;outline:none;user-select:none;-webkit-user-select:none;touch-action:none}' +
     '.srx canvas{position:absolute;inset:0;width:100%;height:100%;display:block}' +
     '.srx-ov{position:absolute;inset:0;display:flex;align-items:safe center;justify-content:center;overflow:auto;padding:calc(10px + var(--sat)) calc(10px + var(--sar)) calc(10px + var(--sab)) calc(10px + var(--sal));box-sizing:border-box;background:radial-gradient(circle at 50% 30%,rgba(20,30,50,.75),rgba(5,6,10,.92));z-index:5}' +
     '.srx-card{text-align:center;max-width:420px;width:100%;box-sizing:border-box;margin:auto;padding:clamp(14px,4cqmin,22px) clamp(14px,5cqw,26px);border-radius:18px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);backdrop-filter:blur(8px);box-shadow:0 20px 60px rgba(0,0,0,.5)}' +

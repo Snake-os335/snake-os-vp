@@ -18,8 +18,34 @@ var RING_SRC = '/static/ringtone.mp3?v=202610141730';
 var CALL_ICON = '/static/assets/phone-icon.png';
 
 self.addEventListener('install', function () { self.skipWaiting(); });
-/* Este SW no cachea nada (sin 'fetch'): al activarse borra cachés antiguas por si quedó alguna. */
-self.addEventListener('activate', function (event) { event.waitUntil((self.caches && caches.keys ? caches.keys().then(function (ks) { return Promise.all(ks.map(function (k) { return caches.delete(k); })); }) : Promise.resolve()).catch(function () {}).then(function () { return self.clients.claim(); })); });
+/* Este SW solo cachea las fuentes de Snake OS (/static/assets/fonts/*.woff2, caché FONT_CACHE).
+ * Al activarse borra cualquier otra caché antigua. Todo lo demás va directo a la red. */
+var FONT_CACHE = 'snakeos-fonts-v1';
+var FONT_PRECACHE = [
+  '/static/assets/fonts/inter-latin-wght-normal.woff2',
+  '/static/assets/fonts/outfit-latin-wght-normal.woff2'
+];
+self.addEventListener('activate', function (event) {
+  event.waitUntil((self.caches && caches.keys ? caches.keys().then(function (ks) { return Promise.all(ks.map(function (k) { return k === FONT_CACHE ? null : caches.delete(k); })); }) : Promise.resolve())
+    .then(function () { return self.caches ? caches.open(FONT_CACHE).then(function (c) { return c.addAll(FONT_PRECACHE); }) : null; })
+    .catch(function () {}).then(function () { return self.clients.claim(); }));
+});
+self.addEventListener('fetch', function (event) {
+  var req = event.request;
+  if (req.method !== 'GET' || !self.caches) return;
+  var u;
+  try { u = new URL(req.url); } catch (e) { return; }
+  if (u.origin !== self.location.origin || u.pathname.indexOf('/static/assets/fonts/') !== 0 || !/\.woff2$/.test(u.pathname)) return;
+  event.respondWith(caches.open(FONT_CACHE).then(function (c) {
+    return c.match(u.pathname).then(function (hit) {
+      if (hit) return hit;
+      return fetch(req).then(function (res) {
+        if (res && res.ok) { try { c.put(u.pathname, res.clone()); } catch (e) {} }
+        return res;
+      });
+    });
+  }).catch(function () { return fetch(req); }));
+});
 
 function showSnakeNotification(title, opts) {
   function attempt(options) { return self.registration.showNotification(title, options); }

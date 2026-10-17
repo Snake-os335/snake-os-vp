@@ -2,7 +2,7 @@
 (function () {
   var css = document.createElement('style');
   css.textContent =
-    '.clima-app{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;height:100%;min-height:220px;padding:28px 18px;background:#07140d;color:#f4fff8;font-family:ui-sans-serif,system-ui,sans-serif;text-align:center;}' +
+    '.clima-app{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;height:100%;min-height:220px;padding:28px 18px;background:#07140d;color:#f4fff8;font-family:var(--snake-font,ui-sans-serif,system-ui,sans-serif);text-align:center;}' +
     '.clima-deg{font-size:4.2rem;font-weight:800;line-height:1;letter-spacing:-0.04em;color:#fff;}' +
     '.clima-deg span{font-size:1.6rem;font-weight:700;color:#7CFFB0;}' +
     '.clima-deg.country{font-size:1.7rem;letter-spacing:0;line-height:1.25;max-width:300px;}' +

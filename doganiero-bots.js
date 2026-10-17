@@ -12,7 +12,7 @@
   var ST = { 'en cola': '⏳ en cola', 'trabajando': '⚙️ trabajando', 'hecho': '✅ hecho', 'error': '❌ error', 'cancelada': '🚫 cancelada' };
   var css = document.createElement('style');
   css.textContent =
-    '.dbots{display:flex;height:100%;min-height:0;background:#07140d;color:#eafff0;font-family:ui-sans-serif,system-ui,sans-serif;font-size:.9rem}' +
+    '.dbots{display:flex;height:100%;min-height:0;background:#07140d;color:#eafff0;font-family:var(--snake-font,ui-sans-serif,system-ui,sans-serif);font-size:.9rem}' +
     '.dbots-side{width:210px;flex-shrink:0;border-right:1px solid rgba(157,255,194,.15);display:flex;flex-direction:column;overflow:auto}' +
     '.dbots-side h3{margin:12px 12px 6px;font-size:1rem}' +
     '.dbots-bot{display:flex;gap:8px;align-items:center;margin:4px 8px;padding:8px;border-radius:12px;cursor:pointer;border:2px solid transparent}' +
@@ -72,7 +72,7 @@
   /* ===== Diseño según plantilla «bots_creados» (2026-10-14): 3 columnas, blanco + panel degradado ===== */
   var css2 = document.createElement('style');
   css2.textContent = [
-    '.dbots.dbx{background:#fff;color:#111;font-family:"Open Sans","Segoe UI",ui-sans-serif,system-ui,sans-serif;font-size:.92rem}',
+    '.dbots.dbx{background:#fff;color:#111;font-family:var(--snake-font,"Open Sans",system-ui,sans-serif);font-size:.92rem}',
     '.dbx .dbots-side{width:240px;background:#fff;border-right:1px solid #9a9a9a;padding:10px 0 10px;position:relative}',
     '.dbx .dbots-side h3{margin:14px 16px 10px;font-size:1.35rem;font-weight:800;color:#111;padding-right:64px}',
     '.dbx-star{display:inline-grid;place-items:center;position:relative;flex-shrink:0}',

@@ -2,7 +2,7 @@
 (function () {
   var css = document.createElement('style');
   css.textContent =
-    '.ask-app{display:flex;flex-direction:column;gap:10px;height:100%;padding:14px;box-sizing:border-box;background:#07140d;color:#f4fff8;font-family:ui-sans-serif,system-ui,sans-serif;}' +
+    '.ask-app{display:flex;flex-direction:column;gap:10px;height:100%;padding:14px;box-sizing:border-box;background:#07140d;color:#f4fff8;font-family:var(--snake-font,ui-sans-serif,system-ui,sans-serif);}' +
     '.ask-app h2{margin:0;font-size:1.2rem;}' +
     '.ask-logo{width:84px;height:84px;object-fit:contain;align-self:flex-start;}' +
     '.ask-app textarea{width:100%;box-sizing:border-box;min-height:72px;border:0;border-radius:12px;padding:10px;background:rgba(255,255,255,0.12);color:#fff;}' +
