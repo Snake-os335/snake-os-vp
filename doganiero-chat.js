@@ -144,6 +144,7 @@
     chat: '💬 Doganiero Chat', 'doganiero-book': '📗 Doganiero Book', metaverse: '🌐 Doganiero Metaverse',
     phone: '📞 Teléfono', 'doganiero-tv': '📺 Doganiero TV', desk: '🖥️ Doganiero Desk', store: '🛍️ Doganiero Store',
     cloud: '☁️ Doganiero Cloud',
+    'los-snakes': '🐍 Los Snakes',
     'account-request': 'Solicitud de cuenta'
   };
   function notifAppKey(n) {

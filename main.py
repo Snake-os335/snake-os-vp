@@ -5462,6 +5462,472 @@ async def los_snakes_save(request: Request, user=Depends(require_user)):
     return {"ok": True}
 
 
+# --- Los Snakes: visitas entre amigos (cuentas añadidas), buzón y visita en vivo ---
+_LS_GIFTS = {"flores": 30, "raton": 40, "planta": 80, "lampara": 120, "arbol": 180, "sobre": 200, "piedra": 300, "radio": 300}
+_LS_NOTES = [
+    "¡Qué casa tan bonita! 🏡",
+    "Gracias por dejarme pasar, me lo he pasado genial. 🐍",
+    "¡Tu sofá es comodísimo! 🛋️",
+    "Volveré pronto. ¡Sssaludos! 👋",
+    "Te dejo un regalito. 🎁",
+    "¡Feliz día! ☀️",
+]
+_ls_lock = threading.Lock()
+_LS_HOST_BASE = 1_000_000_000_000
+_LS_GUEST_BASE = 2_000_000_000_000
+
+
+def _ls_social_path(uid: int) -> FsPath:
+    return _LOS_SNAKES_DIR / f"{int(uid)}.social.json"
+
+
+def _ls_social_load(uid: int) -> dict:
+    data: dict = {}
+    path = _ls_social_path(uid)
+    if path.is_file():
+        try:
+            data = json.loads(path.read_text("utf-8")) or {}
+        except Exception:
+            data = {}
+    if data.get("allow") not in ("friends", "off"):
+        data["allow"] = "friends"
+    if not isinstance(data.get("mail"), list):
+        data["mail"] = []
+    if not isinstance(data.get("seen"), dict):
+        data["seen"] = {}
+    return data
+
+
+def _ls_social_store(uid: int, data: dict) -> None:
+    _LOS_SNAKES_DIR.mkdir(parents=True, exist_ok=True)
+    path = _ls_social_path(uid)
+    tmp = path.with_suffix(".stmp")
+    tmp.write_text(json.dumps(data, ensure_ascii=False), "utf-8")
+    tmp.replace(path)
+
+
+def _ls_game(uid: int) -> dict | None:
+    path = _LOS_SNAKES_DIR / f"{int(uid)}.json"
+    if not path.is_file():
+        return None
+    try:
+        sv = json.loads(path.read_text("utf-8"))
+        st = sv.get("S") if isinstance(sv, dict) else None
+        return st if isinstance(st, dict) and isinstance(st.get("snakes"), list) else None
+    except Exception:
+        return None
+
+
+def _ls_kids(uid: int):
+    """Política de Snake OS Kids (osx_extras) si existe en esta versión; si no, None."""
+    try:
+        import osx_extras as _ox  # rama feature/snakeos-oct17
+        return _ox.kids_policy(int(uid))
+    except Exception:
+        return None
+
+
+def _ls_kids_log(uid: int, detail: str) -> None:
+    try:
+        import osx_extras as _ox
+        _ox.log_blocked(int(uid), "online", detail[:120])
+    except Exception:
+        pass
+
+
+def _ls_email(row) -> str:
+    try:
+        return str(row["email"] or "").strip().lower()
+    except Exception:
+        return ""
+
+
+def _ls_check_visit(me_id: int, host_id: int) -> tuple[bool, str]:
+    """¿Puede me_id visitar (o escribir en el buzón de) host_id? Devuelve (ok, motivo)."""
+    me_id, host_id = int(me_id), int(host_id)
+    if me_id == host_id:
+        return False, "No puedes visitarte a ti mismo."
+    host = db.get_user_by_id(host_id)
+    me_row = db.get_user_by_id(me_id)
+    if not host or not me_row:
+        return False, "Esa cuenta no existe."
+    if not added_accounts.has(me_id, host_id):
+        return False, "Solo puedes visitar a tus amigos (cuentas añadidas en Chat/Teléfono)."
+    kp = _ls_kids(me_id)
+    if kp is not None and kp.get("online") != "allow":
+        if kp.get("online") == "block" or _ls_email(host) not in set(kp.get("friends") or []):
+            _ls_kids_log(me_id, "Los Snakes: visita a " + _ls_email(host))
+            return False, ("Snake OS Kids: las visitas online están bloqueadas." if kp.get("online") == "block"
+                           else "Snake OS Kids: solo puedes visitar a amigos aprobados por un adulto.")
+    hk = _ls_kids(host_id)
+    if hk is not None and hk.get("online") != "allow":
+        if hk.get("online") == "block" or _ls_email(me_row) not in set(hk.get("friends") or []):
+            return False, "Ahora mismo no acepta visitas."
+    if _ls_social_load(host_id).get("allow") == "off":
+        return False, "Tiene las visitas desactivadas."
+    if _ls_game(host_id) is None:
+        return False, "Aún no ha empezado su partida de Los Snakes."
+    return True, ""
+
+
+def _ls_family(st: dict) -> dict:
+    objs = [o for o in (st.get("objects") or []) if isinstance(o, dict) and o.get("t") not in ("huevo", "piel", "hallazgo")]
+    members = []
+    for sn in (st.get("snakes") or [])[:8]:
+        if isinstance(sn, dict):
+            members.append({"name": str(sn.get("name") or "")[:16], "age": str(sn.get("age") or "adulto")[:8],
+                            "color": str(sn.get("color") or "#3498db")[:9], "pattern": str(sn.get("pattern") or "lisa")[:12]})
+    try:
+        day = int(float(st.get("time") or 0) // 1440) + 1
+    except Exception:
+        day = 1
+    return {"name": str(st.get("name") or "")[:18], "members": members, "objects": len(objs), "day": day,
+            "world": {"objects": [{k: o.get(k) for k in ("id", "t", "x", "y", "r", "col") if k in o} for o in objs][:120],
+                      "floor": (st.get("floor") or [])[:400], "walls": (st.get("walls") or [])[:200],
+                      "doors": (st.get("doors") or [])[:40], "wallc": st.get("wallc") if isinstance(st.get("wallc"), dict) else {}}}
+
+
+def _ls_clean(v, depth: int = 0):
+    if isinstance(v, bool) or v is None:
+        return v
+    if isinstance(v, (int, float)):
+        return v if math.isfinite(float(v)) else 0
+    if isinstance(v, str):
+        return v[:140]
+    if depth >= 3:
+        return None
+    if isinstance(v, list):
+        return [_ls_clean(x, depth + 1) for x in v[:12]]
+    if isinstance(v, dict):
+        return {str(k)[:12]: _ls_clean(x, depth + 1) for k, x in list(v.items())[:24]}
+    return None
+
+
+async def _ls_notify(to_id: int, title: str, body: str) -> None:
+    try:
+        notif = db.create_notification(user_id=int(to_id), kind="los_snakes", title=title[:200], body=body[:500],
+                                       data={"app": "los-snakes"}, created_at=time.time())
+        unread = db.count_unread_notifications(user_id=int(to_id))
+        await chat_hub.send_to_user(int(to_id), {"type": "notification", "notification": notif, "unread": unread})
+        _queue_notif_push(int(to_id), notif)
+    except Exception as exc:
+        print(f"[los-snakes] notify {to_id}: {exc!r}", flush=True)
+
+
+def _ls_add_mail(host_id: int, item: dict) -> None:
+    with _ls_lock:
+        soc = _ls_social_load(host_id)
+        soc["mail"] = (soc["mail"] + [item])[-40:]
+        _ls_social_store(host_id, soc)
+
+
+class _LosSnakesHub:
+    """Presencia y visitas en vivo: el invitado envía su serpiente, el anfitrión el estado de su casa."""
+
+    def __init__(self) -> None:
+        self.conns: dict[int, set] = {}
+        self.info: dict[Any, dict] = {}
+        self.rooms: dict[int, dict[int, Any]] = {}
+
+    def online(self, uid: int) -> bool:
+        return bool(self.conns.get(int(uid)))
+
+    async def send(self, ws, msg: dict) -> None:
+        try:
+            await ws.send_text(json.dumps(msg, ensure_ascii=False))
+        except Exception:
+            pass
+
+    async def to_user(self, uid: int, msg: dict) -> None:
+        for ws in list(self.conns.get(int(uid), ())):
+            await self.send(ws, msg)
+
+    async def connect(self, ws, uid: int, name: str) -> None:
+        self.conns.setdefault(uid, set()).add(ws)
+        self.info[ws] = {"uid": uid, "name": name, "visiting": None, "snake": None, "rate": [time.time(), 0]}
+        await self.send(ws, {"t": "hello", "you": uid})
+        room = self.rooms.get(uid) or {}
+        for guid, gws in list(room.items()):
+            gi = self.info.get(gws) or {}
+            await self.send(ws, {"t": "guest_join", "from": guid, "name": gi.get("name"), "snake": gi.get("snake")})
+            await self.send(gws, {"t": "host_on"})
+
+    async def leave(self, ws) -> None:
+        inf = self.info.get(ws)
+        if not inf or not inf.get("visiting"):
+            return
+        host, uid = int(inf["visiting"]), inf["uid"]
+        inf["visiting"] = None
+        room = self.rooms.get(host)
+        if room and room.get(uid) is ws:
+            room.pop(uid, None)
+            if not room:
+                self.rooms.pop(host, None)
+            await self.to_user(host, {"t": "guest_leave", "from": uid})
+
+    async def disconnect(self, ws) -> None:
+        inf = self.info.get(ws)
+        if not inf:
+            return
+        await self.leave(ws)
+        self.info.pop(ws, None)
+        uid = inf["uid"]
+        bucket = self.conns.get(uid)
+        if bucket:
+            bucket.discard(ws)
+            if not bucket:
+                self.conns.pop(uid, None)
+                for gws in list((self.rooms.get(uid) or {}).values()):
+                    await self.send(gws, {"t": "host_off"})
+
+    async def handle(self, ws, msg: dict) -> None:
+        inf = self.info.get(ws)
+        if not inf:
+            return
+        now = time.time()
+        rate = inf["rate"]
+        if now - rate[0] > 1.0:
+            rate[0], rate[1] = now, 0
+        rate[1] += 1
+        if rate[1] > 25:
+            return
+        uid, kind = inf["uid"], msg.get("t")
+        if kind == "visit":
+            try:
+                host = int(msg.get("host"))
+            except Exception:
+                return
+            ok, reason = _ls_check_visit(uid, host)
+            if not ok:
+                await self.send(ws, {"t": "visit_err", "detail": reason})
+                return
+            await self.leave(ws)
+            room = self.rooms.setdefault(host, {})
+            old = room.get(uid)
+            if old is not None and old is not ws and old in self.info:
+                self.info[old]["visiting"] = None
+            inf["visiting"], inf["snake"] = host, _ls_clean(msg.get("snake"))
+            room[uid] = ws
+            await self.send(ws, {"t": "visit_ok", "host": host, "live": self.online(host)})
+            await self.to_user(host, {"t": "guest_join", "from": uid, "name": inf["name"], "snake": inf["snake"]})
+        elif kind == "leave":
+            await self.leave(ws)
+        elif kind == "g" and inf.get("visiting"):
+            await self.to_user(int(inf["visiting"]), {"t": "g", "from": uid, "s": _ls_clean(msg.get("s"))})
+        elif kind == "h":
+            data = {"t": "h", "s": _ls_clean(msg.get("s"))}
+            for gws in list((self.rooms.get(uid) or {}).values()):
+                await self.send(gws, data)
+        elif kind == "soc":
+            out = {"t": "soc", "from": uid, "id": str(msg.get("id") or "")[:12], "ok": bool(msg.get("ok")),
+                   "hs": _ls_clean(msg.get("hs")), "gs": _ls_clean(msg.get("gs")), "by": str(msg.get("by") or "")[:6]}
+            if inf.get("visiting"):
+                await self.to_user(int(inf["visiting"]), out)
+            else:
+                try:
+                    to = int(msg.get("to"))
+                except Exception:
+                    return
+                gws = (self.rooms.get(uid) or {}).get(to)
+                if gws is not None:
+                    await self.send(gws, out)
+
+
+_ls_hub = _LosSnakesHub()
+
+
+@app.websocket("/api/los-snakes/ws")
+async def los_snakes_ws(websocket: WebSocket):
+    await websocket.accept()
+    user_row = user_from_session(websocket.cookies.get(COOKIE_NAME))
+    if not user_row:
+        try:
+            await websocket.send_text(json.dumps({"t": "error", "detail": "Inicia sesión"}, ensure_ascii=False))
+        except Exception:
+            pass
+        await _ws_close_quiet(websocket, 4401)
+        return
+    pub = db.user_public(user_row)
+    uid = int(user_row["id"])
+    name = str(pub.get("name") or str(pub.get("email") or "").split("@")[0] or "Amigo")[:40]
+    await _ls_hub.connect(websocket, uid, name)
+    try:
+        while True:
+            raw = await websocket.receive_text()
+            if len(raw) > 8000:
+                continue
+            try:
+                msg = json.loads(raw)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(msg, dict):
+                await _ls_hub.handle(websocket, msg)
+    except WebSocketDisconnect:
+        pass
+    except Exception as exc:
+        print(f"[los-snakes-ws] error {uid}: {exc!r}", flush=True)
+    finally:
+        await _ls_hub.disconnect(websocket)
+
+
+@app.get("/api/los-snakes/social")
+def los_snakes_social(user=Depends(require_user)):
+    uid = int(user["id"])
+    soc = _ls_social_load(uid)
+    kp = _ls_kids(uid)
+    return {"allow": soc["allow"], "mail": soc["mail"], "kids": kp is not None, "notes": _LS_NOTES, "gifts": _LS_GIFTS}
+
+
+@app.put("/api/los-snakes/social")
+def los_snakes_social_set(payload: dict, user=Depends(require_user)):
+    uid = int(user["id"])
+    allow = payload.get("allow") if isinstance(payload, dict) else None
+    if allow not in ("friends", "off"):
+        raise HTTPException(status_code=400, detail="Valor no válido")
+    with _ls_lock:
+        soc = _ls_social_load(uid)
+        soc["allow"] = allow
+        _ls_social_store(uid, soc)
+    return {"ok": True, "allow": allow}
+
+
+@app.get("/api/los-snakes/friends")
+def los_snakes_friends(user=Depends(require_user)):
+    uid = int(user["id"])
+    out = []
+    for row in added_accounts.list_for(uid):
+        fid = int(row["id"])
+        ok, reason = _ls_check_visit(uid, fid)
+        st = _ls_game(fid)
+        item = {"id": fid, "name": str(row.get("name") or "")[:40], "avatar": str(row.get("avatar") or "🐶")[:8],
+                "online": _ls_hub.online(fid), "can": ok, "reason": reason}
+        if ok and st is not None:
+            item["family"] = _ls_family(st)
+        out.append(item)
+    kp = _ls_kids(uid)
+    return {"friends": out, "kids": kp is not None}
+
+
+class LosSnakesVisitBody(BaseModel):
+    host: int
+    snake: str = ""
+
+
+@app.post("/api/los-snakes/visit")
+async def los_snakes_visit(body: LosSnakesVisitBody, user=Depends(require_user)):
+    """Casa del amigo en solo lectura (desde su partida en el servidor). Nunca se escribe en ella."""
+    uid = int(user["id"])
+    ok, reason = _ls_check_visit(uid, int(body.host))
+    if not ok:
+        raise HTTPException(status_code=403, detail=reason)
+    st = _ls_game(int(body.host)) or {}
+    host = db.get_user_by_id(int(body.host))
+    fam = _ls_family(st)
+    lo = _LS_GUEST_BASE + uid * 1_000_000
+    snakes = []
+    for sn in (st.get("snakes") or [])[:8]:
+        if not isinstance(sn, dict):
+            continue
+        rel_me = {}
+        for k, r in (sn.get("rel") or {}).items():
+            try:
+                kk = int(k)
+            except Exception:
+                continue
+            if lo <= kk < lo + 1_000_000 and isinstance(r, dict):
+                rel_me[str(kk - lo)] = {"fr": r.get("fr", 0), "ro": r.get("ro", 0)}
+        snakes.append({
+            "id": sn.get("id"), "name": str(sn.get("name") or "")[:16], "color": str(sn.get("color") or "#3498db")[:9],
+            "pattern": str(sn.get("pattern") or "lisa")[:12], "age": str(sn.get("age") or "adulto")[:8],
+            "traits": [str(t)[:12] for t in (sn.get("traits") or [])[:3]], "needs": _ls_clean(sn.get("needs") or {}),
+            "mood": sn.get("mood", 60), "x": sn.get("x", 6.5), "y": sn.get("y", 7.5), "fx": sn.get("fx", 1),
+            "away": bool(sn.get("away")), "partner": sn.get("partner"), "relMe": rel_me,
+        })
+    snake_name = " ".join(str(body.snake or "").split())[:16] or "su serpiente"
+    who = str(user["name"] or "Un amigo")[:40]
+    now = time.time()
+    notify = False
+    with _ls_lock:
+        soc = _ls_social_load(int(body.host))
+        last = float(soc["seen"].get(str(uid)) or 0)
+        if now - last > 1800:
+            soc["seen"][str(uid)] = now
+            soc["mail"] = (soc["mail"] + [{"id": secrets.token_hex(6), "kind": "visit", "from": uid, "fromName": who,
+                                           "snake": snake_name, "at": now}])[-40:]
+            _ls_social_store(int(body.host), soc)
+            notify = True
+    if notify:
+        await _ls_notify(int(body.host), "🐍 Los Snakes: ¡tienes visita!",
+                         f"{who} ha venido a tu casa con {snake_name}." + ("" if _ls_hub.online(int(body.host)) else " Lo verás en tu buzón."))
+        await _ls_hub.to_user(int(body.host), {"t": "mail"})
+    return {"ok": True, "host": {"id": int(body.host), "name": str(host["name"] if host else "")[:40]},
+            "family": fam["name"], "world": fam["world"], "snakes": snakes, "live": _ls_hub.online(int(body.host))}
+
+
+class LosSnakesMailBody(BaseModel):
+    host: int
+    kind: str
+    item: str = ""
+    text: str = ""
+    snake: str = ""
+
+
+@app.post("/api/los-snakes/mail")
+async def los_snakes_mail(body: LosSnakesMailBody, user=Depends(require_user)):
+    """Regalo o nota en el buzón del amigo. El regalo lo paga el invitado en su propia partida."""
+    uid = int(user["id"])
+    ok, reason = _ls_check_visit(uid, int(body.host))
+    if not ok:
+        raise HTTPException(status_code=403, detail=reason)
+    kind = body.kind
+    text = " ".join(str(body.text or "").split())[:200]
+    if kind == "gift":
+        if body.item not in _LS_GIFTS:
+            raise HTTPException(status_code=400, detail="Regalo no válido")
+    elif kind == "note":
+        if not text:
+            raise HTTPException(status_code=400, detail="La nota está vacía")
+        if _ls_kids(uid) is not None and text not in _LS_NOTES:
+            _ls_kids_log(uid, "Los Snakes: nota libre")
+            raise HTTPException(status_code=403, detail="Snake OS Kids: elige una de las notas preparadas.")
+    else:
+        raise HTTPException(status_code=400, detail="Tipo no válido")
+    now = time.time()
+    with _ls_lock:
+        soc = _ls_social_load(int(body.host))
+        recent = [m for m in soc["mail"] if m.get("from") == uid and m.get("kind") != "visit" and now - float(m.get("at") or 0) < 86400]
+        if len(recent) >= 10:
+            raise HTTPException(status_code=429, detail="Ya has dejado muchas cosas hoy en ese buzón.")
+        who = str(user["name"] or "Un amigo")[:40]
+        item = {"id": secrets.token_hex(6), "kind": kind, "from": uid, "fromName": who,
+                "snake": " ".join(str(body.snake or "").split())[:16], "at": now}
+        if kind == "gift":
+            item["item"] = body.item
+        else:
+            item["text"] = text
+        soc["mail"] = (soc["mail"] + [item])[-40:]
+        _ls_social_store(int(body.host), soc)
+    await _ls_notify(int(body.host), "📬 Los Snakes: algo en tu buzón",
+                     f"{who} te ha dejado " + ("un regalo." if kind == "gift" else "una nota.") + " Ábrelo al volver a casa.")
+    await _ls_hub.to_user(int(body.host), {"t": "mail"})
+    return {"ok": True, "price": _LS_GIFTS.get(body.item, 0) if kind == "gift" else 0}
+
+
+@app.post("/api/los-snakes/mail/claim")
+def los_snakes_mail_claim(payload: dict, user=Depends(require_user)):
+    uid = int(user["id"])
+    ids = payload.get("ids") if isinstance(payload, dict) else None
+    if not isinstance(ids, list):
+        raise HTTPException(status_code=400, detail="Faltan ids")
+    want = {str(i) for i in ids[:60]}
+    with _ls_lock:
+        soc = _ls_social_load(uid)
+        taken = [m for m in soc["mail"] if str(m.get("id")) in want]
+        soc["mail"] = [m for m in soc["mail"] if str(m.get("id")) not in want]
+        _ls_social_store(uid, soc)
+    return {"ok": True, "items": taken}
+
+
 # ===== DOGANIERO CHAT + NOTIFICATIONS =====
 
 class ChatHub:
