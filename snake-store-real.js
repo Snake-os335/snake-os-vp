@@ -11,7 +11,7 @@
 (function () {
   'use strict';
   if (window.SnakeRealApps) return;
-  var VER = '202610212100', AS = '/static/assets/';
+  var VER = '202610212130', AS = '/static/assets/';
   function en() { try { return !!(window.snakeI18n && window.snakeI18n.lang === 'en'); } catch (e) { return false; } }
   function T(es, e) { return en() ? e : es; }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }

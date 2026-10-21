@@ -1,6 +1,6 @@
 (function(){
   var T = SRA.T, EN = SRA.en, $s = function(s){ return document.querySelector(s); };
-  var game = new Chess(), board = null, sf = null, thinking = false, st = { color: 'w', level: 4, pgn: '', mode: 'beginner' }, ready = false, pend = null;
+  var game = new Chess(), board = null, sf = null, thinking = false, st = { color: 'w', level: 4, pgn: '', mode: 'beginner', arrow: true }, ready = false, pend = null;
   var LV = [null, [0, 80, 1], [2, 150, 2], [4, 250, 4], [6, 350, 6], [8, 500, 8], [10, 700, 10], [13, 900, 12], [16, 1200, 14], [18, 1600, 18], [20, 2200, 22]];
   function save(){ st.pgn = game.pgn(); SRA.save('game', st); }
   SRA.onClose(function(){ save(); try { if (coachW) coachW.terminate(); } catch (e) {} });
@@ -137,7 +137,7 @@
     var L = [];
     if (f.last && f.last.verdict) { L.push('⚠️ ' + T('Tu jugada ' + f.last.san + ' fue ' + f.last.verdict + (f.last.better ? ': era mejor ' + f.last.better : '') + '.', 'Your move ' + f.last.san + ' was ' + f.last.verdict + (f.last.better ? ': ' + f.last.better + ' was better' : '') + '.')); }
     if (f.hang.length) L.push('⚠️ ' + f.hang.map(function(h){ return T('Tu ' + pname(h.t) + ' en ' + h.sq + ' está en peligro', 'Your ' + pname(h.t) + ' on ' + h.sq + ' is in danger'); }).join(T(' y ', ' and ')) + '.');
-    if (f.best) L.push('💡 ' + T('Jugada sugerida: ', 'Suggested move: ') + f.best.san + ' (' + words(f.best) + ') — ' + f.why + '.');
+    if (f.best) L.push('🎯 ' + moveLine(f.best) + ' (' + f.best.san + ') — ' + f.why + '.');
     L.push('📊 ' + evalText(f.s).replace(/^./, function(c){ return c.toUpperCase(); }) + '.');
     if (full) L.push(plan());
     return L.join('\n');
@@ -165,7 +165,45 @@
     if (toks.some(function(t){ return !ok[t.replace(/[+#]/g, '')]; })) return false;
     return text.indexOf(f.best.san.replace(/[+#]/g, '')) >= 0 || (f.best.flags.match(/[kq]/) && /O-O|enroc|castl/i.test(text));
   }
+  /* ---- Marcas en el tablero: casilla de origen (dorada), destino (diana verde) y flecha ---- */
+  var curMark = null;
+  function art(t){ return t === 'q' || t === 'r' ? 'la' : 'el'; }
+  function moveLine(m){
+    if (m.flags.indexOf('k') >= 0 || m.flags.indexOf('q') >= 0) return T('Enroca: mueve el rey de ' + m.from + ' a ' + m.to, 'Castle: move the king from ' + m.from + ' to ' + m.to);
+    return T('Mueve ' + art(m.piece) + ' ' + pname(m.piece) + ' de ' + m.from + ' a ' + m.to, 'Move the ' + pname(m.piece) + ' from ' + m.from + ' to ' + m.to) +
+      (m.captured ? T(' y captura ' + (m.captured === 'p' ? 'el peón' : art(m.captured) + ' ' + pname(m.captured)), ' and capture the ' + pname(m.captured)) : '') +
+      (m.promotion ? T(' y corona dama', ' and promote to a queen') : '');
+  }
+  function sqEl(sq){ return document.querySelector('#board [data-square="' + sq + '"]'); }
+  function clearMarks(keep){
+    document.querySelectorAll('#board .sra-from, #board .sra-to').forEach(function(e){ e.classList.remove('sra-from', 'sra-to'); });
+    var o = document.getElementById('sraArrow'); if (o) o.remove();
+    if (!keep) curMark = null;
+  }
+  function drawMarks(){
+    clearMarks(true);
+    if (!curMark || !beginner()) return;
+    var a = sqEl(curMark.from), b = sqEl(curMark.to), host = document.getElementById('board'); if (!a || !b || !host) return;
+    a.classList.add('sra-from'); b.classList.add('sra-to');
+    if (!st.arrow) return;
+    var hr = host.getBoundingClientRect(), ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect(), sz = ra.width;
+    var x1 = ra.left - hr.left + sz / 2, y1 = ra.top - hr.top + sz / 2, x2 = rb.left - hr.left + sz / 2, y2 = rb.top - hr.top + sz / 2;
+    var dx = x2 - x1, dy = y2 - y1, L = Math.sqrt(dx * dx + dy * dy) || 1, ux = dx / L, uy = dy / L;
+    var head = sz * 0.42, w = sz * 0.16, sx = x1 + ux * sz * 0.22, sy = y1 + uy * sz * 0.22, ex = x2 - ux * sz * 0.12, ey = y2 - uy * sz * 0.12, bx = ex - ux * head, by = ey - uy * head;
+    var NS = 'http://www.w3.org/2000/svg', svg = document.createElementNS(NS, 'svg');
+    svg.id = 'sraArrow'; svg.setAttribute('width', hr.width); svg.setAttribute('height', hr.height); svg.setAttribute('aria-hidden', 'true');
+    var line = document.createElementNS(NS, 'line');
+    line.setAttribute('x1', sx); line.setAttribute('y1', sy); line.setAttribute('x2', bx); line.setAttribute('y2', by);
+    line.setAttribute('stroke', 'rgba(255,170,20,.88)'); line.setAttribute('stroke-width', w); line.setAttribute('stroke-linecap', 'round');
+    var poly = document.createElementNS(NS, 'polygon'), px = -uy, py = ux;
+    poly.setAttribute('points', [ex, ey, bx + px * head * 0.62, by + py * head * 0.62, bx - px * head * 0.62, by - py * head * 0.62].map(function(v){ return v.toFixed(1); }).join(' '));
+    poly.setAttribute('fill', 'rgba(255,170,20,.92)');
+    svg.appendChild(line); svg.appendChild(poly); host.appendChild(svg);
+  }
+  function mark(m){ curMark = m && beginner() ? { from: m.from, to: m.to } : null; drawMarks(); }
+  function hideTip(){ $s('#tip').hidden = true; clearMarks(); }
   function show(text, src){
+    clearMarks();
     var b = $s('#tip'); b.hidden = false; $s('#tipt').textContent = text; $s('#tips').textContent = src || '';
   }
   function tipNote(base){ return base; }
@@ -178,22 +216,23 @@
       lastAn = r;
       var f = facts(r), loc = localTip(f, full);
       if (!f.best) { show(loc, ''); return; }
+      var mk = function(){ mark(f.best); };
       var now = Date.now(), can = !aiOff && !aiBusy && (full ? now - aiLast > 4000 : now - aiLast > 6000);
-      show(loc, T('Consejo de Stockfish', 'Stockfish tip') + (can ? T(' · preguntando a AskBox…', ' · asking AskBox…') : (aiOff ? T(' · IA no disponible', ' · AI not available') : '')));
+      show(loc, T('Consejo de Stockfish', 'Stockfish tip') + (can ? T(' · preguntando a AskBox…', ' · asking AskBox…') : (aiOff ? T(' · IA no disponible', ' · AI not available') : ''))); mk();
       if (!can) return;
       aiBusy = true; aiLast = now;
       SRA.ai(aiPrompt(f, full), aiSystem(full), { tier: 'fast', maxOutputTokens: full ? 260 : 160 }).then(function(t){
         aiBusy = false;
         if (g !== gen || !beginner() || game.fen() !== fen) return;
         t = t.replace(/[*_#`>]/g, '').replace(/\s+/g, ' ').trim().slice(0, full ? 420 : 260);
-        if (!aiOk(t, f)) { show(loc, T('Consejo de Stockfish', 'Stockfish tip')); return; }
+        if (!aiOk(t, f)) { show(loc, T('Consejo de Stockfish', 'Stockfish tip')); mk(); return; }
         var warn = f.hang.length && !/peligro|danger|defend|colg|hang|captur|atac|attack/i.test(t) ? localTip({ hang: f.hang, last: null, best: null, s: f.s }, false).split('\n')[0] + '\n' : '';
-        show(warn + '💡 ' + t + '\n📊 ' + evalText(f.s).replace(/^./, function(c){ return c.toUpperCase(); }) + '.', T('Consejo de AskBox con el análisis de Stockfish', 'AskBox tip based on Stockfish analysis'));
+        show(warn + '🎯 ' + moveLine(f.best) + ' (' + f.best.san + ').\n💡 ' + t + '\n📊 ' + evalText(f.s).replace(/^./, function(c){ return c.toUpperCase(); }) + '.', T('Consejo de AskBox con el análisis de Stockfish', 'AskBox tip based on Stockfish analysis')); mk();
       }, function(e){
         aiBusy = false;
         if (e && (e.status === 401 || e.status === 403)) aiOff = true;
         if (g !== gen || game.fen() !== fen) return;
-        show(loc, T('Consejo de Stockfish', 'Stockfish tip') + (e && e.status === 429 ? T(' · AskBox está ocupada, prueba en un minuto', ' · AskBox is busy, try again in a minute') : (aiOff ? T(' · IA no disponible', ' · AI not available') : '')));
+        show(loc, T('Consejo de Stockfish', 'Stockfish tip') + (e && e.status === 429 ? T(' · AskBox está ocupada, prueba en un minuto', ' · AskBox is busy, try again in a minute') : (aiOff ? T(' · IA no disponible', ' · AI not available') : ''))); mk();
       });
     });
   }
@@ -219,38 +258,41 @@
     st.mode = m === 'expert' ? 'expert' : 'beginner'; save();
     document.querySelectorAll('.seg button').forEach(function(b){ b.classList.toggle('on', b.dataset.m === st.mode); b.setAttribute('aria-pressed', b.dataset.m === st.mode); });
     var exp = st.mode === 'expert';
-    $s('#tipBtn').hidden = exp; $s('#tip').hidden = true; gen++; moveCheck = null;
+    $s('#tipBtn').hidden = exp; $s('#arrowRow').hidden = exp; hideTip(); gen++; moveCheck = null;
     if (exp) { coachQ = []; if (coachW) { try { coachW.terminate(); } catch (e) {} coachW = null; coachReady = false; coachCur = null; } }
     else playerTurn();
   }
   /* ========================================================================== */
 
-  function onDragStart(src, piece){ if (game.game_over() || thinking || game.turn() !== st.color || piece[0] !== st.color) return false; }
+  function onDragStart(src, piece){ if (game.game_over() || thinking || game.turn() !== st.color || piece[0] !== st.color) return false; clearMarks(true); }
   function onDrop(from, to){
     var fenBefore = game.fen(), mv = game.move({ from: from, to: to, promotion: 'q' });
     if (!mv) return 'snapback';
-    gen++; $s('#tip').hidden = true;
+    gen++; hideTip();
     save(); status(); checkMove(mv, fenBefore); setTimeout(think, 150);
   }
   function onSnapEnd(){ board.position(game.fen()); }
-  function newGame(color){ gen++; moveCheck = null; lastAn = null; game.reset(); st.color = color; board.orientation(color === 'w' ? 'white' : 'black'); board.start(); save(); status(); $s('#tip').hidden = true; if (color === 'b') setTimeout(think, 300); else playerTurn(); }
-  function size(){ var side = window.innerWidth >= 700; var a = side ? Math.min(window.innerHeight - 24, window.innerWidth - 270) : Math.min(window.innerWidth - 16, window.innerHeight - 250); $s('#board').style.width = Math.max(240, Math.floor(a / 8) * 8) + 'px'; if (board) board.resize(); }
+  function onSnapback(){ drawMarks(); }
+  function newGame(color){ gen++; moveCheck = null; lastAn = null; game.reset(); st.color = color; board.orientation(color === 'w' ? 'white' : 'black'); board.start(false); save(); status(); hideTip(); if (color === 'b') setTimeout(think, 300); else playerTurn(); }
+  function size(){ var side = window.innerWidth >= 700; var a = side ? Math.min(window.innerHeight - 24, window.innerWidth - 270) : Math.min(window.innerWidth - 16, window.innerHeight - 250); $s('#board').style.width = Math.max(240, Math.floor(a / 8) * 8) + 'px'; if (board) { board.resize(); drawMarks(); } }
   window.addEventListener('resize', size);
   document.querySelectorAll('[data-t]').forEach(function(b){ var p = b.getAttribute('data-t').split('|'); b.textContent = T(p[0], p[1]); });
   var lv = $s('#level'); for (var i = 1; i <= 10; i++) { var o = document.createElement('option'); o.value = i; o.textContent = T('Nivel ', 'Level ') + i; lv.appendChild(o); }
   lv.addEventListener('change', function(){ st.level = +lv.value; save(); });
   $s('#nw').addEventListener('click', function(){ newGame('w'); });
   $s('#nb').addEventListener('click', function(){ newGame('b'); });
-  $s('#undo').addEventListener('click', function(){ if (thinking) return; gen++; moveCheck = null; game.undo(); if (game.turn() !== st.color) game.undo(); board.position(game.fen()); save(); status(); $s('#tip').hidden = true; playerTurn(); });
-  $s('#flip').addEventListener('click', function(){ board.flip(); });
+  $s('#undo').addEventListener('click', function(){ if (thinking) return; gen++; moveCheck = null; game.undo(); if (game.turn() !== st.color) game.undo(); board.position(game.fen()); save(); status(); hideTip(); playerTurn(); });
+  $s('#flip').addEventListener('click', function(){ board.flip(); drawMarks(); });
   $s('#tipBtn').addEventListener('click', function(){ if (game.turn() !== st.color || thinking) { show(T('Espera a que sea tu turno.', 'Wait for your turn.'), ''); return; } tip(true); });
+  $s('#arrowT').addEventListener('change', function(){ st.arrow = this.checked; save(); drawMarks(); });
   document.querySelectorAll('.seg button').forEach(function(b){ b.addEventListener('click', function(){ setMode(b.dataset.m); }); });
   SRA.load('game').then(null, function(){ return null; }).then(function(saved){
     if (saved) { st = Object.assign(st, saved); if (st.pgn) game.load_pgn(st.pgn); }
     if (st.mode !== 'expert') st.mode = 'beginner';
+    if (st.arrow !== false) st.arrow = true; $s('#arrowT').checked = st.arrow;
     lv.value = st.level;
     size();
-    board = Chessboard('board', { draggable: true, position: game.fen(), orientation: st.color === 'w' ? 'white' : 'black', pieceTheme: '/static/assets/sra-chess-p-{piece}.svg?v=' + SRA.ver, onDragStart: onDragStart, onDrop: onDrop, onSnapEnd: onSnapEnd, moveSpeed: 160, snapSpeed: 60 });
+    board = Chessboard('board', { draggable: true, position: game.fen(), orientation: st.color === 'w' ? 'white' : 'black', pieceTheme: '/static/assets/sra-chess-p-{piece}.svg?v=' + SRA.ver, onDragStart: onDragStart, onDrop: onDrop, onSnapEnd: onSnapEnd, onSnapbackEnd: onSnapback, moveSpeed: 160, snapSpeed: 60 });
     size(); status(); engine(); setMode(st.mode, true);
     if (game.turn() !== st.color) setTimeout(think, 300);
   });
