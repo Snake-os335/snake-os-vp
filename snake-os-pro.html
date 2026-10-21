@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Snake OS! Pro · Linux en tu navegador</title>
+<meta name="description" content="Snake OS! Pro: un sistema operativo de la familia Snake OS que funciona dentro de tu navegador. Linux ligero de verdad, sin instalar nada y sin cuenta.">
+<meta name="theme-color" content="#04130a">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect x='3' y='3' width='58' height='58' rx='17' fill='%230a2414'/%3E%3Cpath d='M15 46c0-9 7-11 16-11s16-3 16-10-6-10-12-10c-5 0-8 2-10 5' fill='none' stroke='%234ade80' stroke-width='7.2' stroke-linecap='round'/%3E%3Cellipse cx='24.5' cy='20.5' rx='6.4' ry='5.2' fill='%234ade80'/%3E%3Crect x='32' y='44.5' width='26' height='12' rx='6' fill='%23f59e0b'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/static/snake-fonts.css?v=202610211900">
+<style>
+  :root{--g:#22c55e;--g2:#4ade80;--bg:#020c06;--fg:#ecfdf3;--mut:rgba(236,253,243,.72);--glass:rgba(10,30,19,.55);--gb:rgba(160,255,200,.16)}
+  *{box-sizing:border-box}
+  html,body{margin:0;min-height:100%;background:var(--bg);color:var(--fg);font-family:var(--snake-font,Inter,system-ui,sans-serif)}
+  body{background:radial-gradient(1200px 700px at 15% -10%,#14532d 0,transparent 60%),radial-gradient(900px 600px at 110% 20%,#064e3b 0,transparent 55%),radial-gradient(800px 500px at 50% 120%,#065f46 0,transparent 60%),var(--bg);background-attachment:fixed}
+  a{color:var(--g2)}
+  .wrap{max-width:1100px;margin:0 auto;padding:22px 20px 40px}
+  header{display:flex;align-items:center;gap:12px}
+  header .lg{width:40px;height:40px}
+  header b{font:800 19px/1 var(--snake-font-display,Outfit,sans-serif);letter-spacing:.2px}
+  b i,h1 i{font-style:normal;color:var(--g2)}
+  header .sp{flex:1}
+  .lang{display:flex;gap:4px;background:var(--glass);border:1px solid var(--gb);border-radius:12px;padding:3px}
+  .lang button{border:0;background:none;color:var(--fg);font:600 13px var(--snake-font,Inter,sans-serif);padding:6px 10px;border-radius:9px;cursor:pointer}
+  .lang button.on{background:var(--g);color:#04140a}
+  .hero{display:grid;grid-template-columns:1.05fr .95fr;gap:36px;align-items:center;margin-top:44px}
+  .hero h1{font:800 clamp(38px,6vw,68px)/1.02 var(--snake-font-display,Outfit,sans-serif);margin:0 0 14px;letter-spacing:-.5px}
+  .hero p.lead{font-size:clamp(16px,2vw,19px);line-height:1.5;color:var(--mut);margin:0 0 26px;max-width:560px}
+  .cta{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+  .btn{border:0;border-radius:16px;padding:0 26px;height:56px;font:700 17px var(--snake-font,Inter,sans-serif);cursor:pointer;display:inline-flex;align-items:center;gap:10px;text-decoration:none}
+  .btn.go{background:linear-gradient(180deg,#4ade80,#16a34a);color:#03140a;box-shadow:0 12px 34px rgba(34,197,94,.35),inset 0 1px 0 rgba(255,255,255,.45)}
+  .btn.go:hover{filter:brightness(1.06)}.btn.go:active{transform:scale(.98)}
+  .btn.go svg{width:22px;height:22px}
+  .btn.ghost{background:var(--glass);color:var(--fg);border:1px solid var(--gb);height:56px}
+  .small{font-size:13px;color:var(--mut);margin-top:14px}
+  .shot{position:relative;aspect-ratio:16/10;border-radius:22px;overflow:hidden;border:1px solid var(--gb);box-shadow:0 30px 80px rgba(0,0,0,.55)}
+  .shot .wp{position:absolute;inset:0;background-size:cover;background-position:center}
+  .shot .w{position:absolute;left:14%;top:12%;width:62%;height:56%;border-radius:12px;background:#0f1813;box-shadow:0 14px 34px rgba(0,0,0,.5);overflow:hidden;border:1px solid rgba(160,255,200,.12)}
+  .shot .w .hb{height:26px;background:#1a2a21;display:flex;align-items:center;gap:6px;padding:0 10px;font:600 11px var(--snake-font,Inter,sans-serif);color:#cfe9d8}
+  .shot .w pre{margin:0;padding:10px 12px;font:12px/1.5 ui-monospace,Menlo,Consolas,monospace;color:#e6f7ec;white-space:pre-wrap}
+  .shot .w pre b{color:#4ade80}.shot .w pre u{color:#60a5fa;text-decoration:none}
+  .shot .tb{position:absolute;left:3%;right:3%;bottom:4%;height:12%;border-radius:12px;background:rgba(10,26,17,.58);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border:1px solid rgba(160,255,200,.16);display:flex;align-items:center;gap:3%;padding:0 2%}
+  .shot .tb .lg{height:70%;aspect-ratio:1}.shot .tb i{display:block;height:58%;aspect-ratio:1;border-radius:8px;background:rgba(74,222,128,.25)}.shot .tb i.a{background:#22c55e}
+  .feat{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:64px}
+  .card{background:var(--glass);border:1px solid var(--gb);border-radius:20px;padding:18px;backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
+  .card .ic{width:44px;height:44px;margin-bottom:10px}.card .ic svg{width:44px;height:44px}
+  .card h3{margin:0 0 6px;font:700 17px var(--snake-font-display,Outfit,sans-serif)}
+  .card p{margin:0;color:var(--mut);font-size:14px;line-height:1.45}
+  .honest{margin-top:34px;display:flex;gap:16px;align-items:flex-start}
+  .honest h3{margin:0 0 6px;font:700 17px var(--snake-font-display,Outfit,sans-serif)}
+  .honest p{margin:0 0 6px;color:var(--mut);font-size:14px;line-height:1.5}
+  .specs{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}.specs span{font-size:12.5px;border:1px solid var(--gb);border-radius:99px;padding:4px 10px;color:var(--mut)}
+  footer{margin-top:40px;color:var(--mut);font-size:12.5px;display:flex;gap:14px;flex-wrap:wrap;justify-content:space-between}
+  #run{position:fixed;inset:0;z-index:1000;background:#020c06;display:none}
+  #run.on{display:block}
+  body.running{overflow:hidden}
+  .err{color:#fca5a5}
+  @media (max-width:860px){.hero{grid-template-columns:1fr;margin-top:28px;gap:26px}.feat{grid-template-columns:1fr 1fr}}
+  @media (max-width:560px){.feat{grid-template-columns:1fr}.btn{width:100%;justify-content:center}.wrap{padding:16px 14px 30px}header b{font-size:17px}.honest{flex-direction:column}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <span class="lg" id="lgTop"></span><b translate="no">Snake OS<i>!</i> Pro</b><span class="sp"></span>
+    <div class="lang" role="group" aria-label="Idioma / Language"><button type="button" data-l="es">ES</button><button type="button" data-l="en">EN</button></div>
+  </header>
+  <section class="hero">
+    <div>
+      <h1><span translate="no">Snake OS<i>!</i> Pro</span></h1>
+      <p class="lead" data-es="El sistema operativo de la familia Snake OS que funciona dentro de tu navegador. Un Linux de verdad con escritorio de Snake OS: terminal, archivos, editor y monitor del sistema. Sin instalar nada y sin cuenta." data-en="The Snake OS family operating system that runs inside your browser. A real Linux with a Snake OS desktop: terminal, files, editor and system monitor. Nothing to install, no account needed."></p>
+      <div class="cta">
+        <button type="button" class="btn go" id="boot"><svg viewBox="0 0 16 16"><path d="M8 1.8v5.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><path d="M4.6 4.2a5.2 5.2 0 1 0 6.8 0" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg><span id="bootL"></span></button>
+        <a class="btn ghost" href="/" data-es="Ir a Snake OS" data-en="Go to Snake OS"></a>
+      </div>
+      <p class="small" id="note" data-es="Se abre a pantalla completa. La primera vez descarga unos 12 MB y arranca en unos segundos." data-en="It opens full screen. The first time it downloads about 12 MB and boots in a few seconds."></p>
+    </div>
+    <div class="shot" aria-hidden="true">
+      <div class="wp" id="wp"></div>
+      <div class="w"><div class="hb" id="shotHb">root@snake-pro: ~</div><pre><b>root@snake-pro</b>:<u>~</u># uname -sr
+Linux 6.8
+<b>root@snake-pro</b>:<u>~</u># ls
+<u>Descargas</u>  <u>Documentos</u>  <u>Escritorio</u>  Leeme.txt
+<b>root@snake-pro</b>:<u>~</u># _</pre></div>
+      <div class="tb"><span class="lg" id="lgTb"></span><i class="a"></i><i></i><i></i><i></i></div>
+    </div>
+  </section>
+
+  <section class="feat" id="feat"></section>
+
+  <section class="card honest">
+    <span class="ic" id="lgHonest" style="width:56px;height:56px;flex:0 0 auto"></span>
+    <div>
+      <h3 data-es="Qué hay por dentro (sin trucos)" data-en="What is inside (no tricks)"></h3>
+      <p data-es="Snake OS! Pro es un escritorio propio de Snake OS sobre un Linux ligero de verdad (Buildroot + BusyBox, núcleo 6.8) que se emula con v86 dentro de tu navegador. No se instala nada en tu ordenador y el servidor solo envía los archivos: todo corre en tu dispositivo." data-en="Snake OS! Pro is Snake OS's own desktop on top of a real lightweight Linux (Buildroot + BusyBox, kernel 6.8) emulated with v86 inside your browser. Nothing is installed on your computer and the server only sends the files: everything runs on your device."></p>
+      <p data-es="No es un sistema completo de escritorio como los de ordenador: no tiene internet, tiene 64 MB de memoria emulada y no ejecuta programas gráficos de Linux. Lo que guardes se queda en este navegador (si borras los datos del sitio, se borra)." data-en="It is not a full desktop system like the ones on computers: it has no internet, 64 MB of emulated memory and it does not run graphical Linux programs. What you save stays in this browser (clearing the site data deletes it)."></p>
+      <div class="specs"><span>x86 · v86</span><span>Linux 6.8</span><span>BusyBox 1.36</span><span data-es="64 MB de RAM" data-en="64 MB RAM"></span><span data-es="Sin red" data-en="Offline"></span><span data-es="Guardado en el navegador" data-en="Saved in the browser"></span></div>
+    </div>
+  </section>
+
+  <footer><span data-es="Snake OS! Pro · de la familia Snake OS" data-en="Snake OS! Pro · part of the Snake OS family"></span><span>v86 (BSD-2) · xterm.js (MIT) · Linux, BusyBox (GPLv2)</span></footer>
+</div>
+<div id="run"></div>
+<script>
+  (function () {
+    var saved = ''; try { saved = localStorage.getItem('snkProLang') || ''; } catch (e) {}
+    var lang = saved || ((navigator.language || 'es').toLowerCase().indexOf('es') === 0 ? 'es' : 'en');
+    window.snakeI18n = { lang: lang };
+  })();
+</script>
+<script src="/static/snake-vm.js?v=202610211900"></script>
+<script>
+(function () {
+  'use strict';
+  var I = window.snakeI18n;
+  function T(es, en) { return I.lang === 'en' ? en : es; }
+  var FEAT = [
+    ['term', 'Terminal de verdad', 'A real terminal', 'Hasta 3 terminales con sh de BusyBox: ls, vi, ps, top, df, tar… Lo que escribes lo ejecuta Linux.', 'Up to 3 terminals with BusyBox sh: ls, vi, ps, top, df, tar… What you type is run by Linux.'],
+    ['files', 'Archivos', 'Files', 'Crea carpetas, renombra, borra, sube archivos de tu ordenador y descárgalos.', 'Create folders, rename, delete, upload files from your computer and download them.'],
+    ['edit', 'Editor de texto', 'Text Editor', 'Abre y guarda textos dentro de la máquina, con Ctrl+S.', 'Open and save text files inside the machine, with Ctrl+S.'],
+    ['mon', 'Monitor del sistema', 'System Monitor', 'Procesos, CPU, memoria y discos reales de la máquina.', 'Real processes, CPU, memory and disks of the machine.'],
+    ['set', 'Escritorio Snake OS', 'Snake OS desktop', 'Barra de tareas de cristal, menú Inicio, ventanas, modo oscuro, colores y fondos.', 'Glass taskbar, Start menu, windows, dark mode, colours and wallpapers.'],
+    ['about', 'Privado y sin cuenta', 'Private, no account', 'Funciona en tu navegador, sin red, y se guarda solo aquí. No hace falta iniciar sesión.', 'It runs in your browser, offline, and is saved only here. No sign-in needed.']
+  ];
+  var ICONS = {
+    term: '<svg viewBox="0 0 64 64"><rect x="5" y="8" width="54" height="48" rx="12" fill="#07150d"/><rect x="5.8" y="8.8" width="52.4" height="46.4" rx="11.2" fill="none" stroke="#22c55e" stroke-width="1.6"/><path d="M16 26l9 6.5-9 6.5" fill="none" stroke="#4ade80" stroke-width="3.8" stroke-linecap="round" stroke-linejoin="round"/><rect x="29" y="38" width="17" height="3.8" rx="1.9" fill="#e2fbe8"/></svg>',
+    files: '<svg viewBox="0 0 64 64"><path d="M6 15a5 5 0 0 1 5-5h14l5 5h23a5 5 0 0 1 5 5v4H6z" fill="#15803d"/><rect x="6" y="20" width="52" height="36" rx="6" fill="#22c55e"/><rect x="6" y="20" width="52" height="16" rx="6" fill="#4ade80" opacity=".55"/><path d="M20 44c4-6 8 2 12-3s8 3 12-2" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" opacity=".9"/></svg>',
+    edit: '<svg viewBox="0 0 64 64"><path d="M14 6h26l12 12v36a4 4 0 0 1-4 4H14a4 4 0 0 1-4-4V10a4 4 0 0 1 4-4z" fill="#f4fbf6"/><g stroke="#8fb09a" stroke-width="2.6" stroke-linecap="round"><path d="M18 26h22M18 33h26M18 40h18M18 47h12"/></g><path d="M50 30l6 6-16 16-8 2 2-8z" fill="#22c55e"/></svg>',
+    mon: '<svg viewBox="0 0 64 64"><rect x="5" y="9" width="54" height="46" rx="12" fill="#0b2015"/><path d="M11 40h8l5-13 7 22 6-16 4 7h12" fill="none" stroke="#4ade80" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    set: '<svg viewBox="0 0 64 64"><rect x="4" y="10" width="56" height="44" rx="10" fill="#0b3a20"/><rect x="9" y="42" width="46" height="8" rx="4" fill="#4ade80" opacity=".5"/><rect x="16" y="16" width="30" height="20" rx="4" fill="#14201a"/></svg>',
+    about: '<svg viewBox="0 0 64 64"><path d="M32 6l22 8v16c0 14-9 24-22 28C19 54 10 44 10 30V14z" fill="#16a34a"/><path d="M22 32l7 7 13-14" fill="none" stroke="#fff" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+  };
+  var hasMachine = false;
+  function texts() {
+    document.documentElement.lang = I.lang;
+    document.querySelectorAll('[data-es]').forEach(function (el) { el.textContent = T(el.getAttribute('data-es'), el.getAttribute('data-en')); });
+    document.getElementById('bootL').textContent = hasMachine ? T('Continuar mi Snake OS! Pro', 'Continue my Snake OS! Pro') : T('Arrancar Snake OS! Pro', 'Start Snake OS! Pro');
+    document.querySelectorAll('.lang button').forEach(function (b) { b.classList.toggle('on', b.dataset.l === I.lang); });
+    var f = document.getElementById('feat'); f.innerHTML = '';
+    FEAT.forEach(function (x) {
+      var c = document.createElement('div'); c.className = 'card';
+      c.innerHTML = '<div class="ic">' + ICONS[x[0]] + '</div><h3></h3><p></p>';
+      c.querySelector('h3').textContent = T(x[1], x[2]); c.querySelector('p').textContent = T(x[3], x[4]); f.appendChild(c);
+    });
+  }
+  document.querySelectorAll('.lang button').forEach(function (b) { b.onclick = function () { I.lang = b.dataset.l; try { localStorage.setItem('snkProLang', I.lang); } catch (e) {} texts(); }; });
+  var L = window.snakeOSProLogo;
+  if (L) ['lgTop', 'lgTb', 'lgHonest'].forEach(function (id) { document.getElementById(id).innerHTML = L(); });
+  document.getElementById('wp').style.backgroundImage = 'url("data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1000" preserveAspectRatio="xMidYMid slice"><defs><radialGradient id="a" cx=".28" cy=".25" r="1.05"><stop offset="0" stop-color="#166534"/><stop offset=".5" stop-color="#062a16"/><stop offset="1" stop-color="#020c06"/></radialGradient></defs><rect width="1600" height="1000" fill="url(#a)"/><path d="M-100 780C180 580 420 910 730 700S1150 380 1380 500" fill="none" stroke="#22c55e" stroke-width="64" stroke-linecap="round"/><ellipse cx="1410" cy="490" rx="62" ry="46" fill="#bbf7d0"/></svg>') + '")';
+  /* ¿Ya hay una máquina guardada en este navegador? (solo lectura, base propia de esta página) */
+  try {
+    var o = indexedDB.open('snkProWebV1', 1);
+    o.onupgradeneeded = function () { o.result.createObjectStore('machines'); };
+    o.onsuccess = function () { try { var g = o.result.transaction('machines').objectStore('machines').get('snake-os-pro-web'); g.onsuccess = function () { hasMachine = !!(g.result && g.result.configured); texts(); o.result.close(); }; } catch (e) {} };
+  } catch (e) {}
+  texts();
+  var run = document.getElementById('run'), stop = null;
+  function exit() {
+    var p = stop ? stop() : Promise.resolve(); stop = null;
+    return Promise.resolve(p).catch(function () {}).then(function () {
+      run.classList.remove('on'); run.innerHTML = ''; document.body.classList.remove('running');
+      try { if (document.fullscreenElement) document.exitFullscreen(); } catch (e) {}
+      hasMachine = true; texts();
+    });
+  }
+  function boot(full) {
+    if (stop) return;
+    if (typeof window.renderSnakeVMApp !== 'function') { document.getElementById('note').innerHTML = '<span class="err">' + T('No se ha podido cargar Snake OS! Pro. Recarga la página.', 'Could not load Snake OS! Pro. Reload the page.') + '</span>'; return; }
+    run.classList.add('on'); document.body.classList.add('running');
+    if (full) { try { if (run.requestFullscreen) run.requestFullscreen().catch(function () {}); } catch (e) {} }
+    stop = window.renderSnakeVMApp(run, { standalone: true, fullEl: run, onExit: exit });
+  }
+  document.getElementById('boot').onclick = function () { boot(true); };
+  window.snakeOSProExit = exit;
+  if (/[?&]arrancar=1/.test(location.search) || location.hash === '#arrancar') boot(false);
+})();
+</script>
+</body>
+</html>
