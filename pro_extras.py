@@ -17,6 +17,7 @@ import hmac
 import json
 import os
 import re
+import unicodedata
 import secrets
 import sqlite3
 import threading
@@ -89,13 +90,32 @@ def pepper() -> bytes:
 
 
 def normalize(code: Any) -> str:
-    s = re.sub(r"[^A-Za-z0-9]", "", str(code or "")).upper()
+    # NFKC: letras/números de ancho completo y variantes tipográficas pasan a ASCII; luego fuera espacios,
+    # saltos de línea, guiones de cualquier tipo y caracteres invisibles (solo se quedan A-Z y 0-9).
+    raw = unicodedata.normalize("NFKC", str(code or ""))[:200]
+    s = re.sub(r"[^A-Za-z0-9]", "", raw).upper()
     if s.startswith("SNKPRO"):
         s = s[6:]
     if len(s) != 12:
         return ""
     out = "SNKPRO-" + s[0:4] + "-" + s[4:8] + "-" + s[8:12]
     return out if CODE_RE.match(out) else ""
+
+
+def mask_email(email: Any) -> str:
+    e = str(email or "").strip()
+    local, _, dom = e.partition("@")
+    if not local or not dom:
+        return "otra cuenta"
+    return (local[:2] if len(local) > 2 else local[:1]) + "•••@" + dom
+
+
+def _owner_hint(uid: int) -> str:
+    try:
+        row = db.get_user_by_id(int(uid))
+        return mask_email(row["email"]) if row else "(cuenta eliminada)"
+    except Exception:
+        return "otra cuenta"
 
 
 def code_hash(code: str) -> str:
@@ -228,7 +248,7 @@ def build_router(require_user: Callable[..., Any], visitor_ip: Callable[[Request
             if int(row["owner_uid"]) != uid:
                 _limited("try:" + ipk, TRY_MAX, TRY_WIN)
                 _limited("try:u%d" % uid, TRY_MAX, TRY_WIN)
-                raise HTTPException(status_code=403, detail="Este código es de otra cuenta Dogaemail. Entra en Snake OS con la cuenta que lo pidió.")
+                raise HTTPException(status_code=403, detail="Este código es de la cuenta Dogaemail " + _owner_hint(int(row["owner_uid"])) + ". Entra en Snake OS VP con esa cuenta para activarlo.")
             cur = c.execute("UPDATE pro_codes SET redeemed_uid = ?, redeemed_at = ? WHERE hash = ? AND redeemed_uid IS NULL", (uid, now, h))
             if cur.rowcount != 1:
                 raise HTTPException(status_code=409, detail="Este código ya se ha usado.")

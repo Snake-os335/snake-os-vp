@@ -654,11 +654,11 @@
         '<div class="snkp-row"><button type="button" class="snk4a-btn primary go">Activar Pro</button></div><div class="msg ' + (kind || '') + '" role="status">' + esc(msg || '') + '</div></div>' + featList();
       var inp = box.querySelector('#snkProCode'), go = box.querySelector('.go');
       function submit() {
-        var v = inp.value.trim(); if (!v) { paint('Pega primero tu código', 'err'); return; }
+        var v = cleanCode(inp.value); if (!v) { paint('Pega primero tu código', 'err'); return; }
         go.disabled = true; go.textContent = 'Comprobando…';
         api('/api/pro/redeem', { method: 'POST', body: { code: v } }).then(function (d) {
           inp.value = ''; setStatus(d); paint('✅ ¡Snake OS VP Pro activado en este perfil!', 'ok'); toast('⭐ Snake OS VP Pro activado'); if (repaint) setTimeout(repaint, 50);
-        }, function (e) { var m = (e && e.message) || 'No se pudo comprobar el código'; paint('❌ ' + m, 'err'); var i2 = box.querySelector('#snkProCode'); if (i2) { i2.value = v; i2.focus(); } });
+        }, function (e) { var m = (e && e.message) || 'No se pudo comprobar el código'; if (e && e.status === 401) { m = 'Tu sesión de Snake OS VP se ha cerrado (por ejemplo, al abrir Snake OS en otra pestaña). Inicia sesión otra vez y vuelve a pegar el código: sigue siendo válido.'; try { if (window.snkSessionGuard) window.snkSessionGuard.show(); } catch (e3) {} } paint('❌ ' + m, 'err'); var i2 = box.querySelector('#snkProCode'); if (i2) { i2.value = v; i2.focus(); } });
       }
       go.onclick = submit; inp.onkeydown = function (e) { if (e.key === 'Enter') submit(); };
     }
@@ -667,6 +667,13 @@
     return box;
   }
 
+  /* Mismo criterio que el servidor: sin espacios, saltos ni caracteres invisibles, mayúsculas, con o sin guiones */
+  function cleanCode(raw) {
+    var t = String(raw || ''); try { t = t.normalize('NFKC'); } catch (e) {}
+    t = t.replace(/[\u200B-\u200F\u2060-\u2064\uFEFF\u00AD\s]/g, '').toUpperCase();
+    var a = t.replace(/[^A-Z0-9]/g, ''); if (a.indexOf('SNKPRO') === 0) a = a.slice(6);
+    return a.length === 12 ? 'SNKPRO-' + a.slice(0, 4) + '-' + a.slice(4, 8) + '-' + a.slice(8) : t;
+  }
   window.snkPro = {
     active: function () { return !!S.active; },
     since: function () { return S.since; },
