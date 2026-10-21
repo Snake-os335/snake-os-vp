@@ -64,14 +64,20 @@
   Object.keys(BIG).forEach(function (k) { if (D[k] == null) D[k] = BIG[k]; });
   var LOW = {}; Object.keys(D).forEach(function (k) { LOW[k.toLowerCase()] = D[k]; });
   var MEMO = {};
-  function lookup(k) { if (k in MEMO) return MEMO[k]; return (MEMO[k] = lookup0(k)); }
+  // Nombres propios registrados por las apps (p. ej. serpientes de Los Snakes): nunca se traducen
+  function NOI() { return window.__snkNoI18n || null; }
+  function isName(k) { var n = NOI(); return !!(n && n.size && n.has(String(k).trim())); }
+  function namesOk(src, out) { var n = NOI(); if (!n || !n.size) return true; var ok = true; n.forEach(function (w) { if (ok && w.length > 1 && src.indexOf(w) >= 0 && out.indexOf(w) < 0) ok = false; }); return ok; }
+  function lookup(k) { if (isName(k)) return null; if (k in MEMO) return MEMO[k]; return (MEMO[k] = lookup0(k)); }
   function lookup0(k) {
     var h = D[k] || LOW[k.toLowerCase()];
     if (h) return h;
     var m = k.match(/^(.*?)([\s:.…!?,·]+)$/); // sin puntuación final
-    if (m && m[1]) { h = D[m[1]] || LOW[m[1].toLowerCase()]; if (h) return h + m[2]; }
+    if (m && m[1] && !isName(m[1])) { h = D[m[1]] || LOW[m[1].toLowerCase()]; if (h) return h + m[2]; }
     var m2 = k.match(/^([\p{Extended_Pictographic}\uFE0F\u200D\s]+)(.+)$/u); // emoji delante
-    if (m2) { h = D[m2[2]] || LOW[m2[2].toLowerCase()]; if (h) return m2[1] + h; }
+    if (m2 && !isName(m2[2])) { h = D[m2[2]] || LOW[m2[2].toLowerCase()]; if (h) return m2[1] + h; }
+    var m4 = k.match(/^([\s·:,(«"–—-]+)(.+?)([\s·:,.…!?)»"]*)$/); // puntuación delante («· Contenta», «(anciano)») tras un nombre aislado
+    if (m4 && m4[2] !== k) { h = lookup(m4[2]); if (h) return m4[1] + h + m4[3]; }
     // «Frase (detalle)» → traducir cada parte
     var m3 = k.match(/^(.+?)\s*(\((.+)\))$/);
     if (m3) { var a3 = lookup(m3[1]), b3 = lookup(m3[3]); if (a3 && b3) return a3 + ' (' + b3 + ')'; if (a3 && !looksEs(m3[3])) return a3 + ' ' + m3[2]; }
@@ -105,11 +111,11 @@
   function getLang() { var v = null; try { v = localStorage.getItem('snkLangManual'); localStorage.removeItem('snkLang'); } catch (e) {} return v === 'es' || v === 'en' ? v : autoLang(); }
   var lang = getLang();
   function tr(t) {
-    var k = t.trim(); if (!k || onlyBrand(k)) return null;
+    var k = t.trim(); if (!k || onlyBrand(k) || isName(k)) return null;
     var dy = dyn(k); if (dy) return t.replace(k, dy);
     var hit = lookup(k) || RT[k];
     if (!hit) for (var i = 0; i < PARTS.length; i++) if (PARTS[i][0].test(k)) { hit = k.replace(PARTS[i][0], PARTS[i][1]); break; }
-    if (hit && !brandsOk(k, hit)) hit = null;
+    if (hit && (!brandsOk(k, hit) || !namesOk(k, hit))) hit = null;
     if (!hit) { want(k); return null; }
     return t.replace(k, hit);
   }

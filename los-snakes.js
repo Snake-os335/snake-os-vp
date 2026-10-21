@@ -123,6 +123,18 @@
   function pick(a) { return a[Math.floor(Math.random() * a.length)]; }
   function money(v) { return '§' + Math.round(v).toLocaleString('es-ES'); }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  // Nombres de serpientes/familias/amigos: el traductor ES/EN de Snake OS nunca los toca (data-noi18n); las etiquetas de alrededor sí se traducen
+  // Etiquetas de edad/etapa traducidas aquí (no por el traductor) para que un nombre igual («Joven», «Anciana») no las bloquee
+  var AGE_EN = { bebe: 'Baby', joven: 'Young', adulto: 'Adult', anciano: 'Elder' };
+  function isEn() { try { return !!(global.snakeI18n && global.snakeI18n.lang === 'en'); } catch (e) { return false; } }
+  function ageTxt(a) { return isEn() ? (AGE_EN[a] || AGE_EN.adulto) : (AGES[a] || AGES.adulto).n; }
+  function stageTxt(a) { return isEn() ? (AGE_EN[a] || AGE_EN.adulto) : (STAGE_N[a] || STAGE_N.adulto); }
+  function nmh(s) { return '<span data-noi18n translate="no">' + esc(s) + '</span>'; }
+  var NOI = (global.__snkNoI18n = global.__snkNoI18n || new Set()), NOI_OWN = [];
+  function regFriends(fr) { var L = []; (fr || []).forEach(function (f) { L.push(f.name); if (f.family) { L.push(f.family.name); (f.family.members || []).forEach(function (m) { L.push(m.name); }); } }); regNames(L); }
+  function regNames(list) { // registra nombres (para toasts, títulos y opciones donde no cabe un <span>)
+    list.forEach(function (n) { n = String(n == null ? '' : n).trim(); if (n && NOI_OWN.indexOf(n) < 0) { NOI_OWN.push(n); NOI.add(n); } });
+  }
   function shade(hex, f) {
     var n = parseInt(hex.slice(1), 16), r = n >> 16, g = (n >> 8) & 255, b = n & 255;
     if (f < 0) { r *= 1 + f; g *= 1 + f; b *= 1 + f; } else { r += (255 - r) * f; g += (255 - g) * f; b += (255 - b) * f; }
@@ -1795,9 +1807,16 @@
     $('.lsx-mail').addEventListener('click', function () { if (S) mailClick(); });
     $('.dx').addEventListener('click', function () { toggleDrawer(null); });
 
+    function regAll() {
+      var L = [S.name]; S.snakes.forEach(function (s) { L.push(s.name); }); (S.hosts || []).forEach(function (s) { L.push(s.name); });
+      (S.visitors || []).forEach(function (v) { L.push(v.name); }); (S.neighbors || []).forEach(function (v) { L.push(v.name); });
+      if (HOME && HOME !== S) { L.push(HOME.name); (HOME.snakes || []).forEach(function (s) { L.push(s.name); }); }
+      if (V) L.push(V.hostName, V.family); [REMOTE, PEERS].forEach(function (R) { Object.keys(R || {}).forEach(function (k) { if (R[k]) L.push(R[k].name, R[k].owner); }); });
+      regNames(L);
+    }
     function updateTop() {
       if (!S) return;
-      setText(root.querySelector('.hh'), 'Familia ' + S.name);
+      setHTML(root.querySelector('.hh'), '<span>Familia</span> ' + nmh(S.name)); regAll();
       var se = SEASONS[season()];
       setText($('.sea'), se.i + ' ' + se.n + ' · ' + WEEK[weekday()] + ' · Día ' + (dayIdx() + 1) + (S.weather.k === 'tormenta' ? ' · ⛈️' : ''));
       setText($('.tm'), hhmm(S.time));
@@ -1844,7 +1863,7 @@
     function buildPorts() {
       var box = bottom.querySelector('.lsx-ports'); if (!box) return; box.innerHTML = '';
       S.snakes.forEach(function (sn) {
-        var b = el('button', 'lsx-port' + (sn.id === S.sel ? ' on' : ''), '<canvas></canvas><span class="md"></span><span class="aw"></span><span class="nm"></span>' + (S.visit ? '' : '<span class="pen" title="Cambiar nombre">' + emo('✏️') + '</span>')); b.dataset.id = sn.id; b.title = sn.name;
+        var b = el('button', 'lsx-port' + (sn.id === S.sel ? ' on' : ''), '<canvas></canvas><span class="md"></span><span class="aw"></span><span class="nm" data-noi18n translate="no"></span>' + (S.visit ? '' : '<span class="pen" title="Cambiar nombre">' + emo('✏️') + '</span>')); b.dataset.id = sn.id; b.title = sn.name;
         box.appendChild(b); drawPortrait(b.querySelector('canvas'), sn, 48);
       });
       box.onclick = function (e) { var b = e.target.closest('.lsx-port'); if (!b) return; if (e.target.closest('.pen')) { var ps = snakeById(+b.dataset.id); if (ps) renameModal(ps); return; } var id = +b.dataset.id; if (S.sel === id) centerOn(sel()); S.sel = id; buildPorts(); updateBottom(); if (drawerTab) renderDrawer(); };
@@ -1858,7 +1877,7 @@
       ports.forEach(function (b) { var sn = entById(+b.dataset.id); if (!sn) return; b.querySelector('.md').style.background = moodColor(sn.mood); setText(b.querySelector('.aw'), sn.away ? (sn.away.kind === 'job' ? '💼' : '🎒') : (sn.q[0] && (ACT[sn.q[0].id] || {}).sleeping && sn.q[0].phase === 'do' ? '💤' : '')); setText(b.querySelector('.nm'), sn.name); });
       NEEDS.forEach(function (n) { var row = bottom.querySelector('.lsx-need[data-k="' + n.k + '"]'); if (!row) return; var v = s.needs[n.k]; var i = row.querySelector('i'); i.style.width = v.toFixed(0) + '%'; i.style.background = needCol(v); });
       var shedTxt = s.shedReady ? ' · ✨ lista para mudar' : '';
-      setHTML(bottom.querySelector('.lsx-mood'), '<span class="dot" style="background:' + moodColor(s.mood) + '"></span>' + esc(s.name) + ' · ' + moodLabel(s.mood) + ' <small>' + AGES[s.age].n + (s.away ? ' · fuera hasta ' + hhmm(s.away.until) : '') + shedTxt + '</small>');
+      setHTML(bottom.querySelector('.lsx-mood'), '<span class="dot" style="background:' + moodColor(s.mood) + '"></span>' + nmh(s.name) + ' · ' + moodLabel(s.mood) + ' <small>' + nmh(ageTxt(s.age)) + (s.away ? ' · fuera hasta ' + hhmm(s.away.until) : '') + shedTxt + '</small>');
       setHTML(bottom.querySelector('.lsx-ml'), s.ml.slice(-5).map(function (m) { return '<span class="' + (m.v < 0 ? 'neg' : '') + '">' + esc(m.l) + ' ' + (m.v > 0 ? '+' : '') + m.v + '</span>'; }).join('') || '<span>Sin emociones especiales</span>');
       bottom.querySelectorAll('.lsx-tabs button').forEach(function (b) { b.classList.toggle('on', b.dataset.tab === drawerTab); });
     }
@@ -1886,16 +1905,16 @@
       var s = sel(), t = drawerTab, h = '', title = '';
       if (t === 'ficha' && s) {
         title = '👤 ' + s.name;
-        h += '<div class="lsx-fichahead"><b>' + esc(s.name) + ' ' + esc(S.name) + '</b>' + (S.visit ? '' : '<button class="lsx-pen" data-a="renm" title="Cambiar nombre y apellido">✏️</button>') + '</div>';
+        h += '<div class="lsx-fichahead"><b>' + nmh(s.name) + ' ' + nmh(S.name) + '</b>' + (S.visit ? '' : '<button class="lsx-pen" data-a="renm" title="Cambiar nombre y apellido">✏️</button>') + '</div>';
         h += '<h5>Nombre</h5><div class="lsx-row"><input class="rn" value="' + esc(s.name) + '" maxlength="16" style="flex:1" aria-label="Nombre de la serpiente" placeholder="Nombre"' + (S.visit ? ' disabled' : '') + '><button class="lsx-btnp" data-a="rename"' + (S.visit ? ' disabled' : '') + '>Guardar</button></div>';
         h += '<div class="lsx-row"><small style="width:62px">Apellido</small><input class="fam" value="' + esc(S.name) + '" maxlength="18" style="flex:1" aria-label="Apellido de la familia" placeholder="Apellido"' + (S.visit ? ' disabled' : '') + '></div>';
         h += '<h5>Color</h5><div class="lsx-row" style="flex-wrap:wrap;gap:5px">' + PALETTE.map(function (p) { return '<button class="lsx-swatch' + (s.color === p.c ? ' on' : '') + '" data-a="col" data-c="' + p.c + '" title="' + p.n + '" style="background:' + p.c + '"></button>'; }).join('') + '</div>';
-        h += '<div>' + AGES[s.age].n + ' · día ' + (s.ageD + 1) + (AGES[s.age].days ? ' de ' + AGES[s.age].days : '') + (s.partner && entById(s.partner) ? ' · 💞 pareja de ' + esc(entById(s.partner).name) : '') + '</div>';
-        var gz = sizeOf(s), gMin = GROW.bebe[0]; h += '<div class="lsx-grow" style="margin-top:3px">🌱 <span>Etapa</span>: <b>' + (STAGE_N[s.age] || STAGE_N.adulto) + '</b> · <span>Tamaño</span> ' + Math.round(gz * 100) + ' % · <span>' + (gz >= 0.995 ? 'Tamaño adulto' : 'Creciendo') + '</span></div>' + bar(gz - gMin, 1 - gMin, '#27ae60');
+        h += '<div>' + nmh(ageTxt(s.age)) + ' · día ' + (s.ageD + 1) + (AGES[s.age].days ? ' de ' + AGES[s.age].days : '') + (s.partner && entById(s.partner) ? ' · 💞 pareja de ' + esc(entById(s.partner).name) : '') + '</div>';
+        var gz = sizeOf(s), gMin = GROW.bebe[0]; h += '<div class="lsx-grow" style="margin-top:3px">🌱 <span>Etapa</span>: <b>' + nmh(stageTxt(s.age)) + '</b> · <span>Tamaño</span> ' + Math.round(gz * 100) + ' % · <span>' + (gz >= 0.995 ? 'Tamaño adulto' : 'Creciendo') + '</span></div>' + bar(gz - gMin, 1 - gMin, '#27ae60');
         h += '<h5>Rasgos <small style="text-transform:none;letter-spacing:0">(hasta 3, toca para cambiar)</small></h5><div>' + Object.keys(TRAITS).map(function (k) { var on = s.traits.indexOf(k) >= 0; return '<button class="lsx-chip' + (on ? ' on' : '') + '" data-a="tr" data-t="' + k + '">' + TRAITS[k].i + ' ' + TRAITS[k].n + '</button>'; }).join('') + '</div>';
         var A = ASP[s.asp]; h += '<h5>Aspiración</h5><select class="asp" style="width:100%">' + Object.keys(ASP).map(function (k) { return '<option value="' + k + '"' + (s.asp === k ? ' selected' : '') + '>' + ASP[k].i + ' ' + ASP[k].n + '</option>'; }).join('') + '</select>';
         if (A) h += '<div style="margin-top:4px">' + A.d + (s.aspDone ? ' ✅' : '') + '</div>' + bar(A.p(s), 1, '#9b59b6');
-        h += '<h5>Muda de piel</h5><div>' + (s.shedReady ? '✨ ¡Lista para mudar! Haz clic sobre ' + esc(s.name) + ' → «Mudar la piel».' : 'Próxima muda en ~' + Math.max(1, s.shedAt - s.shed) + ' día(s).') + '</div>';
+        h += '<h5>Muda de piel</h5><div>' + (s.shedReady ? '✨ ¡Lista para mudar! Haz clic sobre ' + nmh(s.name) + ' → «Mudar la piel».' : 'Próxima muda en ~' + Math.max(1, s.shedAt - s.shed) + ' día(s).') + '</div>';
         h += '<h5>Patrón de piel</h5><div>' + Object.keys(PATTERNS).map(function (p) { var un = s.patterns.indexOf(p) >= 0; return '<button class="lsx-chip' + (s.pattern === p ? ' on' : '') + '" data-a="pat" data-p="' + p + '"' + (un ? '' : ' disabled style="opacity:.4"') + '>' + (un ? '' : '🔒 ') + PATTERNS[p] + '</button>'; }).join('') + '</div>';
         h += '<h5>Emociones</h5>' + (s.ml.length ? s.ml.map(function (m) { return '<div class="lsx-row"><span style="flex:1">' + esc(m.l) + '</span><b style="color:' + (m.v < 0 ? '#e74c3c' : '#1e8449') + '">' + (m.v > 0 ? '+' : '') + m.v + '</b></div>'; }).join('') : '<i>Nada especial</i>');
       } else if (t === 'rel' && s) {
@@ -1933,7 +1952,7 @@
         title = '🏆 Logros de la familia';
         var n = Object.keys(S.ach).length; h += '<div>' + n + ' de ' + Object.keys(ACH).length + ' logros</div>';
         Object.keys(ACH).forEach(function (k) { var a = ACH[k], on = !!S.ach[k]; h += '<div class="lsx-row" style="opacity:' + (on ? 1 : 0.45) + '"><span style="font-size:20px">' + (on ? a[0] : '🔒') + '</span><div><b>' + a[1] + '</b><br><small>' + a[2] + (on ? ' · día ' + S.ach[k] : '') + '</small></div></div>'; });
-        h += '<h5>Aspiraciones</h5>' + S.snakes.map(function (sn) { var A = ASP[sn.asp]; return A ? '<div class="lsx-row"><span style="width:84px">' + esc(sn.name) + '</span>' + bar(A.p(sn), 1, '#9b59b6') + '<small>' + A.i + '</small></div>' : ''; }).join('');
+        h += '<h5>Aspiraciones</h5>' + S.snakes.map(function (sn) { var A = ASP[sn.asp]; return A ? '<div class="lsx-row"><span style="width:84px">' + nmh(sn.name) + '</span>' + bar(A.p(sn), 1, '#9b59b6') + '<small>' + A.i + '</small></div>' : ''; }).join('');
       } else if (t === 'opts') {
         title = '⚙️ Opciones';
         h += '<h5>Apellido de la familia</h5><div class="lsx-row"><input class="fam" value="' + esc(S.name) + '" maxlength="18" style="flex:1" aria-label="Apellido de la familia" placeholder="Apellido"' + (S.visit ? ' disabled' : '') + '><button class="lsx-btnp" data-a="rename"' + (S.visit ? ' disabled' : '') + '>Guardar</button></div>';
@@ -2025,7 +2044,7 @@
       });
       if (o.t === 'huevo') items.unshift({ ic: '🌡️', l: 'Eclosión: ' + Math.floor(o.prog || 0) + '%', dis: true, sub: 'Más rápido junto al terrario o incubándolo' });
       if (!c.nobuy && !S.visit) items.push({ ic: '🛋️', l: 'Mover o vender…', sub: 'Abre el modo Comprar', fn: function () { setMode('buy'); selObj = o.id; updateTool(); } });
-      showPie(sx, sy, (s ? esc(s.name) + ' → ' : '') + esc(c.n), items);
+      showPie(sx, sy, (s ? nmh(s.name) + ' → ' : '') + esc(c.n), items);
     }
     function entMenu(e, sx, sy) {
       var s = sel(), items = [];
@@ -2033,7 +2052,7 @@
       if (S.snakes.indexOf(e) >= 0 && e === s) {
         ['sniff', 'shed', 'bask', 'stealth', 'playalone'].forEach(function (id) { var w2 = whyNot(s, id); if (id === 'playalone' && w2 !== true) return; items.push({ ic: ACT[id].i, l: ACT[id].l, dis: w2 !== true, sub: w2 !== true ? w2 : '', fn: function () { act(id); } }); });
         items.push({ ic: '👤', l: 'Ver ficha', fn: function () { toggleDrawer('ficha'); } });
-        showPie(sx, sy, esc(e.name) + ' (' + AGES[e.age].n.toLowerCase() + ')', items); return;
+        showPie(sx, sy, nmh(e.name) + ' (' + nmh(ageTxt(e.age).toLowerCase()) + ')', items); return;
       }
       if (S.snakes.indexOf(e) >= 0) items.push({ ic: '👆', l: 'Seleccionar a ' + e.name, fn: function () { S.sel = e.id; buildPorts(); updateBottom(); if (drawerTab) renderDrawer(); } });
       if (s && !s.away) {
@@ -2043,7 +2062,7 @@
           items.push({ ic: d.i, l: d.l, dis: w3 !== true, sub: w3 !== true ? w3 : (d.kid ? '' : 'Amistad ' + Math.round(r.fr) + (r.ro ? ' · Romance ' + Math.round(r.ro) : '')), fn: function () { act(id, { soc: 1, target: e.id, label: d.l + ' con ' + e.name }); } });
         });
       } else if (s && s.away) items.push({ ic: '⏳', l: s.name + ' está fuera', dis: true });
-      showPie(sx, sy, esc(e.name) + (e.species ? ' · ' + SPECIES[e.species].n : e.remote ? ' · invitada de ' + esc(e.owner) : e.hostSn ? ' · familia ' + esc(V ? V.family : '') : ' · ' + AGES[e.age].n), items);
+      showPie(sx, sy, nmh(e.name) + (e.species ? ' · ' + SPECIES[e.species].n : e.remote ? ' · invitada de ' + nmh(e.owner) : e.hostSn ? ' · familia ' + nmh(V ? V.family : '') : ' · ' + nmh(ageTxt(e.age))), items);
     }
     function tileMenu(gx, gy, sx, sy) {
       var s = sel(), items = [], w = s ? (s.away ? 'Está fuera de casa' : true) : 'Selecciona una serpiente';
@@ -2222,7 +2241,7 @@
       if (!s) return; if (s.age !== 'adulto' && s.age !== 'anciano') { toast('Solo los adultos pueden trabajar.', 'warn'); return; }
       var comp = pc || S.objects.filter(function (o) { return o.t === 'ordenador'; })[0];
       if (!comp) { toast('Necesitas un ordenador para buscar trabajo (modo Comprar → Ocio).', 'warn'); return; }
-      var h = '<h2>💼 Ofertas de trabajo para ' + esc(s.name) + '</h2><div style="display:grid;gap:8px">';
+      var h = '<h2>💼 Ofertas de trabajo para ' + nmh(s.name) + '</h2><div style="display:grid;gap:8px">';
       Object.keys(CAREERS).forEach(function (k) { var C = CAREERS[k]; h += '<button data-k="' + k + '" style="text-align:left;background:#f0f6fc;padding:9px 12px"><b>' + C.i + ' ' + C.n + '</b> — ' + C.lv[0][0] + '<br><small>' + hhmm(C.h[0] * 60) + '–' + hhmm(C.h[1] * 60) + ' (L-V) · ' + money(C.lv[0][1]) + '/h · habilidad clave: ' + SKILLS[C.skill] + '</small></button>'; });
       h += '</div><div class="lsx-row" style="justify-content:flex-end;margin-top:10px"><button data-k="">Cerrar</button></div>';
       openModal(h, { esc: function () { closeModal(); } });
@@ -2246,7 +2265,7 @@
         var h = '<h2>🐍 Crea tu familia de serpientes</h2><div class="lsx-row"><label>Apellido:</label><input class="fn" value="' + esc(fam.name) + '" maxlength="18"><label class="lsx-row" style="margin-left:auto"><input type="checkbox" class="cp"' + (fam.couple ? ' checked' : '') + '> Los dos primeros adultos son pareja</label></div>';
         mem.forEach(function (m, i) {
           h += '<div class="lsx-mem" data-i="' + i + '"><canvas width="70" height="70"></canvas><div>' +
-            '<div class="lsx-row"><input data-f="name" value="' + esc(m.name) + '" maxlength="16" style="width:130px"><select data-f="age">' + Object.keys(AGES).map(function (a) { return '<option value="' + a + '"' + (m.age === a ? ' selected' : '') + '>' + AGES[a].n + '</option>'; }).join('') + '</select>' +
+            '<div class="lsx-row"><input data-f="name" value="' + esc(m.name) + '" maxlength="16" style="width:130px"><select data-f="age">' + Object.keys(AGES).map(function (a) { return '<option data-noi18n translate="no" value="' + a + '"' + (m.age === a ? ' selected' : '') + '>' + esc(ageTxt(a)) + '</option>'; }).join('') + '</select>' +
             '<select data-f="asp" title="Aspiración">' + Object.keys(ASP).map(function (a) { return '<option value="' + a + '"' + (m.asp === a ? ' selected' : '') + '>' + ASP[a].i + ' ' + ASP[a].n + '</option>'; }).join('') + '</select>' +
             (mem.length > 1 ? '<button data-x="' + i + '" title="Quitar" style="margin-left:auto">🗑️</button>' : '') + '</div>' +
             '<div class="lsx-row" style="flex-wrap:wrap;gap:5px">' + PALETTE.map(function (p) { return '<button class="lsx-swatch' + (m.color === p.c ? ' on' : '') + '" data-col="' + p.c + '" title="' + p.n + '" style="background:' + p.c + '"></button>'; }).join('') + '</div>' +
@@ -2329,7 +2348,7 @@
       $('.lsx-mail').title = S && S.visit ? 'Dejar un regalo o una nota' : 'Buzón'; setHTML($('.lsx-mail .mic'), S && S.visit ? (V && V.place ? '🗺️' : '🎁') : '📬');
       if (!S || !S.visit || !V) { vb.style.display = 'none'; setHTML(vb, ''); resize(); return; }
       if (V.place) { var PLc = PLACES[V.place], np = Object.keys(PEERS).length; setHTML(vb, '<span class="vt">' + PLc.i + ' En <b>' + esc(PLc.n) + '</b> <small>' + PLc.gives + '</small></span><span class="lv' + (np ? ' on' : '') + '">' + (np ? '🟢 ' + np + ' amigo' + (np > 1 ? 's' : '') + ' aquí' : '⚪ Sin amigos aquí') + '</span><span class="sp"></span><button data-v="map">🗺️<em> Barrio</em></button><button data-v="home" class="lsx-btnp">🏠<em> Volver a casa</em></button>'); vb.style.display = 'flex'; resize(); return; }
-      setHTML(vb, '<span class="vt">🏡 De visita en casa de <b>' + esc(V.hostName) + '</b> <small>familia ' + esc(V.family) + '</small></span><span class="lv ' + (V.live ? 'on' : '') + '">' + (V.live ? '🟢 En vivo' : '⚪ Sin conexión') + '</span><span class="sp"></span><button data-v="gift">🎁<em> Regalo o nota</em></button><button data-v="home" class="lsx-btnp">🏠<em> Volver a casa</em></button>');
+      setHTML(vb, '<span class="vt">🏡 De visita en casa de <b>' + nmh(V.hostName) + '</b> <small>familia ' + nmh(V.family) + '</small></span><span class="lv ' + (V.live ? 'on' : '') + '">' + (V.live ? '🟢 En vivo' : '⚪ Sin conexión') + '</span><span class="sp"></span><button data-v="gift">🎁<em> Regalo o nota</em></button><button data-v="home" class="lsx-btnp">🏠<em> Volver a casa</em></button>');
       vb.style.display = 'flex'; resize();
     }
     $('.lsx-vbar').addEventListener('click', function (e) { var b = e.target.closest('[data-v]'); if (!b) return; if (b.dataset.v === 'home') endVisit(false); else if (b.dataset.v === 'map') barrioClick(); else mailClick(); });
@@ -2387,7 +2406,7 @@
     var items = SOCIAL.mail.slice();
     function show() {
       var hist = S.mail || [];
-      var h = '<h2>📬 Buzón de la familia ' + esc(S.name) + '</h2>';
+      var h = '<h2>📬 Buzón de la familia ' + nmh(S.name) + '</h2>';
       if (!hist.length) h += '<p><i>El buzón está vacío. Cuando tus amigos te visiten o te dejen regalos y notas, aparecerán aquí.</i></p>';
       hist.slice().reverse().forEach(function (m) {
         var ic = m.kind === 'gift' ? (GIFTS[m.item] || {}).i || '🎁' : m.kind === 'note' ? '💌' : '🐍';
@@ -2454,17 +2473,17 @@
     var card = uiModal('<h2>🏘️ Visitar a un amigo</h2><p>Buscando a tus amigos…</p>', { esc: uiClose });
     api('/api/los-snakes/friends').then(function (j) {
       if (!UI || !UI.isModal()) return;
-      var fr = j.friends || [];
+      var fr = j.friends || []; regFriends(fr);
       var h = '<h2>🏘️ Visitar a un amigo</h2>';
       if (!mine.length) h += '<p class="why">Ahora mismo no hay ninguna serpiente disponible (las crías no salen solas y las que están fuera no pueden ir).</p>';
-      else h += '<div class="lsx-row"><label>Va de visita:</label><select class="vs">' + mine.map(function (s) { return '<option value="' + s.id + '"' + (s.id === S.sel ? ' selected' : '') + '>' + esc(s.name) + ' (' + AGES[s.age].n.toLowerCase() + ')</option>'; }).join('') + '</select></div>';
+      else h += '<div class="lsx-row"><label>Va de visita:</label><select class="vs">' + mine.map(function (s) { return '<option data-noi18n translate="no" value="' + s.id + '"' + (s.id === S.sel ? ' selected' : '') + '>' + esc(s.name) + ' (' + esc(ageTxt(s.age).toLowerCase()) + ')</option>'; }).join('') + '</select></div>';
       if (j.kids) h += '<p><small>🧸 Snake OS Kids: solo puedes visitar a los amigos aprobados por un adulto.</small></p>';
       if (!fr.length) h += '<p><i>Todavía no tienes amigos añadidos. Añádelos en Doganiero Chat o Teléfono (cuentas añadidas) y, cuando jueguen a Los Snakes, podrás visitarlos.</i></p>';
       fr.forEach(function (f, i) {
         var fam = f.family;
         h += '<div class="lsx-fr" data-i="' + i + '">' + (fam ? '<canvas class="hs"></canvas>' : '<div style="width:150px;height:96px;border-radius:10px;background:#e5ecf3;display:flex;align-items:center;justify-content:center;font-size:30px">🏚️</div>') +
-          '<div><div class="lsx-row" style="margin:0"><b style="font-size:15px"><span class="lsx-fav">' + (typeof window.snkAvatarHtml === 'function' ? window.snkAvatarHtml(f.avatar, 'lsx-fav-img') : (/[\/:]/.test(String(f.avatar || '')) ? '🐍' : esc(f.avatar || '🐍'))) + '</span> ' + esc(f.name) + '</b><small><span class="dot' + (f.online ? ' on' : '') + '"></span>' + (f.online ? 'jugando ahora (visita en vivo)' : 'no está jugando') + '</small></div>' +
-          (fam ? '<div>Familia <b>' + esc(fam.name) + '</b> · día ' + fam.day + ' · ' + fam.objects + ' muebles</div><div class="fm">' + fam.members.map(function () { return '<canvas></canvas>'; }).join('') + '</div><small>' + fam.members.map(function (m) { return esc(m.name); }).join(', ') + '</small>' : '') +
+          '<div><div class="lsx-row" style="margin:0"><b style="font-size:15px"><span class="lsx-fav">' + (typeof window.snkAvatarHtml === 'function' ? window.snkAvatarHtml(f.avatar, 'lsx-fav-img') : (/[\/:]/.test(String(f.avatar || '')) ? '🐍' : esc(f.avatar || '🐍'))) + '</span> ' + nmh(f.name) + '</b><small><span class="dot' + (f.online ? ' on' : '') + '"></span>' + (f.online ? 'jugando ahora (visita en vivo)' : 'no está jugando') + '</small></div>' +
+          (fam ? '<div>Familia <b>' + nmh(fam.name) + '</b> · día ' + fam.day + ' · ' + fam.objects + ' muebles</div><div class="fm">' + fam.members.map(function () { return '<canvas></canvas>'; }).join('') + '</div><small>' + fam.members.map(function (m) { return nmh(m.name); }).join(', ') + '</small>' : '') +
           (f.can ? '<div style="margin-top:6px"><button class="lsx-btnp" data-v="' + i + '"' + (mine.length ? '' : ' disabled') + '>🚪 Visitar</button></div>' : '<div class="why">' + esc(f.reason) + '</div>') + '</div></div>';
       });
       h += '<div class="lsx-row" style="justify-content:flex-end;margin-top:8px"><button data-v="x">Cerrar</button></div>';
@@ -2847,17 +2866,17 @@
     var fr = [], kids = false, sel0 = S.visit ? (V && V.sid) : S.sel, h = hour();
     function render() {
       var html = '<h2>🗺️ El barrio</h2>';
-      if (!S.visit) html += mine.length ? '<div class="lsx-row"><label>Sale de casa:</label><select class="vs">' + mine.map(function (s) { return '<option value="' + s.id + '"' + (s.id === sel0 ? ' selected' : '') + '>' + esc(s.name) + ' (' + AGES[s.age].n.toLowerCase() + ')</option>'; }).join('') + '</select><small>Son las ' + hhmm(S.time % 1440) + '</small></div>' : '<p class="why">Ahora no hay ninguna serpiente que pueda salir (las crías no salen solas).</p>';
-      else html += '<p><small>' + esc(S.snakes[0].name) + ' está ' + (cur ? 'en ' + esc(PLACES[cur].n) : 'de visita en casa de ' + esc(V.hostName)) + '. Elige otro destino o vuelve a casa.</small></p>';
+      if (!S.visit) html += mine.length ? '<div class="lsx-row"><label>Sale de casa:</label><select class="vs">' + mine.map(function (s) { return '<option data-noi18n translate="no" value="' + s.id + '"' + (s.id === sel0 ? ' selected' : '') + '>' + esc(s.name) + ' (' + esc(ageTxt(s.age).toLowerCase()) + ')</option>'; }).join('') + '</select><small>Son las ' + hhmm(S.time % 1440) + '</small></div>' : '<p class="why">Ahora no hay ninguna serpiente que pueda salir (las crías no salen solas).</p>';
+      else html += '<p><small>' + nmh(S.snakes[0].name) + ' está ' + (cur ? 'en ' + esc(PLACES[cur].n) : 'de visita en casa de ' + nmh(V.hostName)) + '. Elige otro destino o vuelve a casa.</small></p>';
       html += '<div class="lsx-map"><div class="rd h"></div><div class="rd v"></div><div class="rd h2"></div>';
-      html += '<button class="pin home" data-go="home" style="left:30%;top:84%">🏠<b>' + (S.visit ? 'Volver a casa' : 'Tu casa') + '</b><small>familia ' + esc(fam.name) + '</small></button>';
+      html += '<button class="pin home" data-go="home" style="left:30%;top:84%">🏠<b>' + (S.visit ? 'Volver a casa' : 'Tu casa') + '</b><small>familia ' + nmh(fam.name) + '</small></button>';
       Object.keys(PLACES).forEach(function (k) {
         var P2 = PLACES[k], op = placeOpen(k, h), n = fr.filter(function (f) { return f.at === k; }).length;
         html += '<button class="pin pl' + (op ? '' : ' closed') + (cur === k ? ' here' : '') + '" data-go="' + k + '" style="left:' + P2.x + '%;top:' + P2.y + '%">' + P2.i + '<b>' + esc(P2.n) + '</b><small>' + (cur === k ? 'estás aquí' : op ? 'abierto' : 'cerrado · abre a las ' + hhmm(P2.h[0] * 60)) + '</small>' + (n ? '<i class="bdg2">' + n + '</i>' : '') + '</button>';
       });
       fr.forEach(function (f, i) {
         var x = i < 5 ? 11 + i * 19 : 62 + ((i - 5) % 3) * 15, y = i < 5 ? 10 : 90 - Math.floor((i - 5) / 3) * 13;
-        html += '<button class="pin fr' + (f.can ? '' : ' closed') + '" data-fr="' + i + '" style="left:' + x + '%;top:' + y + '%">🏡<b>' + esc(f.name) + '</b><small>' + (f.online ? '🟢 ' : '') + (f.at ? 'en ' + esc(PLACES[f.at] ? PLACES[f.at].n : f.at) : f.family ? 'familia ' + esc(f.family.name) : 'sin partida') + '</small></button>';
+        html += '<button class="pin fr' + (f.can ? '' : ' closed') + '" data-fr="' + i + '" style="left:' + x + '%;top:' + y + '%">🏡<b>' + nmh(f.name) + '</b><small>' + (f.online ? '🟢 ' : '') + (f.at ? 'en ' + esc(PLACES[f.at] ? PLACES[f.at].n : f.at) : f.family ? 'familia ' + nmh(f.family.name) : 'sin partida') + '</small></button>';
       });
       html += '</div><div class="lsx-mapinfo"><small>Toca un lugar para ver qué hay. Las casas de arriba son de tus amigos (cuentas añadidas en Chat/Teléfono).' + (kids ? ' 🧸 Snake OS Kids: solo amigos aprobados.' : '') + (userKey() === 'anon' ? ' Inicia sesión para ver a tus amigos.' : '') + '</small></div>';
       html += '<div class="lsx-row" style="justify-content:flex-end;margin-top:8px"><button data-go="x">Cerrar</button></div>';
@@ -2869,22 +2888,22 @@
         var b = e.target.closest('[data-go],[data-fr],[data-do]'); if (!b) return;
         if (b.dataset.do) { var dd = b.dataset.do; if (dd === 'home') { uiClose(); endVisit(false); return; } uiClose(); startPlace(dd, sel0); return; }
         if (b.dataset.fr != null) {
-          var f = fr[+b.dataset.fr]; if (!f.can) { info('🏡 <b>' + esc(f.name) + '</b><br><span class="why">' + esc(f.reason || 'No se puede visitar') + '</span>'); return; }
-          if (inFriend && V.hostId === f.id) { info('Ya estás en casa de ' + esc(f.name) + '.'); return; }
-          info('🏡 <b>Casa de ' + esc(f.name) + '</b> · familia ' + esc(f.family ? f.family.name : '') + (f.family ? ' · ' + f.family.members.map(function (m) { return esc(m.name); }).join(', ') : '') + '<br><small>' + (f.online ? '🟢 Está jugando: visita en vivo.' : 'No está jugando: visita sin conexión (solo lectura).') + '</small><div style="margin-top:6px"><button class="lsx-btnp" data-vf="' + b.dataset.fr + '">🚪 Visitar</button></div>');
+          var f = fr[+b.dataset.fr]; if (!f.can) { info('🏡 <b>' + nmh(f.name) + '</b><br><span class="why">' + esc(f.reason || 'No se puede visitar') + '</span>'); return; }
+          if (inFriend && V.hostId === f.id) { info('Ya estás en casa de ' + nmh(f.name) + '.'); return; }
+          info('🏡 <b>Casa de ' + nmh(f.name) + '</b> · familia ' + nmh(f.family ? f.family.name : '') + (f.family ? ' · ' + f.family.members.map(function (m) { return nmh(m.name); }).join(', ') : '') + '<br><small>' + (f.online ? '🟢 Está jugando: visita en vivo.' : 'No está jugando: visita sin conexión (solo lectura).') + '</small><div style="margin-top:6px"><button class="lsx-btnp" data-vf="' + b.dataset.fr + '">🚪 Visitar</button></div>');
           return;
         }
         var go = b.dataset.go;
         if (go === 'x') { uiClose(); return; }
         if (go === 'home') { if (S.visit) info('🏠 <b>Volver a casa</b><div style="margin-top:6px"><button class="lsx-btnp" data-do="home">🏠 Volver ahora</button></div>'); else info('🏠 Estás en casa. Elige un destino del barrio.'); return; }
         var P2 = PLACES[go], op = placeOpen(go, h), n = fr.filter(function (f) { return f.at === go; });
-        info(P2.i + ' <b>' + esc(P2.n) + '</b> · ' + (op ? 'abierto' : 'cerrado') + ' (' + (P2.h[1] - P2.h[0] >= 24 ? 'abre siempre' : hhmm(P2.h[0] * 60) + '–' + hhmm(P2.h[1] % 24 * 60)) + ')<br>' + esc(P2.d) + '<br><small>' + P2.gives + '</small>' + (n.length ? '<br><small>🟢 Ahora hay amigos: ' + n.map(function (f) { return esc(f.name); }).join(', ') + '</small>' : '') +
+        info(P2.i + ' <b>' + esc(P2.n) + '</b> · ' + (op ? 'abierto' : 'cerrado') + ' (' + (P2.h[1] - P2.h[0] >= 24 ? 'abre siempre' : hhmm(P2.h[0] * 60) + '–' + hhmm(P2.h[1] % 24 * 60)) + ')<br>' + esc(P2.d) + '<br><small>' + P2.gives + '</small>' + (n.length ? '<br><small>🟢 Ahora hay amigos: ' + n.map(function (f) { return nmh(f.name); }).join(', ') + '</small>' : '') +
           '<div style="margin-top:6px">' + (cur === go ? '<i>Ya estás aquí.</i>' : '<button class="lsx-btnp" data-do="' + go + '"' + (op && (mine.length || S.visit) ? '' : ' disabled') + '>🚶 Ir</button>') + '</div>');
       };
       function info(t) { var el2 = card.querySelector('.lsx-mapinfo'); if (el2) el2.innerHTML = emo(t); }
     }
     render();
-    if (userKey() !== 'anon') api('/api/los-snakes/friends').then(function (j) { if (!UI || !UI.isModal() || !UI.card.querySelector('.lsx-map')) return; fr = j.friends || []; kids = !!j.kids; render(); }).catch(function () {});
+    if (userKey() !== 'anon') api('/api/los-snakes/friends').then(function (j) { if (!UI || !UI.isModal() || !UI.card.querySelector('.lsx-map')) return; fr = j.friends || []; regFriends(fr); kids = !!j.kids; render(); }).catch(function () {});
   }
 
   // ---- dibujo de los objetos de los lugares públicos
