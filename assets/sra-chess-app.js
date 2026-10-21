@@ -61,13 +61,21 @@
     coachW.postMessage('uci');
     return coachW;
   }
+  /* 2026.14: los análisis de posiciones que ya no están en el tablero se descartan (antes se acumulaban y retrasaban los consejos) */
+  function staleOut(q){ try { q.res({ fen: q.fen, kind: 'cp', score: 0, pv: [], stale: true }); } catch (e) {} }
   function nextAn(){
-    if (!coachReady || coachCur || !coachQ.length) return;
+    if (!coachReady || coachCur) return;
+    var cur = game.fen();
+    while (coachQ.length && coachQ[0].fen !== cur) staleOut(coachQ.shift());
+    if (!coachQ.length) return;
     coachCur = coachQ.shift(); coachCur.r = { fen: coachCur.fen, kind: 'cp', score: 0, pv: [] };
     coachW.postMessage('setoption name Skill Level value 20');
     coachW.postMessage('position fen ' + coachCur.fen); coachW.postMessage('go movetime ' + coachCur.ms + ' depth 16');
   }
-  function analyze(fen, ms){ coach(); return new Promise(function(res){ coachQ.push({ fen: fen, ms: ms || 650, res: res }); nextAn(); }); }
+  function analyze(fen, ms){ coach(); return new Promise(function(res){
+    coachQ = coachQ.filter(function(q){ if (q.fen !== fen) { staleOut(q); return false; } return true; });
+    if (coachCur && coachCur.fen !== fen && coachW) { try { coachW.postMessage('stop'); } catch (e) {} }
+    coachQ.push({ fen: fen, ms: ms || 650, res: res }); nextAn(); }); }
   // Puntuación desde el punto de vista del jugador (centipeones; mate = ±(10000 - jugadas))
   function forPlayer(r){ var turn = r.fen.split(' ')[1], s = r.kind === 'mate' ? (r.score > 0 ? 10000 - r.score : -10000 - r.score) : r.score; return turn === st.color ? s : -s; }
   function pname(t){ return { p: T('peón', 'pawn'), n: T('caballo', 'knight'), b: T('alfil', 'bishop'), r: T('torre', 'rook'), q: T('dama', 'queen'), k: T('rey', 'king') }[t]; }
@@ -212,6 +220,7 @@
     var g = ++gen, fen = game.fen();
     show(T('Pensando un consejo…', 'Thinking of a tip…'), '');
     analyze(fen, full ? 1100 : 650).then(function(r){
+      if (r.stale) return;
       if (g !== gen || !beginner() || game.fen() !== fen) return;
       lastAn = r;
       var f = facts(r), loc = localTip(f, full);
@@ -243,7 +252,7 @@
     moveCheck = { san: mv.san, fenAfter: fenAfter, fenAfterEngine: null, verdict: null, loss: 0, better: null };
     var mc = moveCheck;
     analyze(fenAfter, 500).then(function(r){
-      if (mc !== moveCheck) return;
+      if (r.stale || mc !== moveCheck) return;
       if (before !== null) { mc.loss = Math.max(0, before - forPlayer(r)); mc.verdict = verdict(mc.loss, game.history().length); }
       var bm = mc.verdict && lastAn && lastAn.best && lastAn.best !== '(none)' ? moveObj(fenBefore, lastAn.best) : null;
       mc.better = bm && bm.san !== mv.san ? bm.san : null;

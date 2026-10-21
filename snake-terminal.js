@@ -428,6 +428,140 @@
       e.stopPropagation();
     });
   }
+  /* ---- v2026.14: comandos nuevos ---- */
+  HELP.snakesay = 'snakesay <texto> — una serpiente lo dice (también cowsay)';
+  HELP.fortune = 'fortune — una frase al azar';
+  HELP.calc = 'calc <expresión> — calculadora (+ - * / % ^, paréntesis, sqrt, sin, cos, pi…)';
+  HELP.cal = 'cal [mes] [año] — calendario del mes';
+  HELP.todo = 'todo [add <texto> | done <n> | rm <n> | clear] — lista de tareas guardada';
+  HELP.base64 = 'base64 [-d] <texto> — codifica o decodifica Base64 (admite tuberías)';
+  HELP.sha256 = 'sha256 <texto> — huella SHA-256 (admite tuberías)';
+  HELP.uuid = 'uuid [n] — identificadores únicos aleatorios';
+  HELP.banner = 'banner <texto> — letras grandes';
+  HELP.matrix = 'matrix — lluvia de código (cualquier tecla para salir)';
+  HELP.timer = 'timer <30s|5m|1h> [mensaje] — aviso cuando acabe el tiempo';
+  CMDS.push('snakesay','cowsay','fortune','calc','cal','todo','base64','sha256','uuid','banner','matrix','timer');
+  function wrapText(t, w){ var o = [], line = ''; String(t).split(/\s+/).forEach(function(wd){ while(wd.length > w){ if(line){ o.push(line); line = ''; } o.push(wd.slice(0, w)); wd = wd.slice(w); } if(!wd) return; if((line + ' ' + wd).trim().length > w){ o.push(line); line = wd; } else line = (line + ' ' + wd).trim(); }); if(line) o.push(line); return o.length ? o : ['']; }
+  C.snakesay = function(args, stdin){
+    var t = args.length ? args.join(' ') : (stdin != null ? String(stdin) : '¡Hola desde Snake OS!');
+    var ls = wrapText(t.replace(/\s+/g, ' ').trim(), 38), w = Math.max.apply(null, ls.map(function(l){ return l.length; }));
+    var o = [' ' + '_'.repeat(w + 2)];
+    ls.forEach(function(l, i){ var a = ls.length === 1 ? ['<','>'] : i === 0 ? ['/','\\'] : i === ls.length - 1 ? ['\\','/'] : ['|','|']; o.push(a[0] + ' ' + l + ' '.repeat(w - l.length) + ' ' + a[1]); });
+    o.push(' ' + '-'.repeat(w + 2));
+    return o.concat(['    \\', '     \\    ___', '      \\  (o o)__', '         \\_/   \\___', '          \\__      \\___~', '             \\________/  🐍']);
+  };
+  C.cowsay = C.snakesay;
+  var FORTUNES = ['La serpiente que no se mueve no encuentra manzanas.', 'Hoy es un buen día para guardar tus archivos.', 'Un bug encontrado es medio bug arreglado.', 'Quien comparte huesitos, multiplica amigos.', 'Primero funciona, luego queda bonito, luego va rápido.', 'Ctrl+S es tu mejor amigo.', 'Las grandes ideas empiezan con un «¿y si…?».', 'Descansa la vista: mira algo lejano 20 segundos.', 'Tu próxima victoria en el ajedrez está a una jugada.', 'Snake OS cree en ti. 🐍'];
+  C.fortune = function(){ return [FORTUNES[Math.floor(Math.random() * FORTUNES.length)]]; };
+  function calcEval(src){
+    var s = String(src).replace(/\s+/g, '').replace(/,/g, '.').replace(/×/g, '*').replace(/÷/g, '/'), i = 0;
+    var FN = { sqrt:Math.sqrt, sin:Math.sin, cos:Math.cos, tan:Math.tan, abs:Math.abs, log:Math.log10, ln:Math.log, round:Math.round, floor:Math.floor, ceil:Math.ceil };
+    function peek(){ return s[i]; }
+    function num(){ var m = /^(\d+\.?\d*|\.\d+)(e[+-]?\d+)?/i.exec(s.slice(i)); if(!m) throw new Error('calc: no entiendo «' + s.slice(i, i + 8) + '»'); i += m[0].length; return parseFloat(m[0]); }
+    function atom(){
+      var c = peek();
+      if(c === '('){ i++; var v = expr(); if(s[i] !== ')') throw new Error('calc: falta «)»'); i++; return v; }
+      if(c === '-'){ i++; return -atom(); }
+      if(c === '+'){ i++; return atom(); }
+      var m = /^[a-z]+/i.exec(s.slice(i));
+      if(m){ var n = m[0].toLowerCase(); i += m[0].length; if(n === 'pi') return Math.PI; if(n === 'e') return Math.E; if(FN[n]){ if(s[i] !== '(') throw new Error('calc: ' + n + ' necesita paréntesis'); return FN[n](atom()); } throw new Error('calc: función desconocida ' + n); }
+      return num();
+    }
+    function pow(){ var b = atom(); if(s[i] === '^'){ i++; return Math.pow(b, pow()); } return b; }
+    function term(){ var v = pow(); while(s[i] === '*' || s[i] === '/' || s[i] === '%'){ var op = s[i++], r = pow(); v = op === '*' ? v * r : op === '/' ? v / r : v % r; } return v; }
+    function expr(){ var v = term(); while(s[i] === '+' || s[i] === '-'){ var op = s[i++], r = term(); v = op === '+' ? v + r : v - r; } return v; }
+    if(!s) throw new Error('calc: escribe una operación. Ej: calc (2+3)*4');
+    if(s.length > 200) throw new Error('calc: la operación es demasiado larga');
+    var v = expr(); if(i < s.length) throw new Error('calc: sobra «' + s.slice(i) + '»');
+    return v;
+  }
+  C.calc = function(args, stdin){ try { var v = calcEval(args.length ? args.join(' ') : (stdin || '')); return [isFinite(v) ? String(Math.round(v * 1e10) / 1e10) : 'No es un número (¿división entre 0?)']; } catch(e){ return err(e.message); } };
+  C.cal = function(args){
+    var now = new Date(), m = args[0] ? parseInt(args[0], 10) - 1 : now.getMonth(), y = args[1] ? parseInt(args[1], 10) : now.getFullYear();
+    if(!(m >= 0 && m < 12) || !(y > 0 && y < 10000)) return err('cal: uso cal [mes 1-12] [año]');
+    var title = new Date(y, m, 1).toLocaleDateString('es-ES', { month:'long', year:'numeric' });
+    var o = [' '.repeat(Math.max(0, Math.floor((20 - title.length) / 2))) + title, 'lu ma mi ju vi sá do'];
+    var first = (new Date(y, m, 1).getDay() + 6) % 7, days = new Date(y, m + 1, 0).getDate(), line = '   '.repeat(first);
+    for(var d = 1; d <= days; d++){
+      var cell = String(d).padStart(2); if(d === now.getDate() && m === now.getMonth() && y === now.getFullYear()) cell = cell.replace(/\d+/, function(x){ return x; }) + '*'; else cell += ' ';
+      line += cell; if((first + d) % 7 === 0){ o.push(line.replace(/\s+$/, '')); line = ''; }
+    }
+    if(line.trim()) o.push(line.replace(/\s+$/, ''));
+    o.push('(* = hoy)'); return o;
+  };
+  function todoKey(){ return 'snkTermTodo:' + uname(); }
+  function todoGet(){ try { var v = JSON.parse(localStorage.getItem(todoKey()) || '[]'); return Array.isArray(v) ? v : []; } catch(e){ return []; } }
+  function todoSet(v){ try { localStorage.setItem(todoKey(), JSON.stringify(v.slice(0, 200))); } catch(e){} }
+  C.todo = function(args){
+    var L = todoGet(), cmd = (args[0] || 'list').toLowerCase(), rest = args.slice(1).join(' ').trim();
+    if(cmd === 'add'){ if(!rest) return err('todo: escribe la tarea. Ej: todo add comprar pan'); L.push({ t: rest.slice(0, 200), d: false }); todoSet(L); return ['Añadida (' + L.length + '): ' + rest]; }
+    if(cmd === 'done' || cmd === 'rm'){ var n = parseInt(rest, 10); if(!(n >= 1 && n <= L.length)) return err('todo: número no válido (usa todo para ver la lista)'); if(cmd === 'done'){ L[n-1].d = !L[n-1].d; } else L.splice(n - 1, 1); todoSet(L); }
+    else if(cmd === 'clear'){ L = L.filter(function(x){ return !x.d; }); todoSet(L); }
+    else if(cmd !== 'list') return err('todo: uso todo [add <texto> | done <n> | rm <n> | clear]');
+    if(!L.length) return ['No tienes tareas. Añade una con: todo add <texto>'];
+    return L.map(function(x, i){ return String(i + 1).padStart(3) + '. [' + (x.d ? 'x' : ' ') + '] ' + x.t; });
+  };
+  C.base64 = function(args, stdin){
+    var dec = args[0] === '-d', t = (dec ? args.slice(1) : args).join(' ');
+    if(!t && stdin != null) t = String(stdin);
+    try {
+      if(dec){ var bin = atob(t.replace(/\s+/g, '')); var bytes = new Uint8Array(bin.length); for(var i=0;i<bin.length;i++) bytes[i] = bin.charCodeAt(i); return new TextDecoder().decode(bytes).split('\n'); }
+      var u = new TextEncoder().encode(t), s = ''; for(var j=0;j<u.length;j++) s += String.fromCharCode(u[j]); return [btoa(s)];
+    } catch(e){ return err('base64: el texto no es Base64 válido'); }
+  };
+  C.sha256 = function(args, stdin){
+    var t = args.length ? args.join(' ') : (stdin != null ? String(stdin) : '');
+    if(!(window.crypto && crypto.subtle)) return err('sha256: este navegador no lo permite (hace falta HTTPS)');
+    return crypto.subtle.digest('SHA-256', new TextEncoder().encode(t)).then(function(h){ return [Array.prototype.map.call(new Uint8Array(h), function(b){ return b.toString(16).padStart(2, '0'); }).join('')]; });
+  };
+  C.uuid = function(args){ var n = Math.max(1, Math.min(20, parseInt(args[0] || '1', 10) || 1)), o = []; for(var i=0;i<n;i++){ o.push(crypto.randomUUID ? crypto.randomUUID() : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c){ var r = crypto.getRandomValues(new Uint8Array(1))[0] & 15; return (c === 'x' ? r : (r & 3 | 8)).toString(16); })); } return o; };
+  var BIG = { A:['▄▀▄','█▀█','▀ ▀'], B:['█▀▄','█▀▄','▀▀ '], C:['▄▀▀','█  ','▀▀▀'], D:['█▀▄','█ █','▀▀ '], E:['█▀▀','█▀▀','▀▀▀'], F:['█▀▀','█▀ ','▀  '], G:['▄▀▀','█ █','▀▀▀'], H:['█ █','█▀█','▀ ▀'], I:['▀█▀',' █ ','▀▀▀'], J:['  █','  █','▀▀ '], K:['█ █','██ ','▀ ▀'], L:['█  ','█  ','▀▀▀'], M:['█▄█','█ █','▀ ▀'], N:['█▀█','█ █','▀ ▀'], 'Ñ':['▀▀▀','█▀█','▀ ▀'], O:['▄▀▄','█ █',' ▀ '], P:['█▀▄','█▀ ','▀  '], Q:['▄▀▄','█ █',' ▀▄'], R:['█▀▄','█▀▄','▀ ▀'], S:['▄▀▀',' ▀▄','▀▀ '], T:['▀█▀',' █ ',' ▀ '], U:['█ █','█ █','▀▀▀'], V:['█ █','█ █',' ▀ '], W:['█ █','█ █','▀▄▀'], X:['▀▄▀',' █ ','▀ ▀'], Y:['█ █',' █ ',' ▀ '], Z:['▀▀█',' █ ','▀▀▀'], '0':['█▀█','█ █','▀▀▀'], '1':['▄█ ',' █ ','▀▀▀'], '2':['▀▀█','█▀▀','▀▀▀'], '3':['▀▀█',' ▀█','▀▀▀'], '4':['█ █','▀▀█','  ▀'], '5':['█▀▀','▀▀█','▀▀▀'], '6':['█▀▀','█▀█','▀▀▀'], '7':['▀▀█','  █','  ▀'], '8':['█▀█','█▀█','▀▀▀'], '9':['█▀█','▀▀█','▀▀▀'], ' ':['   ','   ','   '], '!':[' █ ',' █ ',' ▄ '], '?':['▀▀█',' █▀',' ▄ '], '.':['   ','   ',' ▄ '], '-':['   ','▀▀▀','   '] };
+  C.banner = function(args){
+    var t = args.join(' ').toUpperCase().normalize('NFD').replace(/[\u0300-\u0302\u0304-\u036f]/g, '').normalize('NFC').slice(0, 24);
+    if(!t) return err('banner: escribe el texto. Ej: banner HOLA');
+    var o = ['', '', '']; t.split('').forEach(function(ch){ var g = BIG[ch] || BIG['?']; for(var r=0;r<3;r++) o[r] += g[r] + ' '; });
+    return o;
+  };
+  C.matrix = function(args, stdin, ctx){
+    var wrap = ctx.container.querySelector('.term-wrap') || ctx.container;
+    if(getComputedStyle(wrap).position === 'static') wrap.style.position = 'relative';
+    var cv = document.createElement('canvas'); cv.className = 'snake-matrix'; cv.setAttribute('aria-label', 'Lluvia de código: pulsa una tecla para salir');
+    cv.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;z-index:6;background:#000;cursor:pointer;';
+    wrap.appendChild(cv);
+    var g = cv.getContext('2d'), W = cv.width = Math.max(100, wrap.clientWidth), H = cv.height = Math.max(100, wrap.clientHeight), fs = 14, cols = Math.ceil(W / fs), drops = [], chars = 'アイウエオカキクケコサシスセソ0123456789SNAKEOS🐍'.split('');
+    for(var i=0;i<cols;i++) drops[i] = Math.random() * -H / fs;
+    var raf = 0, last = 0, t0 = Date.now(), done;
+    var p = new Promise(function(res){ done = res; });
+    function stop(){ if(!cv.isConnected) return; cancelAnimationFrame(raf); cv.remove(); document.removeEventListener('keydown', onKey, true); try{ ctx.input.focus(); }catch(e){} done(['Has salido de Matrix. 🐍']); }
+    function onKey(e){ e.preventDefault(); e.stopPropagation(); stop(); }
+    function frame(ts){
+      if(!cv.isConnected) return done([]);
+      if(Date.now() - t0 > 30000) return stop();
+      raf = requestAnimationFrame(frame);
+      if(ts - last < 50) return; last = ts;
+      g.fillStyle = 'rgba(0,0,0,0.08)'; g.fillRect(0, 0, W, H); g.fillStyle = '#3cff8f'; g.font = fs + 'px monospace';
+      for(var c=0;c<cols;c++){ g.fillText(chars[Math.floor(Math.random() * chars.length)], c * fs, drops[c] * fs); if(drops[c] * fs > H && Math.random() > 0.975) drops[c] = 0; drops[c]++; }
+    }
+    cv.addEventListener('click', stop);
+    document.addEventListener('keydown', onKey, true);
+    var reduce = false; try { reduce = matchMedia('(prefers-reduced-motion: reduce)').matches; } catch(e){}
+    if(reduce){ g.fillStyle = '#000'; g.fillRect(0,0,W,H); g.fillStyle = '#3cff8f'; g.font = '16px monospace'; g.fillText('Wake up, Neo… (animación reducida)', 14, 30); setTimeout(stop, 2500); }
+    else raf = requestAnimationFrame(frame);
+    return p;
+  };
+  C.timer = function(args){
+    var m = /^(\d+(?:[.,]\d+)?)(s|m|h)?$/i.exec(args[0] || '');
+    if(!m) return err('timer: uso timer <30s|5m|1h> [mensaje]');
+    var n = parseFloat(m[1].replace(',', '.')), u = (m[2] || 's').toLowerCase(), ms = n * (u === 'h' ? 3600000 : u === 'm' ? 60000 : 1000);
+    if(!(ms >= 1000 && ms <= 24 * 3600000)) return err('timer: entre 1 segundo y 24 horas');
+    var msg = args.slice(1).join(' ') || '¡Se acabó el tiempo!';
+    setTimeout(function(){
+      try { if(window.snkNotify) window.snkNotify('⏰ Terminal', msg); } catch(e){}
+      try { if(window.snkToast) window.snkToast('⏰ ' + msg, 5000); } catch(e){}
+      try { if(window.snakeNotifSound) window.snakeNotifSound(); } catch(e){}
+    }, ms);
+    return ['Te aviso dentro de ' + args[0] + ': ' + msg + ' (deja Snake OS abierto)'];
+  };
   /* ---- Ejecución ---- */
   var PASS = { ssh:1, connect:1, hosts:1, snake:1, look:1, apagar:1, snakeoff:1, lookserver:1 };
   var queue = Promise.resolve();

@@ -14,14 +14,14 @@ export default {
           '**Keep in touch**: Doganiero Chat (messages, photos, voice and video calls), Phone with your DOG number and Doganiero Desk to control another desktop.',
           '**Use artificial intelligence**: Doganiero AI answers, creates images and opens apps; Doganiero Bots work for you.',
           '**Play and have fun**: Doganiero Store, Snake, Snake Racing 3D, Los Snakes, Doganiero TV and Doganiero Metaverse.',
-          '**Try another system**: Virtual machines with Snake OS! Pro, a real Linux inside your browser.'
+          '**Try another system**: Virtual machines, a real Linux with an Ubuntu 26.10-style desktop inside your browser.'
         ] },
         { h: 'How this manual is organised', p: ['Start with **Getting started** if you have just created your account. Then the chapters on the desktop, the taskbar, windows and Settings show you how to find your way around. At the end there is a guide to every app, tips, keyboard shortcuts and frequently asked questions.'],
           tip: 'You can download this manual again at any time: **Settings › About › User manual**, the **User manual** button in the Start menu or the one on the sign-in screen.' },
         { h: 'What you need', ul: [
           'A modern browser (Chrome, Edge, Firefox or Safari) on a computer or phone.',
           'A Dogaemail account (your name@dogaemail.com). You can create one in a minute from the sign-in screen.',
-          'An internet connection. Some things work offline inside the browser, such as Snake OS! Pro.'
+          'An internet connection. Some things work offline inside the browser, such as Virtual machines.'
         ] }
       ] },
 
@@ -168,10 +168,11 @@ export default {
         { h: 'Coins and bones', ul: ['**Bones** (huesitos) 🦴: you pick them up around the Metaverse. You use them, for example, to subscribe to Doganiero TV.', '**Coins** 🪙: you start with 100 and every bone you pick up adds 1. You spend them on clothes and accessories for your Metaverse avatar.', 'Your balance appears in the desktop balance widget.'] }
       ] },
 
-    { id: 'vm', ico: '🖥️', title: 'Virtual machines and Snake OS! Pro', intro: 'Snake OS! Pro is another operating system of the Snake OS family that runs inside your browser.',
+    { id: 'vm', ico: '🖥️', title: 'Virtual machines: Ubuntu 26.10 (style)', intro: 'A real lightweight Linux with a Snake OS desktop inspired by Ubuntu 26.10, inside your browser. It is not Ubuntu.',
       s: [
-        { p: ['Open **Virtual machines**: Snake OS! Pro is already installed and ready to set up. It is a **real lightweight Linux** (Buildroot and BusyBox) emulated in your browser, **offline**, with a Snake OS desktop: a glass taskbar, a Start menu and the **Terminal**, **Files**, **Text editor**, **System monitor** and **Settings** apps.'],
-          ul: ['When you set it up you choose its name and style. After that it stays **fixed on your profile**: it cannot be removed or changed.', 'Everything runs in your browser: its state is saved in your browser, per profile.', 'It boots in a few seconds and also works in phone mode, with full-screen windows.'], imgs: ['app-maquinas-virtuales', 'app-vm-pro'], caps: ['Virtual machines.', 'Setting up Snake OS! Pro.'] }
+        { p: ['Open **Virtual machines**: the machine is already installed and ready to set up. It is a **real lightweight Linux** (Buildroot and BusyBox) emulated in your browser, **offline**, with an **Ubuntu 26.10-style** desktop: top bar with **Activities**, clock and quick settings, and a **dock** with the **Terminal**, **Files**, **Text editor**, **System monitor** and **Settings** apps. In Settings › About you will see «Ubuntu 26.10 (estilo)»: it is a lightweight Linux, not Ubuntu.'],
+          ul: ['When you set it up you choose its name and style. After that it stays **fixed on your profile**: it cannot be removed or changed.', 'Everything runs in your browser: its state is saved in your browser, per profile.', 'It boots in a few seconds and also works in phone mode, with full-screen windows.'], imgs: ['app-maquinas-virtuales', 'app-vm-pro'], caps: ['Virtual machines.', 'Ubuntu 26.10-style desktop.'] },
+        { h: 'With Snake OS VP Pro', ul: ['Settings shows a **Pro** tab: terminal styles and a machine **snapshot** to save and restore it.', 'Machines created with the previous desktop move to the Ubuntu 26.10 style on their own and **keep their files**.'] }
       ] },
 
     { id: 'trucos', ico: '⌨️', title: 'Tips and keyboard shortcuts', intro: 'To get things done faster.',
@@ -184,7 +185,7 @@ export default {
       s: [
         { faq: [
           ['Do I have to install anything on my computer?', 'No. Snake OS runs in the browser. You only need your Dogaemail account.'],
-          ['Where are my things saved?', 'Your notes, files, events and settings are saved to your account, so you have them on any computer or phone. A few things, such as the state of Snake OS! Pro, are saved only in your browser.'],
+          ['Where are my things saved?', 'Your notes, files, events and settings are saved to your account, so you have them on any computer or phone. A few things, such as the state of the virtual machine, are saved only in your browser.'],
           ['Can I create my account with Gmail?', 'New accounts cannot be created with Gmail. Use another address, for example a Dogaemail one.'],
           ['I forgot my password.', 'If you are still signed in, change it in My profile. If you cannot get in, ask whoever runs your Snake OS for help.'],
           ['I do not get notifications when Snake OS is closed.', 'Turn them on in Settings › Notifications and accept the permission. The browser has to stay open. If they show as blocked, allow them from the padlock in the address bar.'],

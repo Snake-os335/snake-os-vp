@@ -45,10 +45,21 @@ _pepper: bytes | None = None
 _ready = False
 
 
+class _Conn(sqlite3.Connection):
+    """2026.14: «with _conn() as c» confirma (o deshace) Y cierra la conexión; antes solo confirmaba y cada
+    petición dejaba una conexión abierta hasta que el recolector la cerrara."""
+
+    def __exit__(self, *exc):
+        try:
+            return super().__exit__(*exc)
+        finally:
+            self.close()
+
+
 def _conn() -> sqlite3.Connection:
     global _ready
     db.DATA_DIR.mkdir(parents=True, exist_ok=True)
-    c = sqlite3.connect(DB_FILE, timeout=10, check_same_thread=False)
+    c = sqlite3.connect(DB_FILE, timeout=10, check_same_thread=False, factory=_Conn)
     c.row_factory = sqlite3.Row
     if not _ready:
         c.executescript(
@@ -63,28 +74,39 @@ def _conn() -> sqlite3.Connection:
 
 
 def pepper() -> bytes:
+    """2026.14: si data/pro_pepper.key falta o es corta (<32 bytes) se crea una nueva de forma atómica (tmp + os.replace)
+    y se avisa en el registro; antes una clave corta daba FileExistsError y /api/pro/code y /redeem fallaban siempre (500).
+    Una clave corta nunca pudo generar códigos, así que regenerarla no invalida ninguno. data/ es un volumen persistente."""
     global _pepper
     if _pepper:
         return _pepper
     with _lock:
+        if _pepper:
+            return _pepper
         env = (os.environ.get("SNAKEOS_PRO_PEPPER") or "").strip()
         if len(env) >= 16:
             _pepper = env.encode("utf-8")
             return _pepper
+        if env:
+            print("[pro] SNAKEOS_PRO_PEPPER tiene menos de 16 caracteres: se ignora y se usa data/pro_pepper.key", flush=True)
         try:
             raw = PEPPER_FILE.read_bytes()
             if len(raw) >= 32:
                 _pepper = raw
                 return _pepper
+            print("[pro] data/pro_pepper.key es demasiado corta (%d bytes): se crea una nueva" % len(raw), flush=True)
         except FileNotFoundError:
-            pass
+            print("[pro] data/pro_pepper.key no existe: se crea", flush=True)
         db.DATA_DIR.mkdir(parents=True, exist_ok=True)
         raw = secrets.token_bytes(32)
-        fd = os.open(str(PEPPER_FILE), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        tmp = str(PEPPER_FILE) + ".tmp-%d" % os.getpid()
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
         try:
             os.write(fd, raw)
+            os.fsync(fd)
         finally:
             os.close(fd)
+        os.replace(tmp, str(PEPPER_FILE))
         _pepper = raw
         return _pepper
 

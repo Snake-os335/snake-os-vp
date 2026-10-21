@@ -4154,6 +4154,8 @@
       try { mvxFrame(dt); } catch (eMvxFrame) {}
       tickPartyDecor();
       renderer.render(scene, camera);
+      /* 2026.14: foto del Metaverse (el búfer solo es legible justo después de pintar) */
+      if (window.__mvxShotReq) { var shotCb = window.__mvxShotReq; window.__mvxShotReq = null; var shotUrl = null; try { shotUrl = renderer.domElement.toDataURL('image/png'); } catch (eShot) {} try { shotCb(shotUrl); } catch (eShot2) {} }
     }
 
 

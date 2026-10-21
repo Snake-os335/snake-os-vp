@@ -44,16 +44,88 @@ window.addEventListener('error', function(e){
   if(typeof window.revealSnakeBootError === 'function') window.revealSnakeBootError();
 }, true);
 </script>
+<script src="/static/snake-safe.js?v=202610220400"></script>
 <script src="/static/snake-voice.js?v=202610161905"></script>
 <script src="/static/snake-pro-badge.js?v=202610212130"></script>
-<script src="/static/metaverse.js?v=202610212130" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
+<script src="/static/metaverse.js?v=202610220400" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-notify-sound.js?v=202610172200"></script>
 <script src="/static/doganiero-chat.js?v=202610212130" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/doganiero-desk.js?v=202610180120" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/desktop-extras.js?v=202610212130" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
-<script>window.SNAKE_OS_VERSION='2026.13';/* versión de Snake OS: cambiar SOLO aquí */</script>
+<script>window.SNAKE_OS_VERSION='2026.14';/* versión de Snake OS: cambiar SOLO aquí */</script>
 <script>/* Novedades por versión (Ajustes › Acerca de). En cada actualización: cambia SNAKE_OS_VERSION y AÑADE una entrada al principio. */
 window.SNAKE_OS_CHANGES=[
+ {v:'2026.14',es:[
+  'Novedades de bienvenida: al entrar por primera vez en la 2026.14 sale una ventana con lo más destacado (se puede volver a ver en Ajustes › Acerca de)',
+  'Máquinas virtuales vuelve al escritorio estilo Ubuntu 26.10: barra superior con Actividades, dock, fondos y fuentes Ubuntu, y Terminal, Archivos, Editor, Monitor y Configuración; las máquinas guardadas pasan solas conservando sus archivos',
+  'Máquinas virtuales: «ls» ya muestra bien las tildes y la ñ (antes salían «??»); con Snake OS VP Pro, pestaña Pro en Configuración con estilos de terminal e instantánea de la máquina',
+  'Snake OS VP Pro gratis: pide tu código en /pro iniciando sesión con tu cuenta Dogaemail (el mismo inicio de sesión que Snake OS VP) y actívalo en Ajustes',
+  '26 funciones Pro: Centro Pro, fondos y colores Pro, tema de ventanas y barra de tareas, marcos de perfil, relojes, calendario, Kanban, notas, monitor, Foco, temporizadores, grabador de pantalla, diseños de ventanas, contraseñas, dibujo y más',
+  'Insignia PRO visible para todos: en el chat, el teléfono, Los Snakes, el Metaverse y Snake Racing',
+  'Widgets Pro más prácticos: se pueden fijar en el escritorio (detrás de las ventanas), minimizar y compactar; los temporizadores y el Foco ya no se pierden al recargar',
+  'Doganiero Store: 11 apps reales de código abierto (Excalidraw, miniPaint, hoja de cálculo, PDF.js, editor Markdown, Ace, Ajedrez Stockfish, 2048, Hextris, A Dark Room y Códigos QR), ahora más aisladas y seguras',
+  'Ajedrez Stockfish: modo principiante con consejos, flecha y casillas marcadas para saber qué pieza mover y a dónde, y modo experto sin ayudas',
+  'Manual de instrucciones en PDF (español e inglés) en Ajustes › Acerca de, el menú Inicio y la pantalla de inicio de sesión',
+  'Aviso claro «Se ha cerrado tu sesión» cuando cierras la sesión en otra pestaña, en lugar de errores de «No autenticado»',
+  'Los Snakes: las serpientes crecen poco a poco con la edad y se traducen al inglés el ánimo, los días y la familia',
+  'Puntero Snake: vuelve la mano de siempre al pasar por iconos y barras de ventana',
+  'Luz nocturna con intensidad y horario automático (21:00–7:00), también en Ajustes rápidos',
+  'Filtros de color para daltonismo (protanopia, deuteranopia, tritanopia) y escala de grises',
+  'Accesibilidad: subrayar enlaces, lectura cómoda con más espacio, ventanas sólidas sin transparencia, localizar el puntero con Ctrl y leer en voz alta el texto seleccionado con Alt+R',
+  'Mostrar escritorio con Ctrl+Alt+D o la franja junto al reloj',
+  'Botón 📌 «Siempre encima» en la barra de título de las ventanas',
+  'Nueva app Bienestar digital: tiempo de uso por app hoy y en la semana, y recordatorio de descanso para la vista 20-20-20',
+  'Ajustes: exportar e importar tus preferencias a un archivo y copiar un informe de diagnóstico (sin datos personales)',
+  'Modo móvil: desliza desde el borde izquierdo para volver al escritorio',
+  'Juegos nuevos: Buscaminas (3 niveles), Sudoku (3 niveles, pistas), Palabra del día (español/inglés, racha) y Tres en raya contra la CPU',
+  'Navegador: marcadores con la estrella ☆ y barra de favoritos',
+  'Code Lab: plantillas (HTML, juego, CSS, JS, Python), Ctrl+/ para comentar y Ctrl+D para duplicar la línea',
+  'Archivos: panel 📊 de espacio usado por tipo de archivo',
+  'Doganiero Chat: respuestas rápidas ⚡ editables y atajos como /shrug, /flip, /lenny o /fiesta',
+  'Teléfono: descarga «Mi tarjeta» (.vcf) con tu número Doganiero',
+  'Terminal: 11 comandos nuevos: snakesay, fortune, calc, cal, todo, base64, sha256, uuid, banner, matrix y timer',
+  'Los Snakes y Doganiero Metaverse: botón 📸 para guardar una foto (PNG)',
+  'Calendario: los eventos se guardan en tu cuenta y ya no solo en el navegador; las valoraciones de la Doganiero Store se guardan de verdad',
+  'Truco secreto en el escritorio (pista: ↑↑↓↓←→←→BA)',
+  'Más seguridad: la sesión web caduca a las 2 horas y se cierra en todos los sitios al cambiar la contraseña, límites de intentos de inicio de sesión, comprobación del origen de las peticiones, validación de fotos de perfil y apps de la Store más aisladas',
+  'Más estabilidad: si una app falla ya no se lleva por delante el resto, peticiones con tiempo límite y menos errores en la consola',
+  'Correcciones: título del reloj analógico Pro que se cortaba, textos de Snake OS VP Pro y Los Snakes en inglés, avisos 401 innecesarios en páginas sin sesión, el Foco ya no se desfasa, grabador de pantalla y salvapantallas Pro más fiables y análisis antiguos del ajedrez que se mezclaban'
+ ],en:[
+  'Welcome to what’s new: the first time you sign in to 2026.14 a window shows the highlights (you can see it again in Settings › About)',
+  'Virtual machines is back to the Ubuntu 26.10-style desktop: top bar with Activities, dock, Ubuntu wallpapers and fonts, and Terminal, Files, Editor, Monitor and Settings; saved machines move over on their own and keep their files',
+  'Virtual machines: «ls» now shows accents and ñ properly (they used to show up as «??»); with Snake OS VP Pro, a Pro tab in Settings with terminal styles and a machine snapshot',
+  'Free Snake OS VP Pro: get your code at /pro by signing in with your Dogaemail account (the same sign-in as Snake OS VP) and activate it in Settings',
+  '26 Pro features: Pro Center, Pro wallpapers and colours, window and taskbar themes, profile frames, clocks, calendar, Kanban, notes, monitor, Focus, timers, screen recorder, window layouts, passwords, drawing and more',
+  'PRO badge visible to everyone: in chat, the phone, Los Snakes, the Metaverse and Snake Racing',
+  'More practical Pro widgets: pin them to the desktop (behind windows), minimise and make them compact; timers and Focus are no longer lost when you reload',
+  'Doganiero Store: 11 real open-source apps (Excalidraw, miniPaint, spreadsheet, PDF.js, Markdown editor, Ace, Stockfish Chess, 2048, Hextris, A Dark Room and QR Codes), now better isolated and safer',
+  'Stockfish Chess: beginner mode with tips, an arrow and highlighted squares showing which piece to move and where, and expert mode with no help',
+  'User manual in PDF (Spanish and English) in Settings › About, the Start menu and the sign-in screen',
+  'Clear «Your session was closed» notice when you sign out in another tab, instead of «Not authenticated» errors',
+  'Los Snakes: snakes grow little by little with age, and mood, days and family are translated into English',
+  'Snake pointer: the usual hand is back over icons and window title bars',
+  'Night light with strength and automatic schedule (21:00–7:00), also in Quick settings',
+  'Colour filters for colour blindness (protanopia, deuteranopia, tritanopia) and greyscale',
+  'Accessibility: underline links, comfortable reading with more spacing, solid windows without transparency, locate the pointer with Ctrl and read selected text aloud with Alt+R',
+  'Show desktop with Ctrl+Alt+D or the strip next to the clock',
+  '📌 «Always on top» button in window title bars',
+  'New Digital wellbeing app: screen time per app today and this week, and a 20-20-20 eye break reminder',
+  'Settings: export and import your preferences to a file and copy a diagnostic report (no personal data)',
+  'Phone mode: swipe in from the left edge to go back to the desktop',
+  'New games: Minesweeper (3 levels), Sudoku (3 levels, hints), Word of the day (Spanish/English, streak) and Tic-tac-toe against the CPU',
+  'Browser: bookmarks with the ☆ star and a favourites bar',
+  'Code Lab: templates (HTML, game, CSS, JS, Python), Ctrl+/ to comment and Ctrl+D to duplicate the line',
+  'Files: 📊 panel with space used by file type',
+  'Doganiero Chat: editable ⚡ quick replies and shortcuts like /shrug, /flip, /lenny or /party',
+  'Phone: download «My card» (.vcf) with your Doganiero number',
+  'Terminal: 11 new commands: snakesay, fortune, calc, cal, todo, base64, sha256, uuid, banner, matrix and timer',
+  'Los Snakes and Doganiero Metaverse: 📸 button to save a photo (PNG)',
+  'Calendar: events are saved to your account and not only in the browser; Doganiero Store ratings are really saved',
+  'Secret trick on the desktop (hint: ↑↑↓↓←→←→BA)',
+  'More security: the web session expires after 2 hours and is closed everywhere when you change your password, sign-in attempt limits, request origin checks, profile photo validation and better isolated Store apps',
+  'More stability: if an app fails it no longer takes the others down, requests with time limits and fewer console errors',
+  'Fixes: the Pro analog clock title that was cut off, Snake OS VP Pro and Los Snakes texts in English, unnecessary 401 notices on signed-out pages, Focus no longer drifts, more reliable Pro screen recorder and screensaver, and old chess analyses that got mixed up'
+ ]},
  {v:'2026.13',es:[
   'Brillo de pantalla con F5 (bajar) y F6 (subir), guardado por perfil',
   'Snake OS Kids: modo infantil con control parental y PIN (apps por edad, tiempo de pantalla, chat, web, juegos online, tienda, archivos, cámara e informe semanal)',
@@ -143,12 +215,12 @@ window.SNAKE_OS_CHANGES=[
   'New soft, pleasant notification sound'
  ]}
 ];</script>
-<script src="/static/snake-terminal.js?v=202610161835" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
+<script src="/static/snake-terminal.js?v=202610220400" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-win-resize.js?v=202610152140"></script>
 <script src="/static/doganiero-tv.js?v=202610091150" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/prism.js?v=202610080900" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/doganiero-phone.js?v=202610212130" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
-<script src="/static/snake-apps-extras.js?v=202610212200" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
+<script src="/static/snake-apps-extras.js?v=202610220400" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-cursor.js?v=202610211605" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-emoji-data.js?v=202610100831" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-emoji.js?v=202610140900" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
@@ -160,19 +232,20 @@ window.SNAKE_OS_CHANGES=[
 <script src="/static/snake-keypad.js?v=202610161800" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-game-matrix.js?v=202610112000" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-racing.js?v=202610212130" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
-<script src="/static/los-snakes.js?v=202610212130"></script>
-<script src="/static/snake-vm.js?v=202610212200"></script>
-<script src="/static/snake-manual.js?v=202610212130"></script>
-<script src="/static/snake-i18n-dict.js?v=202610212130" defer></script>
+<script src="/static/los-snakes.js?v=202610220400"></script>
+<script src="/static/snake-vm.js?v=202610220400"></script>
+<script src="/static/snake-manual.js?v=202610220400"></script>
+<script src="/static/snake-i18n-dict.js?v=202610220400" defer></script>
 <script src="/static/snake-update-screen.js?v=202610180010"></script>
 <script src="/static/snake-session-guard.js?v=202610212015"></script>
-<script src="/static/snake-i18n.js?v=202610211710" defer></script>
+<script src="/static/snake-i18n.js?v=202610220400" defer></script>
 <script src="/static/snake-taskbar11.js?v=202610180130" defer></script>
 <script src="/static/snake-screensaver.js?v=202610210900" defer></script>
 <script src="/static/snake-osx.js?v=202610210900" defer></script>
-<script src="/static/snake-store-real.js?v=202610212130" defer></script>
-<script src="/static/snake-pro-features.js?v=202610212015" defer></script>
-<script src="/static/snake-pro.js?v=202610212130" defer></script>
+<script src="/static/snake-store-real.js?v=202610220400" defer></script>
+<script src="/static/snake-pro-features.js?v=202610220400" defer></script>
+<script src="/static/snake-pro.js?v=202610220400" defer></script>
+<script src="/static/snake-2614.js?v=202610220400" defer></script>
 <style>
   :root{
     --text:#ffffff; --muted:rgba(255,255,255,0.82);
@@ -3732,7 +3805,10 @@ window.SNAKE_OS_CHANGES=[
 
   function isPhotoAvatar(av){
     const a = String(av || '').trim();
-    return a.indexOf('/api/avatars/') === 0 || a.indexOf('data:image/') === 0 || /^https?:\/\/[^\/]+\/api\/avatars\//.test(a);
+    /* 2026.14: solo fotos propias (/api/avatars/ relativo o de este mismo servidor) o data:image de verdad; nada de URLs de otros sitios (píxeles de rastreo) */
+    if (a.indexOf('/api/avatars/') === 0) return true;
+    if (/^data:image\/(png|jpe?g|gif|webp);base64,/i.test(a)) return true;
+    try { return a.indexOf(location.origin + '/api/avatars/') === 0; } catch (e) { return false; }
   }
   function escAttr(s){
     return String(s || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
@@ -3751,7 +3827,7 @@ window.SNAKE_OS_CHANGES=[
     return escAttr(t);
   }
   function avatarLabelHtml(av, name){
-    return avatarMarkup(av) + ' ' + String(name || '');
+    return avatarMarkup(av) + ' ' + escAttr(String(name || '')).replace(/>/g,'&gt;');
   }
   // Modo teléfono: perfil activo en la barra superior (#phoneStatus)
   function setPhoneProfileChip(user){
@@ -4307,9 +4383,30 @@ window.SNAKE_OS_CHANGES=[
       opts.headers = Object.assign({ 'Content-Type': 'application/json' }, opts.headers || {});
       opts.body = JSON.stringify(opts.body);
     }
-    const res = await fetch(path, opts);
+    /* Opcional: options.timeoutMs corta la petición si tarda demasiado (sin él, igual que antes). */
+    const timeoutMs = +opts.timeoutMs || 0;
+    delete opts.timeoutMs;
+    let timer = null;
+    if(timeoutMs > 0 && !opts.signal && typeof AbortController === 'function'){
+      const ctl = new AbortController();
+      opts.signal = ctl.signal;
+      timer = setTimeout(function(){ try{ ctl.abort(); }catch(eA){} }, timeoutMs);
+    }
+    let res, text;
+    try{
+      res = await fetch(path, opts);
+      text = await res.text();
+    }catch(eNet){
+      if(eNet && eNet.name === 'AbortError' && !timer) throw eNet;
+      const nerr = new Error(eNet && eNet.name === 'AbortError' ? 'El servidor tarda demasiado en responder. Inténtalo de nuevo.' : 'No se pudo conectar con Snake OS. Revisa la conexión e inténtalo de nuevo.');
+      nerr.status = 0;
+      nerr.network = true;
+      nerr.cause = eNet;
+      throw nerr;
+    }finally{
+      if(timer) clearTimeout(timer);
+    }
     let data = null;
-    const text = await res.text();
     if(text){
       try{ data = JSON.parse(text); }catch(e){ data = { detail: text }; }
     }
@@ -5218,7 +5315,13 @@ window.SNAKE_OS_CHANGES=[
     try{
       const win = createWindowChrome(id, title, icon, width, height);
       const body = win.querySelector('.win-body');
-      const cleanup = renderFn(body);
+      let cleanup = null;
+      /* Si una app falla al abrirse, solo falla su ventana: el escritorio sigue funcionando. */
+      try{ cleanup = renderFn(body); }
+      catch(eApp){
+        try{ console.error('[Snake OS] la app "' + id + '" falló al abrirse:', eApp); }catch(eC){}
+        body.innerHTML = '<div style="padding:16px;color:#ff8a7a">Esta app ha tenido un error al abrirse. Ciérrala y vuelve a abrirla.</div>';
+      }
       openApps[id] = { win, cleanup, minimized: false, title, icon };
       addTaskItem(id, { title, icon });
       if(isPhoneMode()){
@@ -5296,7 +5399,11 @@ window.SNAKE_OS_CHANGES=[
     if(!rec || !APPS[appId]) return;
     if(rec.cleanup){ try{ rec.cleanup(); }catch(e){} }
     const body = rec.win.querySelector('.win-body');
-    rec.cleanup = APPS[appId].render(body);
+    try{ rec.cleanup = APPS[appId].render(body); }
+    catch(eApp){
+      rec.cleanup = null;
+      try{ console.error('[Snake OS] la app "' + appId + '" falló al recargarse:', eApp); }catch(eC){}
+    }
   }
   function minimizeApp(appId){
     const rec = openApps[appId];
@@ -6001,7 +6108,7 @@ function buildIcons(){
       const div = document.createElement('div');
       div.className = 'desktop-icon desktop-file-icon';
       div.dataset.iconKey = 'file:' + entry.id;
-      div.innerHTML = '<span class="ic">' + fileIcon(entry.name, entry.type || '') + '</span><span class="lb">' + entry.name + '</span>';
+      div.innerHTML = '<span class="ic">' + fileIcon(entry.name, entry.type || '') + '</span><span class="lb">' + escAttr(entry.name).replace(/>/g,'&gt;') + '</span>';
       const key = 'file:' + entry.id;
       let pos = iconPositions[key];
       if(!pos){

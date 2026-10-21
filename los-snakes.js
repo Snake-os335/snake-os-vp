@@ -354,6 +354,8 @@
     sn.mood = clamp(m, 0, 100);
     return sn.mood;
   }
+  function moodUI(m) { return isEn() ? (m >= 80 ? 'Radiant' : m >= 62 ? 'Happy' : m >= 42 ? 'Okay' : m >= 22 ? 'Tense' : 'Awful') : moodLabel(m); }
+  function LT(es, en) { return isEn() ? en : es; }
   function moodLabel(m) { return m >= 80 ? 'Radiante' : m >= 62 ? 'Contenta' : m >= 42 ? 'Normal' : m >= 22 ? 'Tensa' : 'Fatal'; }
   function moodColor(m) { return 'hsl(' + Math.round(clamp(m, 0, 100) * 1.25) + ',78%,48%)'; }
   function roomDecor(sn) {
@@ -1879,7 +1881,7 @@
       ports.forEach(function (b) { var sn = entById(+b.dataset.id); if (!sn) return; b.querySelector('.md').style.background = moodColor(sn.mood); setText(b.querySelector('.aw'), sn.away ? (sn.away.kind === 'job' ? '💼' : '🎒') : (sn.q[0] && (ACT[sn.q[0].id] || {}).sleeping && sn.q[0].phase === 'do' ? '💤' : '')); setText(b.querySelector('.nm'), sn.name); });
       NEEDS.forEach(function (n) { var row = bottom.querySelector('.lsx-need[data-k="' + n.k + '"]'); if (!row) return; var v = s.needs[n.k]; var i = row.querySelector('i'); i.style.width = v.toFixed(0) + '%'; i.style.background = needCol(v); });
       var shedTxt = s.shedReady ? ' · ✨ lista para mudar' : '';
-      setHTML(bottom.querySelector('.lsx-mood'), '<span class="dot" style="background:' + moodColor(s.mood) + '"></span>' + nmh(s.name) + ' · ' + moodLabel(s.mood) + ' <small>' + nmh(ageTxt(s.age)) + (s.away ? ' · fuera hasta ' + hhmm(s.away.until) : '') + shedTxt + '</small>');
+      setHTML(bottom.querySelector('.lsx-mood'), '<span class="dot" style="background:' + moodColor(s.mood) + '"></span>' + nmh(s.name) + ' · ' + moodUI(s.mood) + ' <small>' + nmh(ageTxt(s.age)) + (s.away ? LT(' · fuera hasta ', ' · away until ') + hhmm(s.away.until) : '') + shedTxt + '</small>');
       setHTML(bottom.querySelector('.lsx-ml'), s.ml.slice(-5).map(function (m) { return '<span class="' + (m.v < 0 ? 'neg' : '') + '">' + esc(m.l) + ' ' + (m.v > 0 ? '+' : '') + m.v + '</span>'; }).join('') || '<span>Sin emociones especiales</span>');
       bottom.querySelectorAll('.lsx-tabs button').forEach(function (b) { b.classList.toggle('on', b.dataset.tab === drawerTab); });
     }
@@ -1911,7 +1913,7 @@
         h += '<h5>Nombre</h5><div class="lsx-row"><input class="rn" value="' + esc(s.name) + '" maxlength="16" style="flex:1" aria-label="Nombre de la serpiente" placeholder="Nombre"' + (S.visit ? ' disabled' : '') + '><button class="lsx-btnp" data-a="rename"' + (S.visit ? ' disabled' : '') + '>Guardar</button></div>';
         h += '<div class="lsx-row"><small style="width:62px">Apellido</small><input class="fam" value="' + esc(S.name) + '" maxlength="18" style="flex:1" aria-label="Apellido de la familia" placeholder="Apellido"' + (S.visit ? ' disabled' : '') + '></div>';
         h += '<h5>Color</h5><div class="lsx-row" style="flex-wrap:wrap;gap:5px">' + PALETTE.map(function (p) { return '<button class="lsx-swatch' + (s.color === p.c ? ' on' : '') + '" data-a="col" data-c="' + p.c + '" title="' + p.n + '" style="background:' + p.c + '"></button>'; }).join('') + '</div>';
-        h += '<div>' + nmh(ageTxt(s.age)) + ' · día ' + (s.ageD + 1) + (AGES[s.age].days ? ' de ' + AGES[s.age].days : '') + (s.partner && entById(s.partner) ? ' · 💞 pareja de ' + esc(entById(s.partner).name) : '') + '</div>';
+        h += '<div>' + nmh(ageTxt(s.age)) + LT(' · día ', ' · day ') + (s.ageD + 1) + (AGES[s.age].days ? LT(' de ', ' of ') + AGES[s.age].days : '') + (s.partner && entById(s.partner) ? LT(' · 💞 pareja de ', ' · 💞 partner of ') + nmh(entById(s.partner).name) : '') + '</div>';
         var gz = sizeOf(s), gMin = GROW.bebe[0]; h += '<div class="lsx-grow" style="margin-top:3px">🌱 <span>Etapa</span>: <b>' + nmh(stageTxt(s.age)) + '</b> · <span>Tamaño</span> ' + Math.round(gz * 100) + ' % · <span>' + (gz >= 0.995 ? 'Tamaño adulto' : 'Creciendo') + '</span></div>' + bar(gz - gMin, 1 - gMin, '#27ae60');
         h += '<h5>Rasgos <small style="text-transform:none;letter-spacing:0">(hasta 3, toca para cambiar)</small></h5><div>' + Object.keys(TRAITS).map(function (k) { var on = s.traits.indexOf(k) >= 0; return '<button class="lsx-chip' + (on ? ' on' : '') + '" data-a="tr" data-t="' + k + '">' + TRAITS[k].i + ' ' + TRAITS[k].n + '</button>'; }).join('') + '</div>';
         var A = ASP[s.asp]; h += '<h5>Aspiración</h5><select class="asp" style="width:100%">' + Object.keys(ASP).map(function (k) { return '<option value="' + k + '"' + (s.asp === k ? ' selected' : '') + '>' + ASP[k].i + ' ' + ASP[k].n + '</option>'; }).join('') + '</select>';
@@ -1953,7 +1955,7 @@
       } else if (t === 'ach') {
         title = '🏆 Logros de la familia';
         var n = Object.keys(S.ach).length; h += '<div>' + n + ' de ' + Object.keys(ACH).length + ' logros</div>';
-        Object.keys(ACH).forEach(function (k) { var a = ACH[k], on = !!S.ach[k]; h += '<div class="lsx-row" style="opacity:' + (on ? 1 : 0.45) + '"><span style="font-size:20px">' + (on ? a[0] : '🔒') + '</span><div><b>' + a[1] + '</b><br><small>' + a[2] + (on ? ' · día ' + S.ach[k] : '') + '</small></div></div>'; });
+        Object.keys(ACH).forEach(function (k) { var a = ACH[k], on = !!S.ach[k]; h += '<div class="lsx-row" style="opacity:' + (on ? 1 : 0.45) + '"><span style="font-size:20px">' + (on ? a[0] : '🔒') + '</span><div><b>' + a[1] + '</b><br><small>' + a[2] + (on ? LT(' · día ', ' · day ') + S.ach[k] : '') + '</small></div></div>'; });
         h += '<h5>Aspiraciones</h5>' + S.snakes.map(function (sn) { var A = ASP[sn.asp]; return A ? '<div class="lsx-row"><span style="width:84px">' + nmh(sn.name) + '</span>' + bar(A.p(sn), 1, '#9b59b6') + '<small>' + A.i + '</small></div>' : ''; }).join('');
       } else if (t === 'opts') {
         title = '⚙️ Opciones';
@@ -2485,7 +2487,7 @@
         var fam = f.family;
         h += '<div class="lsx-fr" data-i="' + i + '">' + (fam ? '<canvas class="hs"></canvas>' : '<div style="width:150px;height:96px;border-radius:10px;background:#e5ecf3;display:flex;align-items:center;justify-content:center;font-size:30px">🏚️</div>') +
           '<div><div class="lsx-row" style="margin:0"><b style="font-size:15px"><span class="lsx-fav">' + (typeof window.snkAvatarHtml === 'function' ? window.snkAvatarHtml(f.avatar, 'lsx-fav-img') : (/[\/:]/.test(String(f.avatar || '')) ? '🐍' : esc(f.avatar || '🐍'))) + '</span> ' + lsPB(f, nmh(f.name)) + '</b><small><span class="dot' + (f.online ? ' on' : '') + '"></span>' + (f.online ? 'jugando ahora (visita en vivo)' : 'no está jugando') + '</small></div>' +
-          (fam ? '<div>Familia <b>' + nmh(fam.name) + '</b> · día ' + fam.day + ' · ' + fam.objects + ' muebles</div><div class="fm">' + fam.members.map(function () { return '<canvas></canvas>'; }).join('') + '</div><small>' + fam.members.map(function (m) { return nmh(m.name); }).join(', ') + '</small>' : '') +
+          (fam ? '<div>' + LT('Familia', 'Family') + ' <b>' + nmh(fam.name) + '</b>' + LT(' · día ', ' · day ') + fam.day + ' · ' + fam.objects + LT(' muebles', ' furniture items') + '</div><div class="fm">' + fam.members.map(function () { return '<canvas></canvas>'; }).join('') + '</div><small>' + fam.members.map(function (m) { return nmh(m.name); }).join(', ') + '</small>' : '') +
           (f.can ? '<div style="margin-top:6px"><button class="lsx-btnp" data-v="' + i + '"' + (mine.length ? '' : ' disabled') + '>🚪 Visitar</button></div>' : '<div class="why">' + esc(f.reason) + '</div>') + '</div></div>';
       });
       h += '<div class="lsx-row" style="justify-content:flex-end;margin-top:8px"><button data-v="x">Cerrar</button></div>';

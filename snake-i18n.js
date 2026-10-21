@@ -51,6 +51,13 @@
     m = k.match(/^No se pudieron cargar (los contactos|las llamadas): (.+)$/); if (m) return "Couldn't load " + (m[1] === 'los contactos' ? 'contacts' : 'calls') + ': ' + (D[m[2]] || m[2]);
     m = k.match(/^No se pudo leer la suscripción \((.+)\)\.$/); if (m) return "Couldn't read the subscription (" + (D[m[1]] || m[1]) + ').';
     m = k.match(/^Ajustes rápidos · (.+)$/); if (m) return 'Quick settings · ' + m[1];
+    m = k.match(/^(En curso|Por hacer|Hecho) · (\d+)$/); if (m) return ({ 'En curso': 'In progress', 'Por hacer': 'To do', 'Hecho': 'Done' })[m[1]] + ' · ' + m[2];
+    m = k.match(/^Pomodoros de hoy: (\d+)$/); if (m) return "Today's pomodoros: " + m[1];
+    m = k.match(/^(Foco|Descanso) · ciclo (\d+)\/(\d+)$/); if (m) return (m[1] === 'Foco' ? 'Focus' : 'Break') + ' · cycle ' + m[2] + '/' + m[3];
+    m = k.match(/^Activo en este perfil desde el (.+?)\. Código:$/); if (m) return 'Active on this profile since ' + m[1] + '. Code:';
+    m = k.match(/^Hora de Madrid: (.+)$/); if (m) return 'Madrid time: ' + m[1];
+    m = k.match(/^Familia (.+?) · día (\d+)$/); if (m) return 'Family ' + m[1] + ' · day ' + m[2];
+    m = k.match(/^día (\d+)( de (\d+))?$/); if (m) return 'day ' + m[1] + (m[3] ? ' of ' + m[3] : '');
     m = k.match(/^Ahora: (.+)$/); if (m) return 'Now: ' + (D[m[1]] || m[1]);
     m = k.match(/^Símbolos · (\d+)$/); if (m) return 'Symbols · ' + m[1];
     m = k.match(/^hace (\d+) (minutos?|horas?|días?|segundos?)$/i);
@@ -88,8 +95,16 @@
   var RT = {}; try { RT = JSON.parse(localStorage.getItem('snkI18nEn3') || '{}') || {}; localStorage.removeItem('snkI18nEn'); } catch (e) { RT = {}; }
   var miss = {}, missT = null, asked = {};
   function looksEs(k) { return k.length >= 2 && k.length <= 200 && /[A-Za-zÁÉÍÓÚÑáéíóúñü]{2}/.test(k) && !/^(https?:|www\.|[\w.-]+@)/i.test(k); }
-  function want(k) { if (lang !== 'en' || RT[k] != null || asked[k] || !looksEs(k)) return; miss[k] = 1; clearTimeout(missT); missT = setTimeout(flush, 350); }
+  var ENOUT = null, enoutT = 0;
+  function isEnOut(k) {
+    if (window.__SNK_EN_OUT && window.__SNK_EN_OUT[k]) return true;
+    if (!ENOUT || Date.now() - enoutT > 30000) { ENOUT = {}; enoutT = Date.now(); var D = window.__SNK_I18N_EN || {}; for (var x in D) ENOUT[D[x]] = 1; }
+    return !!ENOUT[k];
+  }
+  function want(k) { if (lang !== 'en' || RT[k] != null || asked[k] || !looksEs(k) || /\d{1,2}:\d{2}:\d{2}/.test(k) || isEnOut(k)) return; miss[k] = 1; clearTimeout(missT); missT = setTimeout(flush, 350); }
+  function signedIn() { try { return !!((typeof currentUser !== 'undefined' && currentUser) || window.currentUser); } catch (e) { return !!window.currentUser; } }
   function flush() {
+    if (!signedIn()) { if (Object.keys(miss).length) { clearTimeout(missT); missT = setTimeout(flush, 4000); } return; } /* sin sesión el servidor responde 401: se espera a iniciar sesión */
     var list = Object.keys(miss).slice(0, 80); miss = {};
     if (!list.length || !window.api) return;
     list.forEach(function (k) { asked[k] = 1; });
@@ -127,7 +142,7 @@
     }
     if (n.nodeType === 1 && n.tagName === 'TEXTAREA' && lang === 'en') { var ph = n.getAttribute('placeholder'); if (ph && ph !== n.__en_placeholder) { var rp = tr(ph); if (rp && rp !== ph) { n.__es_placeholder = ph; n.__en_placeholder = rp; n.setAttribute('placeholder', rp); } } }
     if (n.nodeType !== 1 || /^(SCRIPT|STYLE|TEXTAREA|IFRAME|CODE|PRE)$/.test(n.tagName) || (n.closest && n.closest('[data-noi18n],.term-wrap,.dbx-msg'))) return;
-    for (var a = 0; a < ATTRS.length; a++) {
+    if (!(n.classList && n.classList.contains('snk-e'))) for (var a = 0; a < ATTRS.length; a++) {
       var at = ATTRS[a], key = '__es_' + at, v = n.getAttribute(at);
       var ekey = '__en_' + at;
       if (lang === 'en') { if (v && (n[key] == null || v !== n[ekey])) { if (v === n[ekey]) continue; var r2 = tr(v); if (r2 && r2 !== v) { n[key] = v; n[ekey] = r2; n.setAttribute(at, r2); } else { n[key] = null; n[ekey] = null; } } }
@@ -151,7 +166,7 @@
     if (els.length > 4000) return;
     busy = true;
     try {
-      for (var i = 0; i < els.length; i++) { var e = els[i]; for (var a = 0; a < ATTRS.length; a++) { var at = ATTRS[a], v = e.getAttribute(at); if (!v || v === e['__en_' + at]) continue; var r = tr(v); if (r && r !== v) { e['__es_' + at] = v; e['__en_' + at] = r; e.setAttribute(at, r); } } }
+      for (var i = 0; i < els.length; i++) { var e = els[i]; if (e.classList.contains('snk-e')) continue; for (var a = 0; a < ATTRS.length; a++) { var at = ATTRS[a], v = e.getAttribute(at); if (!v || v === e['__en_' + at]) continue; var r = tr(v); if (r && r !== v) { e['__es_' + at] = v; e['__en_' + at] = r; e.setAttribute(at, r); } } }
     } finally { busy = false; try { mo.takeRecords(); } catch (x) {} }
   }
   function enq(n) { if (n && !n.__q) { n.__q = 1; queue.push(n); } }

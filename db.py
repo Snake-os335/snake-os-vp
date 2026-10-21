@@ -746,6 +746,15 @@ def is_photo_avatar(avatar: str | None) -> bool:
     return a.startswith("/api/avatars/")
 
 
+def safe_signup_avatar(avatar: str | None) -> str:
+    """2026.14: al crear una cuenta solo vale un emoji o texto corto (las fotos se suben después desde Mi perfil).
+    Nada de URLs (píxeles de rastreo), rutas ni HTML."""
+    a = str(avatar or "").strip()
+    if not a or is_photo_avatar(a) or len(a) > 16 or any(ch in a for ch in '/:<>"\'\\'):
+        return "🐶"
+    return a
+
+
 # ---------- Doganiero Desk (código de escritorio tipo AnyDesk) ----------
 
 

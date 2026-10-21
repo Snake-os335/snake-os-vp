@@ -14,13 +14,22 @@
   function phone() { return document.body.classList.contains('phone-mode'); }
   function reduced() { try { return matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } }
   function lsKey() { return 'snkPro:' + S.email; }
+  function EN() { return !!(window.snakeI18n && window.snakeI18n.lang === 'en'); }
+  function T(es, en) { if (EN()) { (window.__SNK_EN_OUT = window.__SNK_EN_OUT || {})[en] = 1; return en; } return es; }
   function P(k, d) { var v = S.prefs[k]; return v === undefined ? d : v; }
   function setPref(k, v) {
     if (!S.active) return;
     S.prefs[k] = v;
-    try { localStorage.setItem(lsKey(), JSON.stringify(S.prefs)); } catch (e) {}
+    var em = S.email, snap = JSON.stringify(S.prefs);
+    try { localStorage.setItem(lsKey(), snap); } catch (e) {}
     clearTimeout(S.pushT);
-    S.pushT = setTimeout(function () { api('/api/pro/prefs', { method: 'PUT', body: { prefs: S.prefs } }).catch(function (e) { if (e && e.status === 413) toast('Las funciones Pro tienen demasiados datos (máx. 48 KB)'); }); }, 1200);
+    /* 2026.14: se envía la copia de ESTE perfil; si entretanto cambió el perfil (o se apagó Pro) no se envía nada,
+       así nunca se pisan las notas/Kanban de otro perfil */
+    S.pushT = setTimeout(function () {
+      S.pushT = null;
+      if (S.email !== em || !S.active) return;
+      api('/api/pro/prefs', { method: 'PUT', body: { prefs: JSON.parse(snap) } }).catch(function (e) { if (e && e.status === 413) toast(T('Las funciones Pro tienen demasiados datos (máx. 48 KB)', 'Pro features have too much data (max. 48 KB)')); });
+    }, 1200);
   }
 
   /* ---------------- estilos ---------------- */
@@ -74,7 +83,7 @@
       '#snkProPick{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:75;width:min(460px,calc(100vw - 20px));max-height:calc(100vh - 120px);overflow:auto;color:#fff;background:rgba(14,22,17,.94);backdrop-filter:blur(22px) saturate(1.4);border:1px solid rgba(245,197,66,.5);border-radius:20px;box-shadow:0 20px 60px rgba(0,0,0,.5);padding:14px 16px;font:500 .82rem system-ui,sans-serif;box-sizing:border-box}',
       '#snkProPick .hd{display:flex;align-items:center;gap:8px;font-weight:800;font-size:1rem}', '#snkProPick .hd .x{margin-left:auto;flex:0 0 auto;width:auto;min-width:0;padding:4px 10px}', '#snkProPick .hd{white-space:nowrap}', '#snkProPick h3{margin:12px 0 6px;font-size:.78rem;letter-spacing:.06em;text-transform:uppercase;opacity:.7}',
       '.snkp-wh{display:flex;align-items:center;gap:6px;padding:7px 8px 6px 11px;cursor:grab;font-weight:800;font-size:.78rem;user-select:none;touch-action:none}',
-      '.snkp-wh .t{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+      '.snkp-wh .t{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}', '.snkp-w.narrow .snkp-wh{gap:4px;padding-left:9px}', '.snkp-w.narrow:not(:hover):not(:focus-within) .snkp-wh .wmin,.snkp-w.narrow:not(:hover):not(:focus-within) .snkp-wh .wcmp{display:none}', '@media (hover:none){.snkp-w.narrow .snkp-wh .wcmp{display:none}}',
       '.snkp-wh button{border:0;background:rgba(255,255,255,.12);color:#fff;width:22px;height:22px;border-radius:7px;cursor:pointer;font-size:.75rem;line-height:1;padding:0;margin:0}',
       '.snkp-wb{padding:4px 11px 11px}',
       '.snkp-w input,.snkp-w select,.snkp-w textarea{font:inherit;color:#fff;background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.2);border-radius:8px;padding:5px 7px;margin:0;box-sizing:border-box}',
@@ -225,10 +234,11 @@
     if (prefObj('cmp')[id]) el.classList.add('compact');
     if (prefObj('min')[id]) el.classList.add('mini');
     el.innerHTML = '<div class="snkp-wh"><span class="t">' + esc(typeof d.title === 'function' ? d.title(id) : d.title) + '</span><span class="sum" data-noi18n></span>' +
-      '<button type="button" class="wpin" aria-pressed="' + pinned + '" title="' + (pinned ? 'Desfijar (se podrá mover y cambiar de tamaño)' : 'Fijar en el escritorio (detrás de las ventanas, sin moverse)') + '">📌</button>' +
-      '<button type="button" class="wmin" title="' + (el.classList.contains('mini') ? 'Mostrar' : 'Minimizar') + '">' + (el.classList.contains('mini') ? '▢' : '▁') + '</button>' +
-      '<button type="button" class="wcmp" title="' + (el.classList.contains('compact') ? 'Tamaño grande' : 'Tamaño compacto') + '">⤢</button>' +
-      '<button type="button" class="x" title="Quitar del escritorio">✕</button></div><div class="snkp-wb"></div>';
+      '<button type="button" class="wpin" aria-pressed="' + pinned + '" title="' + esc(pinned ? T('Desfijar (se podrá mover y cambiar de tamaño)', 'Unpin (it can be moved and resized)') : T('Fijar en el escritorio (detrás de las ventanas, sin moverse)', 'Pin to the desktop (behind windows, fixed in place)')) + '">📌</button>' +
+      '<button type="button" class="wmin" title="' + esc(el.classList.contains('mini') ? T('Mostrar', 'Show') : T('Minimizar', 'Minimise')) + '">' + (el.classList.contains('mini') ? '▢' : '▁') + '</button>' +
+      '<button type="button" class="wcmp" title="' + esc(el.classList.contains('compact') ? T('Tamaño grande', 'Large size') : T('Tamaño compacto', 'Compact size')) + '">⤢</button>' +
+      '<button type="button" class="x" title="' + esc(T('Quitar del escritorio', 'Remove from the desktop')) + '">✕</button></div><div class="snkp-wb"></div>';
+    if ((parseInt(el.style.width, 10) || 220) < 250) el.classList.add('narrow');
     host.appendChild(el);
     var pos = prefObj('pos')[id], xy = Array.isArray(pos) ? [pos[0], pos[1]] : defaultXY(el, d);
     el.style.left = Math.max(0, Math.min(innerWidth - 80, xy[0])) + 'px'; el.style.top = Math.max(0, Math.min(innerHeight - 60, xy[1])) + 'px';
@@ -236,8 +246,8 @@
     W[id] = rec;
     if (!pinned) { drag(el, el.querySelector('.snkp-wh'), id); resizable(el, id); el.addEventListener('pointerdown', function () { bump(el); }); }
     el.querySelector('.wpin').onclick = function () { setKey('pin', id, !pinned); setKey('pos', id, [el.offsetLeft, el.offsetTop]); closeW(id, false); openW(id, false); toast(!pinned ? '📌 Widget fijado en el escritorio' : 'Widget libre: arrástralo o cambia su tamaño'); };
-    el.querySelector('.wmin').onclick = function () { var on = !el.classList.contains('mini'); el.classList.toggle('mini', on); setKey('min', id, on ? true : undefined); this.textContent = on ? '▢' : '▁'; this.title = on ? 'Mostrar' : 'Minimizar'; paintSum(rec); };
-    el.querySelector('.wcmp').onclick = function () { var on = !el.classList.contains('compact'); el.classList.toggle('compact', on); setKey('cmp', id, on ? true : undefined); this.title = on ? 'Tamaño grande' : 'Tamaño compacto'; };
+    el.querySelector('.wmin').onclick = function () { var on = !el.classList.contains('mini'); el.classList.toggle('mini', on); setKey('min', id, on ? true : undefined); this.textContent = on ? '▢' : '▁'; this.title = on ? T('Mostrar', 'Show') : T('Minimizar', 'Minimise'); paintSum(rec); };
+    el.querySelector('.wcmp').onclick = function () { var on = !el.classList.contains('compact'); el.classList.toggle('compact', on); setKey('cmp', id, on ? true : undefined); this.title = on ? T('Tamaño grande', 'Large size') : T('Tamaño compacto', 'Compact size'); };
     el.querySelector('.x').onclick = function () { if (d.onClose && d.onClose(id) === false) return; closeW(id, true); };
     try { rec.off = d.render(el.querySelector('.snkp-wb'), rec, id) || null; } catch (e) { console.warn('snkPro widget', id, e); }
     paintSum(rec);
@@ -266,6 +276,7 @@
     var r = W[id]; if (!r) return;
     try { if (r.off) r.off(); } catch (e) {}
     try { if (r.ro) r.ro.disconnect(); } catch (e) {}
+    try { if (r.offResize) r.offResize(); } catch (e) {}
     r.el.remove(); delete W[id];
     if (save) setKey('open', id, undefined);
   }
@@ -286,20 +297,26 @@
     function end() { if (!st) return; st = null; var p = snapXY(el, el.offsetLeft, el.offsetTop); el.style.left = p[0] + 'px'; el.style.top = p[1] + 'px'; setKey('pos', id, p); }
     bar.addEventListener('pointerup', end); bar.addEventListener('pointercancel', end);
   }
+  /* 2026.14: el tamaño solo se guarda al soltar la esquina de redimensionar (antes un ResizeObserver fijaba la altura
+     cada vez que cambiaba el contenido y mandaba un PUT) */
   function resizable(el, id) {
-    if (typeof ResizeObserver !== 'function') return;
-    var t = null, first = true;
-    var ro = new ResizeObserver(function () {
-      if (first) { first = false; return; }
-      if (phone() || el.classList.contains('mini')) return;
-      clearTimeout(t);
-      t = setTimeout(function () {
-        if (!el.isConnected) return;
+    var st = null;
+    el.addEventListener('pointerdown', function (e) {
+      if (phone() || el.classList.contains('mini') || e.target !== el) return;
+      var r = el.getBoundingClientRect();
+      if (e.clientX < r.right - 22 || e.clientY < r.bottom - 22) return;
+      st = { w: el.offsetWidth, h: el.offsetHeight };
+    });
+    function up() {
+      if (!st) return; var was = st; st = null;
+      setTimeout(function () {
+        if (!el.isConnected || (el.offsetWidth === was.w && el.offsetHeight === was.h)) return;
         var w = Math.max(150, Math.round(el.offsetWidth / GRID) * GRID), h = Math.max(80, Math.round(el.offsetHeight / GRID) * GRID);
         el.style.width = w + 'px'; el.style.height = h + 'px'; setKey('size', id, [w, h]);
-      }, 450);
-    });
-    ro.observe(el); if (W[id]) W[id].ro = ro;
+      }, 30);
+    }
+    window.addEventListener('pointerup', up, true);
+    if (W[id]) W[id].offResize = function () { window.removeEventListener('pointerup', up, true); };
   }
   /* «Añadir widget»: desde el menú del botón derecho del escritorio y desde el Centro Pro */
   var PICK = [['aclock', '🕰️', 'Reloj analógico'], ['world', '🌍', 'Reloj mundial'], ['month', '📅', 'Calendario'], ['monitor', '📈', 'Monitor'], ['kanban', '🗂️', 'Kanban'], ['focus', '🎯', 'Foco (Pomodoro)'], ['timers', '⏳', 'Temporizadores'], ['recorder', '🎥', 'Grabar pantalla'], ['passgen', '🔑', 'Contraseñas'], ['sketch', '✏️', 'Dibujo'], ['textpack', '🐍', 'Pack de texto']];
@@ -328,7 +345,7 @@
   function two(n) { return (n < 10 ? '0' : '') + n; }
 
   /* Reloj analógico */
-  DEFS.aclock = { title: '🕰️ Reloj Pro', w: 180, render: function (b, r) {
+  DEFS.aclock = { title: '🕰️ Reloj Pro', w: 200, render: function (b, r) {
     b.innerHTML = '<canvas width="316" height="316" style="width:158px;height:158px;display:block;margin:0 auto"></canvas><div class="d" style="text-align:center;font-weight:700;margin-top:4px"></div>';
     var cv = b.querySelector('canvas'), c = cv.getContext('2d'), dd = b.querySelector('.d');
     function draw() {
@@ -441,8 +458,24 @@
   } };
 
   /* Foco (Pomodoro con descanso largo) */
-  var FOCUS = { phase: 'work', left: 25 * 60, run: false, n: 0 };
+  var FOCUS = { phase: 'work', left: 25 * 60, run: false, n: 0, end: 0 };
+  /* 2026.14: Foco y temporizadores siguen al recargar (se guardan en este navegador, por perfil) y van por la hora
+     real (end = Date.now() + …), así no se retrasan con la pestaña en segundo plano */
+  var TIMERS = [];
+  function clockKey() { return 'snkProClocks:' + S.email; }
+  function saveClocks() { if (!S.email) return; try { localStorage.setItem(clockKey(), JSON.stringify({ f: FOCUS, t: TIMERS, at: Date.now() })); } catch (e) {} }
+  function loadClocks() {
+    FOCUS = { phase: 'work', left: 25 * 60, run: false, n: 0, end: 0 }; TIMERS = [];
+    if (!S.email) return;
+    try {
+      var d = JSON.parse(localStorage.getItem(clockKey()) || 'null'); if (!d) return;
+      if (d.f && typeof d.f.left === 'number' && /^(work|short|long)$/.test(d.f.phase)) FOCUS = { phase: d.f.phase, left: Math.max(0, d.f.left | 0), run: !!d.f.run, n: d.f.n | 0, end: +d.f.end || 0 };
+      if (Array.isArray(d.t)) TIMERS = d.t.slice(0, 8).filter(function (t) { return t && typeof t.total === 'number'; }).map(function (t) { return { name: String(t.name || '').slice(0, 30), total: +t.total || 0, left: +t.left || 0, end: +t.end || 0, run: !!t.run, done: !!t.done }; });
+      if (FOCUS.run && !FOCUS.end) FOCUS.run = false;
+    } catch (e) {}
+  }
   function beep() { try { var a = new (window.AudioContext || window.webkitAudioContext)(), o = a.createOscillator(), g = a.createGain(); o.frequency.value = 880; g.gain.value = 0.06; o.connect(g); g.connect(a.destination); o.start(); setTimeout(function () { o.stop(); a.close(); }, 350); } catch (e) {} }
+  window.addEventListener('pagehide', function () { if (S.active) saveClocks(); });
   function dayKey() { var d = new Date(); return d.getFullYear() + '-' + two(d.getMonth() + 1) + '-' + two(d.getDate()); }
   DEFS.focus = { title: '🎯 Foco Pro', w: 240, tool: true, render: function (b, r) {
     var LEN = { work: 25 * 60, short: 5 * 60, long: 15 * 60 }, NAME = { work: 'Foco', short: 'Descanso', long: 'Descanso largo' };
@@ -452,7 +485,7 @@
     function next() {
       if (FOCUS.phase === 'work') { var n = stats() + 1; setPref('focus', { d: dayKey(), n: n }); FOCUS.n++; FOCUS.phase = FOCUS.n % 4 === 0 ? 'long' : 'short'; toast('🎯 ¡Pomodoro completado! Toca descansar'); }
       else { FOCUS.phase = 'work'; toast('🎯 Vuelta al foco'); }
-      FOCUS.left = LEN[FOCUS.phase]; beep();
+      FOCUS.left = LEN[FOCUS.phase]; if (FOCUS.run) FOCUS.end = Date.now() + FOCUS.left * 1000; beep(); saveClocks();
     }
     function paint() {
       b.querySelector('.ph').textContent = NAME[FOCUS.phase] + ' · ciclo ' + (FOCUS.n % 4 + 1) + '/4';
@@ -461,36 +494,51 @@
       b.querySelector('.go').textContent = FOCUS.run ? '⏸ Pausa' : '▶ Empezar';
       b.querySelector('.st').textContent = 'Pomodoros de hoy: ' + stats();
     }
-    b.querySelector('.go').onclick = function () { FOCUS.run = !FOCUS.run; paint(); };
-    b.querySelector('.sk').onclick = function () { FOCUS.left = 0; r.tick(); };
-    b.querySelector('.rs').onclick = function () { FOCUS = { phase: 'work', left: LEN.work, run: false, n: 0 }; paint(); };
-    r.tick = function () { if (FOCUS.run) { FOCUS.left--; if (FOCUS.left <= 0) next(); } paint(); };
+    b.querySelector('.go').onclick = function () { if (FOCUS.run) { FOCUS.left = Math.max(0, Math.ceil((FOCUS.end - Date.now()) / 1000)); FOCUS.run = false; } else { FOCUS.run = true; FOCUS.end = Date.now() + FOCUS.left * 1000; } saveClocks(); paint(); };
+    b.querySelector('.sk').onclick = function () { FOCUS.left = 0; FOCUS.end = Date.now(); next(); paint(); };
+    b.querySelector('.rs').onclick = function () { FOCUS = { phase: 'work', left: LEN.work, run: false, n: 0, end: 0 }; saveClocks(); paint(); };
+    r.tick = function () {
+      if (FOCUS.run) {
+        FOCUS.left = Math.max(0, Math.ceil((FOCUS.end - Date.now()) / 1000));
+        var guard = 0; while (FOCUS.run && FOCUS.left <= 0 && guard++ < 8) { var over = Date.now() - FOCUS.end; next(); FOCUS.end -= Math.max(0, over); FOCUS.left = Math.max(0, Math.ceil((FOCUS.end - Date.now()) / 1000)); }
+      }
+      paint();
+    };
     r.sum = function () { return (FOCUS.run ? '▶ ' : '⏸ ') + two(Math.floor(FOCUS.left / 60)) + ':' + two(FOCUS.left % 60); };
     paint();
   } };
 
-  /* Temporizadores múltiples (viven mientras la pestaña está abierta) */
-  var TIMERS = [];
-  setInterval(function () { var now = Date.now(); TIMERS.forEach(function (t) { if (t.run && !t.done && now >= t.end) { t.done = true; t.run = false; beep(); toast('⏳ ' + t.name + ': ¡tiempo!'); } }); }, 500);
+  /* Temporizadores múltiples (2026.14: siguen al recargar) */
+  setInterval(function () { if (!S.active) return; var now = Date.now(), ch = false; TIMERS.forEach(function (t) { if (t.run && !t.done && now >= t.end) { t.done = true; t.run = false; ch = true; beep(); toast('⏳ ' + t.name + T(': ¡tiempo!', ': time’s up!')); } }); if (ch) saveClocks(); }, 500);
   DEFS.timers = { title: '⏳ Temporizadores Pro', w: 290, tool: true, render: function (b, r) {
     b.innerHTML = '<div class="snkp-row" style="margin-bottom:6px"><input class="nm" maxlength="30" placeholder="Nombre" style="flex:1;min-width:0"><input class="mn" type="number" min="0" max="999" value="5" style="width:56px" title="Minutos"><span>min</span><button type="button" class="snkp-btn pri add">＋</button></div><div class="ls"></div>';
     function fmt(ms) { var s = Math.max(0, Math.ceil(ms / 1000)); return (s >= 3600 ? Math.floor(s / 3600) + ':' : '') + two(Math.floor(s % 3600 / 60)) + ':' + two(s % 60); }
-    function paint() {
+    var ls = b.querySelector('.ls'), shape = '';
+    ls.addEventListener('click', function (ev) {
+      var x = ev.target.closest('button'); if (!x || !ls.contains(x)) return;
+      if (x.dataset.p != null) { var t = TIMERS[+x.dataset.p]; if (!t) return; if (t.done) { t.done = false; t.left = t.total; } if (t.run) { t.left = t.end - Date.now(); t.run = false; } else { t.end = Date.now() + t.left; t.run = true; } saveClocks(); paint(true); }
+      else if (x.dataset.d != null) { TIMERS.splice(+x.dataset.d, 1); saveClocks(); paint(true); }
+    });
+    function paint(force) {
       var now = Date.now();
-      b.querySelector('.ls').innerHTML = TIMERS.length ? TIMERS.map(function (t, i) { var left = t.run ? t.end - now : t.left; return '<div class="snkp-row" style="justify-content:space-between;padding:5px 0;border-top:1px solid rgba(255,255,255,.1)"><span style="flex:1;overflow:hidden;text-overflow:ellipsis">' + esc(t.name) + '</span><b style="font:800 1rem ui-monospace,monospace' + (t.done ? ';color:#ff8a7a' : '') + '">' + (t.done ? '¡Ya!' : fmt(left)) + '</b><button type="button" class="snkp-btn" data-p="' + i + '">' + (t.run ? '⏸' : '▶') + '</button><button type="button" class="snkp-btn" data-d="' + i + '">✕</button></div>'; }).join('') : '<div style="opacity:.6">Sin temporizadores</div>';
-      b.querySelectorAll('[data-p]').forEach(function (x) { x.onclick = function () { var t = TIMERS[+x.dataset.p]; if (t.done) { t.done = false; t.left = t.total; } if (t.run) { t.left = t.end - Date.now(); t.run = false; } else { t.end = Date.now() + t.left; t.run = true; } paint(); }; });
-      b.querySelectorAll('[data-d]').forEach(function (x) { x.onclick = function () { TIMERS.splice(+x.dataset.d, 1); paint(); }; });
+      var sh = TIMERS.map(function (t) { return t.name + '|' + t.run + '|' + t.done; }).join('/') + '#' + (EN() ? 'en' : 'es');
+      if (!force && sh === shape) {
+        ls.querySelectorAll('[data-tm]').forEach(function (el) { var t = TIMERS[+el.dataset.tm]; if (t) el.textContent = t.done ? T('¡Ya!', 'Done!') : fmt(t.run ? t.end - now : t.left); });
+        return;
+      }
+      shape = sh;
+      ls.innerHTML = TIMERS.length ? TIMERS.map(function (t, i) { var left = t.run ? t.end - now : t.left; return '<div class="snkp-row" style="justify-content:space-between;padding:5px 0;border-top:1px solid rgba(255,255,255,.1)"><span style="flex:1;overflow:hidden;text-overflow:ellipsis">' + esc(t.name) + '</span><b data-tm="' + i + '" data-noi18n style="font:800 1rem ui-monospace,monospace' + (t.done ? ';color:#ff8a7a' : '') + '">' + (t.done ? T('¡Ya!', 'Done!') : fmt(left)) + '</b><button type="button" class="snkp-btn" data-p="' + i + '">' + (t.run ? '⏸' : '▶') + '</button><button type="button" class="snkp-btn" data-d="' + i + '">✕</button></div>'; }).join('') : '<div style="opacity:.6">Sin temporizadores</div>';
     }
-    b.querySelector('.add').onclick = function () { var m = Math.max(0, Math.min(999, parseFloat(b.querySelector('.mn').value) || 0)); if (!m) return; if (TIMERS.length >= 8) { toast('Máximo 8 temporizadores'); return; } var ms = Math.round(m * 60000); TIMERS.push({ name: b.querySelector('.nm').value.trim() || ('Temporizador ' + (TIMERS.length + 1)), total: ms, left: ms, end: Date.now() + ms, run: true, done: false }); b.querySelector('.nm').value = ''; paint(); };
-    r.tick = paint; paint();
-    r.sum = function () { var now = Date.now(), run = TIMERS.filter(function (t) { return t.run && !t.done; }).sort(function (a, b) { return a.end - b.end; }); return run.length ? '⏳ ' + fmt(run[0].end - now) + (run.length > 1 ? ' +' + (run.length - 1) : '') : (TIMERS.some(function (t) { return t.done; }) ? '¡Ya!' : ''); };
+    b.querySelector('.add').onclick = function () { var m = Math.max(0, Math.min(999, parseFloat(b.querySelector('.mn').value) || 0)); if (!m) return; if (TIMERS.length >= 8) { toast('Máximo 8 temporizadores'); return; } var ms = Math.round(m * 60000); TIMERS.push({ name: b.querySelector('.nm').value.trim() || (T('Temporizador ', 'Timer ') + (TIMERS.length + 1)), total: ms, left: ms, end: Date.now() + ms, run: true, done: false }); b.querySelector('.nm').value = ''; saveClocks(); paint(true); };
+    r.tick = function () { paint(false); }; paint(true);
+    r.sum = function () { var now = Date.now(), run = TIMERS.filter(function (t) { return t.run && !t.done; }).sort(function (a, b) { return a.end - b.end; }); return run.length ? '⏳ ' + fmt(run[0].end - now) + (run.length > 1 ? ' +' + (run.length - 1) : '') : (TIMERS.some(function (t) { return t.done; }) ? T('¡Ya!', 'Done!') : ''); };
   } };
 
   /* Grabador de pantalla (todo en el navegador) */
   var REC = null;
   DEFS.recorder = { title: '🎥 Grabador Pro', w: 250, tool: true, render: function (b, r) {
     function paint() {
-      if (REC) { var s = Math.floor((Date.now() - REC.t0) / 1000); b.innerHTML = '<div style="text-align:center"><div style="font:800 1.6rem ui-monospace,monospace;color:#ff6b6b">● ' + two(Math.floor(s / 60)) + ':' + two(s % 60) + '</div><button type="button" class="snkp-btn pri stop" style="margin-top:6px">⏹ Parar y guardar</button></div>'; b.querySelector('.stop').onclick = stop; }
+      if (REC) { var s = Math.floor((Date.now() - REC.t0) / 1000); b.innerHTML = '<div style="text-align:center"><div class="rt" data-noi18n style="font:800 1.6rem ui-monospace,monospace;color:#ff6b6b">● ' + two(Math.floor(s / 60)) + ':' + two(s % 60) + '</div><button type="button" class="snkp-btn pri stop" style="margin-top:6px">⏹ Parar y guardar</button></div>'; b.querySelector('.stop').onclick = stop; }
       else b.innerHTML = '<p style="margin:0 0 8px;opacity:.8;font-size:.75rem">Elige pantalla, ventana o pestaña. El vídeo (WebM) se guarda en tu equipo; no se sube a ningún sitio.</p><label class="snkp-row" style="margin-bottom:8px"><input type="checkbox" class="au"> Con sonido de la pestaña</label><button type="button" class="snkp-btn pri go">● Grabar</button><div class="er" style="color:#ff8a7a;margin-top:6px;font-size:.75rem"></div>';
       var go = b.querySelector('.go'); if (go) go.onclick = start;
     }
@@ -509,12 +557,20 @@
           toast('🎥 Grabación guardada (' + (blob.size / 1048576).toFixed(1) + ' MB)'); REC = null; window.__snkProLastRec = blob.size; if (W.recorder) paint();
         };
         stream.getVideoTracks()[0].addEventListener('ended', function () { if (REC && REC.mr.state !== 'inactive') REC.mr.stop(); });
-        mr.start(1000); REC = { mr: mr, t0: Date.now() }; paint();
+        mr.start(1000); REC = { mr: mr, t0: Date.now(), stream: stream, em: S.email }; paint();
       }).catch(function (e) { var er = b.querySelector('.er'); if (er) er.textContent = e && e.name === 'NotAllowedError' ? 'Grabación cancelada.' : 'No se ha podido grabar.'; });
     }
     function stop() { if (REC && REC.mr.state !== 'inactive') REC.mr.stop(); }
-    r.tick = function () { if (REC) paint(); };
+    r.tick = function () { if (!REC) return; var rt = b.querySelector('.rt'); if (!rt) { paint(); return; } var s = Math.floor((Date.now() - REC.t0) / 1000); rt.textContent = '● ' + two(Math.floor(s / 60)) + ':' + two(s % 60); };
     paint();
+    /* 2026.14: al cerrar sesión, cambiar de perfil o dejar Pro, la grabación se corta (sin guardar) y se sueltan cámara/pantalla.
+       Fijar/desfijar el widget en el mismo perfil no la corta. */
+    return function off() {
+      if (!REC || (S.active && S.email === REC.em)) return;
+      var R = REC; REC = null;
+      try { R.mr.ondataavailable = null; R.mr.onstop = null; if (R.mr.state !== 'inactive') R.mr.stop(); } catch (e) {}
+      try { R.stream.getTracks().forEach(function (t) { t.stop(); }); } catch (e) {}
+    };
   }, onClose: function () { if (REC) { toast('Para la grabación antes de cerrar'); return false; } } };
 
   /* Generador de contraseñas */
@@ -624,7 +680,7 @@
   }
   function introWhenDesk(tries) { var d = $('#desktop'); if (d && !d.classList.contains('hidden')) return intro(); if (tries > 0) setTimeout(function () { introWhenDesk(tries - 1); }, 1000); }
 
-  /* ---------------- estilos de terminal (Snake OS! Pro en Máquinas virtuales) ---------------- */
+  /* ---------------- estilos de terminal (Máquinas virtuales, escritorio estilo Ubuntu 26.10) ---------------- */
   var TERM = {
     gold: { n: 'Oro', t: { background: '#120d02', foreground: '#ffe9b0', cursor: '#f5c542', cursorAccent: '#120d02', selectionBackground: 'rgba(245,197,66,.3)' } },
     matrix: { n: 'Matrix', t: { background: '#000000', foreground: '#39ff6a', cursor: '#39ff6a', cursorAccent: '#000000', selectionBackground: 'rgba(57,255,106,.3)', green: '#39ff6a', brightGreen: '#8cff9f' } },
@@ -653,7 +709,7 @@
         '<h3>Diseños de ventanas <small style="text-transform:none;letter-spacing:0">(Alt+Mayús+1…7)</small></h3><div class="snkp-grid">' + LAYOUTS.map(function (l) { return '<button type="button" data-lay="' + l[0] + '">' + l[1] + '</button>'; }).join('') + '</div>' +
         '<h3>Salvapantallas Pro <small style="text-transform:none;letter-spacing:0">(Ctrl+Alt+P)</small></h3><div class="snkp-row"><button type="button" class="snkp-btn" data-saver="rain">🐍 Lluvia de serpientes</button><button type="button" class="snkp-btn" data-saver="stars">🌠 Estrellas doradas</button></div>' +
         '<div class="snkp-row" style="margin-top:6px"><span>Usar</span><select data-sel="saverKind"><option value="rain">Lluvia de serpientes</option><option value="stars"' + (P('saverKind', 'rain') === 'stars' ? ' selected' : '') + '>Estrellas doradas</option></select><span>tras</span><select data-sel="saverIdle">' + [[0, 'nunca'], [2, '2 min'], [5, '5 min'], [10, '10 min'], [15, '15 min']].map(function (o) { return '<option value="' + o[0] + '"' + (+P('saverIdle', 0) === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></div>' +
-        '<h3>Máquinas virtuales</h3><p style="margin:0 0 6px;opacity:.8;font-size:.75rem">En Snake OS! Pro abre Configuración › Pro: estilos de terminal e instantánea de la máquina.</p><button type="button" class="snkp-btn vm">🖥️ Abrir Máquinas virtuales</button>';
+        '<h3>Máquinas virtuales</h3><p style="margin:0 0 6px;opacity:.8;font-size:.75rem">En la máquina (Ubuntu 26.10 (estilo)) abre Configuración › Pro: estilos de terminal e instantánea de la máquina.</p><button type="button" class="snkp-btn vm">🖥️ Abrir Máquinas virtuales</button>';
       el.querySelector('.x').onclick = function () { el.remove(); };
       el.querySelectorAll('[data-wall]').forEach(function (b) { b.onclick = function () { setPref('wall', b.dataset.wall); applyWall(); paint(); }; });
       el.querySelectorAll('[data-acc]').forEach(function (b) { b.onclick = function () { setPref('acc', b.dataset.acc); applyBody(); paint(); }; });
@@ -681,6 +737,8 @@
   document.addEventListener('keydown', function (e) {
     if (!S.active) return;
     if (e.key === 'Escape' && $('#snkProCenter')) { $('#snkProCenter').remove(); return; }
+    /* 2026.14: no robar teclas al escribir (AltGr = Ctrl+Alt en teclados españoles) */
+    var tg = e.target; if (tg && tg.closest && tg.closest('input,textarea,select,[contenteditable=""],[contenteditable="true"],.xterm')) return;
     if (e.altKey && e.shiftKey && !e.ctrlKey && !e.metaKey && /^Digit[1-7]$/.test(e.code)) { if (layout(+e.code.slice(5))) { e.preventDefault(); e.stopPropagation(); } }
     else if (e.ctrlKey && e.altKey && !e.shiftKey && (e.key === 'p' || e.key === 'P' || e.code === 'KeyP')) { e.preventDefault(); saver(P('saverKind', 'rain')); }
   }, true);
@@ -711,7 +769,9 @@
   function onUser() {
     var u = cu(), em = u && u.email ? String(u.email).toLowerCase() : '';
     if (em === S.email) return;
+    clearTimeout(S.pushT); S.pushT = null;
     S.email = em; S.active = false; S.prefs = {}; S.loaded = false; closeAll(); applyAll();
+    loadClocks();
     if (em) { S.loginAt = Date.now(); pull(); }
   }
   setInterval(function () { onUser(); if (S.active) { ensureBtn(); var w = $('#snkProWall'); if (P('wall', '') === 'dyn' && w && w.dataset.ph !== dynPhase()[1]) { w.dataset.w = ''; applyWall(); } if (!w && P('wall', '')) applyWall(); } }, 1000);
@@ -720,12 +780,12 @@
   document.addEventListener('visibilitychange', function () { if (!document.hidden && S.email) pull(); });
 
   /* ---------------- Ajustes › Snake OS VP Pro ---------------- */
-  function fmtDate(s) { try { return new Date(s * 1000).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' }); } catch (e) { return ''; } }
+  function fmtDate(s) { try { return new Date(s * 1000).toLocaleDateString(EN() ? 'en-GB' : 'es-ES', { day: 'numeric', month: 'long', year: 'numeric' }); } catch (e) { return ''; } }
   function settingsPanel(repaint) {
     css();
     var box = document.createElement('div'); box.className = 'snkp-set';
     function featList() {
-      return '<div class="snkp-set-h" style="font-weight:800;margin:8px 0 2px">Funciones Pro <small style="opacity:.6">' + FEATS.length + '</small></div><div class="snkp-fl">' + FEATS.map(function (f) { return '<div class="' + (S.active ? '' : 'off') + '" data-feat="' + f.id + '"><i>' + f.ico + '</i><span style="flex:1"><b>' + esc(f.es[0]) + '</b><span>' + esc(f.es[1]) + '</span></span><em title="' + (S.active ? 'Disponible' : 'Bloqueada: activa Pro') + '">' + (S.active ? '✅' : '🔒') + '</em></div>'; }).join('') + '</div>';
+      return '<div class="snkp-set-h" style="font-weight:800;margin:8px 0 2px">' + T('Funciones Pro', 'Pro features') + ' <small style="opacity:.6">' + FEATS.length + '</small></div><div class="snkp-fl" data-noi18n translate="no">' + FEATS.map(function (f) { var x = (EN() ? f.en : f.es) || f.es; return '<div class="' + (S.active ? '' : 'off') + '" data-feat="' + f.id + '"><i>' + f.ico + '</i><span style="flex:1"><b>' + esc(x[0]) + '</b><span>' + esc(x[1]) + '</span></span><em title="' + (S.active ? T('Disponible', 'Available') : T('Bloqueada: activa Pro', 'Locked: activate Pro')) + '">' + (S.active ? '✅' : '🔒') + '</em></div>'; }).join('') + '</div>';
     }
     function paint(msg, kind) {
       if (S.active) {
@@ -766,6 +826,18 @@
     var a = t.replace(/[^A-Z0-9]/g, ''); if (a.indexOf('SNKPRO') === 0) a = a.slice(6);
     return a.length === 12 ? 'SNKPRO-' + a.slice(0, 4) + '-' + a.slice(4, 8) + '-' + a.slice(8) : t;
   }
+  /* 2026.14: al cambiar ES/EN se actualizan los títulos de los botones de los widgets ya abiertos */
+  function relabelWidgets() {
+    var ws = document.querySelectorAll('.snkp-w');
+    for (var i = 0; i < ws.length; i++) {
+      var w = ws[i], q = function (c) { return w.querySelector('.snkp-wh .' + c); }, b;
+      if ((b = q('wpin'))) b.title = b.getAttribute('aria-pressed') === 'true' ? T('Desfijar (se podrá mover y cambiar de tamaño)', 'Unpin (it can be moved and resized)') : T('Fijar en el escritorio (detrás de las ventanas, sin moverse)', 'Pin to the desktop (behind windows, fixed in place)');
+      if ((b = q('wmin'))) b.title = w.classList.contains('mini') ? T('Mostrar', 'Show') : T('Minimizar', 'Minimise');
+      if ((b = q('wcmp'))) b.title = w.classList.contains('compact') ? T('Tamaño grande', 'Large size') : T('Tamaño compacto', 'Compact size');
+      if ((b = q('x'))) b.title = T('Quitar del escritorio', 'Remove from the desktop');
+    }
+  }
+  window.addEventListener('snk-lang', function () { try { relabelWidgets(); } catch (e) {} });
   window.snkPro = {
     active: function () { return !!S.active; },
     since: function () { return S.since; },

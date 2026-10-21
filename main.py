@@ -42,6 +42,7 @@ import osx_extras
 import snake_tts
 import askbox_client
 import matrix_api
+import hardening
 from askbox_client import AskboxError
 from auth import (
     COOKIE_NAME,
@@ -54,6 +55,7 @@ from auth import (
 )
 
 app = FastAPI(title="Snake OS")
+hardening.install(app)  # límites de tamaño, CSRF por Origin, límites por IP y errores en JSON
 
 
 def placa_required() -> bool:
@@ -436,10 +438,13 @@ def os_gate_check_email(body: CheckDogaEmailBody):
     return {"exists": bool(user), "email": email}
 
 @app.post("/api/os-gate")
-def os_gate_unlock(body: OsGateBody, response: Response):
+def os_gate_unlock(body: OsGateBody, response: Response, request: Request):
     # Do not log the submitted password.
     submitted = body.password if isinstance(body.password, str) else ""
-    if not secrets.compare_digest(submitted, OS_GATE_PASSWORD):
+    gate_keys = ["ip:" + hardening.request_ip(request)]
+    hardening.GATE_IP_FAILS.check(gate_keys)
+    if not secrets.compare_digest(submitted.encode("utf-8"), OS_GATE_PASSWORD.encode("utf-8")):
+        hardening.GATE_IP_FAILS.fail(gate_keys)
         raise HTTPException(status_code=403, detail="Contraseña incorrecta.")
     set_os_gate_cookie(response)
     return {"unlocked": True}
@@ -448,11 +453,13 @@ BLOCKED_SIGNUP_DOMAINS = {"gmail.com", "googlemail.com"}
 
 
 @app.post("/api/signup")
-def signup(body: SignupBody, response: Response, _gate: None = Depends(require_os_gate)):
+def signup(body: SignupBody, response: Response, request: Request, _gate: None = Depends(require_os_gate)):
     email = body.email.strip().lower()
-    name = body.name.strip()
+    name = hardening.clean_name(body.name)
     password = body.password
-    avatar = body.avatar or "🐶"
+    avatar = db.safe_signup_avatar(body.avatar)
+    if len(email) > 320:
+        raise HTTPException(status_code=400, detail="Correo no válido")
 
     if not email or "@" not in email:
         raise HTTPException(status_code=400, detail="Correo no válido")
@@ -468,6 +475,9 @@ def signup(body: SignupBody, response: Response, _gate: None = Depends(require_o
     if db.get_user_by_email(email):
         raise HTTPException(status_code=409, detail="Ya existe una cuenta con ese correo")
 
+    signup_keys = ["ip:" + hardening.request_ip(request)]
+    hardening.SIGNUP_IP.check(signup_keys)
+    hardening.SIGNUP_IP.fail(signup_keys)  # cuenta cada cuenta creada
     user = db.create_user(email, name, hash_password(password), avatar)
     try:
         dog_phone.ensure_number(int(user["id"]))
@@ -505,13 +515,20 @@ def _login_matrix_dots(on: bool) -> None:
 
 
 @app.post("/api/login")
-def login(body: LoginBody, response: Response, _gate: None = Depends(require_os_gate)):
+def login(body: LoginBody, response: Response, request: Request, _gate: None = Depends(require_os_gate)):
+    email = body.email.strip().lower()
+    ip_keys = ["ip:" + hardening.request_ip(request)]
+    email_keys = ["em:" + email[:320]]
+    hardening.LOGIN_IP_FAILS.check(ip_keys)
+    hardening.LOGIN_EMAIL_FAILS.check(email_keys)
     _login_matrix_dots(True)
     try:
-        email = body.email.strip().lower()
         user = db.get_user_by_email(email)
         if not user or not verify_password(body.password, user["password_hash"]):
+            hardening.LOGIN_IP_FAILS.fail(ip_keys)
+            hardening.LOGIN_EMAIL_FAILS.fail(email_keys)
             raise HTTPException(status_code=401, detail="Correo o contraseña incorrectos")
+        hardening.LOGIN_EMAIL_FAILS.clear(email_keys)
         unlocked = db.set_account_locked(int(user["id"]), False)
         if unlocked:
             user = unlocked
@@ -550,16 +567,22 @@ def verify_me_password(body: VerifyPasswordBody, user=Depends(require_user), _ga
     pwd = body.password if isinstance(body.password, str) else ""
     if not pwd:
         raise HTTPException(status_code=400, detail="Indica tu contraseña")
+    pw_keys = ["uid:" + str(int(user["id"]))]
+    hardening.PASSWORD_USER_FAILS.check(pw_keys)
     if not verify_password(pwd, user["password_hash"]):
+        hardening.PASSWORD_USER_FAILS.fail(pw_keys)
         raise HTTPException(status_code=401, detail="Contraseña incorrecta")
+    hardening.PASSWORD_USER_FAILS.clear(pw_keys)
     updated = db.set_account_locked(int(user["id"]), False)
     return {"ok": True, "user": db.user_public(updated) if updated else db.user_public(user)}
 
 
 @app.patch("/api/me")
-def patch_me(body: PatchMeBody, user=Depends(require_user)):
+def patch_me(body: PatchMeBody, request: Request, response: Response, user=Depends(require_user)):
     if body.name is not None and not body.name.strip():
         raise HTTPException(status_code=400, detail="El nombre no puede estar vacío")
+    if body.name is not None and body.name.strip() != str(user["name"] or "").strip():
+        hardening.clean_name(body.name)  # solo al cambiar el nombre: los nombres largos de antes siguen valiendo
     if body.password is not None and len(body.password) < 4:
         raise HTTPException(status_code=400, detail="La contraseña debe tener al menos 4 caracteres")
     avatar = body.avatar
@@ -582,6 +605,11 @@ def patch_me(body: PatchMeBody, user=Depends(require_user)):
         password_hash=hash_password(body.password) if body.password else None,
         cloud_sub=body.cloudSub,
     )
+    if body.password:
+        # 2026.14: al cambiar la contraseña se cierran las demás sesiones (otros dispositivos y páginas como /pro);
+        # este navegador sigue dentro con una sesión nueva.
+        db.delete_user_sessions(int(user["id"]))
+        set_session_cookie(response, start_session(int(user["id"])))
     _mv_notify_profile(updated)
     return db.user_public(updated)
 
@@ -1409,7 +1437,10 @@ def _drop_profile_memory(user_id: int, email: str) -> None:
 def delete_me(body: DeleteMeBody, request: Request, response: Response, user=Depends(require_user)):
     if not body.password:
         raise HTTPException(status_code=400, detail="Indica tu contraseña para eliminar la cuenta")
+    pw_keys = ["uid:" + str(int(user["id"]))]
+    hardening.PASSWORD_USER_FAILS.check(pw_keys)
     if not verify_password(body.password, user["password_hash"]):
+        hardening.PASSWORD_USER_FAILS.fail(pw_keys)
         raise HTTPException(status_code=401, detail="Contraseña incorrecta")
     uid = int(user["id"])
     email = str(user["email"] or "")
@@ -3911,6 +3942,7 @@ class MetaverseRoom:
                 "ry": cur["ry"],
                 "world": world,
                 "room": None,
+                "pro": db.pro_flag(_MV_UID.get(email)),
             }
             return old, snap
 
@@ -5011,6 +5043,7 @@ async def metaverse_ws(websocket: WebSocket):
                     "room": me.get("room"),
                     "voice": bool(me.get("voice")),
                     "look": avatar_wallet["look"],
+                    "pro": db.pro_flag(_MV_UID.get(email)),
                 },
             },
             skip=email,
@@ -9161,6 +9194,11 @@ class _PublicStaticFiles(StaticFiles):
                 cc = "no-cache"
             resp.headers["Cache-Control"] = cc
             resp.headers["CDN-Cache-Control"] = cc
+            # 2026.14: las apps de la Store corren en un iframe con sandbox (origen opaco «null»); sus archivos públicos
+            # (fuentes, wasm, datos) necesitan CORS para que fetch/fuentes funcionen. Solo archivos estáticos públicos.
+            if rel.startswith("assets/sra-") or rel.startswith("assets/fonts/"):
+                resp.headers["Access-Control-Allow-Origin"] = "*"
+                resp.headers["Cross-Origin-Resource-Policy"] = "cross-origin"
         return resp
 
 
@@ -9185,6 +9223,8 @@ def _doga_on_signup(user) -> None:
 
 app.include_router(doga_auth.build_router(_visitor_ip, BLOCKED_SIGNUP_DOMAINS, _doga_on_signup))
 app.include_router(pro_extras.build_router(require_user, _visitor_ip, lambda request: doga_auth.site_user(request, "pro")))
+import v2614_extras  # 2026.14: /api/calendar y /api/store/ratings (faltaban)
+app.include_router(v2614_extras.build_router(require_user))
 
 
 # --- Snake OS Kids: entrega del resumen semanal y códigos al Dogaemail del adulto (notificaciones de Snake OS) ---

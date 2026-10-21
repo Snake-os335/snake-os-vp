@@ -27,7 +27,14 @@
     opts = opts || {};
     var o = { method: opts.method || 'GET', credentials: 'same-origin', headers: { Accept: 'application/json' }, cache: 'no-store' };
     if (opts.body !== undefined) { o.headers['Content-Type'] = 'application/json'; o.body = JSON.stringify(opts.body); }
-    return fetch(path, o).then(function (r) {
+    /* 2026.14: límite de tiempo (20 s) para que la página nunca se quede esperando para siempre */
+    var ac = typeof AbortController === 'function' ? new AbortController() : null, tm = 0;
+    if (ac) { o.signal = ac.signal; tm = setTimeout(function () { try { ac.abort(); } catch (e) {} }, opts.timeout || 20000); }
+    return fetch(path, o).catch(function (e) {
+      clearTimeout(tm);
+      var e3 = new Error(e && e.name === 'AbortError' ? 'El servidor tarda demasiado. Vuelve a intentarlo.' : 'Sin conexión con el servidor. Vuelve a intentarlo.'); e3.status = 0; throw e3;
+    }).then(function (r) {
+      clearTimeout(tm);
       return r.text().then(function (t) {
         var d = null; try { d = t ? JSON.parse(t) : null; } catch (e) { d = { detail: t }; }
         if (!r.ok) { var e2 = new Error((d && (typeof d.detail === 'string' ? d.detail : d.message)) || ('Error ' + r.status)); e2.status = r.status; throw e2; }
@@ -61,7 +68,7 @@
     var api = {
       site: site,
       user: function () { return user; },
-      me: function () { return req('/api/doga-auth/me?site=' + encodeURIComponent(site)).then(function (u) { user = u; return u; }, function (e) { if (e.status === 401) { user = null; return null; } throw e; }); },
+      me: function () { return req('/api/doga-auth/me?soft=1&site=' + encodeURIComponent(site)).then(function (u) { if (u && u.signed_in === false) u = null; user = u; return u; }, function (e) { if (e.status === 401) { user = null; return null; } throw e; }); },
       login: function (email, password) { return req('/api/doga-auth/login', { method: 'POST', body: { site: site, email: email, password: password } }).then(function (u) { user = u; emit(); return u; }); },
       signup: function (d) { return req('/api/doga-auth/signup', { method: 'POST', body: { site: site, email: d.email, name: d.name, password: d.password, avatar: d.avatar } }).then(function (u) { user = u; emit(); return u; }); },
       logout: function () { return req('/api/doga-auth/logout', { method: 'POST', body: { site: site } }).catch(function () {}).then(function () { user = null; emit(); }); },

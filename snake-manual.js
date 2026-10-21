@@ -11,7 +11,7 @@
 (function () {
   'use strict';
   if (window.snkManual) return;
-  var VER = '202610212130';
+  var VER = '202610220400';
   var FILES = { es: '/static/assets/snake-manual-es.pdf.js', en: '/static/assets/snake-manual-en.pdf.js' };
   var NAMES = { es: 'Manual-de-instrucciones-Snake-OS.pdf', en: 'Snake-OS-User-Manual.pdf' };
   var ASK = 'snkManualAsk:';
@@ -135,10 +135,10 @@
     m.setAttribute('role', 'dialog'); m.setAttribute('aria-modal', 'true'); m.setAttribute('aria-labelledby', 'snkManualAskT');
     m.innerHTML = '<div class="snkman-card">' +
       '<div class="snkman-mark" aria-hidden="true"><img src="' + LOGO + '" alt=""><span>PDF</span></div>' +
-      '<h2 id="snkManualAskT">¿Quieres descargar el manual de instrucciones de Snake OS?</h2>' +
-      '<p>Es un PDF para aprender a usar Snake OS: el escritorio, los ajustes y todas las apps, con capturas.</p>' +
-      '<div class="snkman-row"><button type="button" data-no>No</button><button type="button" data-yes>Sí</button></div>' +
-      '<p class="snkman-note">Podrás descargarlo cuando quieras en Ajustes › Acerca de, en el menú Inicio o en la pantalla de inicio de sesión.</p>' +
+      '<h2 id="snkManualAskT">' + (lang() === 'en' ? 'Do you want to download the Snake OS user manual?' : '¿Quieres descargar el manual de instrucciones de Snake OS?') + '</h2>' +
+      '<p>' + (lang() === 'en' ? 'It is a PDF to learn how to use Snake OS: the desktop, the settings and every app, with screenshots.' : 'Es un PDF para aprender a usar Snake OS: el escritorio, los ajustes y todas las apps, con capturas.') + '</p>' +
+      '<div class="snkman-row"><button type="button" data-no>No</button><button type="button" data-yes>' + (lang() === 'en' ? 'Yes' : 'Sí') + '</button></div>' +
+      '<p class="snkman-note">' + (lang() === 'en' ? 'You can download it whenever you like from Settings › About, the Start menu or the sign-in screen.' : 'Podrás descargarlo cuando quieras en Ajustes › Acerca de, en el menú Inicio o en la pantalla de inicio de sesión.') + '</p>' +
       '</div>';
     document.body.appendChild(m);
     function done(yes) {

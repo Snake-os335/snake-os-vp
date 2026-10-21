@@ -11,7 +11,7 @@
 (function () {
   'use strict';
   if (window.SnakeRealApps) return;
-  var VER = '202610212130', AS = '/static/assets/';
+  var VER = '202610220400', AS = '/static/assets/';
   function en() { try { return !!(window.snakeI18n && window.snakeI18n.lang === 'en'); } catch (e) { return false; } }
   function T(es, e) { return en() ? e : es; }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
@@ -118,17 +118,37 @@
       document.head.appendChild(s);
     });
   }
-  var CSP = "default-src 'self' blob: data:; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; style-src 'self' 'unsafe-inline' blob: data:; img-src 'self' blob: data:; font-src 'self' blob: data:; connect-src 'self' blob: data:; media-src 'self' blob: data: mediastream:; worker-src 'self' blob:; frame-src 'self' blob: data:; object-src 'none'; form-action 'none'";
-  // Arranque dentro del iframe: localStorage con prefijo por perfil y app + ayudante SRA (guardar/cargar en IndexedDB).
+  /* 2026.14 (seguridad): las apps de la Store corren en un iframe con sandbox SIN allow-same-origin (origen opaco):
+     no pueden leer Snake OS (window.parent), ni sus cookies, ni llamar a /api/* con tu sesión. Su CSP solo deja
+     cargar archivos de /static/assets/. localStorage, cookies propias, SRA.load/save, SRA.ai y el foco de la ventana
+     pasan por postMessage (se comprueba e.source y un token por ventana). Los datos de cada app siguen en el mismo
+     sitio que antes (localStorage «sra:<perfil>:<app>:» e IndexedDB «snkRealAppsV1» de Snake OS), así no se pierde nada. */
+  function csp() {
+    var A = location.origin + AS;
+    return "default-src " + A + " blob: data:; script-src " + A + " 'unsafe-inline' 'unsafe-eval' blob: data:; style-src " + A + " 'unsafe-inline' blob: data:; img-src " + A + " blob: data:; font-src " + A + " blob: data:; connect-src " + A + " blob: data:; media-src " + A + " blob: data: mediastream:; worker-src " + A + " blob: data:; frame-src blob: data:; object-src 'none'; form-action 'none'; base-uri " + A;
+  }
+  function lsPrefix(p, a) { return 'sra:' + p + ':' + a + ':'; }
+  function lsSnapshot(p, a) {
+    var K = lsPrefix(p, a), o = {};
+    try { for (var i = 0; i < localStorage.length; i++) { var k = localStorage.key(i); if (k && k.indexOf(K) === 0) o[k.slice(K.length)] = localStorage.getItem(k); } } catch (e) {}
+    return o;
+  }
+  // Arranque dentro del iframe (origen opaco): localStorage y cookies en memoria con copia en Snake OS + ayudante SRA.
   function shim(cfg) {
     return '(' + function (c) {
-      var P = window.parent, K = 'sra:' + c.p + ':' + c.a + ':', real = null, mem = {};
-      try { real = P.localStorage; } catch (e) {}
-      function keys() { var o = []; try { if (real) { for (var i = 0; i < real.length; i++) { var k = real.key(i); if (k && k.indexOf(K) === 0) o.push(k.slice(K.length)); } } else o = Object.keys(mem); } catch (e) {} return o; }
+      var P = window.parent, TOK = c.k, mem = c.ls || {}, seq = 0, wait = {};
+      function send(m) { m.sra = TOK; try { P.postMessage(m, '*'); } catch (e) {} }
+      function rpc(op, args) { return new Promise(function (res, rej) { var id = ++seq; wait[id] = [res, rej]; send({ op: op, id: id, args: args }); }); }
+      window.addEventListener('message', function (e) {
+        if (e.source !== P) return; var d = e.data; if (!d || d.sra !== TOK) return;
+        if (d.op === 'ret' && wait[d.id]) { var w = wait[d.id]; delete wait[d.id]; if (d.err) { var er = new Error(d.err.message || 'error'); er.status = d.err.status; w[1](er); } else w[0](d.val); }
+        else if (d.op === 'closing') { (window.SRA.closing || []).forEach(function (f) { try { f(); } catch (x) {} }); send({ op: 'closed' }); }
+      });
+      function keys() { return Object.keys(mem); }
       var api = {
-        getItem: function (k) { k = String(k); try { return real ? real.getItem(K + k) : (k in mem ? mem[k] : null); } catch (e) { return null; } },
-        setItem: function (k, v) { k = String(k); v = String(v); try { if (real) real.setItem(K + k, v); else mem[k] = v; } catch (e) { if (!real) mem[k] = v; } },
-        removeItem: function (k) { k = String(k); try { if (real) real.removeItem(K + k); else delete mem[k]; } catch (e) {} },
+        getItem: function (k) { k = String(k); return Object.prototype.hasOwnProperty.call(mem, k) ? mem[k] : null; },
+        setItem: function (k, v) { k = String(k); v = String(v); mem[k] = v; send({ op: 'ls', k: k, v: v }); },
+        removeItem: function (k) { k = String(k); delete mem[k]; send({ op: 'ls', k: k, v: null }); },
         clear: function () { keys().forEach(function (k) { api.removeItem(k); }); },
         key: function (i) { return keys()[i] == null ? null : keys()[i]; }
       };
@@ -140,8 +160,10 @@
         ownKeys: function (t) { return Reflect.ownKeys(t).concat(keys().filter(function (k) { return !Object.prototype.hasOwnProperty.call(t, k); })); },
         getOwnPropertyDescriptor: function (t, p) { if (Object.prototype.hasOwnProperty.call(t, p)) return Reflect.getOwnPropertyDescriptor(t, p); var v = t.getItem(p); return v === null ? undefined : { value: v, enumerable: true, configurable: true, writable: true }; }
       });
+      var mem2 = {};
+      var ss = { getItem: function (k) { return Object.prototype.hasOwnProperty.call(mem2, k) ? mem2[k] : null; }, setItem: function (k, v) { mem2[String(k)] = String(v); }, removeItem: function (k) { delete mem2[k]; }, clear: function () { mem2 = {}; }, key: function (i) { return Object.keys(mem2)[i] || null; }, get length() { return Object.keys(mem2).length; } };
       try { Object.defineProperty(window, 'localStorage', { configurable: true, enumerable: true, get: function () { return ls; } }); } catch (e) {}
-      var S = P.SnakeRealApps, pre = c.p + '|' + c.a + '|';
+      try { Object.defineProperty(window, 'sessionStorage', { configurable: true, enumerable: true, get: function () { return ss; } }); } catch (e) {}
       // Cookies propias de cada app y perfil (nunca tocan las cookies de Snake OS).
       try {
         var jar = {}; try { jar = JSON.parse(api.getItem('__cookies') || '{}') || {}; } catch (e) {}
@@ -155,24 +177,49 @@
             api.setItem('__cookies', JSON.stringify(jar));
           } });
       } catch (e) {}
+      // IndexedDB propia de la app (origen opaco: el navegador no la permite) → aviso claro en vez de excepción
+      // Workers: un origen opaco no puede crear Worker('/static/…'); se crea uno desde blob que importa el script real
+      // y resuelve sus rutas relativas (fetch, XHR, importScripts y la ruta del .wasm de Emscripten) contra su URL real.
+      try {
+        var RW = window.Worker;
+        if (RW) {
+          var NW = function (url, opts) {
+            var u = String(url && url.href ? url.href : url);
+            if (/^(blob|data):/i.test(u)) return new RW(url, opts);
+            var abs = new URL(u, document.baseURI).href;
+            var pre = 'var __sraBase=' + JSON.stringify(abs) + ';(function(){' +
+              'function fx(x){try{x=String(x&&x.url?x.url:x);if(/^blob:/i.test(x)){var t=x.replace(/^blob:[^/]*\\/+/,"");if(/\\./.test(t)&&!/^[0-9a-f-]{36}$/i.test(t))return new URL(t,__sraBase).href;return x;}return new URL(x,__sraBase).href;}catch(e){return x;}}' +
+              'var F=self.fetch;if(F)self.fetch=function(i,o){if(typeof i==="string"||(i&&i.href))i=fx(i);return F.call(self,i,o);};' +
+              'var XO=self.XMLHttpRequest&&XMLHttpRequest.prototype.open;if(XO)XMLHttpRequest.prototype.open=function(m,x){var a=[].slice.call(arguments);a[1]=fx(x);return XO.apply(this,a);};' +
+              'var IS=self.importScripts;self.importScripts=function(){return IS.apply(self,[].map.call(arguments,fx));};' +
+              'self.Module=self.Module||{};self.Module.locateFile=self.Module.locateFile||function(p){return new URL(p,__sraBase).href;};' +
+              '})();importScripts(__sraBase);';
+            var bu = URL.createObjectURL(new Blob([pre], { type: 'text/javascript' }));
+            var o2 = opts ? Object.assign({}, opts) : undefined; if (o2 && o2.type === 'module') delete o2.type;
+            var w = new RW(bu, o2); setTimeout(function () { try { URL.revokeObjectURL(bu); } catch (e) {} }, 30000); return w;
+          };
+          NW.prototype = RW.prototype; window.Worker = NW;
+        }
+      } catch (e) {}
       window.SRA = {
         app: c.a, profile: c.p, lang: c.l, en: c.l === 'en', theme: c.t, ver: c.v,
         T: function (es, e) { return c.l === 'en' ? e : es; },
-        load: function (k) { return S.dbGet(pre + k); },
-        save: function (k, v) { return S.dbPut(pre + k, v); },
+        load: function (k) { return rpc('get', [String(k)]); },
+        save: function (k, v) { return rpc('put', [String(k), v]); },
         closing: [], onClose: function (f) { this.closing.push(f); },
-        ai: function (prompt, system, opts) { return S.ai(c.a, prompt, system, opts); },
+        ai: function (prompt, system, opts) { return rpc('ai', [prompt, system, opts]); },
         download: function (blob, name) { var u = URL.createObjectURL(blob), a = document.createElement('a'); a.href = u; a.download = name; document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(u); a.remove(); }, 4000); }
       };
+      window.addEventListener('pointerdown', function () { send({ op: 'focus' }); }, true);
     }.toString() + ')(' + JSON.stringify(cfg).replace(/</g, '\\u003c') + ');';
   }
-  function buildDoc(a, page) {
-    var cfg = { a: a.id, p: who(), l: en() ? 'en' : 'es', t: theme(), v: VER };
+  function buildDoc(a, page, tok) {
+    var cfg = { a: a.id, p: who(), l: en() ? 'en' : 'es', t: theme(), v: VER, k: tok, ls: lsSnapshot(who(), a.id) };
     var head = page.head || '', body = page.body || '';
     if (page.i18n && cfg.l === 'en' && page.i18n.en) { head = page.i18n.en.head || head; body = page.i18n.en.body || body; }
     head = head.replace(/@@V@@/g, VER); body = body.replace(/@@V@@/g, VER);
     return '<!DOCTYPE html><html lang="' + cfg.l + '"' + (page.htmlAttr ? ' ' + page.htmlAttr : '') + '><head><meta charset="utf-8">' +
-      '<meta http-equiv="Content-Security-Policy" content="' + CSP + '">' +
+      '<meta http-equiv="Content-Security-Policy" content="' + csp() + '">' +
       '<meta name="viewport" content="width=device-width, initial-scale=1">' +
       '<base href="' + AS + '"><script>' + shim(cfg) + '<\/script>' + head + '</head><body' + (page.bodyAttr ? ' ' + page.bodyAttr : '') + '>' + body + '</body></html>';
   }
@@ -240,24 +287,23 @@
     wrap.innerHTML = '<div class="sra-load"><img src="' + iconUrl(a) + '" alt=""><span></span><i></i></div>';
     wrap.querySelector('.sra-load span').textContent = T('Abriendo ', 'Opening ') + T(a.title, a.title === 'Ajedrez Stockfish' ? 'Stockfish Chess' : a.title) + '…';
     container.appendChild(wrap);
-    var frame = null, dead = false;
+    var frame = null, dead = false, tok = '';
     loadPage(a.id).then(function (page) {
       if (dead) return;
       frame = document.createElement('iframe');
       frame.className = 'sra-frame';
       frame.title = a.title;
-      frame.setAttribute('allow', 'clipboard-read; clipboard-write; fullscreen; camera; microphone');
+      frame.setAttribute('sandbox', 'allow-scripts allow-downloads allow-modals allow-popups allow-forms allow-pointer-lock');
+      frame.setAttribute('allow', 'clipboard-write; fullscreen' + (a.id === 'oss-qr' ? '; camera' : ''));
+      tok = 'sra' + Math.random().toString(36).slice(2) + Date.now().toString(36);
       frame.addEventListener('load', function () {
         if (dead) return;
         var ld = wrap.querySelector('.sra-load');
         setTimeout(function () { if (ld) ld.classList.add('gone'); }, page.readyDelay || 120);
-        try {
-          var cw = frame.contentWindow;
-          cw.addEventListener('pointerdown', function () { try { if (win && typeof focusWindow === 'function') focusWindow(win); } catch (e) {} }, true);
-          if (!phone) setTimeout(function () { try { cw.focus(); } catch (e) {} }, 60);
-        } catch (e) {}
+        if (!phone) setTimeout(function () { try { frame.contentWindow.focus(); } catch (e) {} }, 60);
       });
-      frame.srcdoc = buildDoc(a, page);
+      bridge(frame, a, tok, win);
+      frame.srcdoc = buildDoc(a, page, tok);
       wrap.appendChild(frame);
     }).catch(function () {
       var ld = wrap.querySelector('.sra-load');
@@ -265,9 +311,45 @@
     });
     return function () {
       dead = true;
-      try { var S = frame && frame.contentWindow && frame.contentWindow.SRA; if (S) S.closing.forEach(function (f) { try { f(); } catch (e) {} }); } catch (e) {}
-      try { if (frame) { frame.srcdoc = ''; frame.remove(); } } catch (e) {}
+      if (!frame) return;
+      // La app guarda lo último (onClose) antes de desaparecer: el iframe sigue vivo, oculto, hasta que contesta o 1,5 s
+      var f = frame; frame = null;
+      try {
+        var hold = document.getElementById('sraHold');
+        if (!hold) { hold = document.createElement('div'); hold.id = 'sraHold'; hold.setAttribute('aria-hidden', 'true'); hold.style.cssText = 'position:fixed;left:-9999px;top:0;width:10px;height:10px;overflow:hidden;opacity:0;pointer-events:none'; document.body.appendChild(hold); }
+        hold.appendChild(f);
+        var gone = false, kill = function () { if (gone) return; gone = true; try { if (f.__sraOff) f.__sraOff(); f.srcdoc = ''; f.remove(); } catch (e) {} };
+        f.__sraClosed = kill; setTimeout(kill, 1500);
+        f.contentWindow.postMessage({ sra: f.__sraTok, op: 'closing' }, '*');
+      } catch (e) { try { f.remove(); } catch (e2) {} }
     };
+  }
+
+  /* Puente con el iframe: solo mensajes de ESE iframe y con su token; el iframe nunca toca Snake OS directamente */
+  function bridge(frame, a, tok, win) {
+    var p = who(), K = lsPrefix(p, a.id), pre = p + '|' + a.id + '|';
+    frame.__sraTok = tok;
+    function reply(id, val, err) { try { frame.contentWindow.postMessage({ sra: tok, op: 'ret', id: id, val: val, err: err ? { message: String(err.message || err), status: err.status || 0 } : null }, '*'); } catch (e) {} }
+    function onMsg(e) {
+      if (!frame.contentWindow || e.source !== frame.contentWindow) return;
+      var d = e.data; if (!d || d.sra !== tok || typeof d.op !== 'string') return;
+      if (d.op === 'ls') {
+        var k = String(d.k || '').slice(0, 512); if (!k) return;
+        try { if (d.v === null) localStorage.removeItem(K + k); else localStorage.setItem(K + k, String(d.v)); } catch (x) { if (!onMsg.warned) { onMsg.warned = 1; try { if (window.snkToast) window.snkToast(T('No queda espacio para guardar los datos de esta app', 'No space left to save this app’s data')); } catch (y) {} } }
+      } else if (d.op === 'get' || d.op === 'put') {
+        var key = Array.isArray(d.args) ? String(d.args[0] || '').slice(0, 200) : '';
+        (d.op === 'get' ? dbGet(pre + key) : dbPut(pre + key, d.args[1])).then(function (v) { reply(d.id, v); }, function (er) { reply(d.id, null, er); });
+      } else if (d.op === 'ai') {
+        var g = Array.isArray(d.args) ? d.args : [];
+        ai(a.id, g[0], g[1], g[2] && typeof g[2] === 'object' ? { tier: g[2].tier, maxOutputTokens: g[2].maxOutputTokens } : {}).then(function (t) { reply(d.id, t); }, function (er) { reply(d.id, null, er); });
+      } else if (d.op === 'focus') {
+        try { if (win && win.isConnected && typeof focusWindow === 'function') focusWindow(win); } catch (x) {}
+      } else if (d.op === 'closed') {
+        if (frame.__sraClosed) frame.__sraClosed();
+      }
+    }
+    window.addEventListener('message', onMsg);
+    frame.__sraOff = function () { window.removeEventListener('message', onMsg); };
   }
 
   /* ---------- Store: tarjetas, licencia, desinstalar ---------- */

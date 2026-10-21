@@ -26,11 +26,14 @@ from typing import Any, Callable
 from fastapi import APIRouter, HTTPException, Request, Response
 
 import db
-from auth import SESSION_MAX_AGE, end_session, hash_password, start_session, user_from_session, verify_password
+from auth import end_session, hash_password, start_session, user_from_session, verify_password
+
+SITE_SESSION_MAX_AGE = 2 * 3600     # 2026.14: la sesión de las páginas (p. ej. /pro) dura 2 horas
 
 SITES = {"pro"}                     # añade aquí el id de cada página nueva
 SITE_RE = re.compile(r"^[a-z0-9-]{1,24}$")
-LOGIN_MAX, LOGIN_WIN = 10, 15 * 60  # intentos fallidos por IP y por correo
+LOGIN_MAX, LOGIN_WIN = 10, 15 * 60  # intentos fallidos por IP y por correo+IP
+LOGIN_EMAIL_MAX = 50                # 2026.14: por correo desde cualquier IP (más alto: un atacante no bloquea /pro a su dueño)
 SIGNUP_MAX, SIGNUP_WIN = 5, 3600    # cuentas nuevas por IP y hora
 _lock = threading.Lock()
 _hits: dict[str, list[float]] = {}
@@ -74,8 +77,18 @@ def _me_view(user) -> dict[str, Any]:
 
 
 def site_user(request: Request, site: str):
-    """La cuenta con sesión iniciada en esa página (o None). Para usar desde otras rutas."""
-    return user_from_session(request.cookies.get(cookie_name(site)))
+    """La cuenta con sesión iniciada en esa página (o None). Para usar desde otras rutas.
+    2026.14: la sesión de una página caduca a las 2 horas (la de Snake OS sigue con su propia regla)."""
+    sid = request.cookies.get(cookie_name(site))
+    if not sid:
+        return None
+    row = db.get_session(sid)
+    if not row:
+        return None
+    if time.time() - float(row["created_at"]) > SITE_SESSION_MAX_AGE:
+        end_session(sid)
+        return None
+    return user_from_session(sid)
 
 
 def build_router(visitor_ip: Callable[[Request], str], blocked_domains: set[str], on_signup: Callable[[Any], None] | None = None) -> APIRouter:
@@ -83,16 +96,19 @@ def build_router(visitor_ip: Callable[[Request], str], blocked_domains: set[str]
 
     def set_cookie(request: Request, response: Response, site: str, sid: str) -> None:
         secure = request.url.scheme == "https" or (request.headers.get("x-forwarded-proto") or "").lower() == "https" or bool(request.headers.get("cf-visitor"))
-        response.set_cookie(key=cookie_name(site), value=sid, max_age=SESSION_MAX_AGE, httponly=True, samesite="lax", secure=secure, path="/")
+        response.set_cookie(key=cookie_name(site), value=sid, max_age=SITE_SESSION_MAX_AGE, httponly=True, samesite="lax", secure=secure, path="/")
 
     def nostore(response: Response) -> None:
         response.headers["Cache-Control"] = "no-store, max-age=0"
 
     @r.get("/api/doga-auth/me")
-    def me(site: str, request: Request, response: Response):
+    def me(site: str, request: Request, response: Response, soft: int = 0):
         nostore(response)
         user = site_user(request, _site(site))
         if not user:
+            # soft=1 (doga-auth.js 2026.14): sin sesión responde 200 {"signed_in": false} para no llenar la consola de 401
+            if soft:
+                return {"signed_in": False}
             raise HTTPException(status_code=401, detail="No has iniciado sesión")
         return _me_view(user)
 
@@ -103,13 +119,15 @@ def build_router(visitor_ip: Callable[[Request], str], blocked_domains: set[str]
         site = _site(body.get("site"))
         email = str(body.get("email") or "").strip().lower()
         password = str(body.get("password") or "")
-        ipk, ek = _k("li:", visitor_ip(request)), _k("le:", email)
-        if _limited(ipk, LOGIN_MAX, LOGIN_WIN, False) or _limited(ek, LOGIN_MAX, LOGIN_WIN, False):
+        ip = visitor_ip(request)
+        ipk, ek, gk = _k("li:", ip), _k("le:", email + "|" + ip), _k("lg:", email)
+        if _limited(ipk, LOGIN_MAX, LOGIN_WIN, False) or _limited(ek, LOGIN_MAX, LOGIN_WIN, False) or _limited(gk, LOGIN_EMAIL_MAX, LOGIN_WIN, False):
             raise HTTPException(status_code=429, detail="Demasiados intentos. Espera unos minutos y vuelve a probar.")
         user = db.get_user_by_email(email) if email else None
         if not user or not verify_password(password, user["password_hash"]):
             _limited(ipk, LOGIN_MAX, LOGIN_WIN, True)
             _limited(ek, LOGIN_MAX, LOGIN_WIN, True)
+            _limited(gk, LOGIN_EMAIL_MAX, LOGIN_WIN, True)
             raise HTTPException(status_code=401, detail="Correo o contraseña incorrectos")
         end_session(request.cookies.get(cookie_name(site)))
         set_cookie(request, response, site, start_session(int(user["id"])))
@@ -126,13 +144,19 @@ def build_router(visitor_ip: Callable[[Request], str], blocked_domains: set[str]
         email = str(body.get("email") or "").strip().lower()
         name = str(body.get("name") or "").strip()
         password = str(body.get("password") or "")
-        avatar = str(body.get("avatar") or "") or "🐶"
+        avatar = db.safe_signup_avatar(body.get("avatar"))
         if not email or "@" not in email:
             raise HTTPException(status_code=400, detail="Correo no válido")
         if email.rsplit("@", 1)[1].strip().rstrip(".") in blocked_domains:
             raise HTTPException(status_code=400, detail="No se pueden crear cuentas nuevas con Gmail. Usa otro correo, por ejemplo tu correo@dogaemail.com.")
         if not name:
             raise HTTPException(status_code=400, detail="El nombre no puede estar vacío")
+        if len(name) > 60:
+            raise HTTPException(status_code=400, detail="El nombre es demasiado largo (máx. 60 caracteres)")
+        if len(email) > 254:
+            raise HTTPException(status_code=400, detail="Correo no válido")
+        if len(password) > 200:
+            raise HTTPException(status_code=400, detail="La contraseña es demasiado larga")
         if len(password) < 4:
             raise HTTPException(status_code=400, detail="La contraseña debe tener al menos 4 caracteres")
         db.release_tombstone_email(email)

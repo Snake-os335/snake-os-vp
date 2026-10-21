@@ -99,7 +99,7 @@
   <footer><span data-t="foot"></span><a href="/" id="openOS" data-t="open"></a></footer>
 </div>
 <script src="/static/snake-pro-features.js?v=202610212015"></script>
-<script src="/static/doga-auth.js?v=202610212130"></script>
+<script src="/static/doga-auth.js?v=202610220400"></script>
 <script src="/static/snake-emoji-data.js?v=202610100831"></script>
 <script src="/static/snake-emoji.js?v=202610140900"></script>
 <script>
@@ -114,7 +114,7 @@
       pend: function (n) { return 'Ya pediste ' + (n === 1 ? 'un código' : n + ' códigos') + ' sin usar. Por seguridad no se vuelven a mostrar.'; },
       copy: 'Copiar código', copied: 'Código copiado ✅', how: 'El servidor solo guarda una huella cifrada del código, nunca el código.',
       active: 'Snake OS VP Pro ya está activo en esta cuenta. Ábrelo en Snake OS VP: botón ⭐ de la barra de tareas.',
-      fh: 'Qué incluye Pro', fp: 'Funciones nuevas solo para perfiles con Pro. Ninguna función que ya existía se bloquea.', foot: 'Snake OS VP · la máquina virtual Snake OS! Pro sigue en la app Máquinas virtuales.', open: 'Abrir Snake OS VP →' },
+      fh: 'Qué incluye Pro', fp: 'Funciones nuevas solo para perfiles con Pro. Ninguna función que ya existía se bloquea.', foot: 'Snake OS VP · la máquina virtual (Linux con escritorio estilo Ubuntu 26.10) sigue en la app Máquinas virtuales.', open: 'Abrir Snake OS VP →' },
     en: { h1: 'Snake OS VP <em>Pro</em>, free.', lead: 'More than 20 new features for your Snake OS VP profile: animated wallpapers, Pro colours and themes, widgets, Kanban, screen recorder, window layouts, screensavers, terminal styles and snapshots in Virtual machines. Everything you already have in Snake OS stays the same and free.',
       s1: 'Sign in with your Snake OS VP Dogaemail account (or create one here).', s2: 'Press “Open free subscription” and copy your code. It is shown only once, for 60 seconds.', s3: 'Go back to your Snake OS VP tab, open Settings › Snake OS VP Pro, paste the code and you are done.',
       free: 'No payments, no cards. The code is bound to your account, works once and expires after 30 days if unused.',
@@ -123,7 +123,7 @@
       pend: function (n) { return 'You already requested ' + (n === 1 ? 'a code' : n + ' codes') + ' not used yet. For security they are never shown again.'; },
       copy: 'Copy code', copied: 'Code copied ✅', how: 'The server only stores an encrypted fingerprint of the code, never the code itself.',
       active: 'Snake OS VP Pro is already active on this account. Open it in Snake OS VP: ⭐ button on the taskbar.',
-      fh: 'What Pro includes', fp: 'New features only for profiles with Pro. No existing feature gets locked.', foot: 'Snake OS VP · the Snake OS! Pro virtual machine stays in the Virtual machines app.', open: 'Open Snake OS VP →' }
+      fh: 'What Pro includes', fp: 'New features only for profiles with Pro. No existing feature gets locked.', foot: 'Snake OS VP · the virtual machine (Linux with an Ubuntu 26.10-style desktop) stays in the Virtual machines app.', open: 'Open Snake OS VP →' }
   };
   var lang = 'es';
   try { lang = localStorage.getItem('snkProLang') || ((navigator.language || '').slice(0, 2) === 'en' ? 'en' : 'es'); } catch (e) {}

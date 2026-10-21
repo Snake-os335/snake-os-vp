@@ -178,12 +178,14 @@ if (want('app-los-snakes-house')) {
   await wait(7000);
   await shot('app-los-snakes-house');
 }
-// Máquinas virtuales: arrancar Snake OS! Pro en el perfil de prueba
+// Máquinas virtuales: configurar y arrancar el escritorio estilo Ubuntu 26.10 en el perfil de prueba
 if (want('app-vm-pro')) {
   await openApp('maquinas-virtuales', 3000);
   await maximize();
-  await js(() => { const b = [...document.querySelectorAll('.app-window button, .app-window [role=button], .app-window .snkvm-card, .app-window a')].find((x) => /Snake OS! Pro|Abrir|Arrancar|Start|Open/i.test(x.textContent)); if (b) b.click(); });
-  await wait(25000);
+  await js(() => { const b = document.querySelector('.app-window .snkvm-card') || [...document.querySelectorAll('.app-window button')].find((x) => /Abrir|Arrancar|Start|Open/i.test(x.textContent)); if (b) b.click(); });
+  await pg.waitForSelector('.app-window .ubx-init .go', { timeout: 90000 }).catch(() => null);
+  await js(() => { const g = document.querySelector('.app-window .ubx-init .go'); if (g) g.click(); });
+  await wait(20000);
   await shot('app-vm-pro');
 }
 // Modo teléfono (390 px)

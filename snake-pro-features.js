@@ -24,6 +24,6 @@ window.SNK_PRO_FEATURES = [
   { id: 'passgen', ico: '🔑', es: ['Generador de contraseñas Pro', 'Contraseñas fuertes con la criptografía del navegador.'], en: ['Pro password generator', 'Strong passwords using the browser cryptography.'] },
   { id: 'sketch', ico: '✏️', es: ['Bloc de dibujo Pro', 'Dibuja con colores y grosores y descárgalo en PNG.'], en: ['Pro sketch pad', 'Draw with colours and sizes and download it as PNG.'] },
   { id: 'textpack', ico: '🐍', es: ['Pack de texto Pro', 'Arte ASCII de serpientes y kaomojis para copiar con un clic.'], en: ['Pro text pack', 'Snake ASCII art and kaomojis to copy with one click.'] },
-  { id: 'termstyles', ico: '💻', es: ['Estilos de terminal Pro', 'Oro, Matrix, Océano y Ámbar retro en la Terminal de Snake OS! Pro.'], en: ['Pro terminal styles', 'Gold, Matrix, Ocean and Retro amber in the Snake OS! Pro Terminal.'] },
+  { id: 'termstyles', ico: '💻', es: ['Estilos de terminal Pro', 'Oro, Matrix, Océano y Ámbar retro en la Terminal de Máquinas virtuales (Ubuntu 26.10 (estilo)).'], en: ['Pro terminal styles', 'Gold, Matrix, Ocean and Retro amber in the Virtual machines Terminal (Ubuntu 26.10 (style)).'] },
   { id: 'vmsnap', ico: '📸', es: ['Instantánea Pro de la máquina', 'En Máquinas virtuales: guarda un punto exacto y vuelve a él cuando quieras.'], en: ['Pro machine snapshot', 'In Virtual machines: save an exact point and go back to it any time.'] }
 ];
