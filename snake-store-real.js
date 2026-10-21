@@ -11,7 +11,7 @@
 (function () {
   'use strict';
   if (window.SnakeRealApps) return;
-  var VER = '202610212000', AS = '/static/assets/';
+  var VER = '202610212100', AS = '/static/assets/';
   function en() { try { return !!(window.snakeI18n && window.snakeI18n.lang === 'en'); } catch (e) { return false; } }
   function T(es, e) { return en() ? e : es; }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
@@ -44,9 +44,9 @@
       es: 'Editor de código con colores para más de 20 lenguajes, autocompletado, buscar y reemplazar, varias pestañas y avisos de errores.',
       en: 'Code editor with highlighting for 20+ languages, autocompletion, find and replace, tabs and error hints.',
       lic: 'BSD-3-Clause', author: 'Ajax.org B.V.', ver: '1.36.5', size: '2,7 MB', home: 'github.com/ajaxorg/ace' },
-    { id: 'oss-chess', title: 'Ajedrez Stockfish', titleEn: 'Stockfish Chess', cat: 'Juegos', w: 820, h: 660,
-      es: 'Ajedrez contra Stockfish, uno de los motores más fuertes del mundo, con 10 niveles. Tablero chessboard.js y reglas chess.js.',
-      en: 'Chess against Stockfish, one of the strongest engines in the world, with 10 levels. chessboard.js board and chess.js rules.',
+    { id: 'oss-chess', title: 'Ajedrez Stockfish', titleEn: 'Stockfish Chess', cat: 'Juegos', w: 860, h: 700,
+      es: 'Ajedrez contra Stockfish, uno de los motores más fuertes del mundo, con 10 niveles. Modo principiante con consejos de la IA AskBox (basados en el análisis de Stockfish) o modo experto sin ayudas.',
+      en: 'Chess against Stockfish, one of the strongest engines in the world, with 10 levels. Beginner mode with tips from the AskBox AI (based on Stockfish analysis) or expert mode with no help.',
       lic: 'GPL-3.0 · MIT · BSD-2', author: 'Stockfish, Chris Oakman, Jeff Hlywa', ver: '10 · 1.0.0 · 0.10.3', size: '1,1 MB', home: 'github.com/official-stockfish/Stockfish' },
     { id: 'oss-2048', title: '2048', cat: 'Juegos', w: 520, h: 720,
       es: 'El 2048 original: junta los números iguales hasta llegar a la ficha 2048. Con flechas o deslizando el dedo.',
@@ -161,6 +161,7 @@
         load: function (k) { return S.dbGet(pre + k); },
         save: function (k, v) { return S.dbPut(pre + k, v); },
         closing: [], onClose: function (f) { this.closing.push(f); },
+        ai: function (prompt, system, opts) { return S.ai(c.a, prompt, system, opts); },
         download: function (blob, name) { var u = URL.createObjectURL(blob), a = document.createElement('a'); a.href = u; a.download = name; document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(u); a.remove(); }, 4000); }
       };
     }.toString() + ')(' + JSON.stringify(cfg).replace(/</g, '\\u003c') + ');';
@@ -426,7 +427,19 @@
     else if (t && t.matches && t.matches('#sm11 [data-q]')) { var g = document.querySelector('#sm11 [data-grid]'); if (g && !g.querySelector('[data-app]')) { var f2 = g.querySelector('.sra-tile'); if (f2) { e.preventDefault(); e.stopImmediatePropagation(); f2.click(); } } }
   }, true);
 
-  window.SnakeRealApps = { list: LIST, byId: BY, render: render, open: open, launchables: launchables, openLicense: openLicense, dbGet: dbGet, dbPut: dbPut, iconHtml: function (id) { return BY[id] ? iconHtml(BY[id]) : ''; }, ver: VER };
+  /* ---------- IA (AskBox) para las apps que la usan: mismo proxy del servidor que Doganiero AI (/api/ai/ask).
+     La clave vive en el servidor; el servidor limita las peticiones por usuario. Solo para apps de la lista. ---------- */
+  var AI_APPS = { 'oss-chess': 1 };
+  function ai(appId, prompt, system, opts) {
+    opts = opts || {};
+    if (!AI_APPS[appId]) return Promise.reject(new Error('no-ai'));
+    var payload = { prompt: String(prompt || '').slice(0, 6000), tier: opts.tier || 'fast', max_output_tokens: Math.min(+opts.maxOutputTokens || 300, 600) };
+    if (system) payload.system = String(system).slice(0, 3000);
+    return fetch('/api/ai/ask', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+      .then(function (r) { return r.text().then(function (raw) { var d = null; try { d = JSON.parse(raw); } catch (e) {} if (!r.ok) { var er = new Error((d && d.detail) || ('HTTP ' + r.status)); er.status = r.status; throw er; } var t = String((d && d.text) || '').trim(); if (!t) { var e2 = new Error('empty'); e2.status = 0; throw e2; } return t; }); });
+  }
+
+  window.SnakeRealApps = { list: LIST, byId: BY, render: render, open: open, launchables: launchables, openLicense: openLicense, ai: ai, dbGet: dbGet, dbPut: dbPut, iconHtml: function (id) { return BY[id] ? iconHtml(BY[id]) : ''; }, ver: VER };
 
   function init() {
     addToCatalog();

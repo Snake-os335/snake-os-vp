@@ -32,7 +32,7 @@ IndexedDB `snkRealAppsV1`), idioma tomado de Snake OS (español / inglés).
 - **PDF.js**: visor oficial con `?file=` desactivado, scripting y `eval` desactivados, sin texto alternativo por IA, fuentes estándar y CMaps renombrados a `.ttf` (sólo cambia la extensión).
 - **Toast UI Editor**: estadísticas de uso (Google Analytics) desactivadas y URL eliminada; barra propia (abrir/guardar .md, exportar HTML).
 - **Ace**: módulos, temas y workers con rutas locales; interfaz propia con pestañas.
-- **Ajedrez**: interfaz propia; Stockfish en Web Worker (asm.js), 10 niveles.
+- **Ajedrez**: interfaz propia; Stockfish en Web Worker (asm.js), 10 niveles. «Modo principiante»: un segundo Stockfish analiza la posición en el navegador y la IA AskBox (vía el proxy del servidor `/api/ai/ask`, clave solo en el servidor) solo explica esa jugada con palabras sencillas; si falla, consejo local de Stockfish. «Modo experto»: sin consejos ni llamadas a la IA.
 - **2048**: textos en español; quitado el aviso de «versión oficial».
 - **Hextris**: quitados Google Analytics, el envío de la puntuación a un servidor, un script remoto, anuncios y botones para compartir; textos en español; fuentes Exo 2 convertidas a woff2.
 - **A Dark Room**: quitados Google Analytics (gtag), promociones («get the app», Penrose), compartir, GitHub y redirecciones de móvil; audio FLAC convertido a AAC (.m4a, 48 kbps); traducción española oficial + algunos textos que faltaban.
