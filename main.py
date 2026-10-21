@@ -5569,10 +5569,26 @@ async def los_snakes_save(request: Request, user=Depends(require_user)):
         data = json.loads(raw)
     except Exception:
         raise HTTPException(status_code=400, detail="JSON inválido")
-    if not isinstance(data, dict) or "S" not in data:
+    if not isinstance(data, dict) or "S" not in data or not isinstance(data.get("S"), dict):
         raise HTTPException(status_code=400, detail="Formato inválido")
+    st = data["S"]
+    # 2026.13: nunca se guarda como «casa» el estado de una visita (casa del amigo + una sola serpiente);
+    # eso hacía que la familia volviera de la visita con un solo miembro.
+    if st.get("visit") is True or st.get("hosts") or (isinstance(st.get("nid"), (int, float)) and st.get("nid") >= 9e11):
+        raise HTTPException(status_code=409, detail="No se guarda el estado de una visita")
     _LOS_SNAKES_DIR.mkdir(parents=True, exist_ok=True)
     path = _LOS_SNAKES_DIR / f"{int(user['id'])}.json"
+    # copia diaria de la partida anterior (se guardan 7) para poder recuperar una familia si algo falla
+    try:
+        if path.is_file():
+            bak = _LOS_SNAKES_DIR / f"{int(user['id'])}.bak-{time.strftime('%Y%m%d')}.json"
+            if not bak.exists():
+                bak.write_bytes(path.read_bytes())
+                olds = sorted(_LOS_SNAKES_DIR.glob(f"{int(user['id'])}.bak-*.json"))
+                for o in olds[:-7]:
+                    o.unlink(missing_ok=True)
+    except Exception:
+        pass
     tmp = path.with_suffix(".tmp")
     tmp.write_text(json.dumps(data, ensure_ascii=False), "utf-8")
     tmp.replace(path)

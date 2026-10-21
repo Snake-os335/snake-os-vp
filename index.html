@@ -49,21 +49,60 @@ window.addEventListener('error', function(e){
 <script src="/static/snake-notify-sound.js?v=202610172200"></script>
 <script src="/static/doganiero-chat.js?v=202610180120" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/doganiero-desk.js?v=202610180120" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
-<script src="/static/desktop-extras.js?v=202610180120" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
+<script src="/static/desktop-extras.js?v=202610210900" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script>window.SNAKE_OS_VERSION='2026.13';/* versión de Snake OS: cambiar SOLO aquí */</script>
 <script>/* Novedades por versión (Ajustes › Acerca de). En cada actualización: cambia SNAKE_OS_VERSION y AÑADE una entrada al principio. */
 window.SNAKE_OS_CHANGES=[
  {v:'2026.13',es:[
   'Brillo de pantalla con F5 (bajar) y F6 (subir), guardado por perfil',
   'Snake OS Kids: modo infantil con control parental y PIN (apps por edad, tiempo de pantalla, chat, web, juegos online, tienda, archivos, cámara e informe semanal)',
-  'Modo trabajo: fondo negro bloqueado, sin efectos y dock de apps de trabajo',
+  'Modo trabajo: fondo negro bloqueado y dock de apps de trabajo; ahora va más ligero por dentro sin quitar Liquid Glass ni cambiar tus ajustes',
   'Salvapantallas configurable: tiempo y 5 estilos con vista previa',
   'Doganiero Bots ya no se queda colgado: progreso, botón Cancelar y límite de tiempo',
   'El puntero de Snake OS es ahora el único cursor (se quitó la opción del cursor del sistema)',
   'Doganiero Bots piensa y actúa más rápido: modelo rápido, menos contexto, pasos con tiempo en vivo y botón Cancelar',
   'Snake OS Kids: textos legibles en tema claro y oscuro, los ajustes parentales exigen siempre el PIN (sesión de 5 min) y resumen semanal a la cuenta Dogaemail del adulto',
   'Snake OS Kids: «Desactivar» abre siempre la ventana del PIN (también con el panel bloqueado o tras una actualización) y el resumen semanal por correo (Dogaemail) está arriba del control parental',
-  'Ajustes › Askbox (IA): estado de tu clave, guardar, probar conexión y quitar; la clave guardada ya no se muestra completa y en Kids está protegida con el PIN'
+  'Ajustes › Askbox (IA): estado de tu clave, guardar, probar conexión y quitar; la clave guardada ya no se muestra completa y en Kids está protegida con el PIN',
+  'Barra de tareas nueva con Liquid Glass y el logo nuevo de Snake OS en Inicio',
+  'Ventana de Inicio encima del logo: buscador, apps fijadas, recientes de tu perfil, tu perfil y apagar',
+  'Logo nuevo de Snake OS en el icono, la pantalla de inicio y «Acerca de»',
+  '4 fondos de pantalla nuevos con serpientes',
+  'Salvapantallas con el logo de Snake OS y sus serpientes moviéndose',
+  'Doganiero Bots solo actúa en tu escritorio si terminas la petición con «/en mi escritorio»; si no, trabaja en su propio Snake OS Lite',
+  'Explorador de archivos: las carpetas con archivos ya no se ven vacías',
+  'Los ajustes de cada perfil se aplican nada más entrar y ya no se pisan con los de otro perfil',
+  'Los Snakes: toda la familia va junta de visita a casa de un amigo y vuelve completa; la familia del amigo se queda en su casa',
+  'Los Snakes: se recuperan las familias que habían perdido miembros tras una visita',
+  'Snake Racing: comentarios de la IA en inglés cuando Snake OS está en inglés',
+  'Snake Racing ahora es en 3D, con karts, saltos y circuitos nuevos',
+  'Doganiero Store: revisados todos los juegos; todos se instalan y se juegan dentro de Snake OS',
+  'Puntero Snake para todo: ayuda, prohibido, copiar, zoom, agarrar, cruz, redimensionar y más; ya no aparece nunca el cursor del sistema'
+ ],en:[
+  'Screen brightness with F5 (down) and F6 (up), saved per profile',
+  'Snake OS Kids: kids mode with parental controls and PIN (apps by age, screen time, chat, web, online games, store, files, camera and weekly report)',
+  'Work mode: locked black background and work apps dock; it now runs lighter under the hood without removing Liquid Glass or changing your settings',
+  'Configurable screensaver: timeout and 5 styles with preview',
+  'Doganiero Bots no longer gets stuck: progress, Cancel button and time limit',
+  'The Snake OS pointer is now the only cursor (the system cursor option was removed)',
+  'Doganiero Bots thinks and acts faster: fast model, less context, live step times and Cancel button',
+  'Snake OS Kids: readable text in light and dark theme, parental settings always require the PIN (5-minute session) and weekly summary to the adult’s Dogaemail account',
+  'Snake OS Kids: «Turn off» always opens the PIN window (also with the panel locked or after an update) and the weekly email summary (Dogaemail) is at the top of parental controls',
+  'Settings › Askbox (AI): your key status, save, test connection and remove; the saved key is no longer shown in full and in Kids it is PIN-protected',
+  'New Liquid Glass taskbar with the new Snake OS logo on Start',
+  'Start window above the logo: search, pinned apps, your profile’s recent apps, your profile and power',
+  'New Snake OS logo on the icon, the start screen and «About»',
+  '4 new snake wallpapers',
+  'Screensaver with the Snake OS logo and its snakes moving',
+  'Doganiero Bots only acts on your desktop if you end the request with «/on my desktop»; otherwise it works in its own Snake OS Lite',
+  'File Explorer: folders with files no longer look empty',
+  'Each profile’s settings apply as soon as you sign in and are no longer overwritten by another profile’s',
+  'Los Snakes: the whole family goes together to visit a friend’s house and comes back complete; the friend’s family stays at their house',
+  'Los Snakes: families that had lost members after a visit are restored',
+  'Snake Racing: AI commentary in English when Snake OS is in English',
+  'Snake Racing is now 3D with karts, jumps and new tracks',
+  'Doganiero Store: every game was checked; all of them install and play inside Snake OS',
+  'Snake pointer for everything: help, not allowed, copy, zoom, grab, crosshair, resize and more; the system cursor never shows up'
  ]},
  {v:'2026.12',es:[
   'Doganiero Bots más listos: planifican, comprueban cada paso y crean eventos en el Calendario',
@@ -104,8 +143,8 @@ window.SNAKE_OS_CHANGES=[
 <script src="/static/doganiero-tv.js?v=202610091150" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/prism.js?v=202610080900" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/doganiero-phone.js?v=202610180120" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
-<script src="/static/snake-apps-extras.js?v=202610180120" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
-<script src="/static/snake-cursor.js?v=202610171930" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
+<script src="/static/snake-apps-extras.js?v=202610210900" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
+<script src="/static/snake-cursor.js?v=202610210900" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-emoji-data.js?v=202610100831" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-emoji.js?v=202610140900" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-maps.js?v=202610141800" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
@@ -116,13 +155,13 @@ window.SNAKE_OS_CHANGES=[
 <script src="/static/snake-keypad.js?v=202610161800" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-game-matrix.js?v=202610112000" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-racing.js?v=202610180010" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
-<script src="/static/los-snakes.js?v=202610180120"></script>
-<script src="/static/snake-i18n-dict.js?v=202610161940" defer></script>
+<script src="/static/los-snakes.js?v=202610210900"></script>
+<script src="/static/snake-i18n-dict.js?v=202610210900" defer></script>
 <script src="/static/snake-update-screen.js?v=202610180010"></script>
 <script src="/static/snake-i18n.js?v=202610161800" defer></script>
 <script src="/static/snake-taskbar11.js?v=202610180130" defer></script>
-<script src="/static/snake-screensaver.js?v=202610180100" defer></script>
-<script src="/static/snake-osx.js?v=202610180130" defer></script>
+<script src="/static/snake-screensaver.js?v=202610210900" defer></script>
+<script src="/static/snake-osx.js?v=202610210900" defer></script>
 <style>
   :root{
     --text:#ffffff; --muted:rgba(255,255,255,0.82);
@@ -3428,7 +3467,7 @@ window.SNAKE_OS_CHANGES=[
 
   .os-tut-hot{outline:3px solid #ffe14a !important;outline-offset:3px;border-radius:14px;}
 </style>
-<link rel="stylesheet" href="/static/snake-taskbar11.css?v=202610180130">
+<link rel="stylesheet" href="/static/snake-taskbar11.css?v=202610210900">
 </head>
 <body>
   <div id="bootError" role="alert">
@@ -6780,6 +6819,8 @@ function buildIcons(){
     document.getElementById('desktop').classList.remove('hidden');
     setUserBadge(currentUser);
     window.currentUser = currentUser;
+    /* 2026.13: aplica al momento los ajustes guardados de este perfil (antes tardaban hasta 30 s y se veían «desactivados») */
+    try{ window.dispatchEvent(new CustomEvent('snk:profile', { detail: { email: currentUser && currentUser.email } })); }catch(eProf){}
     window.api = api;
     window.openApp = openApp;
     buildIcons(); buildStartMenu(); tickClock(); try{ initSnkBattery(); }catch(eBat){}

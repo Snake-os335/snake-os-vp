@@ -1013,7 +1013,7 @@
   function serialize() { return JSON.stringify({ v: SAVE_VER, savedAt: Date.now(), S: (V && HOME) ? HOME : S }, function (k, v) { return k.charAt(0) === '_' && k !== '_billDay' ? undefined : v; }); }
   var lastServerSave = 0;
   function save(toServer) {
-    if (!S || (S.visit && !HOME)) return;
+    if (!S || (S.visit && !HOME) || (HOME && HOME.visit)) return;
     var txt; try { txt = serialize(); localStorage.setItem(saveKey(), txt); } catch (e) { return; }
     if ((toServer !== false || Date.now() - lastServerSave > 120000) && userKey() !== 'anon') {
       lastServerSave = Date.now();
@@ -1031,10 +1031,49 @@
   }
   function applySave(sv) {
     if (!sv || !sv.S || !sv.S.snakes) return false;
-    S = sv.S; S.visitors = S.visitors || []; S.hidden = S.hidden || []; S.stats = S.stats || { births: 0, finds: 0 }; S.settings = S.settings || { freeWill: true, sound: true };
+    S = sv.S; repairVisitSnapshot(S); S.visitors = S.visitors || []; S.hidden = S.hidden || []; S.stats = S.stats || { births: 0, finds: 0 }; S.settings = S.settings || { freeWill: true, sound: true };
     S.snakes.forEach(function (sn) { sn.q = (sn.q || []).filter(function (a) { return a.id !== 'recv' && !a.soc; }); sn.q.forEach(function (a) { a.phase = 'walk'; a.started = false; }); sn.today = sn.today || { acts: {}, who: {}, ev: [] }; sn.seen = sn.seen || {}; if (sn.away && sn.away.kind === 'visita') { sn.away = null; sn.x = EXIT[0] + 0.5; sn.y = EXIT[1] + 0.5; } });
     S.visit = false; delete S.hosts; S.mail = S.mail || [];
     migrateSave(); rebuildCaches(); return true;
+  }
+  // Arreglo 2026.13: al visitar a un amigo dos veces seguidas, la partida podía guardarse con la casa del amigo y una sola serpiente.
+  // Se recupera la familia que aún consta (nombres, pareja y relaciones de la serpiente que quedó) y vuelve la casa inicial propia.
+  function isOwnSnake(s) { return !!s && typeof s.id === 'number' && s.id < 1e9 && !s.hostSn && !s.remote && !s.npc && !s.species; }
+  function repairVisitSnapshot(st) {
+    if (st && Array.isArray(st.snakes)) {   // en casa solo vive tu familia: fuera serpientes del amigo/vecinas que se colaran
+      var n0 = st.snakes.length; st.snakes = st.snakes.filter(isOwnSnake);
+      if (st.snakes.length !== n0) { var okIds = {}; st.snakes.forEach(function (s) { okIds[s.id] = 1; }); st.snakes.forEach(function (s) { if (s.partner != null && !okIds[s.partner] && s.partner >= 1e9) s.partner = null; }); st._cleaned = n0 - st.snakes.length; }
+    }
+    if (!st || !(st.visit === true || st.hosts || (typeof st.nid === 'number' && st.nid >= 9e11))) return false;
+    var wasFriend = st.visit === true && !st.place;
+    delete st.visit; delete st.hosts; delete st.place;
+    st.snakes = (st.snakes || []).filter(isOwnSnake);
+    var have = {}; st.snakes.forEach(function (s) { have[s.id] = s; });
+    var lost = {};
+    st.snakes.forEach(function (s) {
+      Object.keys(s.rel || {}).forEach(function (k) { var id = +k, r = s.rel[k]; if (!/^\d+$/.test(k) || id >= 1e9 || have[id] || !r || !r.n) return; (lost[id] = lost[id] || { id: id, name: r.n, rels: [] }).rels.push([s, r]); });
+      if (s.partner != null && s.partner < 1e9 && !have[s.partner] && !lost[s.partner]) lost[s.partner] = { id: +s.partner, name: '', rels: [] };
+    });
+    var keepS = S; S = st;
+    var mx = 0; st.snakes.forEach(function (s) { if (s.id > mx) mx = s.id; }); Object.keys(lost).forEach(function (k) { if (+k > mx) mx = +k; });
+    st.nid = mx + 1;
+    var restored = [];
+    Object.keys(lost).forEach(function (k) {
+      var L = lost[k], partnerOf = st.snakes.filter(function (s) { return s.partner === L.id; })[0];
+      var sn = makeSnake({ name: L.name || undefined, age: 'adulto' }); sn.id = L.id; sn.x = EXIT[0] + 0.5; sn.y = EXIT[1] + 0.5;
+      L.rels.forEach(function (p) { sn.rel[String(p[0].id)] = { fr: +p[1].fr || 0, ro: +p[1].ro || 0, n: p[0].name }; });
+      if (partnerOf) sn.partner = partnerOf.id;
+      st.snakes.push(sn); restored.push(sn.name);
+    });
+    if (wasFriend) {   // la casa guardada era la del amigo: vuelve la casa inicial propia (los muebles de tu casa no estaban guardados)
+      var tmp = null; try { newGame({ name: st.name, snakes: [] }); tmp = S; } catch (e) { tmp = null; }
+      S = st;
+      if (tmp) { st.floor = tmp.floor; st.walls = tmp.walls; st.doors = tmp.doors; st.wallc = tmp.wallc; st.objects = tmp.objects.map(function (o) { o.id = st.nid++; return o; }); st.hidden = []; st.neighbors = (st.neighbors && st.neighbors.length) ? st.neighbors : tmp.neighbors; }
+    }
+    st.visitors = []; st.mouse = null;
+    S = keepS;
+    st._repaired = restored;
+    return true;
   }
   // Partidas antiguas (o editadas en otra versión): rellena campos que falten para que nombre, apellido, rasgos y aspiración se puedan editar siempre.
   function migrateSave() {
@@ -2249,7 +2288,7 @@
       var best = loc; if (srv && (!loc || (srv.savedAt || 0) > (loc.savedAt || 0))) best = srv;
       var ok = false; try { ok = !!(best && applySave(best)); } catch (e) { console.error('[Los Snakes] partida dañada', e); ok = false; }
       if (!ok && loc && best !== loc) { try { ok = applySave(loc); } catch (e2) { ok = false; } }
-      if (ok) startGame(false); else { S = null; createFamily(); }
+      if (ok) { var rep = S._repaired || (S._cleaned ? [] : null); delete S._cleaned; startGame(false); if (rep) { delete S._repaired; save(true); setTimeout(function () { toast('🏠 Hemos arreglado tu partida: la familia ' + S.name + ' vuelve a estar completa en casa' + (rep.length ? ' (han vuelto ' + rep.join(', ') + ')' : '') + '.', 'good'); }, 1200); } } else { S = null; createFamily(); }
     }
     loadServer().then(boot, function () { boot(null); });
     setTimeout(function () { boot(null); }, 6000);
@@ -2443,32 +2482,42 @@
     var r = h.relMe && h.relMe[String(guest.id)]; if (r) sn.rel[String(guest.id)] = { fr: +r.fr || 0, ro: +r.ro || 0, n: guest.name };
     return sn;
   }
+  var VISIT_BUSY = false;
   function startVisit(f, sid) {
-    var g = null; S.snakes.forEach(function (s) { if (s.id === sid) g = s; }); if (!g) g = S.snakes.filter(function (s) { return !s.away && s.age !== 'bebe'; })[0];
+    if (!S || S.visit || HOME || VISIT_BUSY) return;   // nunca dos visitas a la vez: la 2.ª guardaba la casa del amigo como «casa» (familia de 1)
+    var g = null; S.snakes.forEach(function (s) { if (s.id === sid && !s.away) g = s; }); if (!g) g = S.snakes.filter(function (s) { return !s.away && s.age !== 'bebe'; })[0];
     if (!g) { toast('No hay ninguna serpiente que pueda ir.', 'warn'); return; }
+    VISIT_BUSY = true;
     api('/api/los-snakes/visit', { method: 'POST', body: { host: f.id, snake: g.name } }).then(function (j) {
+      VISIT_BUSY = false;
       uiClose();
-      var gs = strip(g); gs.q = []; gs.away = null; gs.x = EXIT[0] + 0.5; gs.y = EXIT[1] + 0.5; gs.fx = -1; gs.idle = 0;
+      if (!S || S.visit || HOME) return;
+      // va toda la familia que está en casa (la elegida delante); las que están en el trabajo o el colegio siguen allí
+      var fam = [g].concat(S.snakes.filter(function (s) { return s !== g && !s.away; }));
+      var spots = [[0, 0], [-1, 0], [0, -1], [-1, -1], [-2, 0], [-2, -1], [0, -2], [-1, -2]];
+      var party = fam.map(function (m, i) { var c = strip(m); c.q = []; c.away = null; c.x = EXIT[0] + 0.5 + spots[i % 8][0]; c.y = EXIT[1] + 0.5 + spots[i % 8][1]; c.fx = -1; c.idle = 0; return c; });
+      var gs = party[0];
       var w = j.world || {};
-      var VS = { v: SAVE_VER, visit: true, name: j.family || '', money: S.money, time: S.time, snakes: [gs], hosts: [],
+      var VS = { v: SAVE_VER, visit: true, name: j.family || '', money: S.money, time: S.time, snakes: party, hosts: [],
         objects: (w.objects || []).filter(function (o) { return CAT[o.t] && !CAT[o.t].nobuy; }).map(function (o) { return { id: +o.id, t: o.t, x: +o.x, y: +o.y, r: +o.r || 0 }; }),
         floor: (w.floor && w.floor.length === GW * GH) ? w.floor.slice() : S.floor.slice(), walls: (w.walls && w.walls.length) ? w.walls.slice() : S.walls.slice(), doors: w.doors || [], wallc: w.wallc || {},
         nid: 9e11, visitors: [], mouse: null, neighbors: [], weather: { k: S.weather.k, until: S.weather.until }, party: 0, ach: S.ach, stats: S.stats, hidden: [],
         settings: S.settings, sel: gs.id, todayEv: null, speed: S.speed || 1 };
       HOME = S;
-      V = { hostId: f.id, hostName: (j.host && j.host.name) || f.name, family: j.family || '', sid: g.id, t0: S.time, money0: S.money, live: false, lastH: 0, lastG: 0, startedAt: Date.now() };
-      g.q.forEach(function (a) { endSocialPartner(g, a, true); }); leaveObj(g); g.q = []; g.away = { until: 1e15, kind: 'visita' };
+      V = { hostId: f.id, hostName: (j.host && j.host.name) || f.name, family: j.family || '', sid: g.id, fam: fam.map(function (m) { return m.id; }), t0: S.time, money0: S.money, live: false, lastH: 0, lastG: 0, startedAt: Date.now() };
+      fam.forEach(function (m) { m.q.forEach(function (a) { endSocialPartner(m, a, true); }); leaveObj(m); m.q = []; m.away = { until: 1e15, kind: 'visita' }; });
       S = VS; rebuildCaches();
+      party.forEach(function (c) { var x = Math.floor(c.x), y = Math.floor(c.y); if (!inLot(x, y) || occ(x, y)) { var p = nearestFree(clamp(x, 0, GW - 1), clamp(y, 0, GH - 1)); c.x = p[0] + 0.5; c.y = p[1] + 0.5; } });
       (j.snakes || []).forEach(function (h) { var hs = makeHostSn(h, f.id, gs); if (!hs.away) { var x = Math.floor(hs.x), y = Math.floor(hs.y); if (!inLot(x, y) || occ(x, y)) { var p = nearestFree(clamp(x, 0, GW - 1), clamp(y, 0, GH - 1)); hs.x = p[0] + 0.5; hs.y = p[1] + 0.5; } } S.hosts.push(hs); });
       var awayN = S.hosts.filter(function (h) { return h.away; }).map(function (h) { return h.name; });
       logEv(gs, 'visitó la casa de la familia ' + V.family);
       unlock('visita_amigo');
       if (UI) UI.relayout();
-      toast('🚪 ' + gs.name + ' llega a casa de ' + V.hostName + ' (familia ' + V.family + ').' + (awayN.length ? ' No están en casa: ' + awayN.join(', ') + '.' : ''), 'good');
+      toast('🚪 ' + (party.length > 1 ? 'La familia ' + HOME.name + ' (' + party.map(function (c) { return c.name; }).join(', ') + ')' : gs.name) + ' llega a casa de ' + V.hostName + ' (familia ' + V.family + ').' + (awayN.length ? ' No están en casa: ' + awayN.join(', ') + '.' : ''), 'good');
       setTimeout(function () { if (S && S.visit) toast('Puedes charlar con su familia y usar sus cosas (sin gastar ni cambiar nada suyo). Deja un 🎁 regalo o una nota en el buzón.', ''); }, 4200);
       netSend({ t: 'visit', host: f.id, snake: guestPub(gs) });
       if (j.live) V.liveSoon = true;
-    }).catch(function (e) { uiClose(); toast('No se puede visitar: ' + e.message, 'bad'); });
+    }).catch(function (e) { VISIT_BUSY = false; uiClose(); toast('No se puede visitar: ' + e.message, 'bad'); });
   }
   function endVisit(silent) {
     if (!V || !HOME || !S || !S.visit) return;
@@ -2476,17 +2525,22 @@
     var PL = V.place ? { id: V.place, buy: V.buy || [] } : null;
     netSend(PL ? { t: 'pleave' } : { t: 'leave' }); if (PL) PEERS = {};
     V = null; S = HOME; HOME = null;
-    var g = null; S.snakes.forEach(function (s) { if (gs && s.id === gs.id) g = s; });
-    if (g) g.away = { until: S.time + elapsed + 5, kind: 'visita' };
+    var g = null, back = [];
+    vs.snakes.forEach(function (c) { S.snakes.forEach(function (s) { if (s.id === c.id) { back.push([s, c]); if (gs && c.id === gs.id) g = s; } }); });
+    back.forEach(function (p) { p[0].away = { until: S.time + elapsed + 5, kind: 'visita' }; });
     QUIET = true; try { advance(elapsed); } catch (e) { console.error('[Los Snakes] vuelta de visita', e); } QUIET = false;
-    if (g && gs) {
-      ['needs', 'skills', 'rel', 'ml', 'mood', 'diary', 'today', 'seen', 'name', 'color', 'pattern', 'traits', 'asp', 'aspDone'].forEach(function (k) { if (gs[k] !== undefined) g[k] = gs[k]; });
-      g.away = null; g.q = []; g.x = EXIT[0] + 0.5; g.y = EXIT[1] + 0.5; g.idle = 0;
-    }
+    back.forEach(function (p, i) {
+      var h = p[0], c = p[1];
+      ['needs', 'skills', 'rel', 'ml', 'mood', 'diary', 'today', 'seen', 'name', 'color', 'pattern', 'traits', 'asp', 'aspDone'].forEach(function (k) { if (c[k] !== undefined) h[k] = c[k]; });
+      h.away = null; h.q = []; h.x = EXIT[0] + 0.5 - (i % 3) * 0.6; h.y = EXIT[1] + 0.5 - Math.floor(i / 3) * 0.6; h.idle = 0;
+    });
+    S.snakes = S.snakes.filter(isOwnSnake);   // la familia del amigo se queda en su casa (no viene con nosotros)
+    // nadie se queda «fuera de casa» por una visita (p. ej. si se cerró a medias)
+    S.snakes.forEach(function (s) { if (s.away && s.away.kind === 'visita') { s.away = null; s.q = []; s.x = EXIT[0] + 0.5; s.y = EXIT[1] + 0.5; } });
     S.money += dMoney; rebuildCaches();
     if (PL) placeReturn(PL, g);
     if (UI) UI.relayout();
-    if (!silent) { toast('🏠 ' + (g ? g.name : 'Tu serpiente') + ' vuelve ' + (PL ? 'del ' + PLACES[PL.id].n : 'de casa de ' + hostName) + (elapsed >= 60 ? ' tras ' + Math.round(elapsed / 60) + ' h' : '') + '.', 'good'); save(true); }
+    if (!silent) { toast('🏠 ' + (back.length > 1 ? 'Toda la familia' : g ? g.name : 'Tu serpiente') + ' vuelve ' + (PL ? 'del ' + PLACES[PL.id].n : 'de casa de ' + hostName) + (elapsed >= 60 ? ' tras ' + Math.round(elapsed / 60) + ' h' : '') + '.', 'good'); save(true); }
   }
   function visitHourly(h) {
     if (V && V.place) { placeHourly(h); if (!V) return; }
@@ -2731,6 +2785,7 @@
   function startPlace(id, sid) {
     if (!S) return;
     if (S.visit) { endVisit(true); }
+    if (S.visit || HOME || VISIT_BUSY) return;
     if (!placeOpen(id)) { toast(PLACES[id].i + ' ' + PLACES[id].n + ' está cerrado ahora (abre de ' + hhmm(PLACES[id].h[0] * 60) + ' a ' + hhmm(PLACES[id].h[1] % 24 * 60) + ').', 'warn'); return; }
     var g = null; S.snakes.forEach(function (s) { if (s.id === sid) g = s; }); if (!g || g.away || g.age === 'bebe') g = S.snakes.filter(function (s) { return !s.away && s.age !== 'bebe'; })[0];
     if (!g) { toast('No hay ninguna serpiente que pueda salir (las crías no salen solas).', 'warn'); return; }
@@ -2793,6 +2848,8 @@
       var card = uiModal(html, { esc: uiClose });
       card.onclick = function (e) {
         var vs = card.querySelector('.vs'); if (vs) sel0 = +vs.value;
+        var bv = e.target.closest('[data-vf]');
+        if (bv) { if (bv.disabled || VISIT_BUSY) return; var fv = fr[+bv.dataset.vf]; if (!fv) return; var sid = S.visit ? V.sid : sel0; if (S.visit) endVisit(true); bv.disabled = true; bv.textContent = 'Llamando a la puerta…'; startVisit(fv, sid); return; }
         var b = e.target.closest('[data-go],[data-fr],[data-do]'); if (!b) return;
         if (b.dataset.do) { var dd = b.dataset.do; if (dd === 'home') { uiClose(); endVisit(false); return; } uiClose(); startPlace(dd, sel0); return; }
         if (b.dataset.fr != null) {
@@ -2808,7 +2865,6 @@
         info(P2.i + ' <b>' + esc(P2.n) + '</b> · ' + (op ? 'abierto' : 'cerrado') + ' (' + (P2.h[1] - P2.h[0] >= 24 ? 'abre siempre' : hhmm(P2.h[0] * 60) + '–' + hhmm(P2.h[1] % 24 * 60)) + ')<br>' + esc(P2.d) + '<br><small>' + P2.gives + '</small>' + (n.length ? '<br><small>🟢 Ahora hay amigos: ' + n.map(function (f) { return esc(f.name); }).join(', ') + '</small>' : '') +
           '<div style="margin-top:6px">' + (cur === go ? '<i>Ya estás aquí.</i>' : '<button class="lsx-btnp" data-do="' + go + '"' + (op && (mine.length || S.visit) ? '' : ' disabled') + '>🚶 Ir</button>') + '</div>');
       };
-      card.addEventListener('click', function (e) { var b = e.target.closest('[data-vf]'); if (!b) return; var f = fr[+b.dataset.vf]; var vs2 = card.querySelector('.vs'); var sid = S.visit ? V.sid : (vs2 ? +vs2.value : sel0); if (S.visit) endVisit(true); b.disabled = true; b.textContent = 'Llamando a la puerta…'; startVisit(f, sid); });
       function info(t) { var el2 = card.querySelector('.lsx-mapinfo'); if (el2) el2.innerHTML = emo(t); }
     }
     render();

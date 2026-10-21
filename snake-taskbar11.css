@@ -270,4 +270,4 @@ body.snk-hc.tb11:not(.phone-mode) #tbOpen .task-item.tb-front{ background:#ffd40
 body.theme-light #tbOpenMenu{ background:rgba(250,255,252,0.96); color:#0d3a22; border-color:rgba(0,0,0,0.12); }
 body.theme-light #tbOpenMenu .h{ border-bottom-color:rgba(0,0,0,0.1); }
 body.theme-light #tbOpenMenu button:hover{ background:rgba(0,0,0,0.06); }
-body.osx-work #tbOpenMenu{ background:#1e1f23; border-color:#2c2d33; backdrop-filter:none; -webkit-backdrop-filter:none; }
+body.osx-work #tbOpenMenu{ border-color:#2c2d33; }

@@ -242,7 +242,7 @@
     row('escritorio', 'fullscreen', '⛶', 'Pantalla completa', 'Usa Snake OS a pantalla completa', 'action', { btn: 'Activar', run: function () { clickTile('qsFullscreen'); } });
     row('pantalla', 'osx-screen', '🔆', 'Brillo', 'Brillo de la pantalla · teclas F5 y F6', 'osx');
     row('salvapantallas', 'osx-saver', '🌌', 'Salvapantallas', 'Tiempo de espera, estilo y vista previa', 'osx');
-    row('trabajo', 'osx-work', '💼', 'Modo trabajo', 'Fondo negro bloqueado, menos efectos y dock con apps de trabajo y enlaces', 'osx');
+    row('trabajo', 'osx-work', '💼', 'Modo trabajo', 'Fondo negro bloqueado, Snake OS más ligero por dentro (sin cambiar el diseño) y dock con apps de trabajo y enlaces', 'osx');
     row('kids', 'osx-kids', '🧸', 'Snake OS Kids · control parental', 'Modo infantil con PIN: apps por edad, tiempo de pantalla, chat, web, juegos online, tienda, archivos, cámara e informe semanal', 'osx');
     row('ia', 'keys', '✨', 'Clave de Askbox (IA)', 'Introducir o cambiar la clave de Askbox de tu cuenta: estado, probar conexión y quitar', 'aiform');
     row('cuenta', 'who', '🪪', 'Sesión iniciada', 'Tus ajustes se guardan por perfil', 'info', { label: function () { var u = cu(); return u ? (u.name || '') + ' · ' + (u.email || '') : ''; } });

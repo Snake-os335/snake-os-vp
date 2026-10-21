@@ -9,7 +9,7 @@
   'use strict';
   var LOGO = '/static/assets/snake-os-kids-logo.svg?v=1';
   var LOGO_WIDE = '/static/assets/snake-os-kids-logo-wide.svg?v=1';
-  var PERF_NOTE = 'Medido en nuestras pruebas (CPU ×4 más lenta): arrastrar ventanas pasa de ~5 a ~60 fps y las apps se abren 2-3 veces más rápido.';
+  var PERF_NOTE = '';   /* la nota antigua medía el modo trabajo sin Liquid Glass; ya no aplica */
   var S = { perfNote: PERF_NOTE, email: '', prefs: null, token: '', tokenExp: 0, pushT: null, kidsTimer: null, unsent: {}, lastTick: 0,
             warned: {}, bedOverride: 0 };
   var LEISURE = ['snake', 'snake-racing', 'games', 'metaverse', 'doganiero-tv', 'los-snakes', 'snakemoji'];
@@ -91,11 +91,9 @@
       '#osxToast.on{opacity:1;transform:translate(-50%,0)}',
       'html body.osx-work,html body.osx-work[data-wp]{background:radial-gradient(1200px 700px at 78% 12%,rgba(255,255,255,.07),transparent 60%),repeating-linear-gradient(135deg,#0d0d0f 0 22px,#111113 22px 44px) #0a0a0b !important;background-attachment:fixed !important}',
       'body.osx-work #wpCustomImg{display:none !important}',
-      'body.osx-work *,body.osx-work *::before,body.osx-work *::after{animation-duration:0s !important;animation-delay:0s !important;animation-iteration-count:1 !important;transition:none !important;backdrop-filter:none !important;-webkit-backdrop-filter:none !important}',
-      'body.osx-work .app-window{box-shadow:0 2px 10px rgba(0,0,0,.45) !important}',
-      'body.osx-work .app-window.minimized{content-visibility:hidden}',
-      'body.osx-work .app-window{background:#ececee !important;background-image:none !important}',
-      'body.osx-work:not(.theme-light) .app-window{background:#1e1f23 !important}',
+      /* 2026.13: el modo trabajo ya NO quita Liquid Glass, animaciones ni transiciones (ni toca ningún ajuste).
+         Solo optimizaciones invisibles: no se pinta lo que no se ve (ventanas minimizadas), imágenes diferidas y trabajo en segundo plano frenado (ver workPerf). */
+      'body.osx-work .app-window.minimized{content-visibility:hidden;contain-intrinsic-size:auto 0}',
       'body.osx-work .desktop-icon .lb,body.osx-work .desktop-icon span{text-shadow:0 1px 2px #000 !important;color:#e8e8ea !important}',
       'body.osx-work .desktop-icon[data-app="snake"],body.osx-work .desktop-icon[data-app="snake-racing"],body.osx-work .desktop-icon[data-app="games"],body.osx-work .desktop-icon[data-app="metaverse"],body.osx-work .desktop-icon[data-app="doganiero-tv"],body.osx-work .desktop-icon[data-app="los-snakes"]{opacity:.35;filter:grayscale(1)}',
       '#osxWorkDock{display:none;align-items:center;gap:4px;padding:0 6px;margin:0 auto 0 6px;border-left:1px solid rgba(127,127,127,.35);border-right:1px solid rgba(127,127,127,.35);max-width:24vw;overflow-x:auto;scrollbar-width:none;flex:0 1 auto;color:inherit}',
@@ -253,7 +251,7 @@
   function applySaver() {
     var ss = window.snkScreensaver; if (!ss || !ss.configure) return;
     var p = S.prefs || defaults();
-    ss.configure({ id: p.screensaver.id, timeout: p.screensaver.timeout, light: work() });
+    ss.configure({ id: p.screensaver.id, timeout: p.screensaver.timeout, light: false });   /* el salvapantallas elegido se respeta también en modo trabajo */
   }
 
   /* ---------------- modo trabajo ---------------- */
@@ -305,7 +303,7 @@
     if (!S.email) return;
     if (!S.prefs) S.prefs = defaults();
     S.prefs.work.on = !!on; writeLocal(); applyAll();
-    if (on) { LEISURE.forEach(closeAppSafe); toast('💼 Modo trabajo activado: fondo bloqueado, sin efectos ni juegos en segundo plano'); }
+    if (on) { LEISURE.forEach(closeAppSafe); toast('💼 Modo trabajo activado: fondo bloqueado, sin juegos y Snake OS más ligero por dentro (el diseño no cambia)'); }
     else toast('Modo trabajo desactivado');
     push({ work: { on: !!on } });
   }
@@ -315,8 +313,42 @@
     var b = $('#tbWorkBtn'); if (b) b.classList.toggle('on', on);
     var q = $('#qsWork'); if (q) { q.setAttribute('aria-pressed', on ? 'true' : 'false'); q.classList.toggle('on', on); }
     window.__snakeOsWorkMode = on;
+    workPerf(on);
     paintDock();
     if (S.lastWork !== on) { S.lastWork = on; document.querySelectorAll('.osx-panel[data-osx]').forEach(function (p) { if (p._draw) p._draw(); }); }
+  }
+  /* Optimizaciones invisibles del modo trabajo (no cambian diseño ni ajustes):
+     - imágenes nuevas con loading=lazy y decoding=async (solo si la app no lo fijó);
+     - con la pestaña oculta, los temporizadores rápidos (<= 2 s) de fondo se espacian a 5 s, salvo durante una llamada, Direct o un bot trabajando;
+     - las ventanas minimizadas no se pintan (CSS content-visibility). */
+  var WP = { on: false, mo: null, wrapped: false };
+  function workBusy() {
+    var b = document.body; if (!b) return true;
+    try { if (window.__snkCallActive || window.__snkDirectActive || window.__dbotsBusy) return true; } catch (e) {}
+    return !!document.querySelector('.call-active,.in-call,#callOverlay:not(.hidden),.dc-call-active,video:not([paused])');
+  }
+  function lazyImg(img) { try { if (!img.hasAttribute('loading')) img.loading = 'lazy'; if (!img.hasAttribute('decoding')) img.decoding = 'async'; } catch (e) {} }
+  function workPerf(on) {
+    if (WP.on === on) return; WP.on = on;
+    if (on) {
+      if (window.MutationObserver && !WP.mo) {
+        WP.mo = new MutationObserver(function (ms) { ms.forEach(function (m) { m.addedNodes && m.addedNodes.forEach(function (n) { if (n.nodeType !== 1) return; if (n.tagName === 'IMG') lazyImg(n); else if (n.querySelectorAll) n.querySelectorAll('img').forEach(lazyImg); }); }); });
+        WP.mo.observe(document.body, { childList: true, subtree: true });
+      }
+      if (!WP.wrapped) {
+        WP.wrapped = true;
+        var nativeSI = window.setInterval;
+        window.setInterval = function (fn, ms) {
+          var args = Array.prototype.slice.call(arguments, 2), d = +ms || 0;
+          if (typeof fn !== 'function' || d > 2000) return nativeSI.apply(window, arguments);
+          var last = 0;
+          return nativeSI.call(window, function () {
+            if (WP.on && document.hidden && !workBusy()) { var t = Date.now(); if (t - last < 5000) return; last = t; }
+            return fn.apply(this, args);
+          }, ms);
+        };
+      }
+    } else if (WP.mo) { WP.mo.disconnect(); WP.mo = null; }
   }
   window.snkOsxWallpaperLocked = function () { if (work()) { toast('🔒 El fondo está bloqueado en modo trabajo. Desactívalo para cambiarlo.'); return true; } return false; };
 
@@ -730,7 +762,7 @@
     function draw() {
       cleanup();
       el.innerHTML = card('⏱️ Activar tras', 'Tiempo sin usar el ordenador antes de que salga el salvapantallas.', seg('sst', TIMEOUTS, p.timeout)) +
-        card('🖼️ Salvapantallas', work() ? 'En modo trabajo se usa siempre un reloj estático y ligero.' : 'Toca uno para elegirlo. Debajo tienes la vista previa.',
+        card('🖼️ Salvapantallas', work() ? 'Toca uno para elegirlo. Debajo tienes la vista previa.' : 'Toca uno para elegirlo. Debajo tienes la vista previa.',
           '<div class="osx-savers">' + SAVERS.map(function (s) { return '<button type="button" class="osx-saver ' + (s.id === p.id ? 'on' : '') + '" data-sid="' + s.id + '" title="' + esc(s.desc) + '"><div class="pv"></div><span class="nm">' + esc(s.name) + '</span></button>'; }).join('') + '</div>') +
         card('👀 Vista previa', esc((SAVERS.filter(function (s) { return s.id === p.id; })[0] || SAVERS[0]).desc), '<div class="osx-bigpv"></div><div style="margin-top:8px"><button type="button" class="snk4a-btn" data-test>Probar ahora</button></div>');
       bindSeg(el, 'sst', function (v) { p.timeout = +v; writeLocal(); applySaver(); push({ screensaver: { timeout: +v } }); });
@@ -752,7 +784,7 @@
     function draw() {
       var on = work();
       el.innerHTML = (kids() ? card('💼 Modo trabajo', 'No está disponible mientras Snake OS Kids esté activado.', '') :
-        card('💼 Modo trabajo', 'Fondo negro con grises (bloqueado mientras esté activo), sin animaciones, desenfoques ni sonidos, salvapantallas estático y se cierran los juegos. También desde el botón 💼 de la barra de tareas.',
+        card('💼 Modo trabajo', 'Fondo negro con grises (bloqueado mientras esté activo), sin sonidos y se cierran los juegos. Liquid Glass, animaciones y tus ajustes no cambian: Snake OS va más ligero por dentro (no dibuja las ventanas minimizadas, frena el trabajo en segundo plano y carga las imágenes cuando hacen falta). También desde el botón 💼 de la barra de tareas.',
           '<button type="button" class="snk4a-btn" data-tog>' + (on ? 'Desactivar modo trabajo' : 'Activar modo trabajo') + '</button>' + (S.perfNote ? '<p class="osx-note" style="margin-top:8px">' + esc(S.perfNote) + '</p>' : '')) +
         card('🧰 Apps del dock de trabajo', 'Aparecen en la barra de tareas con el modo trabajo.', '<div class="osx-chips">' +
           Object.keys(window.APPS || {}).filter(function (id) { return LEISURE.indexOf(id) < 0; }).map(function (id) { return '<button type="button" class="osx-chip ' + (w.apps.indexOf(id) >= 0 ? 'on' : '') + '" data-wa="' + esc(id) + '">' + appIcon(id) + esc(appTitle(id)) + '</button>'; }).join('') + '</div>') +
@@ -932,6 +964,7 @@
     }, 1000);
     setInterval(function () { if (S.email && !document.hidden && !S.pushT) pull(); }, 120000);
   }
+  window.addEventListener('snk:profile', function () { try { onUser(cu()); } catch (e) {} });
   window.snkOsx = {
     panel: panel, settingsVisible: settingsVisible, setWork: setWork, isWork: work, isKids: function () { return !!kids(); },
     setBrightness: setBrightness, prefs: function () { return S.prefs; }, askKids: kidsAsk,

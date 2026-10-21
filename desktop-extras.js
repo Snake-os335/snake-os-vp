@@ -515,8 +515,9 @@
   }
 
   function setQsPref(name, value) {
-    qsPrefs[name] = !!value;
     var key = profileWallpaperKey();
+    if (key && key !== qsProfileKey) qsPrefs = readQsPrefs(key);   /* no pisar los ajustes de este perfil con los de otro / los de por defecto */
+    qsPrefs[name] = !!value;
     if (key) {
       qsProfileKey = key;
       writeQsPrefs(key, qsPrefs);
@@ -1818,6 +1819,8 @@
     syncQsForProfile();
     maybeRestoreAccountLock();
   }, 30000);
+  /* al entrar o cambiar de perfil: fondo, tema y ajustes rápidos de ESE perfil al instante */
+  window.addEventListener('snk:profile', function () { try { syncWallpaperForProfile(); syncQsForProfile(); syncQsUi(); } catch (e) {} });
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', function () {
@@ -2315,6 +2318,7 @@
     while (wrap.firstChild) grid.insertBefore(wrap.firstChild, first || null);
     $('qsTextSize').addEventListener('click', function (e) {
       e.stopPropagation();
+      if (extraEmail !== profileEmail()) loadExtra();
       var i = TEXT_SIZES.map(function (t) { return t.id; }).indexOf(extra.text);
       extra.text = TEXT_SIZES[(i + 1) % TEXT_SIZES.length].id;
       saveExtra(); applyExtra();
@@ -2322,12 +2326,14 @@
     });
     $('qsSounds').addEventListener('click', function (e) {
       e.stopPropagation();
+      if (extraEmail !== profileEmail()) loadExtra();
       extra.soundsOff = !extra.soundsOff;
       saveExtra(); applyExtra();
       toast(extra.soundsOff ? 'Sonidos del sistema desactivados' : 'Sonidos del sistema activados');
     });
     $('qsReduceMotion').addEventListener('click', function (e) {
       e.stopPropagation();
+      if (extraEmail !== profileEmail()) loadExtra();
       extra.reduceMotion = !extra.reduceMotion;
       saveExtra(); applyExtra();
       toast(extra.reduceMotion ? 'Animaciones reducidas' : 'Animaciones normales');
@@ -2854,6 +2860,7 @@
     document.addEventListener('keyup', onSwitcherKeyUp, true);
     window.addEventListener('blur', function () { if (sw.open) closeSwitcher(false); });
     setInterval(profileWatch, 15000);
+    window.addEventListener('snk:profile', function () { try { profileWatch(); } catch (e) {} });
     scheduleFocus();
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);

@@ -12,22 +12,29 @@
   window.__snkCursor = true;
 
   var BASE = '/static/assets/snk-cur-';
-  var VER = '202610100905';
+  var VER = '202610210900';
   /* nombre → [hotspot x, hotspot y, fallback] en 32 px */
   var CUR = {
     arrow: [3, 2, 'default'], hand: [13, 1, 'pointer'], text: [16, 16, 'text'], wait: [16, 16, 'wait'],
     progress: [16, 16, 'wait'], move: [16, 16, 'move'], ew: [16, 16, 'ew-resize'], ns: [16, 16, 'ns-resize'],
-    nwse: [16, 16, 'nwse-resize'], nesw: [16, 16, 'nesw-resize']
+    nwse: [16, 16, 'nwse-resize'], nesw: [16, 16, 'nesw-resize'],
+    /* 2026.13: un sprite Snake para cada valor de cursor de CSS (nunca sale el del sistema) */
+    vtext: [16, 16, 'vertical-text'], help: [3, 2, 'help'], allscroll: [16, 16, 'all-scroll'], grab: [16, 10, 'grab'], grabbing: [16, 12, 'grabbing'],
+    notallowed: [16, 16, 'not-allowed'], nodrop: [3, 2, 'no-drop'], crosshair: [16, 16, 'crosshair'], cell: [16, 16, 'cell'], copy: [3, 2, 'copy'],
+    alias: [3, 2, 'alias'], ctx: [3, 2, 'context-menu'], zoomin: [12, 12, 'zoom-in'], zoomout: [12, 12, 'zoom-out'], col: [16, 16, 'col-resize'], row: [16, 16, 'row-resize']
   };
   var MAP = {
-    'default': 'arrow', auto: 'arrow', pointer: 'hand', grab: 'hand', grabbing: 'hand', text: 'text', 'vertical-text': 'text',
-    wait: 'wait', progress: 'wait', move: 'move', 'all-scroll': 'move',
-    'ew-resize': 'ew', 'e-resize': 'ew', 'w-resize': 'ew', 'col-resize': 'ew',
-    'ns-resize': 'ns', 'n-resize': 'ns', 's-resize': 'ns', 'row-resize': 'ns',
+    'default': 'arrow', auto: 'arrow', pointer: 'hand', grab: 'grab', grabbing: 'grabbing', text: 'text', 'vertical-text': 'vtext',
+    wait: 'wait', progress: 'progress', move: 'move', 'all-scroll': 'allscroll',
+    help: 'help', 'not-allowed': 'notallowed', 'no-drop': 'nodrop', crosshair: 'crosshair', cell: 'cell', copy: 'copy', alias: 'alias',
+    'context-menu': 'ctx', 'zoom-in': 'zoomin', 'zoom-out': 'zoomout', '-webkit-zoom-in': 'zoomin', '-webkit-zoom-out': 'zoomout',
+    '-webkit-grab': 'grab', '-webkit-grabbing': 'grabbing',
+    'ew-resize': 'ew', 'e-resize': 'ew', 'w-resize': 'ew', 'col-resize': 'col',
+    'ns-resize': 'ns', 'n-resize': 'ns', 's-resize': 'ns', 'row-resize': 'row',
     'nwse-resize': 'nwse', 'nw-resize': 'nwse', 'se-resize': 'nwse',
     'nesw-resize': 'nesw', 'ne-resize': 'nesw', 'sw-resize': 'nesw'
   };
-  var KEEP = ['none', 'crosshair', 'not-allowed', 'no-drop', 'zoom-in', 'zoom-out', 'copy', 'alias', 'help', 'cell', 'context-menu'];
+  var KEEP = ['none'];
 
   function cu() { try { return (typeof currentUser !== 'undefined' && currentUser) || window.currentUser || null; } catch (e) { return window.currentUser || null; } }
   function email() { var u = cu(); return u && u.email ? String(u.email).toLowerCase() : ''; }
@@ -52,7 +59,7 @@
   }
   var TEXTSEL = 'input:not([type=button]):not([type=submit]):not([type=reset]):not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]):not([type=file]):not([type=image]):not([type=hidden]),textarea,[contenteditable]:not([contenteditable=false]),.xterm';
   /* Navegador: dentro de su ventana se usa el cursor normal del sistema */
-  var NOFP = ':not(.mv-root.mv-fp *):not(.mv-root.mv-fp):not(#win-browser .win-body *):not(#win-browser .win-body)';
+  var NOFP = ':not(.mv-root.mv-fp *):not(.mv-root.mv-fp)';
   function staticCss() {
     var bigU = 'html.snk-cur.snk-cur-big body.snk-bigcursor';
     var s = varsCss();
@@ -64,8 +71,9 @@
     s += 'html.snk-cur .xterm.enable-mouse-events{cursor:var(--snkc-arrow);}\n';
     s += 'html.snk-cur .xterm .xterm-cursor-pointer,html.snk-cur .xterm.xterm-cursor-pointer{cursor:var(--snkc-hand);}\n';
     s += ':where(html.snk-cur) .mv-root.mv-fp{cursor:auto;}\n';
-    s += 'html.snk-cur #win-browser .win-body{cursor:auto;}\n';
-    s += 'html.snk-cur #win-browser .win-body :is(a:any-link,button,summary,select,label[for]){cursor:pointer;}html.snk-cur #win-browser .win-body :is(' + TEXTSEL + '){cursor:text;}\n';
+    /* elementos desactivados y arrastre nativo */
+    s += 'html.snk-cur :is(button,input,select,textarea,a,[role=button])' + NOFP + ':is(:disabled,[aria-disabled=true]){cursor:var(--snkc-notallowed);}\n';
+    s += 'html.snk-cur [draggable=true]' + NOFP + '{cursor:var(--snkc-grab);}\n';
     /* Cursor grande: sustituye la flecha negra de 40 px por la versión Snake de 48 px */
     s += bigU + '{cursor:var(--snkc-arrow) !important;}\n';
     s += bigU + ' *' + NOFP + ':not([data-snkc]){cursor:inherit !important;}\n';
