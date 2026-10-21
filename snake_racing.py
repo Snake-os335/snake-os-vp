@@ -46,7 +46,7 @@ class SnakeRacingHub:
 
     def _pub(self, p: dict[str, Any]) -> dict[str, Any]:
         return {"id": p["id"], "name": p["name"], "color": p["color"], "ready": p["ready"],
-                "inRace": p.get("in_race", False)}
+                "inRace": p.get("in_race", False), "pro": bool(p.get("pro"))}
 
     def _lobby_payload(self) -> dict[str, Any]:
         host = self._host_ws()
@@ -84,7 +84,7 @@ class SnakeRacingHub:
                 pass
 
     # ---------- conexión ----------
-    async def connect(self, ws: Any, email: str, name: str, kid_friends: set[str] | None = None) -> None:
+    async def connect(self, ws: Any, email: str, name: str, kid_friends: set[str] | None = None, pro: bool = False) -> None:
         # Snake OS Kids (modo «solo amigos»): si entra alguien que no es amigo aprobado, el niño sale de la sala.
         for kws, kp in list(self.players.items()):
             kf = kp.get("kid_friends")
@@ -100,7 +100,7 @@ class SnakeRacingHub:
         same = sum(1 for p in self.players.values() if p["email"] == email)
         disp = (name or "Piloto")[:18] + (f" ({same + 1})" if same else "")
         p = {"id": f"p{next(_ids)}", "email": email, "name": disp, "color": self._free_color(),
-             "ready": False, "in_race": False}
+             "ready": False, "in_race": False, "pro": bool(pro)}
         if kid_friends is not None:
             p["kid_friends"] = set(kid_friends)
         self.players[ws] = p
@@ -199,7 +199,7 @@ class SnakeRacingHub:
             grid = []
             for p in humans:
                 p["in_race"] = True
-                grid.append({"id": p["id"], "name": p["name"], "color": p["color"], "ai": False})
+                grid.append({"id": p["id"], "name": p["name"], "color": p["color"], "ai": False, "pro": bool(p.get("pro"))})
             used = {g["color"] for g in grid}
             free = [c for c in COLORS if c not in used]
             for i in range(MAX_PLAYERS - len(grid)):
@@ -245,10 +245,10 @@ class SnakeRacingHub:
         for f in done:
             g = names.get(f["id"], {})
             rows.append({"id": f["id"], "name": g.get("name", "?"), "color": g.get("color", "#888"),
-                         "t": f["t"], "best": f.get("best"), "ai": g.get("ai", False)})
+                         "t": f["t"], "best": f.get("best"), "ai": g.get("ai", False), "pro": bool(g.get("pro"))})
         for g in self.grid:
             if g["id"] not in self.finishes:
-                rows.append({"id": g["id"], "name": g["name"], "color": g["color"], "t": None, "best": None, "ai": g["ai"]})
+                rows.append({"id": g["id"], "name": g["name"], "color": g["color"], "t": None, "best": None, "ai": g["ai"], "pro": bool(g.get("pro"))})
         await self._broadcast({"type": "results", "raceId": self.race_id, "rows": rows})
         for p in self.players.values():
             p["ready"] = False

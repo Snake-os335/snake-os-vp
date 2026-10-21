@@ -109,6 +109,7 @@ def _contact(row: sqlite3.Row) -> dict[str, Any]:
         "name": row["name"] or "Usuario",
         "avatar": row["avatar"] or "🐶",
         "number": str(row["number"]),
+        "pro": db.pro_flag(row["id"]),
     }
 
 
@@ -204,6 +205,7 @@ def recents(user_id: int, limit: int = 40) -> list[dict[str, Any]]:
                 "name": r["peer_name"] or "Cuenta eliminada",
                 "avatar": r["peer_avatar"] or "👤",
                 "number": str(r["peer_number"] or ""),
+                "pro": db.pro_flag(r["peer_id"]),
             },
         })
     return out

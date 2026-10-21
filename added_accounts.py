@@ -35,6 +35,7 @@ def _profile(row, number: str) -> dict[str, Any]:
         "name": str(row["name"] or "Usuario"),
         "avatar": str(row["avatar"] or "🐶"),
         "number": str(number or ""),
+        "pro": db.pro_flag(row["id"]),
     }
 
 

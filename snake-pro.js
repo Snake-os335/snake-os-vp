@@ -60,9 +60,19 @@
       '#snkProWall canvas{width:100%;height:100%;display:block}',
       /* widgets */
       '#snkProDesk{position:absolute;inset:0 0 76px 0;z-index:2;pointer-events:none}',
-      'body.phone-mode #snkProDesk{display:none}',
+      /* modo teléfono: los widgets fijados van en una franja con scroll (antes se ocultaban) */
+      'body.phone-mode #snkProDesk{position:absolute;left:0;right:0;top:auto;bottom:calc(84px + env(safe-area-inset-bottom,0px));inset-inline:0;max-height:38vh;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;display:flex;flex-direction:column;gap:10px;padding:8px 12px;box-sizing:border-box;pointer-events:auto}',
+      'body.phone-mode #snkProDesk:empty{display:none}',
+      'body.phone-mode #snkProDesk .snkp-w{position:relative!important;left:auto!important;top:auto!important;width:auto!important;height:auto!important;max-width:none;flex:0 0 auto}',
+      'body.phone-mode #snkProDesk .snkp-w.free{resize:none;overflow:visible;max-height:none}',
       '.snkp-w{position:absolute;pointer-events:auto;min-width:150px;color:#fff;background:rgba(12,22,16,.72);backdrop-filter:blur(16px) saturate(1.3);border:1px solid rgba(245,197,66,.45);border-radius:16px;box-shadow:0 12px 30px rgba(0,0,0,.35);font:500 .82rem system-ui,sans-serif}',
-      '.snkp-w.tool{position:fixed;z-index:60}',
+      '.snkp-w.free{position:fixed;z-index:60;resize:both;overflow:auto;min-height:60px;max-width:calc(100vw - 8px);max-height:calc(100vh - 84px)}',
+      '.snkp-w.pinned{position:absolute;overflow:hidden}', '.snkp-w.pinned .snkp-wh{cursor:default}',
+      '.snkp-w.compact{transform:scale(.8);transform-origin:top left}', 'body.phone-mode #snkProDesk .snkp-w.compact{transform:none;font-size:.72rem}', '.snkp-w.mini{height:auto!important;resize:none;min-height:0}', '.snkp-w.mini .snkp-wb{display:none}',
+      '.snkp-wh .sum{font:700 .74rem ui-monospace,monospace;opacity:.85;white-space:nowrap}', '.snkp-wh .sum:empty{display:none}',
+      '.snkp-wh .wpin[aria-pressed="true"]{background:rgba(245,197,66,.55)}', '.snkp-wh button{flex:0 0 22px}',
+      '#snkProPick{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:75;width:min(460px,calc(100vw - 20px));max-height:calc(100vh - 120px);overflow:auto;color:#fff;background:rgba(14,22,17,.94);backdrop-filter:blur(22px) saturate(1.4);border:1px solid rgba(245,197,66,.5);border-radius:20px;box-shadow:0 20px 60px rgba(0,0,0,.5);padding:14px 16px;font:500 .82rem system-ui,sans-serif;box-sizing:border-box}',
+      '#snkProPick .hd{display:flex;align-items:center;gap:8px;font-weight:800;font-size:1rem}', '#snkProPick .hd .x{margin-left:auto;flex:0 0 auto;width:auto;min-width:0;padding:4px 10px}', '#snkProPick .hd{white-space:nowrap}', '#snkProPick h3{margin:12px 0 6px;font-size:.78rem;letter-spacing:.06em;text-transform:uppercase;opacity:.7}',
       '.snkp-wh{display:flex;align-items:center;gap:6px;padding:7px 8px 6px 11px;cursor:grab;font-weight:800;font-size:.78rem;user-select:none;touch-action:none}',
       '.snkp-wh .t{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
       '.snkp-wh button{border:0;background:rgba(255,255,255,.12);color:#fff;width:22px;height:22px;border-radius:7px;cursor:pointer;font-size:.75rem;line-height:1;padding:0;margin:0}',
@@ -72,7 +82,7 @@
       '.snkp-btn.pri{background:linear-gradient(135deg,#ffe48a,#f5c542);color:#2a1c00;border-color:transparent}',
       '.snkp-row{display:flex;gap:6px;align-items:center;flex-wrap:wrap}',
       /* centro pro */
-      '#snkProBtn{font-size:1rem;flex-shrink:0;margin-left:6px;width:auto!important;padding:0 8px!important;display:inline-flex;align-items:center;gap:5px}', '#snkProBtn .snkp-badge{font-size:.6rem}', 'body.tb11:not(.phone-mode) #taskbar > #snkProBtn{order:1}',
+      '#snkProBtn{font-size:1rem;flex:0 0 auto;margin-left:6px;width:auto!important;min-width:0;padding:0 8px!important;display:inline-flex;align-items:center;justify-content:center;gap:.3em;white-space:nowrap;line-height:1;overflow:visible;vertical-align:middle}', '#snkProBtn > span{flex:0 0 auto;line-height:1}', '#snkProBtn .snkp-badge{font-size:.6em;line-height:1;padding:.32em .55em;display:inline-flex;align-items:center;letter-spacing:.05em;white-space:nowrap}', 'body.tb11:not(.phone-mode) #taskbar > #snkProBtn{order:1}',
       '#snkProCenter{position:fixed;left:14px;bottom:86px;z-index:70;width:min(440px,calc(100vw - 20px));max-height:min(620px,calc(100vh - 110px));overflow:auto;color:#fff;background:rgba(14,22,17,.9);backdrop-filter:blur(22px) saturate(1.4);border:1px solid rgba(245,197,66,.5);border-radius:20px;box-shadow:0 20px 60px rgba(0,0,0,.5);padding:14px 16px;font:500 .82rem system-ui,sans-serif}',
       '#snkProCenter h3{margin:12px 0 6px;font-size:.78rem;letter-spacing:.06em;text-transform:uppercase;opacity:.7}',
       '#snkProCenter .hd{display:flex;align-items:center;gap:8px;font-weight:800;font-size:1rem}',
@@ -166,63 +176,104 @@
     b.classList.toggle('snkpro-tb', on && !!P('tb', false));
   }
 
-  /* ---------------- widgets (escritorio) y herramientas (flotantes) ---------------- */
-  var W = {}; // id -> { el, tick, off }
+  /* ---------------- widgets: 📌 fijados (capa del escritorio, detrás de las ventanas, no se arrastran) o libres
+     (flotan encima, se arrastran y redimensionan con imán a la rejilla y a los bordes). Todo se guarda por perfil
+     en el servidor (prefs: open, pos, size, pin, min, cmp). En modo teléfono, los fijados van en una franja con scroll. */
+  var W = {}; // id -> { el, tick, off, sum }
   var DEFS = {};
+  var GRID = 16, EDGE = 20, TB = 76;
   function deskLayer() {
     var dk = $('#desktop'); if (!dk) return null;
     var l = $('#snkProDesk');
     if (!l) { l = document.createElement('div'); l.id = 'snkProDesk'; var ic = $('#iconLayer'); if (ic && ic.nextSibling) dk.insertBefore(l, ic.nextSibling); else dk.appendChild(l); }
     return l;
   }
-  function openW(id, save) {
-    var d = DEFS[id] || (id.indexOf('st_') === 0 ? DEFS.sticky_note : null);
-    if (!S.active || !d || W[id]) { if (W[id]) bump(W[id].el); return; }
-    var host = d.tool ? document.body : deskLayer(); if (!host) return;
-    var el = document.createElement('div'); el.className = 'snkp-w' + (d.tool ? ' tool' : ''); el.dataset.w = id;
-    el.style.width = (d.w || 220) + 'px';
-    var pos = (P('pos', {}) || {})[id];
-    var n = Object.keys(W).length;
-    var x, y;
-    if (pos) { x = pos[0]; y = pos[1]; }
-    else if (d.tool) { var nt = Object.keys(W).filter(function (k) { return W[k].el.classList.contains('tool'); }).length; x = Math.max(10, Math.round(innerWidth / 2 - (d.w || 220) / 2) + nt * 28); y = 70 + nt * 28; }
-    else { // columna a la derecha, una debajo de otra
-      x = innerWidth - 24; y = 16;
-      var col = Object.keys(W).filter(function (k) { return !W[k].el.classList.contains('tool'); }).map(function (k) { return W[k].el; });
-      var right = innerWidth - 24;
-      for (var guard = 0; guard < 4; guard++) {
-        var inCol = col.filter(function (e) { return Math.abs(e.offsetLeft + e.offsetWidth - right) < 4; });
-        var bottom = inCol.reduce(function (m, e) { return Math.max(m, e.offsetTop + e.offsetHeight); }, 0);
-        if (!inCol.length || bottom + 160 < innerHeight - 90) { y = inCol.length ? bottom + 10 : 16; break; }
-        right -= 270;
-      }
-      x = Math.max(10, right - (d.w || 220));
-    }
-    el.style.left = Math.max(0, Math.min(innerWidth - 80, x)) + 'px'; el.style.top = Math.max(0, Math.min(innerHeight - 60, y)) + 'px';
-    el.innerHTML = '<div class="snkp-wh"><span class="t">' + esc(typeof d.title === 'function' ? d.title(id) : d.title) + '</span><button type="button" class="x" title="Cerrar">✕</button></div><div class="snkp-wb"></div>';
-    host.appendChild(el);
-    var rec = { el: el, tick: null, off: null };
-    W[id] = rec;
-    drag(el, el.querySelector('.snkp-wh'), id);
-    el.querySelector('.x').onclick = function () { if (d.onClose && d.onClose(id) === false) return; closeW(id, true); };
-    if (d.tool) el.addEventListener('pointerdown', function () { bump(el); });
-    try { rec.off = d.render(el.querySelector('.snkp-wb'), rec, id) || null; } catch (e) { console.warn('snkPro widget', id, e); }
-    if (d.tool) bump(el);
-    if (save !== false) { var o = Object.assign({}, P('open', {})); o[id] = true; setPref('open', o); }
+  function prefObj(k) { var o = P(k, {}); return o && typeof o === 'object' && !Array.isArray(o) ? o : {}; }
+  function setKey(k, id, v) { var o = Object.assign({}, prefObj(k)); if (v === undefined || v === null) delete o[id]; else o[id] = v; setPref(k, o); }
+  function defOf(id) { return DEFS[id] || (String(id).indexOf('st_') === 0 ? DEFS.sticky_note : null); }
+  function isPinned(id) { var p = prefObj('pin'); if (Object.prototype.hasOwnProperty.call(p, id)) return !!p[id]; var d = defOf(id); return !!(d && !d.tool); }
+  function snapXY(el, x, y) {
+    var w = el.offsetWidth || 200, h = el.offsetHeight || 120, maxX = innerWidth - w, maxY = innerHeight - TB - h;
+    x = Math.round(x / GRID) * GRID; y = Math.round(y / GRID) * GRID;
+    if (x < EDGE) x = 8; if (y < EDGE) y = 8;
+    if (maxX - x < EDGE) x = maxX - 8; if (maxY - y < EDGE) y = maxY - 8;
+    return [Math.max(0, Math.round(x)), Math.max(0, Math.round(y))];
   }
+  function defaultXY(el, d) {
+    var x, y, ww = el.offsetWidth || d.w || 220;
+    if (d.tool) { var nt = Object.keys(W).filter(function (k) { return W[k].el.classList.contains('free'); }).length; return [Math.max(10, Math.round(innerWidth / 2 - ww / 2) + nt * 28), 70 + nt * 28]; }
+    var col = Object.keys(W).filter(function (k) { return W[k].el.classList.contains('pinned'); }).map(function (k) { return W[k].el; });
+    var right = innerWidth - 24;
+    y = 16;
+    for (var guard = 0; guard < 4; guard++) {
+      var inCol = col.filter(function (e) { return Math.abs(e.offsetLeft + e.offsetWidth - right) < 4; });
+      var bottom = inCol.reduce(function (m, e) { return Math.max(m, e.offsetTop + e.offsetHeight); }, 0);
+      if (!inCol.length || bottom + 160 < innerHeight - 90) { y = inCol.length ? bottom + 10 : 16; break; }
+      right -= 270;
+    }
+    x = Math.max(10, right - ww);
+    return [x, y];
+  }
+  function openW(id, save) {
+    var d = defOf(id);
+    if (!S.active || !d || W[id]) { if (W[id]) bump(W[id].el); return; }
+    var pinned = isPinned(id), host = pinned ? deskLayer() : document.body; if (!host) return;
+    var el = document.createElement('div'); el.className = 'snkp-w ' + (pinned ? 'pinned' : 'free') + (d.tool ? ' tool' : ''); el.dataset.w = id;
+    var sz = prefObj('size')[id];
+    el.style.width = (Array.isArray(sz) && sz[0] ? sz[0] : (d.w || 220)) + 'px';
+    if (Array.isArray(sz) && sz[1]) el.style.height = sz[1] + 'px';
+    if (prefObj('cmp')[id]) el.classList.add('compact');
+    if (prefObj('min')[id]) el.classList.add('mini');
+    el.innerHTML = '<div class="snkp-wh"><span class="t">' + esc(typeof d.title === 'function' ? d.title(id) : d.title) + '</span><span class="sum" data-noi18n></span>' +
+      '<button type="button" class="wpin" aria-pressed="' + pinned + '" title="' + (pinned ? 'Desfijar (se podrá mover y cambiar de tamaño)' : 'Fijar en el escritorio (detrás de las ventanas, sin moverse)') + '">📌</button>' +
+      '<button type="button" class="wmin" title="' + (el.classList.contains('mini') ? 'Mostrar' : 'Minimizar') + '">' + (el.classList.contains('mini') ? '▢' : '▁') + '</button>' +
+      '<button type="button" class="wcmp" title="' + (el.classList.contains('compact') ? 'Tamaño grande' : 'Tamaño compacto') + '">⤢</button>' +
+      '<button type="button" class="x" title="Quitar del escritorio">✕</button></div><div class="snkp-wb"></div>';
+    host.appendChild(el);
+    var pos = prefObj('pos')[id], xy = Array.isArray(pos) ? [pos[0], pos[1]] : defaultXY(el, d);
+    el.style.left = Math.max(0, Math.min(innerWidth - 80, xy[0])) + 'px'; el.style.top = Math.max(0, Math.min(innerHeight - 60, xy[1])) + 'px';
+    var rec = { el: el, tick: null, off: null, sum: null };
+    W[id] = rec;
+    if (!pinned) { drag(el, el.querySelector('.snkp-wh'), id); resizable(el, id); el.addEventListener('pointerdown', function () { bump(el); }); }
+    el.querySelector('.wpin').onclick = function () { setKey('pin', id, !pinned); setKey('pos', id, [el.offsetLeft, el.offsetTop]); closeW(id, false); openW(id, false); toast(!pinned ? '📌 Widget fijado en el escritorio' : 'Widget libre: arrástralo o cambia su tamaño'); };
+    el.querySelector('.wmin').onclick = function () { var on = !el.classList.contains('mini'); el.classList.toggle('mini', on); setKey('min', id, on ? true : undefined); this.textContent = on ? '▢' : '▁'; this.title = on ? 'Mostrar' : 'Minimizar'; paintSum(rec); };
+    el.querySelector('.wcmp').onclick = function () { var on = !el.classList.contains('compact'); el.classList.toggle('compact', on); setKey('cmp', id, on ? true : undefined); this.title = on ? 'Tamaño grande' : 'Tamaño compacto'; };
+    el.querySelector('.x').onclick = function () { if (d.onClose && d.onClose(id) === false) return; closeW(id, true); };
+    try { rec.off = d.render(el.querySelector('.snkp-wb'), rec, id) || null; } catch (e) { console.warn('snkPro widget', id, e); }
+    paintSum(rec);
+    if (!pinned) bump(el);
+    if (save !== false) setKey('open', id, true);
+    if (phone()) phoneLayout();
+  }
+  /* teléfono: todos los widgets van a la franja con scroll (sin arrastrar); al volver al escritorio, cada uno a su sitio */
+  function phoneLayout() {
+    var l = $('#snkProDesk'), on = phone();
+    Object.keys(W).forEach(function (id) {
+      var el = W[id].el; if (!el.classList.contains('free')) return;
+      if (on && el.parentNode !== l && deskLayer()) deskLayer().appendChild(el);
+      else if (!on && el.parentNode !== document.body) document.body.appendChild(el);
+    });
+    l = $('#snkProDesk'); if (!l) return;
+    if (on) { var tb = $('#taskbar'), r = tb ? tb.getBoundingClientRect() : null; l.style.bottom = (r && r.height ? Math.max(84, Math.round(innerHeight - r.top + 8)) : 150) + 'px'; }
+    else l.style.bottom = '';
+  }
+  window.addEventListener('resize', function () { setTimeout(phoneLayout, 120); });
+  try { new MutationObserver(function () { phoneLayout(); }).observe(document.body, { attributes: true, attributeFilter: ['class'] }); } catch (e) {}
+  function paintSum(r) { var s = r.el.querySelector('.sum'); if (!s) return; s.textContent = r.el.classList.contains('mini') && r.sum ? String(r.sum() || '') : ''; }
   var toolZ = 60;
-  function bump(el) { if (el.classList.contains('tool')) el.style.zIndex = String(++toolZ); }
+  function bump(el) { if (el.classList.contains('free')) el.style.zIndex = String(++toolZ); }
   function closeW(id, save) {
     var r = W[id]; if (!r) return;
     try { if (r.off) r.off(); } catch (e) {}
+    try { if (r.ro) r.ro.disconnect(); } catch (e) {}
     r.el.remove(); delete W[id];
-    if (save) { var o = Object.assign({}, P('open', {})); delete o[id]; setPref('open', o); }
+    if (save) setKey('open', id, undefined);
   }
   function closeAll() { Object.keys(W).forEach(function (id) { closeW(id, false); }); }
   function drag(el, bar, id) {
     var st = null;
     bar.addEventListener('pointerdown', function (e) {
-      if (e.target.closest('button')) return;
+      if (e.target.closest('button') || phone()) return;
       st = { x: e.clientX, y: e.clientY, l: el.offsetLeft, t: el.offsetTop };
       try { bar.setPointerCapture(e.pointerId); } catch (x) {}
       e.preventDefault();
@@ -232,10 +283,48 @@
       el.style.left = Math.max(0, Math.min(innerWidth - 60, st.l + e.clientX - st.x)) + 'px';
       el.style.top = Math.max(0, Math.min(innerHeight - 40, st.t + e.clientY - st.y)) + 'px';
     });
-    function end() { if (!st) return; st = null; var p = Object.assign({}, P('pos', {})); p[id] = [el.offsetLeft, el.offsetTop]; setPref('pos', p); }
+    function end() { if (!st) return; st = null; var p = snapXY(el, el.offsetLeft, el.offsetTop); el.style.left = p[0] + 'px'; el.style.top = p[1] + 'px'; setKey('pos', id, p); }
     bar.addEventListener('pointerup', end); bar.addEventListener('pointercancel', end);
   }
-  setInterval(function () { Object.keys(W).forEach(function (k) { var r = W[k]; if (r && r.tick) try { r.tick(); } catch (e) {} }); }, 1000);
+  function resizable(el, id) {
+    if (typeof ResizeObserver !== 'function') return;
+    var t = null, first = true;
+    var ro = new ResizeObserver(function () {
+      if (first) { first = false; return; }
+      if (phone() || el.classList.contains('mini')) return;
+      clearTimeout(t);
+      t = setTimeout(function () {
+        if (!el.isConnected) return;
+        var w = Math.max(150, Math.round(el.offsetWidth / GRID) * GRID), h = Math.max(80, Math.round(el.offsetHeight / GRID) * GRID);
+        el.style.width = w + 'px'; el.style.height = h + 'px'; setKey('size', id, [w, h]);
+      }, 450);
+    });
+    ro.observe(el); if (W[id]) W[id].ro = ro;
+  }
+  /* «Añadir widget»: desde el menú del botón derecho del escritorio y desde el Centro Pro */
+  var PICK = [['aclock', '🕰️', 'Reloj analógico'], ['world', '🌍', 'Reloj mundial'], ['month', '📅', 'Calendario'], ['monitor', '📈', 'Monitor'], ['kanban', '🗂️', 'Kanban'], ['focus', '🎯', 'Foco (Pomodoro)'], ['timers', '⏳', 'Temporizadores'], ['recorder', '🎥', 'Grabar pantalla'], ['passgen', '🔑', 'Contraseñas'], ['sketch', '✏️', 'Dibujo'], ['textpack', '🐍', 'Pack de texto']];
+  function picker() {
+    if (!S.active) return;
+    var old = $('#snkProPick'); if (old) old.remove();
+    var c = $('#snkProCenter'); if (c) c.remove();
+    var el = document.createElement('div'); el.id = 'snkProPick'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', 'Añadir widget');
+    document.body.appendChild(el);
+    function paint() {
+      var hidden = notes().filter(function (n) { return !W[n.id]; });
+      el.innerHTML = '<div class="hd">🧩 Añadir widget <span class="snkp-badge">PRO</span><button type="button" class="snkp-btn x">✕</button></div>' +
+        '<p style="margin:2px 0 10px;opacity:.8;font-size:.75rem">📌 Los widgets fijados se quedan en el escritorio, detrás de las ventanas. Los libres se arrastran y cambian de tamaño (se ajustan a la rejilla y a los bordes).</p>' +
+        '<div class="snkp-grid">' + PICK.map(function (x) { return '<button type="button" data-add="' + x[0] + '" class="' + (W[x[0]] ? 'on' : '') + '"><span>' + x[1] + '</span><span>' + esc(x[2]) + (W[x[0]] ? ' ✓' : '') + '</span></button>'; }).join('') +
+        '<button type="button" data-note="1"><span>🗒️</span><span>Nota nueva</span></button></div>' +
+        (hidden.length ? '<h3>Notas guardadas</h3><div class="snkp-grid">' + hidden.map(function (n) { return '<button type="button" data-show="' + esc(n.id) + '"><span>🗒️</span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc((n.t || 'Nota vacía').slice(0, 24)) + '</span></button>'; }).join('') + '</div>' : '');
+      el.querySelector('.x').onclick = function () { el.remove(); };
+      el.querySelectorAll('[data-add]').forEach(function (b) { b.onclick = function () { var id = b.dataset.add; if (W[id]) closeW(id, true); else openW(id); paint(); }; });
+      el.querySelector('[data-note]').onclick = function () { newNote(); paint(); };
+      el.querySelectorAll('[data-show]').forEach(function (b) { b.onclick = function () { openW(b.dataset.show); paint(); }; });
+    }
+    paint();
+  }
+  document.addEventListener('pointerdown', function (e) { var c = $('#snkProPick'); if (c && !c.contains(e.target)) c.remove(); }, true);
+  setInterval(function () { Object.keys(W).forEach(function (k) { var r = W[k]; if (r && r.tick) try { r.tick(); } catch (e) {} if (r) paintSum(r); }); }, 1000);
   function two(n) { return (n < 10 ? '0' : '') + n; }
 
   /* Reloj analógico */
@@ -252,7 +341,7 @@
       c.beginPath(); c.arc(0, 0, 8, 0, 7); c.fillStyle = GOLD; c.fill();
       dd.textContent = d.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
     }
-    draw(); r.tick = draw;
+    draw(); r.tick = draw; r.sum = function () { var d = new Date(); return two(d.getHours()) + ':' + two(d.getMinutes()); };
   } };
 
   /* Reloj mundial */
@@ -268,13 +357,14 @@
       tick();
     }
     function tick() { b.querySelectorAll('.tz').forEach(function (e) { try { e.textContent = new Date().toLocaleTimeString('es-ES', { timeZone: e.dataset.z, hour: '2-digit', minute: '2-digit' }); } catch (x) { e.textContent = '—'; } }); }
-    paint(); r.tick = tick;
+    paint(); r.tick = tick; r.sum = function () { var z = zs()[0]; try { return new Date().toLocaleTimeString('es-ES', { timeZone: z, hour: '2-digit', minute: '2-digit' }) + ' ' + ((ZONES.filter(function (x) { return x[0] === z; })[0] || [z, ''])[1]).slice(0, 10); } catch (e) { return ''; } };
   } };
 
   /* Calendario mensual */
   var HOL = { '01-01': 'Año Nuevo', '01-06': 'Reyes', '05-01': 'Día del Trabajo', '08-15': 'Asunción', '10-12': 'Fiesta Nacional', '11-01': 'Todos los Santos', '12-06': 'Constitución', '12-08': 'Inmaculada', '12-25': 'Navidad' };
   var MES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
-  DEFS.month = { title: '📅 Calendario Pro', w: 250, render: function (b) {
+  DEFS.month = { title: '📅 Calendario Pro', w: 250, render: function (b, r) {
+    r.sum = function () { var t = new Date(); return t.getDate() + ' ' + MES[t.getMonth()].slice(0, 3); };
     var now = new Date(), y = now.getFullYear(), m = now.getMonth();
     function paint() {
       var first = new Date(y, m, 1), start = (first.getDay() + 6) % 7, days = new Date(y, m + 1, 0).getDate(), t = new Date();
@@ -317,17 +407,15 @@
     var n = notes().filter(function (x) { return x.id === id; })[0]; if (!n) { setTimeout(function () { closeW(id, true); }, 0); return; }
     var el = r.el; el.style.background = NOTE_C[n.c % NOTE_C.length]; el.style.color = '#2b2b2b'; el.style.borderColor = 'rgba(0,0,0,.15)';
     el.querySelector('.snkp-wh').style.color = '#2b2b2b';
-    b.innerHTML = '<textarea maxlength="1000" style="width:100%;height:120px;resize:vertical;background:transparent;border:0;color:#2b2b2b;outline:none" placeholder="Escribe aquí…"></textarea><div class="snkp-row">' + NOTE_C.map(function (c, i) { return '<button type="button" data-c="' + i + '" style="width:16px;height:16px;border-radius:50%;border:1px solid rgba(0,0,0,.25);background:' + c + ';padding:0;margin:0;cursor:pointer"></button>'; }).join('') + '</div>';
+    el.querySelectorAll('.snkp-wh button').forEach(function (x) { x.style.background = 'rgba(0,0,0,.12)'; x.style.color = '#2b2b2b'; });
+    b.innerHTML = '<textarea maxlength="1000" style="width:100%;height:120px;resize:vertical;background:transparent;border:0;color:#2b2b2b;outline:none" placeholder="Escribe aquí…"></textarea><div class="snkp-row">' + NOTE_C.map(function (c, i) { return '<button type="button" data-c="' + i + '" title="Color" style="width:16px;height:16px;border-radius:50%;border:1px solid rgba(0,0,0,.25);background:' + c + ';padding:0;margin:0;cursor:pointer"></button>'; }).join('') + '<button type="button" class="del" title="Borrar la nota" style="margin-left:auto;border:0;background:rgba(0,0,0,.1);border-radius:7px;padding:1px 6px;cursor:pointer;color:#2b2b2b;width:auto">🗑</button></div>';
+    b.querySelector('.del').onclick = function () { var nn = notes().filter(function (x) { return x.id === id; })[0]; if (nn && nn.t && !confirm('¿Borrar esta nota?')) return; setPref('sticky', notes().filter(function (x) { return x.id !== id; })); ['pos', 'size', 'pin', 'min', 'cmp'].forEach(function (k) { setKey(k, id, undefined); }); closeW(id, true); };
+    r.sum = function () { var nn = notes().filter(function (x) { return x.id === id; })[0]; return nn && nn.t ? nn.t.slice(0, 18) : ''; };
     var ta = b.querySelector('textarea'); ta.value = n.t || '';
     var t = null;
     ta.oninput = function () { clearTimeout(t); t = setTimeout(function () { var a = notes().map(function (x) { return x.id === id ? Object.assign({}, x, { t: ta.value.slice(0, 1000) }) : x; }); setPref('sticky', a); }, 400); };
     b.querySelectorAll('[data-c]').forEach(function (x) { x.onclick = function () { var a = notes().map(function (y) { return y.id === id ? Object.assign({}, y, { c: +x.dataset.c }) : y; }); setPref('sticky', a); el.style.background = NOTE_C[+x.dataset.c]; }; });
-  }, onClose: function (id) {
-    var n = notes().filter(function (x) { return x.id === id; })[0];
-    if (n && n.t && !confirm('¿Borrar esta nota?')) return false;
-    setPref('sticky', notes().filter(function (x) { return x.id !== id; }));
-    var p = Object.assign({}, P('pos', {})); delete p[id]; setPref('pos', p);
-  } };
+  } }; /* ✕ solo la quita del escritorio (sigue guardada en «Añadir widget»); 🗑 la borra */
 
   /* Monitor */
   DEFS.monitor = { title: '📈 Monitor Pro', w: 230, render: function (b, r) {
@@ -338,6 +426,7 @@
     try { if (navigator.getBattery) navigator.getBattery().then(function (x) { bat = x; }); } catch (e) {}
     function tick() {
       var mem = performance.memory ? (performance.memory.usedJSHeapSize / 1048576).toFixed(0) + ' MB' : 'n/d';
+      r.sum = function () { return fps + ' FPS · ' + mem; };
       var cn = navigator.connection, net = navigator.onLine ? (cn && cn.effectiveType ? cn.effectiveType.toUpperCase() + (cn.downlink ? ' · ' + cn.downlink + ' Mb/s' : '') : 'En línea') : 'Sin conexión';
       var secs = Math.floor((Date.now() - t0) / 1000);
       var rows = [['FPS', fps], ['Memoria JS', mem], ['Batería', bat ? Math.round(bat.level * 100) + ' %' + (bat.charging ? ' ⚡' : '') : 'n/d'], ['Red', net], ['Ventanas', document.querySelectorAll('#windows .app-window').length], ['Núcleos', navigator.hardwareConcurrency || 'n/d'], ['Sesión', Math.floor(secs / 3600) + ' h ' + two(Math.floor(secs % 3600 / 60)) + ' min']];
@@ -376,6 +465,7 @@
     b.querySelector('.sk').onclick = function () { FOCUS.left = 0; r.tick(); };
     b.querySelector('.rs').onclick = function () { FOCUS = { phase: 'work', left: LEN.work, run: false, n: 0 }; paint(); };
     r.tick = function () { if (FOCUS.run) { FOCUS.left--; if (FOCUS.left <= 0) next(); } paint(); };
+    r.sum = function () { return (FOCUS.run ? '▶ ' : '⏸ ') + two(Math.floor(FOCUS.left / 60)) + ':' + two(FOCUS.left % 60); };
     paint();
   } };
 
@@ -393,6 +483,7 @@
     }
     b.querySelector('.add').onclick = function () { var m = Math.max(0, Math.min(999, parseFloat(b.querySelector('.mn').value) || 0)); if (!m) return; if (TIMERS.length >= 8) { toast('Máximo 8 temporizadores'); return; } var ms = Math.round(m * 60000); TIMERS.push({ name: b.querySelector('.nm').value.trim() || ('Temporizador ' + (TIMERS.length + 1)), total: ms, left: ms, end: Date.now() + ms, run: true, done: false }); b.querySelector('.nm').value = ''; paint(); };
     r.tick = paint; paint();
+    r.sum = function () { var now = Date.now(), run = TIMERS.filter(function (t) { return t.run && !t.done; }).sort(function (a, b) { return a.end - b.end; }); return run.length ? '⏳ ' + fmt(run[0].end - now) + (run.length > 1 ? ' +' + (run.length - 1) : '') : (TIMERS.some(function (t) { return t.done; }) ? '¡Ya!' : ''); };
   } };
 
   /* Grabador de pantalla (todo en el navegador) */
@@ -557,7 +648,7 @@
         '<h3>Colores Pro</h3><div class="snkp-sw dots"><button type="button" data-acc="" class="' + (!acc ? 'on' : '') + '" title="Color normal" style="background:#34d17a"></button>' + Object.keys(ACC).map(function (k) { return '<button type="button" data-acc="' + k + '" class="' + (acc === k ? 'on' : '') + '" title="' + ACC[k][0] + '" style="background:' + ACC[k][1] + '"></button>'; }).join('') + '</div>' +
         '<h3>Aspecto Pro</h3>' + tg('win', '🪟 Tema de ventanas Pro', false) + tg('tb', '🧊 Barra de tareas Pro', false) + tg('intro', '✨ Animación de entrada', true) +
         '<div class="snkp-row" style="margin:4px 0"><span>🖼 Marco de perfil</span><select data-sel="frame"><option value="">Ninguno</option>' + Object.keys(FRAMES).map(function (k) { return '<option value="' + k + '"' + (fr === k ? ' selected' : '') + '>' + FRAMES[k] + '</option>'; }).join('') + '</select></div>' +
-        '<h3>Widgets de escritorio</h3><div class="snkp-grid">' + [['aclock', '🕰️ Reloj analógico'], ['world', '🌍 Reloj mundial'], ['month', '📅 Calendario'], ['monitor', '📈 Monitor']].map(function (x) { return '<button type="button" data-w="' + x[0] + '" class="' + (W[x[0]] ? 'on' : '') + '">' + x[1] + '</button>'; }).join('') + '<button type="button" data-note="1">🗒️ Nueva nota</button></div>' +
+        '<h3>Widgets de escritorio</h3><div class="snkp-row" style="margin-bottom:8px"><button type="button" class="snkp-btn pri pick">🧩 Añadir widget…</button></div><div class="snkp-grid">' + [['aclock', '🕰️ Reloj analógico'], ['world', '🌍 Reloj mundial'], ['month', '📅 Calendario'], ['monitor', '📈 Monitor']].map(function (x) { return '<button type="button" data-w="' + x[0] + '" class="' + (W[x[0]] ? 'on' : '') + '">' + x[1] + '</button>'; }).join('') + '<button type="button" data-note="1">🗒️ Nueva nota</button></div>' +
         '<h3>Herramientas Pro</h3><div class="snkp-grid">' + [['kanban', '🗂️ Kanban'], ['focus', '🎯 Foco'], ['timers', '⏳ Temporizadores'], ['recorder', '🎥 Grabar pantalla'], ['passgen', '🔑 Contraseñas'], ['sketch', '✏️ Dibujo'], ['textpack', '🐍 Pack de texto']].map(function (x) { return '<button type="button" data-w="' + x[0] + '" class="' + (W[x[0]] ? 'on' : '') + '">' + x[1] + '</button>'; }).join('') + '</div>' +
         '<h3>Diseños de ventanas <small style="text-transform:none;letter-spacing:0">(Alt+Mayús+1…7)</small></h3><div class="snkp-grid">' + LAYOUTS.map(function (l) { return '<button type="button" data-lay="' + l[0] + '">' + l[1] + '</button>'; }).join('') + '</div>' +
         '<h3>Salvapantallas Pro <small style="text-transform:none;letter-spacing:0">(Ctrl+Alt+P)</small></h3><div class="snkp-row"><button type="button" class="snkp-btn" data-saver="rain">🐍 Lluvia de serpientes</button><button type="button" class="snkp-btn" data-saver="stars">🌠 Estrellas doradas</button></div>' +
@@ -570,6 +661,7 @@
       el.querySelectorAll('[data-sel]').forEach(function (b) { b.onchange = function () { var v = b.dataset.sel === 'saverIdle' ? +b.value : b.value; setPref(b.dataset.sel, v); applyBody(); }; });
       el.querySelectorAll('[data-w]').forEach(function (b) { b.onclick = function () { var id = b.dataset.w; if (W[id]) closeW(id, true); else openW(id); paint(); }; });
       el.querySelector('[data-note]').onclick = function () { newNote(); };
+      el.querySelector('.pick').onclick = function () { picker(); };
       el.querySelectorAll('[data-lay]').forEach(function (b) { b.onclick = function () { el.remove(); layout(+b.dataset.lay); }; });
       el.querySelectorAll('[data-saver]').forEach(function (b) { b.onclick = function () { el.remove(); saver(b.dataset.saver); }; });
       el.querySelector('.vm').onclick = function () { el.remove(); if (window.openApp) window.openApp('maquinas-virtuales'); };
@@ -684,7 +776,7 @@
     termStyles: function () { return Object.keys(TERM).map(function (k) { return { id: k, name: TERM[k].n, bg: TERM[k].t.background, fg: TERM[k].t.foreground }; }); },
     termStyle: function () { return S.active ? P('term', '') : ''; },
     setTermStyle: function (k) { if (!S.active) return false; setPref('term', TERM[k] ? k : ''); return true; },
-    layout: layout, saver: saver, open: function (id) { openW(id); }, close: function (id) { closeW(id, true); }, newNote: newNote,
+    layout: layout, saver: saver, open: function (id) { openW(id); }, close: function (id) { closeW(id, true); }, newNote: newNote, picker: picker, pin: function (id, on) { setKey('pin', id, !!on); if (W[id]) { closeW(id, false); openW(id, false); } },
     _state: function () { return { active: S.active, email: S.email, widgets: Object.keys(W), prefs: JSON.parse(JSON.stringify(S.prefs)) }; },
     refresh: pull
   };

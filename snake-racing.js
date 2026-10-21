@@ -6,7 +6,7 @@
   var NET_VER = '1';
   var LOGO_URL = '/static/assets/snake-racing-logo.jpg?v=202610121940';
   var THREE_URL = '/static/assets/three-r160.min.js?v=r160';
-  var R3D_URL = '/static/snake-racing-3d.js?v=202610211000';
+  var R3D_URL = '/static/snake-racing-3d.js?v=202610212130';
   var GRAV = 1150, RAMP_RISE = 44, RAMP_N = 6;
   var QNAMES = [null, 'low', 'med', 'high'];
   function smooth01(x) { x = Math.max(0, Math.min(1, x)); return x * x * (3 - 2 * x); }
@@ -481,7 +481,7 @@
       if (grid && grid.length) {
         grid.forEach(function (g, i) {
           var c = newCarZ(i, g.color, g.id === net.you ? 'Tú' : g.name, g.ai);
-          c.id = g.id;
+          c.id = g.id; c.pro = g.pro === true && !g.ai && g.id !== net.you;
           if (g.id === net.you) me = c;
           else if (!(g.ai && net.isAiHost)) c.remote = true;
           if (g.ai) c.skill = 0.86 + opts.diff * 0.06 + (i % 3) * 0.02;
@@ -804,9 +804,10 @@
         ctx.restore();
         if (c !== me) {
           ctx.font = '600 13px system-ui,sans-serif'; ctx.textAlign = 'center';
-          ctx.fillStyle = 'rgba(0,0,0,.55)'; var w = ctx.measureText(c.name).width + 10;
-          ctx.fillRect(c.x - w / 2, c.y - 44, w, 18);
-          ctx.fillStyle = '#fff'; ctx.fillText(c.name, c.x, c.y - 31);
+          ctx.fillStyle = 'rgba(0,0,0,.55)'; var w = ctx.measureText(c.name).width + 10, pw = c.pro ? 34 : 0;
+          ctx.fillRect(c.x - (w + pw) / 2, c.y - 44, w + pw, 18);
+          ctx.fillStyle = '#fff'; ctx.fillText(c.name, c.x - pw / 2, c.y - 31);
+          if (c.pro) { /* insignia PRO pública (dorada) */ var px = c.x + (w - pw) / 2 + 2; ctx.fillStyle = '#f5c542'; ctx.fillRect(px, c.y - 41, 30, 12); ctx.fillStyle = '#2a1c00'; ctx.font = '800 9px system-ui,sans-serif'; ctx.fillText('PRO', px + 15, c.y - 32); }
         }
       });
       ctx.restore();
@@ -920,7 +921,7 @@
       if (me.bestLap != null && (best == null || me.bestLap < best)) { best = me.bestLap; try { localStorage.setItem('snkRacingBest', String(best)); } catch (e) {} }
       afterRace(rk);
       var rows = rk.map(function (c, i) {
-        return '<tr class="' + (c === me ? 'me' : '') + '"><td>' + (i + 1) + '</td><td><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:' + c.color + '"></span> ' + c.name + '</td><td>' + (c.done ? fmtTime(c.finishT * 1000) : '—') + '</td><td>' + fmtTime(c.bestLap != null ? c.bestLap * 1000 : null) + '</td></tr>';
+        return '<tr class="' + (c === me ? 'me' : '') + '"><td>' + (i + 1) + '</td><td><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:' + c.color + '"></span> ' + c.name + (c.pro ? srxPB() : '') + '</td><td>' + (c.done ? fmtTime(c.finishT * 1000) : '—') + '</td><td>' + fmtTime(c.bestLap != null ? c.bestLap * 1000 : null) + '</td></tr>';
       }).join('');
       ov.innerHTML = '<div class="srx-card"><h1>' + (pos === 1 ? '🏆 ¡VICTORIA!' : 'P' + pos) + '</h1>' +
         '<table class="srx-res"><tr style="color:#8f99a8"><td>#</td><td>Piloto</td><td>Total</td><td>Mejor</td></tr>' + rows + '</table>' + tipsHtml(rk) +
@@ -1182,6 +1183,7 @@
         o.connect(g); g.connect(actx.destination); o.start(t); o.stop(t + 0.32);
       } catch (e) {}
     }
+    function srxPB() { return ' <span style="display:inline-block;white-space:nowrap;vertical-align:middle;padding:0 5px;border-radius:5px;font:800 9.5px/1.6 system-ui,sans-serif;letter-spacing:.05em;color:#2a1c00;background:linear-gradient(135deg,#ffe48a,#f5c542 55%,#c9931a)" translate="no" data-noi18n title="Snake OS VP Pro">⭐ PRO</span>'; }
     function esc(x) { return String(x == null ? '' : x).replace(/[&<>"]/g, function (m) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[m]; }); }
     function toast(html, kind) {
       var d = document.createElement('div'); d.className = 'srx-toast'; d.innerHTML = html;
@@ -1272,7 +1274,7 @@
       var isHost = L.host === net.you, mine = null;
       var li = L.players.map(function (p) {
         if (p.id === net.you) mine = p;
-        return '<li><span class="dot" style="background:' + esc(p.color) + '"></span>' + esc(p.name) + (p.id === net.you ? ' <small style="color:#8f99a8">(tú)</small>' : '') + (p.id === L.host ? ' 👑' : '') +
+        return '<li><span class="dot" style="background:' + esc(p.color) + '"></span>' + (p.pro === true ? '<span style="white-space:nowrap">' + esc(p.name) + srxPB() + '</span>' : esc(p.name)) + (p.id === net.you ? ' <small style="color:#8f99a8">(tú)</small>' : '') + (p.id === L.host ? ' 👑' : '') +
           '<span class="st' + (p.ready ? ' ok' : '') + '">' + (p.inRace ? 'en carrera' : (p.ready ? '✔ Listo' : 'esperando')) + '</span></li>';
       }).join('');
       var ai = Math.max(0, L.max - L.players.length);
@@ -1297,7 +1299,7 @@
       if (me && me.bestLap != null && (best == null || me.bestLap < best)) { best = me.bestLap; try { localStorage.setItem('snkRacingBest', String(best)); } catch (e) {} }
       var html = rows.map(function (r, i) {
         var mine = r.id === net.you;
-        return '<tr class="' + (mine ? 'me' : '') + '"><td>' + (i + 1) + '</td><td><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:' + esc(r.color) + '"></span> ' + esc(mine ? 'Tú' : r.name) + (r.ai ? ' <small style="color:#8f99a8">IA</small>' : '') + '</td><td>' + (r.t != null ? fmtTime(r.t * 1000) : '—') + '</td><td>' + fmtTime(r.best != null ? r.best * 1000 : null) + '</td></tr>';
+        return '<tr class="' + (mine ? 'me' : '') + '"><td>' + (i + 1) + '</td><td><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:' + esc(r.color) + '"></span> ' + (r.pro === true && !r.ai && !mine ? '<span style="white-space:nowrap">' + esc(r.name) + srxPB() + '</span>' : esc(mine ? 'Tú' : r.name)) + (r.ai ? ' <small style="color:#8f99a8">IA</small>' : '') + '</td><td>' + (r.t != null ? fmtTime(r.t * 1000) : '—') + '</td><td>' + fmtTime(r.best != null ? r.best * 1000 : null) + '</td></tr>';
       }).join('');
       afterRace(rankCars());
       ov.innerHTML = '<div class="srx-card"><h1>RESULTADOS</h1><table class="srx-res"><tr style="color:#8f99a8"><td>#</td><td>Piloto</td><td>Total</td><td>Mejor</td></tr>' + html + '</table>' + tipsHtml(rankCars()) +

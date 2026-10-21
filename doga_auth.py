@@ -66,6 +66,13 @@ def _k(prefix: str, v: str) -> str:
     return prefix + hashlib.sha256(v.encode("utf-8", "replace")).hexdigest()[:24]
 
 
+def _me_view(user) -> dict[str, Any]:
+    """Solo los datos de la propia cuenta con sesión en la página, con la foto o GIF de perfil y si tiene Pro."""
+    out = db.user_public(user)
+    out["pro"] = db.pro_flag(user["id"])
+    return out
+
+
 def site_user(request: Request, site: str):
     """La cuenta con sesión iniciada en esa página (o None). Para usar desde otras rutas."""
     return user_from_session(request.cookies.get(cookie_name(site)))
@@ -87,7 +94,7 @@ def build_router(visitor_ip: Callable[[Request], str], blocked_domains: set[str]
         user = site_user(request, _site(site))
         if not user:
             raise HTTPException(status_code=401, detail="No has iniciado sesión")
-        return db.user_public(user)
+        return _me_view(user)
 
     @r.post("/api/doga-auth/login")
     def login(body: dict, request: Request, response: Response):
@@ -106,7 +113,7 @@ def build_router(visitor_ip: Callable[[Request], str], blocked_domains: set[str]
             raise HTTPException(status_code=401, detail="Correo o contraseña incorrectos")
         end_session(request.cookies.get(cookie_name(site)))
         set_cookie(request, response, site, start_session(int(user["id"])))
-        return db.user_public(user)
+        return _me_view(user)
 
     @r.post("/api/doga-auth/signup")
     def signup(body: dict, request: Request, response: Response):
@@ -139,7 +146,7 @@ def build_router(visitor_ip: Callable[[Request], str], blocked_domains: set[str]
             except Exception:
                 pass
         set_cookie(request, response, site, start_session(int(user["id"])))
-        return db.user_public(user)
+        return _me_view(user)
 
     @r.post("/api/doga-auth/logout")
     def logout(body: dict, request: Request, response: Response):

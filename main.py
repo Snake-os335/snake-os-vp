@@ -3791,6 +3791,7 @@ class MetaverseRoom:
                     "email": email,
                     "name": c["user"]["name"],
                     "avatar": c["user"]["avatar"],
+                    "pro": db.pro_flag(_MV_UID.get(email)),
                     "look": db.normalize_mv_look(c.get("look")),
                     "x": c.get("x", 400.0),
                     "y": c.get("y", 400.0),
@@ -4381,6 +4382,23 @@ except Exception:
 
 
 
+def _mv_tag_pro(msgs: Any) -> Any:
+    """Insignia PRO pública del autor de cada mensaje del Metaverse (solo el booleano, calculado en el servidor)."""
+    cache: dict[str, bool] = {}
+    for m in msgs or []:
+        if not isinstance(m, dict):
+            continue
+        fe = str(m.get("from") or "").strip().lower()
+        if fe not in cache:
+            uid = _MV_UID.get(fe) if "_MV_UID" in globals() else None
+            if uid is None and fe and "@" in fe:
+                urow = db.get_user_by_email(fe)
+                uid = urow["id"] if urow else None
+            cache[fe] = db.pro_flag(uid)
+        m["from_pro"] = cache[fe]
+    return msgs
+
+
 @app.get("/api/metaverse/messages")
 def metaverse_messages(
     with_user: str | None = Query(None, alias="with"),
@@ -4396,6 +4414,7 @@ def metaverse_messages(
         world=world_id,
         limit=80,
     )
+    _mv_tag_pro(msgs)
     return {"messages": msgs, "world": world_id}
 
 
@@ -4883,6 +4902,10 @@ async def metaverse_mando_ws(websocket: WebSocket, code: str = ""):
             pass
 
 
+# email → id de cuenta de los jugadores conectados (solo para la insignia PRO pública)
+_MV_UID: dict[str, int] = {}
+
+
 @app.websocket("/api/metaverse/ws")
 async def metaverse_ws(websocket: WebSocket):
     await websocket.accept()
@@ -4921,6 +4944,7 @@ async def metaverse_ws(websocket: WebSocket):
         join_world = MetaverseRoom.normalize_world(q_world)
     else:
         join_world = MetaverseRoom.normalize_world(progress.get("world") or "plaza")
+    _MV_UID[email] = uid
     await metaverse_room.connect(email, pub, websocket, world=join_world)
 
     # Restore pose / score / room from persisted progress (skip pose if reconnecting live)
@@ -4965,7 +4989,7 @@ async def metaverse_ws(websocket: WebSocket):
             "look": avatar_wallet["look"],
         },
         "players": metaverse_room.snapshot_players(join_world),
-        "history": history,
+        "history": _mv_tag_pro(history),
         "bones": bones,
         "progress": progress,
         "party": _metaverse_party_on(),
@@ -5112,7 +5136,7 @@ async def metaverse_ws(websocket: WebSocket):
                             "type": "world_players",
                             "world": new_world,
                             "players": metaverse_room.snapshot_players(new_world),
-                            "history": hist,
+                            "history": _mv_tag_pro(hist),
                             "bones": metaverse_room.ensure_bones(new_world),
                             "party": _metaverse_party_on(),
                         },
@@ -5201,7 +5225,7 @@ async def metaverse_ws(websocket: WebSocket):
                     created_at=ts,
                     world=(None if to_email else cur_world),
                 )
-                payload = {"type": "chat", **saved}
+                payload = {"type": "chat", **saved, "from_pro": db.pro_flag(uid)}
                 if to_email is None:
                     await metaverse_room.broadcast(payload, world=cur_world)
                     if _metaverse_ai_bots is not None:
@@ -5432,7 +5456,7 @@ async def snake_racing_ws(websocket: WebSocket):
                 pass
             await _ws_close_quiet(websocket, 4403)
             return
-    await snake_racing.racing_hub.connect(websocket, email, name, kid_friends=kid_friends)
+    await snake_racing.racing_hub.connect(websocket, email, name, kid_friends=kid_friends, pro=db.pro_flag(user_row["id"]))
     try:
         while True:
             raw = await websocket.receive_text()
@@ -5830,7 +5854,7 @@ class _LosSnakesHub:
         room = self.rooms.get(uid) or {}
         for guid, gws in list(room.items()):
             gi = self.info.get(gws) or {}
-            await self.send(ws, {"t": "guest_join", "from": guid, "name": gi.get("name"), "snake": gi.get("snake")})
+            await self.send(ws, {"t": "guest_join", "from": guid, "name": gi.get("name"), "pro": db.pro_flag(guid), "snake": gi.get("snake")})
             await self.send(gws, {"t": "host_on"})
 
     async def leave(self, ws) -> None:
@@ -5891,7 +5915,7 @@ class _LosSnakesHub:
             inf["visiting"], inf["snake"] = host, _ls_clean(msg.get("snake"))
             room[uid] = ws
             await self.send(ws, {"t": "visit_ok", "host": host, "live": self.online(host)})
-            await self.to_user(host, {"t": "guest_join", "from": uid, "name": inf["name"], "snake": inf["snake"]})
+            await self.to_user(host, {"t": "guest_join", "from": uid, "name": inf["name"], "pro": db.pro_flag(uid), "snake": inf["snake"]})
         elif kind == "leave":
             await self.leave(ws)
         elif kind == "place":
@@ -5912,8 +5936,8 @@ class _LosSnakesHub:
                     continue
                 oi = self.info.get(ows) or {}
                 n += 1
-                await self.send(ws, {"t": "pjoin", "from": ouid, "name": oi.get("name"), "snake": oi.get("snake"), "p": oi.get("pos")})
-                await self.send(ows, {"t": "pjoin", "from": uid, "name": inf["name"], "snake": inf["snake"]})
+                await self.send(ws, {"t": "pjoin", "from": ouid, "name": oi.get("name"), "pro": db.pro_flag(ouid), "snake": oi.get("snake"), "p": oi.get("pos")})
+                await self.send(ows, {"t": "pjoin", "from": uid, "name": inf["name"], "pro": db.pro_flag(uid), "snake": inf["snake"]})
             await self.send(ws, {"t": "place_ok", "id": pl, "friends": n})
         elif kind == "pleave":
             await self.place_leave(ws)
@@ -6029,7 +6053,7 @@ def los_snakes_friends(user=Depends(require_user)):
         ok, reason = _ls_check_visit(uid, fid)
         st = _ls_game(fid)
         item = {"id": fid, "name": str(row.get("name") or "")[:40], "avatar": _ls_avatar(row.get("avatar")),
-                "online": _ls_hub.online(fid), "can": ok, "reason": reason}
+                "online": _ls_hub.online(fid), "can": ok, "reason": reason, "pro": db.pro_flag(fid)}
         if _ls_hub.online(fid) and _ls_can_meet(uid, fid):
             item["at"] = _ls_hub.place_of(fid)
         if ok and st is not None:
@@ -6091,7 +6115,7 @@ async def los_snakes_visit(body: LosSnakesVisitBody, user=Depends(require_user))
         await _ls_notify(int(body.host), "🐍 Los Snakes: ¡tienes visita!",
                          f"{who} ha venido a tu casa con {snake_name}." + ("" if _ls_hub.online(int(body.host)) else " Lo verás en tu buzón."))
         await _ls_hub.to_user(int(body.host), {"t": "mail"})
-    return {"ok": True, "host": {"id": int(body.host), "name": str(host["name"] if host else "")[:40]},
+    return {"ok": True, "host": {"id": int(body.host), "name": str(host["name"] if host else "")[:40], "pro": db.pro_flag(body.host)},
             "family": fam["name"], "world": fam["world"], "snakes": snakes, "live": _ls_hub.online(int(body.host))}
 
 
@@ -7338,7 +7362,7 @@ class ChatReactBody(BaseModel):
 def chat_users(user=Depends(require_user)):
     users = []
     for row in added_accounts.list_for(int(user["id"])):
-        users.append({"id": row["id"], "email": row["email"], "name": row["name"], "avatar": row["avatar"]})
+        users.append({"id": row["id"], "email": row["email"], "name": row["name"], "avatar": row["avatar"], "pro": bool(row.get("pro"))})
     return {"users": users}
 
 
@@ -7380,6 +7404,7 @@ def chat_messages(
             "email": peer["email"],
             "name": peer["name"],
             "avatar": peer["avatar"],
+            "pro": db.pro_flag(peer_id),
         },
     }
 
@@ -8033,7 +8058,7 @@ def phone_contacts(user=Depends(require_user)):
     for row in added_accounts.list_for(int(user["id"])):
         if not row.get("number"):
             continue
-        contacts.append({"id": row["id"], "name": row["name"], "avatar": row["avatar"], "number": row["number"]})
+        contacts.append({"id": row["id"], "name": row["name"], "avatar": row["avatar"], "number": row["number"], "pro": bool(row.get("pro"))})
     return {"contacts": contacts}
 
 
@@ -8088,6 +8113,7 @@ def _brief_user(row) -> dict[str, Any]:
         "name": row["name"] or "Usuario",
         "avatar": row["avatar"] or "🐶",
         "number": dog_phone.number_for(int(row["id"])),
+        "pro": db.pro_flag(row["id"]),
     }
 
 

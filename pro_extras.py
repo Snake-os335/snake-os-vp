@@ -166,6 +166,39 @@ def is_pro(uid: int) -> bool:
         return c.execute("SELECT 1 FROM pro_users WHERE uid = ?", (uid,)).fetchone() is not None
 
 
+# --- Insignia PRO pública: solo un booleano por cuenta (nunca códigos, huellas ni correos) ---
+PUB_TTL = 10.0  # segundos; al activar o dejar Pro se invalida al momento
+_pub: dict[str, Any] = {"t": 0.0, "ids": frozenset()}
+BADGE_MAX_IDS = 100
+BADGE_MAX, BADGE_WIN = 120, 60.0
+
+
+def pro_ids() -> frozenset:
+    now = time.time()
+    if now - float(_pub["t"]) > PUB_TTL:
+        try:
+            with _conn() as c:
+                ids = frozenset(int(r[0]) for r in c.execute("SELECT uid FROM pro_users").fetchall())
+        except Exception:
+            ids = _pub["ids"]
+        _pub["ids"], _pub["t"] = ids, now
+    return _pub["ids"]
+
+
+def public_pro(uid: Any) -> bool:
+    try:
+        return int(uid) in pro_ids()
+    except (TypeError, ValueError):
+        return False
+
+
+def invalidate_public() -> None:
+    _pub["t"] = 0.0
+
+
+db.PRO_FLAG = public_pro
+
+
 def build_router(require_user: Callable[..., Any], visitor_ip: Callable[[Request], str], page_user: Callable[[Request], Any]) -> APIRouter:
     r = APIRouter()
 
@@ -258,6 +291,7 @@ def build_router(require_user: Callable[..., Any], visitor_ip: Callable[[Request
                 c.rollback()
                 raise HTTPException(status_code=409, detail="Este perfil ya tiene Snake OS VP Pro activado.")
             c.commit()
+        invalidate_public()
         return status_for(uid)
 
     @r.put("/api/pro/prefs")
@@ -284,6 +318,20 @@ def build_router(require_user: Callable[..., Any], visitor_ip: Callable[[Request
         with _lock, _conn() as c:
             c.execute("DELETE FROM pro_users WHERE uid = ?", (uid,))
             c.commit()
+        invalidate_public()
         return {"active": False}
+
+    @r.get("/api/pro/badges")
+    def pro_badges(response: Response, ids: str = "", user=Depends(require_user)):
+        """Consulta por lotes: {"pro": {"<id>": true|false}} para los ids pedidos (máx. 100). Solo el booleano público."""
+        if _limited("badge:u%d" % int(user["id"]), BADGE_MAX, BADGE_WIN):
+            raise HTTPException(status_code=429, detail="Demasiadas consultas. Espera un momento.")
+        out: dict[str, bool] = {}
+        for part in str(ids or "").split(",")[:BADGE_MAX_IDS]:
+            part = part.strip()
+            if part.isdigit() and len(part) <= 12:
+                out[part] = public_pro(int(part))
+        response.headers["Cache-Control"] = "private, max-age=15"
+        return {"pro": out}
 
     return r

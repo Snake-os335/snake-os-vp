@@ -378,12 +378,13 @@
       });
     }
     function hashName(s) { var h = 0; for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0; return h; }
-    function makeLabel(name, color) {
+    function makeLabel(name, color, pro) {
       var tex = canvasTex(256, 64, function (g, w, h) {
-        g.font = '700 34px sans-serif'; var tw = g.measureText(name).width + 50;
+        g.font = '700 34px sans-serif'; var pw = pro ? 62 : 0, tw = Math.min(w - 4, g.measureText(name).width + 50 + pw);
         g.fillStyle = 'rgba(0,0,0,.55)'; var x0 = (w - tw) / 2; g.beginPath(); g.roundRect ? g.roundRect(x0, 8, tw, 48, 14) : g.rect(x0, 8, tw, 48); g.fill();
         g.fillStyle = color; g.fillRect(x0 + 12, 24, 16, 16);
-        g.fillStyle = '#fff'; g.textBaseline = 'middle'; g.fillText(name, x0 + 36, 33);
+        g.fillStyle = '#fff'; g.textBaseline = 'middle'; g.fillText(name, x0 + 36, 33, tw - 50 - pw);
+        if (pro) { /* insignia PRO pública (dorada) */ var px = x0 + tw - pw - 6; g.fillStyle = '#f5c542'; g.beginPath(); g.roundRect ? g.roundRect(px, 18, pw, 30, 7) : g.rect(px, 18, pw, 30); g.fill(); g.fillStyle = '#2a1c00'; g.font = '800 22px sans-serif'; g.textAlign = 'center'; g.fillText('PRO', px + pw / 2, 34); g.textAlign = 'left'; }
       });
       var sp = new THREE.Sprite(keep(new THREE.SpriteMaterial({ map: tex, depthWrite: false, transparent: true, sizeAttenuation: false })));
       sp.scale.set(0.14, 0.035, 1); sp.position.set(0, 70, 0); return sp;
@@ -437,7 +438,7 @@
       var blob = new THREE.Mesh(blobG, blobMat); blob.renderOrder = 1;
       scene.add(blob);
       var label = null;
-      if (!isMe) { label = makeLabel(c.name || '?', c.color); root.add(label); }
+      if (!isMe) { label = makeLabel(c.name || '?', c.color, !!c.pro); root.add(label); }
       root.traverse(function (o) { if (o.isMesh && o !== label) o.castShadow = !o.userData.keep; });
       scene.add(root);
       return { root: root, body: body, wheels: wheels, fronts: fronts, flames: flames, head: head, tongue: tongue, blob: blob, label: label, spin: 0, yawVis: 0, roll: 0, pitch: 0, t: Math.random() * 10, name: c.name };

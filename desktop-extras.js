@@ -2376,6 +2376,9 @@
     list.push({ ico: '🗂️', lab: 'Abrir Explorador', run: function () { if (window.openApp) window.openApp('explorer'); } });
     list.push({ ico: '🔎', lab: 'Buscar apps', run: function () { var b = $('tbSearchBtn'); if (b) b.click(); } });
     list.push({ ico: '📸', lab: 'Captura de pantalla', run: function () { var b = $('tbShotBtn'); if (b) b.click(); } });
+    if (window.snkPro && typeof window.snkPro.picker === 'function' && typeof window.snkPro.active === 'function' && window.snkPro.active()) {
+      list.push({ ico: '🧩', lab: 'Añadir widget', run: function () { window.snkPro.picker(); } });
+    }
     list.push({ sep: true });
     list.push({ ico: '⚙️', lab: 'Ajustes rápidos', run: function () { var b = $('tbQsBtn'); if (b) b.click(); } });
     return list;
@@ -2416,7 +2419,7 @@
       var t = e.target;
       if (!t || !t.closest) return;
       if (t.closest('#snkCtxMenu')) { e.preventDefault(); return; }
-      if (t.closest('.app-window, #taskbar, #startMenu, #qsPanel, #wpPanel, #appLauncher, #phoneNav, .notif-panel, .desktop-icon, input, textarea, [contenteditable="true"]')) return;
+      if (t.closest('.app-window, .snkp-w, #taskbar, #startMenu, #qsPanel, #wpPanel, #appLauncher, #phoneNav, .notif-panel, .desktop-icon, input, textarea, [contenteditable="true"]')) return;
       if (!t.closest('#desktop')) return;
       e.preventDefault();
       openCtx(e.clientX, e.clientY);

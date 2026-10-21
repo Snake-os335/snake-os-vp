@@ -87,6 +87,23 @@
     if (text != null) e.textContent = text;
     return e;
   }
+  /* Nombre de otra cuenta con la insignia ⭐ PRO pública si tiene Snake OS VP Pro (sin Pro: igual que antes) */
+  /* Línea de texto + insignia: el texto se recorta con «…», la insignia nunca */
+  function badgeLine(node, badge) {
+    var t = node.textContent; node.textContent = '';
+    var sp = document.createElement('span'); sp.className = 'snkpb-nm'; sp.textContent = t;
+    sp.style.cssText = 'min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+    node.appendChild(sp); node.appendChild(badge);
+    node.style.display = 'flex'; node.style.alignItems = 'center'; node.style.justifyContent = 'center'; node.style.minWidth = '0';
+  }
+  function nameEl(u, text) {
+    var d = el('div', 'dph-name', text);
+    try {
+      var b = window.snkProBadge && window.snkProBadge.el(u);
+      if (b) { d.textContent = ''; d.style.display = 'flex'; d.style.alignItems = 'center'; d.style.minWidth = '0'; d.appendChild(el('span', 'snkpb-nm', text)); d.appendChild(b); }
+    } catch (e) {}
+    return d;
+  }
 
   function avatarEl(av) {
     var wrap = el('span', 'dph-av');
@@ -298,6 +315,8 @@
       var num = digitsOf(c.number);
       matchEl._num = num;
       matchEl.textContent = (num === d ? '✓ ' : '') + (c.name || 'Perfil') + ' · ' + formatTyped(num) + (hits.length > 1 ? ' (+' + (hits.length - 1) + ')' : '');
+      matchEl.style.display = '';
+      try { var mpb = window.snkProBadge && window.snkProBadge.el(c); if (mpb) badgeLine(matchEl, mpb); } catch (eMpb) {}
       matchEl.hidden = false;
     }
     var pad = el('div', 'dph-pad');
@@ -436,6 +455,7 @@
 
     function setStatus(text, kind) {
       statusEl.textContent = text || '';
+      statusEl.style.display = '';
       statusEl.className = 'dph-status' + (kind ? ' ' + kind : '');
     }
     global.snakeOsShowCallDuration = function (label) {
@@ -488,6 +508,7 @@
       else if (incoming) setStatus(name + num + ' te está llamando', 'live');
       else if (s.phase === 'active') setStatus('En llamada con ' + name + num, 'live');
       else if (statusEl.classList.contains('live')) setStatus('Llamada terminada');
+      if (!idle && s.peerPro && window.snkProBadge) { try { var pb = window.snkProBadge.el({ pro: true }); if (pb) badgeLine(statusEl, pb); } catch (ePb) {} }
     }
 
     function dial(numberOverride, asVideo) {
@@ -570,7 +591,7 @@
       row.tabIndex = 0;
       row.appendChild(avatarEl(c.avatar));
       var info = el('div', 'dph-info');
-      info.appendChild(el('div', 'dph-name', c.name || 'Usuario'));
+      info.appendChild(nameEl(c, c.name || 'Usuario'));
       info.appendChild(el('div', 'dph-sub' + (subCls ? ' ' + subCls : ''), subText));
       row.appendChild(info);
       if (c.number) {
@@ -673,7 +694,7 @@
         var row = el('div', 'dph-req');
         row.appendChild(avatarEl(u.avatar));
         var info = el('div', 'dph-info');
-        info.appendChild(el('div', 'dph-name', u.name || u.email || 'Cuenta'));
+        info.appendChild(nameEl(u, u.name || u.email || 'Cuenta'));
         info.appendChild(el('div', 'dph-sub', incoming ? 'Quiere añadirte' : 'Esperando que acepte'));
         row.appendChild(info);
         var actions = el('div', 'dph-req-actions');

@@ -2054,6 +2054,20 @@ def init_chat_tables(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE chat_messages ADD COLUMN image TEXT")
 
 
+# Insignia PRO pública (Snake OS VP Pro): pro_extras registra aquí su comprobación; por defecto, False.
+PRO_FLAG = None
+
+
+def pro_flag(user_id: Any) -> bool:
+    fn = PRO_FLAG
+    if fn is None or user_id is None:
+        return False
+    try:
+        return bool(fn(int(user_id)))
+    except Exception:
+        return False
+
+
 def _user_brief_from_row(row: sqlite3.Row | None) -> dict[str, Any] | None:
     if not row:
         return None
@@ -2062,6 +2076,7 @@ def _user_brief_from_row(row: sqlite3.Row | None) -> dict[str, Any] | None:
         "email": row["email"],
         "name": row["name"],
         "avatar": row["avatar"],
+        "pro": pro_flag(row["id"]),
     }
 
 
@@ -2289,12 +2304,14 @@ def list_chat_messages(
                     "email": r["from_email"],
                     "name": r["from_name"],
                     "avatar": r["from_avatar"],
+                    "pro": pro_flag(r["from_user_id"]),
                 },
                 "to": {
                     "id": int(r["to_user_id"]),
                     "email": r["to_email"],
                     "name": r["to_name"],
                     "avatar": r["to_avatar"],
+                    "pro": pro_flag(r["to_user_id"]),
                 },
             }
         )

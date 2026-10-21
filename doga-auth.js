@@ -12,6 +12,15 @@
  */
 (function () {
   'use strict';
+  /* Foto de perfil de Snake OS (o GIF animado: se muestra tal cual con <img>), emoji o, si no hay, la inicial */
+  function isPhoto(a) { a = String(a || ''); return a.indexOf('/api/avatars/') === 0 || /^data:image\/(png|jpe?g|gif|webp);base64,/i.test(a); }
+  function initial(u) { var n = String((u && (u.name || u.email)) || '?').trim(); return (Array.from ? Array.from(n)[0] : n.charAt(0)).toUpperCase() || '?'; }
+  function avatarHtml(u) {
+    var a = String((u && u.avatar) || '').trim();
+    if (isPhoto(a)) return '<span class="da-av da-photo"><img alt="" src="' + a.replace(/"/g, '&quot;') + '"></span>';
+    if (a && a.length <= 16 && !/[<>"']/.test(a)) return '<span class="da-av">' + a + '</span>';
+    return '<span class="da-av da-ini">' + initial(u).replace(/[<>&"']/g, '') + '</span>';
+  }
   if (window.DogaAuth) return;
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function req(path, opts) {
@@ -43,7 +52,7 @@
     '.doga-auth .da-hint{font-size:.78rem;opacity:.7;margin:0}' +
     '.doga-auth .da-user{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;background:rgba(255,255,255,.07)}' +
     '.doga-auth .da-user b{display:block}.doga-auth .da-user span{font-size:.8rem;opacity:.75}' +
-    '.doga-auth .da-user .da-av{font-size:1.6rem}.doga-auth .da-user button{margin-left:auto;border:1px solid rgba(255,255,255,.2);background:transparent;color:inherit;border-radius:9px;padding:7px 10px;font:inherit;font-size:.8rem;cursor:pointer}';
+    '.doga-auth .da-user .da-av{font-size:1.6rem;flex:0 0 44px;width:44px;height:44px;border-radius:50%;overflow:hidden;display:inline-flex;align-items:center;justify-content:center;background:rgba(255,255,255,.08)}.doga-auth .da-user .da-av img{width:100%;height:100%;object-fit:cover;display:block}.doga-auth .da-user .da-ini{font:800 1.15rem/1 system-ui,sans-serif;color:#05160c;background:linear-gradient(135deg,#7df0a8,#34d17a)}.doga-auth .da-who{min-width:0;flex:1 1 auto}.doga-auth .da-name{display:flex!important;align-items:center;min-width:0}.doga-auth .da-nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;font-size:inherit!important;opacity:1!important}.doga-auth .da-mail{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.doga-auth .da-pro{flex:0 0 auto;white-space:nowrap;margin-left:6px;padding:0 6px;border-radius:5px;font:800 10px/1.7 system-ui,sans-serif!important;letter-spacing:.05em;opacity:1!important;color:#2a1c00;background:linear-gradient(135deg,#ffe48a,#f5c542 55%,#c9931a)}.doga-auth .da-user button{margin-left:auto;border:1px solid rgba(255,255,255,.2);background:transparent;color:inherit;border-radius:9px;padding:7px 10px;font:inherit;font-size:.8rem;cursor:pointer}';
   function addCss() { if (document.getElementById('dogaAuthCss')) return; var s = document.createElement('style'); s.id = 'dogaAuthCss'; s.textContent = CSS; document.head.appendChild(s); }
 
   function create(site) {
@@ -67,7 +76,9 @@
           var t = TXT[lang()];
           el.classList.add('doga-auth');
           if (user) {
-            el.innerHTML = '<div class="da-user"><span class="da-av">' + esc(user.avatar || '🐶') + '</span><div><span>' + t.as + '</span><b translate="no">' + esc(user.name) + '</b><span translate="no">' + esc(user.email) + '</span></div><button type="button" class="da-out">' + t.out + '</button></div>';
+            el.innerHTML = '<div class="da-user">' + avatarHtml(user) + '<div class="da-who"><span>' + t.as + '</span><b translate="no" class="da-name"><span class="da-nm">' + esc(user.name) + '</span>' + (user.pro === true ? '<span class="da-pro" data-noi18n translate="no" title="Snake OS VP Pro">⭐ PRO</span>' : '') + '</b><span translate="no" class="da-mail">' + esc(user.email) + '</span></div><button type="button" class="da-out">' + t.out + '</button></div>';
+            var img = el.querySelector('.da-av img');
+            if (img) img.onerror = function () { var sp = img.parentNode; if (sp) { sp.className = 'da-av da-ini'; sp.textContent = initial(user); } };
             el.querySelector('.da-out').onclick = function () { api.logout().then(paint); };
             return;
           }

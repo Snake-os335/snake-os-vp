@@ -1632,6 +1632,7 @@ function handleRealtimePayload(msg) {
       peerName: dcCall.peer && dcCall.peer.name ? dcCall.peer.name : '',
       peerNumber: dcCall.peer && dcCall.peer.number ? String(dcCall.peer.number) : '',
       peerAvatar: dcCall.peer && dcCall.peer.avatar ? String(dcCall.peer.avatar) : '',
+      peerPro: !!(dcCall.peer && window.snkProBadge && window.snkProBadge.isPro(dcCall.peer)),
       media: dcCall.media === 'video' ? 'video' : 'audio'
     };
   }
@@ -2038,6 +2039,8 @@ function handleRealtimePayload(msg) {
     }
     mini.classList.add('show');
   }
+  /* Insignia ⭐ PRO pública junto al nombre (snake-pro-badge.js); sin Pro devuelve el nombre tal cual */
+  function dcPB(u, nameHtml) { try { return window.snkProBadge ? window.snkProBadge.name(u, nameHtml) : nameHtml; } catch (e) { return nameHtml; } }
   function showDcBanner(text, buttons) {
     var el = document.getElementById('dcCallBanner');
     if (!el) {
@@ -2069,6 +2072,7 @@ function handleRealtimePayload(msg) {
     span.className = 'dc-call-text';
     span.textContent = text || '';
     el.appendChild(span);
+    try { if (dcCall.phase !== 'idle' && dcCall.peer && window.snkProBadge) { var pb = window.snkProBadge.el(dcCall.peer); if (pb) { var ptx = el.querySelector('.dc-call-text'); (ptx || el).appendChild(pb); } } } catch (ePb) {}
     (buttons || []).forEach(function (b) {
       var btn = document.createElement('button');
       btn.type = 'button';
@@ -2761,7 +2765,8 @@ function handleRealtimePayload(msg) {
       name: peer.name || email || String(peer.number || ''),
       avatar: peer.avatar || '🐶',
       id: peer.id,
-      number: peer.number ? String(peer.number) : ''
+      number: peer.number ? String(peer.number) : '',
+      pro: typeof peer.pro === 'boolean' ? peer.pro : undefined
     };
     emitDcCall();
     showDcBanner(dcOutgoingText(), [{ label: 'Colgar', cls: 'no', fn: dcHangup }]);
@@ -3314,7 +3319,8 @@ function handleRealtimePayload(msg) {
         name: msg.from.name || msg.from.email || 'Alguien',
         avatar: msg.from.avatar || '🐶',
         id: msg.from.id,
-        number: msg.from.number ? String(msg.from.number) : ''
+        number: msg.from.number ? String(msg.from.number) : '',
+        pro: typeof msg.from.pro === 'boolean' ? msg.from.pro : undefined
       };
       dcPushRingStop('');
       if (dcTakePendingCallAction(msg.callId)) return true;
@@ -3335,6 +3341,7 @@ function handleRealtimePayload(msg) {
           dcCall.peer.avatar = msg.to.avatar || dcCall.peer.avatar;
           dcCall.peer.id = msg.to.id || dcCall.peer.id;
           if (msg.to.number) dcCall.peer.number = String(msg.to.number);
+          if (typeof msg.to.pro === 'boolean') dcCall.peer.pro = msg.to.pro;
         }
         if (msg.media === 'video' || msg.media === 'audio') dcCall.media = msg.media;
         emitDcCall();
@@ -3352,6 +3359,7 @@ function handleRealtimePayload(msg) {
         dcCall.peer = dcCall.peer || {};
         if (msg.peer.email) dcCall.peer.email = String(msg.peer.email).toLowerCase();
         if (msg.peer.name) dcCall.peer.name = msg.peer.name;
+        if (typeof msg.peer.pro === 'boolean') dcCall.peer.pro = msg.peer.pro;
       }
       emitDcCall();
       dcActiveBanner();
@@ -3806,7 +3814,7 @@ function handleRealtimePayload(msg) {
       var av = (msg.from && msg.from.avatar) || '🐶';
       var meta = document.createElement('div');
       meta.className = 'dc-msg-meta';
-      meta.innerHTML = '<span class="dc-av-inline">' + avHtml(av) + '</span> ' + esc(name) + ' · ' + esc(fmtTime(msg.ts)) + ' ' + tickHtml(msg);
+      meta.innerHTML = '<span class="dc-av-inline">' + avHtml(av) + '</span> ' + (system || mine ? esc(name) : dcPB(msg.from, esc(name))) + ' · ' + esc(fmtTime(msg.ts)) + ' ' + tickHtml(msg);
       if (msg.replyTo) {
         var q = document.createElement('button');
         q.type = 'button';
@@ -3927,7 +3935,7 @@ function handleRealtimePayload(msg) {
         box.innerHTML =
           '<span class="dc-av">' + avHtml(u.avatar || '🐶') + '</span>' +
           '<span class="dc-user-meta">' +
-            '<span class="dc-user-name">' + esc(u.name || u.email || 'Cuenta') + '</span>' +
+            '<span class="dc-user-name">' + dcPB(u, esc(u.name || u.email || 'Cuenta')) + '</span>' +
             '<span class="dc-user-email">' + (kind === 'in' ? 'Quiere añadirte' : 'Esperando que acepte') + '</span>' +
           '</span>';
         var actions = document.createElement('span');
@@ -4014,7 +4022,7 @@ function handleRealtimePayload(msg) {
           btn.innerHTML =
             '<span class="dc-av">' + avHtml(u.avatar || '🐶') + '</span>' +
             '<span class="dc-user-meta">' +
-              '<span class="dc-user-name">' + esc(u.name || u.email) + '</span>' +
+              '<span class="dc-user-name">' + dcPB(u, esc(u.name || u.email)) + '</span>' +
               '<span class="dc-user-email">' + esc(u.email) + '</span>' +
             '</span>';
           btn.appendChild(removeBtn(u));
@@ -4047,7 +4055,7 @@ function handleRealtimePayload(msg) {
           btn.innerHTML =
             '<span class="dc-av">' + avHtml(u.avatar || '🐶') + '</span>' +
             '<span class="dc-user-meta">' +
-              '<span class="dc-user-name">' + esc(u.name || u.email) + badge + '</span>' +
+              '<span class="dc-user-name">' + dcPB(u, esc(u.name || u.email)) + badge + '</span>' +
               '<span class="dc-user-email">' + esc(last.image ? '📷 Foto' : (last.text || '')) + '</span>' +
             '</span>';
           btn.setAttribute('data-peer', String(u.email || '').toLowerCase());
@@ -4159,7 +4167,7 @@ function handleRealtimePayload(msg) {
       headEl.innerHTML =
         '<div class="dc-head-row">' +
           '<div class="dc-head-who">' +
-            '<div class="dc-head-name-row"><button type="button" class="dc-back" data-dc="back" title="Volver a la lista" aria-label="Volver a la lista">←</button><span class="dc-head-av">' + avHtml(u.avatar || '🐶') + '</span><span>' + esc(u.name || u.email) + '</span></div>' +
+            '<div class="dc-head-name-row"><button type="button" class="dc-back" data-dc="back" title="Volver a la lista" aria-label="Volver a la lista">←</button><span class="dc-head-av">' + avHtml(u.avatar || '🐶') + '</span><span>' + dcPB(u, esc(u.name || u.email)) + '</span></div>' +
             '<span class="dc-head-email">' + esc(u.email) + ' <span class="dc-typing" data-dc="typing" aria-live="polite"></span></span></div>' +
           '<div class="dc-head-actions">' +
             '<button type="button" class="dc-call-btn" data-dc="msearch" title="Buscar en esta conversación" aria-label="Buscar en esta conversación">🔎</button>' +

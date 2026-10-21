@@ -869,6 +869,7 @@
       var div = document.createElement('div');
       div.className = 'mv-msg' + (msg.from === user.email ? ' me' : '');
       var who = msg.from === user.email ? 'Tú' : esc(msg.from_name || msg.from);
+      if (msg.from !== user.email && msg.from_pro === true && !msg.bot && window.snkProBadge) who = window.snkProBadge.name({ pro: true }, who);
       var meta = who + (isDm ? ' · privado' : '') + ' · ' + formatTime(msg.created_at || msg.ts || Date.now() / 1000);
       div.innerHTML = '<div class="mv-msg-meta">' + meta + '</div><div class="mv-msg-text">' + esc(msg.text) + '</div>';
       messagesEl.appendChild(div);
@@ -1056,7 +1057,7 @@
         var vIcon = p.voice ? (speakingUntil[p.email] && speakingUntil[p.email] > performance.now() ? '🔴' : '🎤') : '';
         ensureHeadAvCss();
         btn.innerHTML = '<span class="mv-u-av">' + avatarListHtml(p.email === user.email ? myAvatar() : p.avatar) + '</span><span class="mv-u-name">' +
-          esc(p.name) + (p.bot ? ' · IA' : '') + roomHint + '</span>' + (p.email === user.email ? '<span class="mv-u-you">tú</span>' : '') + (vIcon ? '<span class="mv-u-voice">' + vIcon + '</span>' : '') + (peerMuted ? '<span class="mv-u-muted" title="Silenciado para ti">🔇</span>' : '');
+          esc(p.name) + (p.bot ? ' · IA' : '') + roomHint + '</span>' + (p.pro === true && !p.bot && p.email !== user.email && window.snkProBadge ? window.snkProBadge.html({ pro: true }) : '') + (p.email === user.email ? '<span class="mv-u-you">tú</span>' : '') + (vIcon ? '<span class="mv-u-voice">' + vIcon + '</span>' : '') + (peerMuted ? '<span class="mv-u-muted" title="Silenciado para ti">🔇</span>' : '');
         if (p.email !== user.email && !p.bot) {
           btn.addEventListener('click', function () { selectPeer(p.email, p.name); });
         }
@@ -2980,6 +2981,14 @@
       if (el._txt !== text) {
         el._txt = text;
         el._txtEl.textContent = text;
+        if (el._pbEl) el._txtEl.appendChild(el._pbEl);
+      }
+      /* Insignia ⭐ PRO pública de otros jugadores (snake-pro-badge.js) */
+      var wantPro = arguments[3] === true;
+      if (el._pro !== wantPro) {
+        el._pro = wantPro;
+        if (el._pbEl) { try { el._pbEl.remove(); } catch (ePb0) {} el._pbEl = null; }
+        if (wantPro && window.snkProBadge) { el._pbEl = window.snkProBadge.el({ pro: true }); if (el._pbEl) el._txtEl.appendChild(el._pbEl); }
       }
       setHeadAvatar(el, av);
       return el;
@@ -3627,7 +3636,7 @@
         var p = players[email];
         if (!p) return;
         syncOne(email, p.avatar, false, (p.look && p.look.skin) ? p.look : null);
-        ensurePlayerLabel(email, (p.name || email) + (p.bot ? ' · IA' : ''), p.avatar || '🐶');
+        ensurePlayerLabel(email, (p.name || email) + (p.bot ? ' · IA' : ''), p.avatar || '🐶', p.pro === true && !p.bot);
       });
       Object.keys(avatarMeshes).forEach(function (email) {
         if (email !== user.email && !players[email]) {
@@ -5485,6 +5494,7 @@
         avEl.textContent = String(av).slice(0, 16);
       }
       wrap.querySelector('[data-mvx="name"]').textContent = p.name || 'Jugador';
+      try { if (p.pro === true && !p.bot && window.snkProBadge) { var mvpb = window.snkProBadge.el({ pro: true }); if (mvpb) wrap.querySelector('[data-mvx="name"]').appendChild(mvpb); } } catch (eMvPb) {}
       var roomTxt = '';
       if (p.room) {
         var rr = EVENT_ROOMS.filter(function (r) { return r.id === p.room; })[0];
