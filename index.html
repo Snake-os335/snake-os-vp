@@ -76,6 +76,7 @@ window.SNAKE_OS_CHANGES=[
   'Los Snakes: se recuperan las familias que habían perdido miembros tras una visita',
   'Snake Racing: comentarios de la IA en inglés cuando Snake OS está en inglés',
   'Snake Racing ahora es en 3D, con karts, saltos y circuitos nuevos',
+  'Nueva app Máquinas virtuales: Ubuntu ligero (Linux Buildroot) que funciona dentro de tu navegador, sin red; se configura una vez y queda fijo en tu perfil',
   'Doganiero Store: revisados todos los juegos; todos se instalan y se juegan dentro de Snake OS',
   'Puntero Snake para todo: ayuda, prohibido, copiar, zoom, agarrar, cruz, redimensionar y más; ya no aparece nunca el cursor del sistema'
  ],en:[
@@ -101,6 +102,7 @@ window.SNAKE_OS_CHANGES=[
   'Los Snakes: families that had lost members after a visit are restored',
   'Snake Racing: AI commentary in English when Snake OS is in English',
   'Snake Racing is now 3D with karts, jumps and new tracks',
+  'New Virtual machines app: lightweight Ubuntu (Buildroot Linux) running inside your browser, offline; set it up once and it stays fixed on your profile',
   'Doganiero Store: every game was checked; all of them install and play inside Snake OS',
   'Snake pointer for everything: help, not allowed, copy, zoom, grab, crosshair, resize and more; the system cursor never shows up'
  ]},
@@ -156,6 +158,7 @@ window.SNAKE_OS_CHANGES=[
 <script src="/static/snake-game-matrix.js?v=202610112000" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-racing.js?v=202610180010" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/los-snakes.js?v=202610210900"></script>
+<script src="/static/snake-vm.js?v=202610210900"></script>
 <script src="/static/snake-i18n-dict.js?v=202610210900" defer></script>
 <script src="/static/snake-update-screen.js?v=202610180010"></script>
 <script src="/static/snake-i18n.js?v=202610161800" defer></script>
@@ -14741,6 +14744,13 @@ function renderStoreApp(container){
         return function(){};
       }
       return window.renderLosSnakesApp(body);
+    } },
+    'maquinas-virtuales': { title:'Máquinas virtuales', icon:'🖥️', width:760, height:540, render: function(body){
+      if(typeof window.renderSnakeVMApp !== 'function'){
+        body.innerHTML = '<div style="padding:16px;color:#ff8a7a">No se pudo cargar Máquinas virtuales. Recarga la página.</div>';
+        return function(){};
+      }
+      return window.renderSnakeVMApp(body);
     } },
     'snake-racing': { title:'Snake Racing', icon:'🏁', iconImg: SNAKE_RACING_ICON_URL, iconImgClass: 'snake-race-logo', iconHtml: appIconImgHtml(SNAKE_RACING_ICON_URL, 'snake-race-logo'), width:680, height:620, render: function(body){
       if(typeof window.renderSnakeRacingApp !== 'function'){

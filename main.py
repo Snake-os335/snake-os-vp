@@ -9084,6 +9084,7 @@ class _PublicStaticFiles(StaticFiles):
         "mp3", "m4a", "ogg", "wav", "mp4", "webm", "woff", "woff2", "ttf", "webmanifest",
     }
     DENY_PREFIXES = ("requirements", "dockerfile", "docker-compose", ".env", "env")
+    VM_FILES = {"libv86.js", "v86.wasm", "seabios.bin", "vgabios.bin", "linux-bzimage.bin"}
 
     @classmethod
     def is_public(cls, path: str) -> bool:
@@ -9094,9 +9095,13 @@ class _PublicStaticFiles(StaticFiles):
         for part in parts:
             if part == ".." or part.startswith(".") or part.startswith("_"):
                 return False
-        if "/".join(parts[:-1]) not in cls.ALLOWED_DIRS:
-            return False
+        folder = "/".join(parts[:-1])
         name = parts[-1].lower()
+        # Máquinas virtuales (2026.13): el emulador corre en el navegador; el servidor solo sirve estos archivos fijos
+        if folder == "assets/vm":
+            return name in cls.VM_FILES
+        if folder not in cls.ALLOWED_DIRS:
+            return False
         if name in ("doganiero-book.js", "doganiero-book-live.js"):
             return False
         if ".bak" in name or name.startswith(cls.DENY_PREFIXES):
