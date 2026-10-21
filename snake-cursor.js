@@ -24,11 +24,12 @@
     alias: [3, 2, 'alias'], ctx: [3, 2, 'context-menu'], zoomin: [12, 12, 'zoom-in'], zoomout: [12, 12, 'zoom-out'], col: [16, 16, 'col-resize'], row: [16, 16, 'row-resize']
   };
   var MAP = {
-    'default': 'arrow', auto: 'arrow', pointer: 'hand', grab: 'grab', grabbing: 'grabbing', text: 'text', 'vertical-text': 'vtext',
+    'default': 'arrow', auto: 'arrow', pointer: 'hand', grab: 'hand', grabbing: 'hand', text: 'text', 'vertical-text': 'vtext',
     wait: 'wait', progress: 'progress', move: 'move', 'all-scroll': 'allscroll',
     help: 'help', 'not-allowed': 'notallowed', 'no-drop': 'nodrop', crosshair: 'crosshair', cell: 'cell', copy: 'copy', alias: 'alias',
     'context-menu': 'ctx', 'zoom-in': 'zoomin', 'zoom-out': 'zoomout', '-webkit-zoom-in': 'zoomin', '-webkit-zoom-out': 'zoomout',
-    '-webkit-grab': 'grab', '-webkit-grabbing': 'grabbing',
+    /* 2026.13 (arreglo): agarrar/arrastrar usa la misma cabeza de serpiente de siempre (mano), no la de boca abierta */
+    '-webkit-grab': 'hand', '-webkit-grabbing': 'hand',
     'ew-resize': 'ew', 'e-resize': 'ew', 'w-resize': 'ew', 'col-resize': 'col',
     'ns-resize': 'ns', 'n-resize': 'ns', 's-resize': 'ns', 'row-resize': 'row',
     'nwse-resize': 'nwse', 'nw-resize': 'nwse', 'se-resize': 'nwse',
@@ -71,9 +72,8 @@
     s += 'html.snk-cur .xterm.enable-mouse-events{cursor:var(--snkc-arrow);}\n';
     s += 'html.snk-cur .xterm .xterm-cursor-pointer,html.snk-cur .xterm.xterm-cursor-pointer{cursor:var(--snkc-hand);}\n';
     s += ':where(html.snk-cur) .mv-root.mv-fp{cursor:auto;}\n';
-    /* elementos desactivados y arrastre nativo */
+    /* elementos desactivados */
     s += 'html.snk-cur :is(button,input,select,textarea,a,[role=button])' + NOFP + ':is(:disabled,[aria-disabled=true]){cursor:var(--snkc-notallowed);}\n';
-    s += 'html.snk-cur [draggable=true]' + NOFP + '{cursor:var(--snkc-grab);}\n';
     /* Cursor grande: sustituye la flecha negra de 40 px por la versión Snake de 48 px */
     s += bigU + '{cursor:var(--snkc-arrow) !important;}\n';
     s += bigU + ' *' + NOFP + ':not([data-snkc]){cursor:inherit !important;}\n';
