@@ -4755,6 +4755,12 @@ def mando_pro_page():
     )
 
 
+@app.get("/pro")
+def snake_os_pro_page():
+    return FileResponse("snake-os-pro.html", media_type="text/html; charset=utf-8",
+                        headers={"Cache-Control": "no-cache", "CDN-Cache-Control": "no-cache"})
+
+
 @app.post("/api/metaverse/mando-pro/pair")
 def mando_pro_pair(request: Request, user=Depends(require_user)):
     """Desktop Metaverse creates/refreshes a pair code + URLs for the phone page."""
