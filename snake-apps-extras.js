@@ -261,6 +261,7 @@
       toast('Preferencias restablecidas');
     } });
     row('atajos', 'keys', '⌨️', 'Atajos de teclado', 'Ctrl+K o Ctrl+Espacio buscar · Alt+V portapapeles · Ctrl+Alt+← / → escritorios · Ctrl+Shift+S captura · Alt+Q cambiar de app · S abrir Snakemoji (fuera de campos de texto, Code Lab, Terminal, juegos y Metaverse) · Esc cerrar menús · Clic derecho: menú del escritorio · Móvil: desliza hacia abajo desde la barra superior', 'info');
+    row('acerca', 'manual', '📘', 'Manual de instrucciones', 'Descarga en PDF el manual para aprender a usar Snake OS: escritorio, ajustes y todas las apps', 'action', { btn: 'Descargar PDF', run: function () { if (window.snkManual) window.snkManual.download(); else toast('El manual no está disponible ahora mismo'); } });
     row('acerca', 'about', 'ℹ️', 'Acerca de Snake OS', SNK_VERSION + ' · powered by Doganiero OS! 3', 'about');
     return rows;
   }

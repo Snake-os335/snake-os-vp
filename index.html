@@ -145,7 +145,7 @@ window.SNAKE_OS_CHANGES=[
 <script src="/static/doganiero-tv.js?v=202610091150" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/prism.js?v=202610080900" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/doganiero-phone.js?v=202610180120" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
-<script src="/static/snake-apps-extras.js?v=202610210900" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
+<script src="/static/snake-apps-extras.js?v=202610212130" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-cursor.js?v=202610211605" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-emoji-data.js?v=202610100831" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-emoji.js?v=202610140900" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
@@ -159,7 +159,8 @@ window.SNAKE_OS_CHANGES=[
 <script src="/static/snake-racing.js?v=202610211000" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/los-snakes.js?v=202610211710"></script>
 <script src="/static/snake-vm.js?v=202610211900"></script>
-<script src="/static/snake-i18n-dict.js?v=202610211710" defer></script>
+<script src="/static/snake-manual.js?v=202610212130"></script>
+<script src="/static/snake-i18n-dict.js?v=202610212130" defer></script>
 <script src="/static/snake-update-screen.js?v=202610180010"></script>
 <script src="/static/snake-i18n.js?v=202610211710" defer></script>
 <script src="/static/snake-taskbar11.js?v=202610180130" defer></script>
@@ -6486,6 +6487,7 @@ function buildIcons(){
           finishOsInstall._busy = false;
         }
         try { if(window.snkOsxProfileReady) window.snkOsxProfileReady(); } catch(eK){}
+        try { if(window.snkManualNewAccount) window.snkManualNewAccount(); } catch(eMan){} // manual en PDF: preguntar una vez (snake-manual.js)
       }, 2800);
     };
     api('/api/setup/done', { method:'POST' }).then(function(u){
