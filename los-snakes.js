@@ -42,6 +42,21 @@
     adulto: { n: 'Adulto', s: 1, next: 'anciano', days: 28 },
     anciano: { n: 'Anciano', s: 0.95 }
   };
+  // Crecimiento gradual según la edad (ageD = días dentro de la etapa). Curva suave: cría pequeña y corta → joven → adulta (tope); anciana mantiene el tamaño adulto.
+  var STAGE_N = { bebe: 'Cría', joven: 'Joven', adulto: 'Adulta', anciano: 'Anciana' };
+  var GROW = { bebe: [0.46, 0.64], joven: [0.64, 0.9], adulto: [0.9, 1, 4], anciano: [1, 1] };
+  function growT(sn) {
+    var A = AGES[sn.age] || AGES.adulto, G = GROW[sn.age] || GROW.adulto, d = +sn.ageD;
+    if (!isFinite(d)) return 0.5; d = Math.max(0, d);
+    if (S && !S.visit && S.snakes && S.snakes.indexOf(sn) >= 0) d += ((S.time || 0) % DAY) / DAY; // avance dentro del día
+    return Math.min(1, d / (G[2] || A.days || 1));
+  }
+  function sizeOf(sn) {
+    if (!sn) return 1; if (sn._g != null && isFinite(+sn._g)) return Math.max(0.4, Math.min(1, +sn._g));
+    if (!sn.age) return 1; var G = GROW[sn.age] || GROW.adulto, t = growT(sn);
+    return G[0] + (G[1] - G[0]) * t * (2 - t);
+  }
+  function babyness(s) { return Math.max(0, Math.min(1, (0.78 - s) / 0.32)); } // proporciones de cría (cabeza y ojos grandes) que se van perdiendo al crecer
   var SKILLS = { cocina: 'Cocina', logica: 'Lógica', carisma: 'Carisma', sigilo: 'Sigilo', constriccion: 'Constricción', olfato: 'Olfato' };
   var PATTERNS = { lisa: 'Lisa', rayas: 'Rayas', manchas: 'Manchas', anillos: 'Anillos', rombos: 'Rombos', degradado: 'Degradado', brillo: 'Brillo nacarado', estrellas: 'Estrellas' };
   var SEASONS = [
@@ -1262,7 +1277,7 @@
     c.setLineDash([]);
   }
   function drawSnake(c, sn, wx, wy) {
-    var s = AGES[sn.age] ? AGES[sn.age].s : 1, a = sn.q && sn.q[0], def = a ? (ACT[a.id] || {}) : {};
+    var s = sizeOf(sn), bb = babyness(s), a = sn.q && sn.q[0], def = a ? (ACT[a.id] || {}) : {};
     var moving = sn._moving && performance.now() - sn._moving < 150;
     var sleeping = (a && a.phase === 'do' && def.sleeping) || sn._sleep;
     var col = sn.age === 'anciano' ? mix(sn.color, '#9aa3a8', 0.25) : sn.color, dark = shade(col, -0.45);
@@ -1271,7 +1286,7 @@
     if (a && a.id === 'stealth' && a.phase === 'do') c.globalAlpha = 0.45;
     c.scale(sn.fx < 0 ? -s : s, s);
     c.lineCap = 'round'; c.lineJoin = 'round';
-    var W = sn.age === 'bebe' ? 10 : 8.5;
+    var W = 8.5 + 1.5 * bb;
     if (sleeping) {
       c.beginPath(); c.moveTo(-14, -2); c.bezierCurveTo(-16, -12, 14, -12, 14, -3); c.bezierCurveTo(14, 5, -10, 5, -9, -2); c.bezierCurveTo(-8, -7, 6, -8, 6, -3);
       c.strokeStyle = dark; c.lineWidth = W + 3; c.stroke(); c.strokeStyle = col; c.lineWidth = W; c.stroke(); patternStroke(c, { color: col, pattern: sn.pattern }, W);
@@ -1298,9 +1313,9 @@
     c.beginPath(); c.moveTo(-3, -1); c.bezierCurveTo(-1, 4 + wig, 8 + wig, -12, hx - 4, hy + 8);
     c.strokeStyle = 'rgba(255,255,255,.28)'; c.lineWidth = W * 0.3; c.stroke();
     // cabeza
-    var hr = sn.age === 'bebe' ? 8.5 : 7.5;
+    var hr = 7.5 + bb;
     ell(c, hx, hy, hr + 1.5, hr * 0.85, col, dark, 1.6);
-    var eyeR = sn.age === 'bebe' ? 3.6 : 3;
+    var eyeR = 3 + 0.6 * bb;
     ell(c, hx + 3, hy - 2.5, eyeR, eyeR, '#fff', dark, 0.8); ell(c, hx + 3.8, hy - 2.3, eyeR * 0.5, eyeR * 0.62, '#1b1b1b');
     ell(c, hx + 3.2, hy - 3.4, 0.8, 0.8, '#fff');
     if (sn.age === 'anciano') { c.strokeStyle = '#333'; c.lineWidth = 1; c.beginPath(); c.arc(hx + 3, hy - 2.5, 4.4, 0, Math.PI * 2); c.stroke(); }
@@ -1440,7 +1455,7 @@
     // superposiciones: plumbob, globos, nombres
     var selS = sel(), nowP = performance.now();
     S.snakes.forEach(function (sn) {
-      if (sn.away) return; var s = AGES[sn.age].s, hp = toScreen(sn.x, sn.y, (sn._onTile ? 8 : 0) + 48 * s);
+      if (sn.away) return; var s = sizeOf(sn), hp = toScreen(sn.x, sn.y, (sn._onTile ? 8 : 0) + 48 * s);
       drawPlumbob(c, hp[0], hp[1] - 14 * cam.z - Math.sin(TT * 2.4 + sn.id) * 3, cam.z * (sn === selS ? 1 : 0.62), moodColor(sn.mood), sn.mood, sn !== selS);
       var th = sn._th, lo = NEEDS.slice().sort(function (a, b) { return sn.needs[a.k] - sn.needs[b.k]; })[0], crit = sn.needs[lo.k] < 25 ? lo : null;
       var T = th && th.until > nowP ? th : null;
@@ -1453,7 +1468,7 @@
     });
     S.visitors.forEach(function (v) { var hp = toScreen(v.x, v.y, 30); nameTag(c, hp[0], hp[1], v.name + ' · ' + SPECIES[v.species].n); });
     extraSnakes().forEach(function (sn) {
-      var s2 = (AGES[sn.age] || AGES.adulto).s, hp2 = toScreen(sn.x, sn.y, (sn._onTile ? 8 : 0) + 48 * s2), th2 = sn._th;
+      var s2 = sizeOf(sn), hp2 = toScreen(sn.x, sn.y, (sn._onTile ? 8 : 0) + 48 * s2), th2 = sn._th;
       if (th2 && th2.until > performance.now()) bubble(c, hp2[0] + 16 * cam.z, hp2[1] - 6 * cam.z, th2.i, th2.txt, cam.z);
       else { var ic2 = sn._a || useIcon(sn); if (ic2) chip(c, hp2[0] - 17 * cam.z, hp2[1] + 4 * cam.z, ic2, '#2f80ed', cam.z); }
       if (sn.remote || (ui && ui.hoverEnt === sn.id)) nameTag(c, hp2[0], hp2[1] + 4, sn.remote ? sn.name + ' · de ' + sn.owner : sn.name);
@@ -1717,8 +1732,8 @@
   function drawPortrait(cv, sn, size) {
     var dpr = global.devicePixelRatio || 1, c = cv.getContext('2d'); cv.width = size * dpr; cv.height = size * dpr;
     c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, size, size);
-    var fake = { id: sn.id, age: sn.age, color: sn.color, pattern: sn.pattern, fx: 1, q: [], mood: 80 };
-    var k = size / 54, s = AGES[sn.age].s;
+    var s = sizeOf(sn), fake = { id: sn.id, age: sn.age, _g: s, color: sn.color, pattern: sn.pattern, fx: 1, q: [], mood: 80 };
+    var k = size / 54;
     c.save(); c.translate(size * 0.42, size * 0.86); c.scale(k * 0.95 / Math.max(0.75, s), k * 0.95 / Math.max(0.75, s)); drawSnake(c, fake, 0, 0); c.restore();
   }
   function objThumb(cv, t) {
@@ -1876,6 +1891,7 @@
         h += '<div class="lsx-row"><small style="width:62px">Apellido</small><input class="fam" value="' + esc(S.name) + '" maxlength="18" style="flex:1" aria-label="Apellido de la familia" placeholder="Apellido"' + (S.visit ? ' disabled' : '') + '></div>';
         h += '<h5>Color</h5><div class="lsx-row" style="flex-wrap:wrap;gap:5px">' + PALETTE.map(function (p) { return '<button class="lsx-swatch' + (s.color === p.c ? ' on' : '') + '" data-a="col" data-c="' + p.c + '" title="' + p.n + '" style="background:' + p.c + '"></button>'; }).join('') + '</div>';
         h += '<div>' + AGES[s.age].n + ' · día ' + (s.ageD + 1) + (AGES[s.age].days ? ' de ' + AGES[s.age].days : '') + (s.partner && entById(s.partner) ? ' · 💞 pareja de ' + esc(entById(s.partner).name) : '') + '</div>';
+        var gz = sizeOf(s), gMin = GROW.bebe[0]; h += '<div class="lsx-grow" style="margin-top:3px">🌱 <span>Etapa</span>: <b>' + (STAGE_N[s.age] || STAGE_N.adulto) + '</b> · <span>Tamaño</span> ' + Math.round(gz * 100) + ' % · <span>' + (gz >= 0.995 ? 'Tamaño adulto' : 'Creciendo') + '</span></div>' + bar(gz - gMin, 1 - gMin, '#27ae60');
         h += '<h5>Rasgos <small style="text-transform:none;letter-spacing:0">(hasta 3, toca para cambiar)</small></h5><div>' + Object.keys(TRAITS).map(function (k) { var on = s.traits.indexOf(k) >= 0; return '<button class="lsx-chip' + (on ? ' on' : '') + '" data-a="tr" data-t="' + k + '">' + TRAITS[k].i + ' ' + TRAITS[k].n + '</button>'; }).join('') + '</div>';
         var A = ASP[s.asp]; h += '<h5>Aspiración</h5><select class="asp" style="width:100%">' + Object.keys(ASP).map(function (k) { return '<option value="' + k + '"' + (s.asp === k ? ' selected' : '') + '>' + ASP[k].i + ' ' + ASP[k].n + '</option>'; }).join('') + '</select>';
         if (A) h += '<div style="margin-top:4px">' + A.d + (s.aspDone ? ' ✅' : '') + '</div>' + bar(A.p(s), 1, '#9b59b6');
@@ -2039,7 +2055,7 @@
     function hitEnt(sx, sy) {
       var best = null, bk = -1e9, list = S.snakes.filter(function (s) { return !s.away; }).concat(S.visitors).concat(extraSnakes()); if (S.mouse) list.push(S.mouse);
       list.forEach(function (e) {
-        var s = e.age ? AGES[e.age].s : (e.id === 'mouse' ? 0.5 : 0.8), p = toScreen(e.x, e.y, e._onTile ? 8 : 0), z = cam.z;
+        var s = e.age ? Math.max(0.62, sizeOf(e)) : (e.id === 'mouse' ? 0.5 : 0.8), p = toScreen(e.x, e.y, e._onTile ? 8 : 0), z = cam.z;
         if (sx > p[0] - 20 * s * z && sx < p[0] + 22 * s * z && sy > p[1] - 50 * s * z && sy < p[1] + 8 * z) { var k = e.x + e.y; if (k > bk) { bk = k; best = e; } }
       });
       return best;
@@ -2470,7 +2486,7 @@
 
   // ---- empezar / terminar la visita
   function strip(o) { return JSON.parse(JSON.stringify(o, function (k, v) { return k.charAt(0) === '_' ? undefined : v; })); }
-  function guestPub(g) { return { sid: g.id, name: g.name, color: g.color, pattern: g.pattern, age: g.age, x: g.x, y: g.y, mood: Math.round(g.mood || 60) }; }
+  function guestPub(g) { return { sid: g.id, name: g.name, color: g.color, pattern: g.pattern, age: g.age, ageD: g.ageD, g: Math.round(sizeOf(g) * 100) / 100, x: g.x, y: g.y, mood: Math.round(g.mood || 60) }; }
   function makeHostSn(h, hostId, guest) {
     var needs = {}; NEEDS.forEach(function (n) { var v = h.needs && +h.needs[n.k]; needs[n.k] = isFinite(v) ? clamp(v, 5, 100) : 70; });
     var skills = {}; Object.keys(SKILLS).forEach(function (k) { skills[k] = 0; });
@@ -2639,14 +2655,14 @@
     else if (t === 'guest_join') {
       var sd = m.snake || {}, uid = +m.from; if (!uid) return;
       REMOTE[uid] = { id: remoteEntId(uid, sd.sid), uid: uid, sid: sd.sid, remote: 1, owner: String(m.name || 'Amigo').slice(0, 30), name: String(sd.name || 'Serpiente').slice(0, 16),
-        color: /^#[0-9a-f]{3,8}$/i.test(sd.color) ? sd.color : '#3498db', pattern: PATTERNS[sd.pattern] ? sd.pattern : 'lisa', age: AGES[sd.age] ? sd.age : 'adulto',
+        color: /^#[0-9a-f]{3,8}$/i.test(sd.color) ? sd.color : '#3498db', pattern: PATTERNS[sd.pattern] ? sd.pattern : 'lisa', age: AGES[sd.age] ? sd.age : 'adulto', _g: isFinite(+sd.g) && sd.g != null ? Math.max(0.4, Math.min(1, +sd.g)) : null,
         x: EXIT[0] + 0.5, y: EXIT[1] + 0.5, fx: -1, mood: +sd.mood || 60, _tx: EXIT[0] + 0.5, _ty: EXIT[1] + 0.5 };
       if (S && !S.visit) { toast('🔔 ¡Tienes visita! ' + REMOTE[uid].owner + ' ha venido con ' + REMOTE[uid].name + '.', 'good'); sfx('bell'); unlock('anfitrion'); }
       else toast('🔔 ' + REMOTE[uid].owner + ' ha venido a tu casa con ' + REMOTE[uid].name + ', pero tú estás de visita fuera.', '');
     }
     else if (t === 'pjoin') { var pd = m.snake || {}, pu = +m.from; if (!pu || !V || !V.place) return; var pp = m.p || {};
       PEERS[pu] = { id: remoteEntId(pu, pd.sid), uid: pu, sid: pd.sid, remote: 1, peer: 1, owner: String(m.name || 'Amigo').slice(0, 30), name: String(pd.name || 'Serpiente').slice(0, 16),
-        color: /^#[0-9a-f]{3,8}$/i.test(pd.color) ? pd.color : '#3498db', pattern: PATTERNS[pd.pattern] ? pd.pattern : 'lisa', age: AGES[pd.age] ? pd.age : 'adulto', x: +pp.x || EXIT[0] + 0.5, y: +pp.y || EXIT[1] + 0.5, fx: -1, mood: +pd.mood || 60, _tx: +pp.x || EXIT[0] + 0.5, _ty: +pp.y || EXIT[1] + 0.5 };
+        color: /^#[0-9a-f]{3,8}$/i.test(pd.color) ? pd.color : '#3498db', pattern: PATTERNS[pd.pattern] ? pd.pattern : 'lisa', age: AGES[pd.age] ? pd.age : 'adulto', _g: isFinite(+pd.g) && pd.g != null ? Math.max(0.4, Math.min(1, +pd.g)) : null, x: +pp.x || EXIT[0] + 0.5, y: +pp.y || EXIT[1] + 0.5, fx: -1, mood: +pd.mood || 60, _tx: +pp.x || EXIT[0] + 0.5, _ty: +pp.y || EXIT[1] + 0.5 };
       toast('🟢 ' + PEERS[pu].owner + ' también está en ' + PLACES[V.place].n + ' con ' + PEERS[pu].name + '.', 'good'); sfx('bell'); if (UI) UI.renderVBar(); }
     else if (t === 'pleave') { var pr = PEERS[+m.from]; if (pr) { delete PEERS[+m.from]; toast('👋 ' + pr.name + ' (de ' + pr.owner + ') se va.', ''); if (UI) UI.renderVBar(); } }
     else if (t === 'g' && m.place) { var r3 = PEERS[+m.from], s3 = m.s || {}; if (r3) { r3._tx = clamp(+s3.x || r3.x, 0, GW); r3._ty = clamp(+s3.y || r3.y, 0, GH); r3.fx = s3.f < 0 ? -1 : 1; r3._sleep = s3.z ? 1 : 0; r3._onTile = s3.o ? 1 : 0; if (isFinite(+s3.m)) r3.mood = +s3.m; if (s3.a !== r3._a) { r3._a = s3.a; if (s3.a) think(r3, s3.a, '', 3); } } }
@@ -2926,6 +2942,6 @@
   global.__losSnakes = {
     get S() { return S; }, advance: function (m) { advance(m); }, newGame: newGame, save: save, enqueue: enqueue, ACT: ACT, SOC: SOC, CAT: CAT,
     get V() { return V; }, get PEERS() { return PEERS; }, barrioClick: barrioClick, startPlace: startPlace, PLACES: PLACES, get KEYS() { return KEYS; }, get HOME() { return HOME; }, get REMOTE() { return REMOTE; }, get NET() { return NET; }, get SOCIAL() { return SOCIAL; }, endVisit: endVisit, visitClick: visitClick, mailClick: mailClick,
-    get ui() { return UI; }, startEvent: startEvent, writeDiaries: writeDiaries, hatch: hatch, layEggs: layEggs, sel: sel, cam: cam
+    get ui() { return UI; }, startEvent: startEvent, writeDiaries: writeDiaries, hatch: hatch, layEggs: layEggs, sel: sel, cam: cam, sizeOf: sizeOf
   };
 })(typeof window !== 'undefined' ? window : this);
