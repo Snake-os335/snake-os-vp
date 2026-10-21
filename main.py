@@ -9143,6 +9143,24 @@ app.include_router(bots_extras.build_router(require_user, bots_extras.own_key, w
 app.include_router(osx_extras.build_router(require_user))
 
 
+# Snake OS VP Pro + inicio de sesión compartido con cuentas Dogaemail para páginas propias (2026-10-21)
+import doga_auth
+import pro_extras
+
+
+def _doga_on_signup(user) -> None:
+    # Lo mismo que hace /api/signup al crear una cuenta
+    try:
+        dog_phone.ensure_number(int(user["id"]))
+    except Exception:
+        pass
+    note_activity("cuenta", user["name"])
+
+
+app.include_router(doga_auth.build_router(_visitor_ip, BLOCKED_SIGNUP_DOMAINS, _doga_on_signup))
+app.include_router(pro_extras.build_router(require_user, _visitor_ip, lambda request: doga_auth.site_user(request, "pro")))
+
+
 # --- Snake OS Kids: entrega del resumen semanal y códigos al Dogaemail del adulto (notificaciones de Snake OS) ---
 _osx_loop_ref: dict[str, Any] = {"loop": None}
 

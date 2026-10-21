@@ -261,6 +261,7 @@
       toast('Preferencias restablecidas');
     } });
     row('atajos', 'keys', '⌨️', 'Atajos de teclado', 'Ctrl+K o Ctrl+Espacio buscar · Alt+V portapapeles · Ctrl+Alt+← / → escritorios · Ctrl+Shift+S captura · Alt+Q cambiar de app · S abrir Snakemoji (fuera de campos de texto, Code Lab, Terminal, juegos y Metaverse) · Esc cerrar menús · Clic derecho: menú del escritorio · Móvil: desliza hacia abajo desde la barra superior', 'info');
+    row('pro', 'pro', '⭐', 'Snake OS VP Pro', 'Suscripción gratuita con código y Funciones Pro', 'pro');
     row('acerca', 'manual', '📘', 'Manual de instrucciones', 'Descarga en PDF el manual para aprender a usar Snake OS: escritorio, ajustes y todas las apps', 'action', { btn: 'Descargar PDF', run: function () { if (window.snkManual) window.snkManual.download(); else toast('El manual no está disponible ahora mismo'); } });
     row('acerca', 'about', 'ℹ️', 'Acerca de Snake OS', SNK_VERSION + ' · powered by Doganiero OS! 3', 'about');
     return rows;
@@ -278,6 +279,7 @@
     { id: 'escritorio', ico: '🖥️', name: 'Escritorio' },
     { id: 'accesibilidad', ico: '♿', name: 'Accesibilidad' },
     { id: 'ia', ico: '✨', name: 'Askbox (IA)' },
+    { id: 'pro', ico: '⭐', name: 'Snake OS VP Pro' },
     { id: 'cuenta', ico: '👤', name: 'Cuenta' },
     { id: 'almacenamiento', ico: '💾', name: 'Almacenamiento' },
     { id: 'atajos', ico: '⌨️', name: 'Atajos' },
@@ -504,6 +506,20 @@
             list.appendChild(jo);
           } else {
             list.appendChild(window.snkOsx.panel(r.id));
+          }
+          return;
+        }
+        if (r.kind === 'pro') {
+          if (q || !window.snkPro) {
+            var jp = document.createElement('div');
+            jp.className = 'snk4a-set-row';
+            jp.innerHTML = '<span class="snk4a-set-ico">' + r.ico + '</span><span class="snk4a-set-txt"><b>' + esc(r.title) + '</b><span>' + esc(r.desc) + '</span></span>';
+            var bp = document.createElement('button'); bp.type = 'button'; bp.className = 'snk4a-btn'; bp.textContent = 'Abrir';
+            bp.addEventListener('click', function () { sec = 'pro'; query = ''; search.value = ''; paint(); });
+            jp.appendChild(bp);
+            list.appendChild(jp);
+          } else {
+            list.appendChild(window.snkPro.settingsPanel(paint));
           }
           return;
         }

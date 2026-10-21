@@ -845,6 +845,44 @@
     }
 
     /* ================= Apps ================= */
+    /* ---------- Snake OS VP Pro (solo con Pro activo en el perfil; sin Pro no cambia nada) ---------- */
+    function isPro() { return !SA && !!(window.snkPro && window.snkPro.active && window.snkPro.active()); }
+    var TERM0 = null;
+    function proTerm(base) { if (!TERM0) TERM0 = base; var t = isPro() && window.snkPro.termTheme ? window.snkPro.termTheme() : null; return t ? Object.assign({}, base, t) : base; }
+    function termBox(tm) { try { var box = tm.element && tm.element.parentNode; if (!box) return; var bg = (TERM0 ? proTerm(TERM0) : {}).background || '#06120b'; box.style.background = bg; var vp = box.querySelector('.xterm-viewport'); if (vp) vp.style.setProperty('background', bg, 'important'); } catch (e) {} }
+    function applyTermStyle() { [0, 2, 3].forEach(function (p) { var tm = SINK[p].term; if (tm && TERM0) try { tm.options.theme = proTerm(TERM0); termBox(tm); } catch (e) {} }); }
+    var SNAPK = key + '#pro-snap';
+    function snapTake() {
+      if (!isPro() || !emu || !M.ready || !rec.configured) return Promise.resolve(false);
+      return emu.save_state().then(gz).then(function (r) { return put(SNAPK, { state: r.buf, gz: r.gz, fmt: FMT, bytes: r.buf.byteLength, at: Date.now(), name: hostName }); })
+        .then(function () { toast(T('Instantánea Pro guardada', 'Pro snapshot saved')); refreshSettings(); return true; }, function () { toast(T('No se ha podido guardar la instantánea', 'Could not save the snapshot')); return false; });
+    }
+    function snapRestore() {
+      if (!isPro() || !emu) return Promise.resolve(false);
+      return get(SNAPK).then(function (sn) {
+        if (!sn || sn.fmt !== FMT) { toast(T('No hay instantánea guardada', 'No snapshot saved')); return false; }
+        return confirmDlg(T('¿Volver a la instantánea?', 'Go back to the snapshot?'), T('La máquina vuelve exactamente al punto de la instantánea (', 'The machine goes back exactly to the snapshot point (') + new Date(sn.at).toLocaleString(en() ? 'en-GB' : 'es-ES') + T('). Lo que hayas hecho después se pierde.', '). Anything done after it is lost.'), T('Volver', 'Go back'), true).then(function (ok) {
+          if (!ok || !emu) return false;
+          W.slice().forEach(function (w) { closeWin(w, true); });
+          bootEl = document.createElement('div'); bootEl.className = 'spx-boot'; bootEl.innerHTML = bootHTML(''); ui.appendChild(bootEl);
+          bootText(T('Volviendo a la instantánea…', 'Going back to the snapshot…')); M.ready = false;
+          agReset(); resetSinks(); M.s0 = '';
+          try { emu.destroy(); } catch (e) {}
+          emu = null;
+          return (sn.gz ? gunzip(sn.state) : Promise.resolve(sn.state)).then(function (buf) {
+            if (dead) return false;
+            emu = makeEmu(buf, false);
+            return onReady(emu).then(function () { return wait(300); }).then(ping).then(function (ok2) { return ok2 || bootAgent(10); }).then(function () {
+              if (sn.name) hostName = sn.name;
+              M.ready = true; hideBoot(); sysProbe(); return saveState(false);
+            }).then(function () { toast(T('Has vuelto a la instantánea', 'Back at the snapshot')); return true; });
+          }).catch(function () { bootText(T('No se ha podido restaurar la instantánea', 'Could not restore the snapshot')); return false; });
+        });
+      });
+    }
+    function snapDelete() { return put(SNAPK, null).then(function () { toast(T('Instantánea borrada', 'Snapshot deleted')); refreshSettings(); }); }
+    window.__snkvmPro = { take: snapTake, restore: snapRestore, del: snapDelete, info: function () { return get(SNAPK); }, applyTerm: applyTermStyle };
+
     /* ---------- Terminal ---------- */
     function openTerm(cwd, runCmd) {
       var port = [0, 2, 3].filter(function (p) { return !SINK[p].term && !SINK[p].claimed; })[0];
@@ -864,12 +902,13 @@
       Promise.all([loadXterm(), ensure]).then(function () {
         if (dead || W.indexOf(w) < 0) return;
         term = new window.Terminal({ fontFamily: "ui-monospace,'SF Mono',Menlo,Consolas,'DejaVu Sans Mono','Liberation Mono',monospace", fontSize: 14, cursorBlink: true, allowProposedApi: false, scrollback: 3000,
-          theme: { background: '#06120b', foreground: '#e6f7ec', cursor: '#4ade80', cursorAccent: '#06120b', selectionBackground: 'rgba(74,222,128,0.3)',
+          theme: proTerm({ background: '#06120b', foreground: '#e6f7ec', cursor: '#4ade80', cursorAccent: '#06120b', selectionBackground: 'rgba(74,222,128,0.3)',
             black: '#2e3436', red: '#cc0000', green: '#4e9a06', yellow: '#c4a000', blue: '#3465a4', magenta: '#75507b', cyan: '#06989a', white: '#d3d7cf',
-            brightBlack: '#555753', brightRed: '#ef2929', brightGreen: '#8ae234', brightYellow: '#fce94f', brightBlue: '#729fcf', brightMagenta: '#ad7fa8', brightCyan: '#34e2e2', brightWhite: '#eeeeec' } });
+            brightBlack: '#555753', brightRed: '#ef2929', brightGreen: '#8ae234', brightYellow: '#fce94f', brightBlue: '#729fcf', brightMagenta: '#ad7fa8', brightCyan: '#34e2e2', brightWhite: '#eeeeec' }) });
         var FA = window.FitAddon && (window.FitAddon.FitAddon || window.FitAddon);
         if (FA) { fit = new FA(); term.loadAddon(fit); }
         term.open(box); if (fit) try { fit.fit(); } catch (e) {}
+        if (isPro()) termBox(term);
         var had = s.buf.length; if (had) term.write(new Uint8Array(s.buf)); s.buf = []; s.term = term;
         term.onData(function (d) { if (emu) emu.serial_send_bytes(port, enc(d)); });
         if (fit) run('stty -F /dev/ttyS' + port + ' rows ' + term.rows + ' cols ' + term.cols).catch(function () {});
@@ -1160,14 +1199,34 @@
       var w = createWin('set', { w: 760, h: 500 }); setWin = w;
       w.body.innerHTML = '<div class="spx-set"><div class="spx-side"></div><div class="spx-pg"></div></div>';
       var side = w.body.querySelector('.spx-side'), pg = w.body.querySelector('.spx-pg'), curP = page || 'look';
-      [['look', T('Apariencia', 'Appearance'), 'gear'], ['wall', T('Fondo', 'Background'), 'root'], ['about', T('Acerca de', 'About'), 'info']].forEach(function (p) {
-        var b = document.createElement('button'); b.type = 'button'; b.dataset.p = p[0]; b.innerHTML = (SYM[p[2]] || mini(p[2])) + '<span>' + p[1] + '</span>'; b.onclick = function () { curP = p[0]; render(); }; side.appendChild(b);
+      [['look', T('Apariencia', 'Appearance'), 'gear'], ['wall', T('Fondo', 'Background'), 'root'], ['about', T('Acerca de', 'About'), 'info']].concat(isPro() ? [['pro', 'Pro', 'pro']] : []).forEach(function (p) {
+        var b = document.createElement('button'); b.type = 'button'; b.dataset.p = p[0]; b.innerHTML = (p[2] === 'pro' ? '<span style="width:16px;text-align:center">⭐</span>' : (SYM[p[2]] || mini(p[2]))) + '<span>' + p[1] + '</span>'; b.onclick = function () { curP = p[0]; render(); }; side.appendChild(b);
       });
       function row(a, b) { return '<div class="spx-row"><span>' + esc(a) + '</span><span>' + esc(b) + '</span></div>'; }
       function render() {
         side.querySelectorAll('button').forEach(function (b) { b.classList.toggle('on', b.dataset.p === curP); });
-        w.setTitle(curP === 'about' ? T('Acerca de Snake OS! Pro', 'About Snake OS! Pro') : curP === 'wall' ? T('Fondo', 'Background') : T('Apariencia', 'Appearance'));
-        if (curP === 'look') {
+        if (curP === 'pro' && !isPro()) curP = 'look';
+        w.setTitle(curP === 'about' ? T('Acerca de Snake OS! Pro', 'About Snake OS! Pro') : curP === 'wall' ? T('Fondo', 'Background') : curP === 'pro' ? 'Snake OS VP Pro' : T('Apariencia', 'Appearance'));
+        if (curP === 'pro') {
+          pg.innerHTML = '<h3>' + T('Estilo de terminal Pro', 'Pro terminal style') + '</h3><div class="spx-tsty" style="display:flex;flex-wrap:wrap;gap:10px"></div>' +
+            '<h3>' + T('Instantánea Pro', 'Pro snapshot') + '</h3><div class="spx-grp"><div class="spx-row"><span>' + T('Instantánea guardada', 'Saved snapshot') + '</span><span class="sinfo">…</span></div></div>' +
+            '<div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="spx-btn sug stake">' + T('Guardar instantánea', 'Save snapshot') + '</button><button type="button" class="spx-btn srest">' + T('Volver a la instantánea', 'Go back to snapshot') + '</button><button type="button" class="spx-btn dest sdel">' + T('Borrar', 'Delete') + '</button></div>' +
+            '<p class="snkvm-note" style="margin:0">' + T('Una ranura por perfil, guardada en este navegador. Volver a ella deja la máquina exactamente como estaba.', 'One slot per profile, saved in this browser. Going back leaves the machine exactly as it was.') + '</p>';
+          var ts = pg.querySelector('.spx-tsty'), curS = window.snkPro.termStyle();
+          [{ id: '', name: T('Normal', 'Default'), bg: '#06120b', fg: '#e6f7ec' }].concat(window.snkPro.termStyles()).forEach(function (x) {
+            var b = document.createElement('button'); b.type = 'button'; b.className = 'spx-btn' + (curS === x.id ? ' sug' : ''); b.dataset.ts = x.id;
+            b.innerHTML = '<span style="display:inline-block;width:38px;height:22px;border-radius:5px;background:' + x.bg + ';color:' + x.fg + ';font:700 11px ui-monospace,monospace;line-height:22px;text-align:center;margin-right:6px">$_</span>' + esc(x.name);
+            b.onclick = function () { window.snkPro.setTermStyle(x.id); applyTermStyle(); render(); }; ts.appendChild(b);
+          });
+          get(SNAPK).then(function (sn) {
+            var si = pg.querySelector('.sinfo'); if (!si) return;
+            si.textContent = sn && sn.at ? new Date(sn.at).toLocaleString(en() ? 'en-GB' : 'es-ES') + ' · ' + fmtBytes(sn.bytes || 0) : T('Ninguna', 'None');
+            pg.querySelector('.srest').disabled = !(sn && sn.at); pg.querySelector('.sdel').disabled = !(sn && sn.at);
+          });
+          pg.querySelector('.stake').onclick = function () { snapTake(); };
+          pg.querySelector('.srest').onclick = function () { snapRestore(); };
+          pg.querySelector('.sdel').onclick = function () { snapDelete(); };
+        } else if (curP === 'look') {
           pg.innerHTML = '<h3>' + T('Estilo', 'Style') + '</h3><div class="spx-styles"></div><h3>' + T('Color', 'Color') + '</h3><div class="spx-acc"></div>';
           styleCards(pg.querySelector('.spx-styles'));
           var ac = pg.querySelector('.spx-acc');
