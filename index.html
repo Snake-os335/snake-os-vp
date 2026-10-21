@@ -158,7 +158,7 @@ window.SNAKE_OS_CHANGES=[
 <script src="/static/snake-game-matrix.js?v=202610112000" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-racing.js?v=202610211000" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/los-snakes.js?v=202610211710"></script>
-<script src="/static/snake-vm.js?v=202610210900"></script>
+<script src="/static/snake-vm.js?v=202610211700"></script>
 <script src="/static/snake-i18n-dict.js?v=202610211710" defer></script>
 <script src="/static/snake-update-screen.js?v=202610180010"></script>
 <script src="/static/snake-i18n.js?v=202610211710" defer></script>
@@ -14745,7 +14745,7 @@ function renderStoreApp(container){
       }
       return window.renderLosSnakesApp(body);
     } },
-    'maquinas-virtuales': { title:'Máquinas virtuales', icon:'🖥️', width:760, height:540, render: function(body){
+    'maquinas-virtuales': { title:'Máquinas virtuales', icon:'🖥️', width:1000, height:680, render: function(body){
       if(typeof window.renderSnakeVMApp !== 'function'){
         body.innerHTML = '<div style="padding:16px;color:#ff8a7a">No se pudo cargar Máquinas virtuales. Recarga la página.</div>';
         return function(){};
