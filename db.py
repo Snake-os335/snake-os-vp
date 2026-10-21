@@ -64,6 +64,7 @@ def init_db() -> None:
         _ensure_user_desktop_prefs_column(conn)
         _ensure_user_ai_keys_column(conn)
         _ensure_user_location_columns(conn)
+        _ensure_sessions_kind_column(conn)
         init_book_tables(conn)
 
 
@@ -1347,11 +1348,19 @@ def import_user_data(
             )
 
 
-def create_session(session_id: str, user_id: int, created_at: float) -> None:
+def _ensure_sessions_kind_column(conn: sqlite3.Connection) -> None:
+    """2026.14b: tipo de sesión. 'os' = Snake OS (todas las que ya existían), 'site' = páginas propias (/pro…)."""
+    cols = {str(r[1]) for r in conn.execute("PRAGMA table_info(sessions)").fetchall()}
+    if "kind" not in cols:
+        conn.execute("ALTER TABLE sessions ADD COLUMN kind TEXT NOT NULL DEFAULT 'os'")
+
+
+def create_session(session_id: str, user_id: int, created_at: float, kind: str = "os") -> None:
+    kind = "site" if kind == "site" else "os"
     with get_conn() as conn:
         conn.execute(
-            "INSERT INTO sessions (id, user_id, created_at) VALUES (?, ?, ?)",
-            (session_id, user_id, created_at),
+            "INSERT INTO sessions (id, user_id, created_at, kind) VALUES (?, ?, ?, ?)",
+            (session_id, user_id, created_at, kind),
         )
 
 

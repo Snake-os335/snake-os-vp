@@ -517,18 +517,23 @@ def _login_matrix_dots(on: bool) -> None:
 @app.post("/api/login")
 def login(body: LoginBody, response: Response, request: Request, _gate: None = Depends(require_os_gate)):
     email = body.email.strip().lower()
-    ip_keys = ["ip:" + hardening.request_ip(request)]
+    ip = hardening.request_ip(request)
+    ip_keys = ["ip:" + ip]
     email_keys = ["em:" + email[:320]]
+    email_ip_keys = ["emip:" + email[:320] + "|" + ip]
     hardening.LOGIN_IP_FAILS.check(ip_keys)
+    hardening.LOGIN_EMAIL_IP_FAILS.check(email_ip_keys)
     hardening.LOGIN_EMAIL_FAILS.check(email_keys)
     _login_matrix_dots(True)
     try:
         user = db.get_user_by_email(email)
         if not user or not verify_password(body.password, user["password_hash"]):
             hardening.LOGIN_IP_FAILS.fail(ip_keys)
+            hardening.LOGIN_EMAIL_IP_FAILS.fail(email_ip_keys)
             hardening.LOGIN_EMAIL_FAILS.fail(email_keys)
             raise HTTPException(status_code=401, detail="Correo o contraseña incorrectos")
         hardening.LOGIN_EMAIL_FAILS.clear(email_keys)
+        hardening.LOGIN_EMAIL_IP_FAILS.clear(email_ip_keys)
         unlocked = db.set_account_locked(int(user["id"]), False)
         if unlocked:
             user = unlocked
@@ -9221,6 +9226,7 @@ def _doga_on_signup(user) -> None:
     note_activity("cuenta", user["name"])
 
 
+hardening.IP_RESOLVER = _visitor_ip  # 2026.14b: misma IP de visitante en límites y bloqueos
 app.include_router(doga_auth.build_router(_visitor_ip, BLOCKED_SIGNUP_DOMAINS, _doga_on_signup))
 app.include_router(pro_extras.build_router(require_user, _visitor_ip, lambda request: doga_auth.site_user(request, "pro")))
 import v2614_extras  # 2026.14: /api/calendar y /api/store/ratings (faltaban)

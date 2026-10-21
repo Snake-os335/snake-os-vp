@@ -23,6 +23,13 @@
   }
   if (window.DogaAuth) return;
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  /* 2026.14b: el servidor manda un código de error (cabecera X-Snk-Err) y aquí se muestra en el idioma de la página */
+  var ERR = {"es": {"bad_site": "Página no válida", "not_signed_in": "No has iniciado sesión", "too_many_tries": "Demasiados intentos. Espera unos minutos y vuelve a probar.", "bad_login": "Correo o contraseña incorrectos", "too_many_signups": "Se han creado muchas cuentas desde aquí. Vuelve a intentarlo más tarde.", "bad_email": "Correo no válido", "no_gmail": "No se pueden crear cuentas nuevas con Gmail. Usa otro correo, por ejemplo tu correo@dogaemail.com.", "name_empty": "El nombre no puede estar vacío", "name_long": "El nombre es demasiado largo (máx. 60 caracteres)", "pw_long": "La contraseña es demasiado larga", "pw_short": "La contraseña debe tener al menos 4 caracteres", "email_taken": "Ya existe una cuenta con ese correo", "code_need_login": "Inicia sesión con tu cuenta Dogaemail para pedir el código.", "account_already_pro": "Tu cuenta ya tiene Snake OS VP Pro activado.", "too_many_codes": "Has pedido muchos códigos seguidos. Vuelve a intentarlo dentro de un rato.", "code_gen_failed": "No se pudo generar el código", "profile_already_pro": "Este perfil ya tiene Snake OS VP Pro activado.", "code_format": "Código no válido. Revisa que tenga la forma SNKPRO-XXXX-XXXX-XXXX.", "code_invalid": "Código no válido.", "code_used": "Este código ya se ha usado.", "bad_prefs": "Preferencias no válidas", "prefs_big": "Demasiados datos en las funciones Pro (máx. 48 KB)", "not_pro": "Este perfil no tiene Snake OS VP Pro", "too_many_queries": "Demasiadas consultas. Espera un momento.", "code_other_account": "Este código es de la cuenta Dogaemail {arg}. Entra en Snake OS VP con esa cuenta para activarlo.", "slow": "El servidor tarda demasiado. Vuelve a intentarlo.", "offline": "Sin conexión con el servidor. Vuelve a intentarlo.", "blocked_origin": "Petición bloqueada: viene de otra web.", "too_big": "El envío es demasiado grande.", "rate": "Demasiadas peticiones seguidas; espera un momento.", "server": "Error interno del servidor. Inténtalo de nuevo."}, "en": {"bad_site": "Invalid page", "not_signed_in": "You are not signed in", "too_many_tries": "Too many attempts. Wait a few minutes and try again.", "bad_login": "Wrong email or password", "too_many_signups": "Many accounts have been created from here. Try again later.", "bad_email": "Invalid email", "no_gmail": "New accounts cannot use Gmail. Use another email, for example your address@dogaemail.com.", "name_empty": "The name cannot be empty", "name_long": "The name is too long (max. 60 characters)", "pw_long": "The password is too long", "pw_short": "The password must have at least 4 characters", "email_taken": "An account with that email already exists", "code_need_login": "Sign in with your Dogaemail account to request the code.", "account_already_pro": "Your account already has Snake OS VP Pro activated.", "too_many_codes": "You have requested many codes in a row. Try again in a while.", "code_gen_failed": "The code could not be generated", "profile_already_pro": "This profile already has Snake OS VP Pro activated.", "code_format": "Invalid code. Check that it looks like SNKPRO-XXXX-XXXX-XXXX.", "code_invalid": "Invalid code.", "code_used": "This code has already been used.", "bad_prefs": "Invalid preferences", "prefs_big": "Too much data in the Pro features (max. 48 KB)", "not_pro": "This profile does not have Snake OS VP Pro", "too_many_queries": "Too many requests. Wait a moment.", "code_other_account": "This code belongs to the Dogaemail account {arg}. Sign in to Snake OS VP with that account to activate it.", "slow": "The server is taking too long. Try again.", "offline": "No connection to the server. Try again.", "blocked_origin": "Request blocked: it comes from another website.", "too_big": "The upload is too large.", "rate": "Too many requests in a row; wait a moment.", "server": "Internal server error. Please try again."}};
+  var curLang = function () { var l = (document.documentElement.lang || '').slice(0, 2); return l === 'en' ? 'en' : 'es'; };
+  function errText(code, arg, fallback) {
+    var t = code && ERR[curLang()][code];
+    return t ? t.replace('{arg}', arg || '') : fallback;
+  }
   function req(path, opts) {
     opts = opts || {};
     var o = { method: opts.method || 'GET', credentials: 'same-origin', headers: { Accept: 'application/json' }, cache: 'no-store' };
@@ -32,12 +39,17 @@
     if (ac) { o.signal = ac.signal; tm = setTimeout(function () { try { ac.abort(); } catch (e) {} }, opts.timeout || 20000); }
     return fetch(path, o).catch(function (e) {
       clearTimeout(tm);
-      var e3 = new Error(e && e.name === 'AbortError' ? 'El servidor tarda demasiado. Vuelve a intentarlo.' : 'Sin conexión con el servidor. Vuelve a intentarlo.'); e3.status = 0; throw e3;
+      var c3 = e && e.name === 'AbortError' ? 'slow' : 'offline';
+      var e3 = new Error(errText(c3, '', '')); e3.status = 0; e3.code = c3; throw e3;
     }).then(function (r) {
       clearTimeout(tm);
       return r.text().then(function (t) {
         var d = null; try { d = t ? JSON.parse(t) : null; } catch (e) { d = { detail: t }; }
-        if (!r.ok) { var e2 = new Error((d && (typeof d.detail === 'string' ? d.detail : d.message)) || ('Error ' + r.status)); e2.status = r.status; throw e2; }
+        if (!r.ok) {
+          var code = r.headers.get('X-Snk-Err') || '', arg = '';
+          try { arg = decodeURIComponent(r.headers.get('X-Snk-Err-Arg') || ''); } catch (x) {}
+          var e2 = new Error(errText(code, arg, (d && (typeof d.detail === 'string' ? d.detail : d.message)) || ('Error ' + r.status))); e2.status = r.status; e2.code = code; throw e2;
+        }
         return d;
       });
     });
@@ -77,6 +89,7 @@
       mount: function (el, o) {
         o = o || {}; addCss();
         var lang = function () { return (typeof o.lang === 'function' ? o.lang() : o.lang) === 'en' ? 'en' : 'es'; };
+        curLang = lang;
         var mode = 'in';
         if (o.onChange) listeners.push(o.onChange);
         function paint() {
@@ -115,5 +128,5 @@
     };
     return api;
   }
-  window.DogaAuth = { create: create };
+  window.DogaAuth = { create: create, errText: errText };
 })();

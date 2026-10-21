@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import urllib.parse
 import json
 import os
 import re
@@ -233,13 +234,13 @@ def build_router(require_user: Callable[..., Any], visitor_ip: Callable[[Request
         nostore(response)
         owner = page_user(request)
         if not owner:
-            raise HTTPException(status_code=401, detail="Inicia sesión con tu cuenta Dogaemail para pedir el código.")
+            raise HTTPException(status_code=401, detail="Inicia sesión con tu cuenta Dogaemail para pedir el código.", headers={"X-Snk-Err": "code_need_login"})
         oid = int(owner["id"])
         if is_pro(oid):
-            raise HTTPException(status_code=409, detail="Tu cuenta ya tiene Snake OS VP Pro activado.")
+            raise HTTPException(status_code=409, detail="Tu cuenta ya tiene Snake OS VP Pro activado.", headers={"X-Snk-Err": "account_already_pro"})
         ipk = _ip_key(visitor_ip(request))
         if _limited("gen:u%d" % oid, GEN_ACC_MAX, GEN_ACC_WIN, count=False) or _limited("gen:" + ipk, GEN_MAX, GEN_WIN) or _limited("gen:*", GEN_GLOBAL_MAX, GEN_WIN):
-            raise HTTPException(status_code=429, detail="Has pedido muchos códigos seguidos. Vuelve a intentarlo dentro de un rato.")
+            raise HTTPException(status_code=429, detail="Has pedido muchos códigos seguidos. Vuelve a intentarlo dentro de un rato.", headers={"X-Snk-Err": "too_many_codes"})
         now = time.time()
         with _lock, _conn() as c:
             c.execute("DELETE FROM pro_codes WHERE redeemed_uid IS NULL AND created < ?", (now - CODE_TTL,))
@@ -251,7 +252,7 @@ def build_router(require_user: Callable[..., Any], visitor_ip: Callable[[Request
                 except sqlite3.IntegrityError:
                     continue
             else:
-                raise HTTPException(status_code=500, detail="No se pudo generar el código")
+                raise HTTPException(status_code=500, detail="No se pudo generar el código", headers={"X-Snk-Err": "code_gen_failed"})
             c.commit()
         _limited("gen:u%d" % oid, GEN_ACC_MAX, GEN_ACC_WIN)
         return {"code": code, "show_seconds": 60, "expires_days": CODE_TTL // 86400}
@@ -262,7 +263,7 @@ def build_router(require_user: Callable[..., Any], visitor_ip: Callable[[Request
         nostore(response)
         owner = page_user(request)
         if not owner:
-            raise HTTPException(status_code=401, detail="No has iniciado sesión")
+            raise HTTPException(status_code=401, detail="No has iniciado sesión", headers={"X-Snk-Err": "not_signed_in"})
         oid = int(owner["id"])
         with _conn() as c:
             n = c.execute("SELECT COUNT(*) FROM pro_codes WHERE owner_uid = ? AND redeemed_uid IS NULL AND created >= ?", (oid, time.time() - CODE_TTL)).fetchone()[0]
@@ -280,14 +281,14 @@ def build_router(require_user: Callable[..., Any], visitor_ip: Callable[[Request
         uid = int(user["id"])
         ipk = _ip_key(visitor_ip(request))
         if _limited("try:" + ipk, TRY_MAX, TRY_WIN, count=False) or _limited("try:u%d" % uid, TRY_MAX, TRY_WIN, count=False):
-            raise HTTPException(status_code=429, detail="Demasiados intentos. Espera unos minutos y vuelve a probar.")
+            raise HTTPException(status_code=429, detail="Demasiados intentos. Espera unos minutos y vuelve a probar.", headers={"X-Snk-Err": "too_many_tries"})
         if is_pro(uid):
-            raise HTTPException(status_code=409, detail="Este perfil ya tiene Snake OS VP Pro activado.")
+            raise HTTPException(status_code=409, detail="Este perfil ya tiene Snake OS VP Pro activado.", headers={"X-Snk-Err": "profile_already_pro"})
         code = normalize((body or {}).get("code") if isinstance(body, dict) else "")
         if not code:
             _limited("try:" + ipk, TRY_MAX, TRY_WIN)
             _limited("try:u%d" % uid, TRY_MAX, TRY_WIN)
-            raise HTTPException(status_code=400, detail="Código no válido. Revisa que tenga la forma SNKPRO-XXXX-XXXX-XXXX.")
+            raise HTTPException(status_code=400, detail="Código no válido. Revisa que tenga la forma SNKPRO-XXXX-XXXX-XXXX.", headers={"X-Snk-Err": "code_format"})
         h = code_hash(code)
         now = time.time()
         with _lock, _conn() as c:
@@ -295,23 +296,25 @@ def build_router(require_user: Callable[..., Any], visitor_ip: Callable[[Request
             if not row or (row["redeemed_uid"] is None and float(row["created"]) < now - CODE_TTL):
                 _limited("try:" + ipk, TRY_MAX, TRY_WIN)
                 _limited("try:u%d" % uid, TRY_MAX, TRY_WIN)
-                raise HTTPException(status_code=400, detail="Código no válido.")
+                raise HTTPException(status_code=400, detail="Código no válido.", headers={"X-Snk-Err": "code_invalid"})
             if row["redeemed_uid"] is not None:
                 _limited("try:" + ipk, TRY_MAX, TRY_WIN)
                 _limited("try:u%d" % uid, TRY_MAX, TRY_WIN)
-                raise HTTPException(status_code=409, detail="Este código ya se ha usado.")
+                raise HTTPException(status_code=409, detail="Este código ya se ha usado.", headers={"X-Snk-Err": "code_used"})
             if int(row["owner_uid"]) != uid:
                 _limited("try:" + ipk, TRY_MAX, TRY_WIN)
                 _limited("try:u%d" % uid, TRY_MAX, TRY_WIN)
-                raise HTTPException(status_code=403, detail="Este código es de la cuenta Dogaemail " + _owner_hint(int(row["owner_uid"])) + ". Entra en Snake OS VP con esa cuenta para activarlo.")
+                hint = _owner_hint(int(row["owner_uid"]))
+                raise HTTPException(status_code=403, detail="Este código es de la cuenta Dogaemail " + hint + ". Entra en Snake OS VP con esa cuenta para activarlo.",
+                                    headers={"X-Snk-Err": "code_other_account", "X-Snk-Err-Arg": urllib.parse.quote(hint)})
             cur = c.execute("UPDATE pro_codes SET redeemed_uid = ?, redeemed_at = ? WHERE hash = ? AND redeemed_uid IS NULL", (uid, now, h))
             if cur.rowcount != 1:
-                raise HTTPException(status_code=409, detail="Este código ya se ha usado.")
+                raise HTTPException(status_code=409, detail="Este código ya se ha usado.", headers={"X-Snk-Err": "code_used"})
             try:
                 c.execute("INSERT INTO pro_users (uid, code_hash, since, prefs) VALUES (?, ?, ?, '{}')", (uid, h, now))
             except sqlite3.IntegrityError:
                 c.rollback()
-                raise HTTPException(status_code=409, detail="Este perfil ya tiene Snake OS VP Pro activado.")
+                raise HTTPException(status_code=409, detail="Este perfil ya tiene Snake OS VP Pro activado.", headers={"X-Snk-Err": "profile_already_pro"})
             c.commit()
         invalidate_public()
         return status_for(uid)
@@ -322,15 +325,15 @@ def build_router(require_user: Callable[..., Any], visitor_ip: Callable[[Request
         uid = int(user["id"])
         prefs = (body or {}).get("prefs") if isinstance(body, dict) else None
         if not isinstance(prefs, dict):
-            raise HTTPException(status_code=400, detail="Preferencias no válidas")
+            raise HTTPException(status_code=400, detail="Preferencias no válidas", headers={"X-Snk-Err": "bad_prefs"})
         raw = json.dumps(prefs, ensure_ascii=False, separators=(",", ":"))
         if len(raw.encode("utf-8")) > PREFS_MAX:
-            raise HTTPException(status_code=413, detail="Demasiados datos en las funciones Pro (máx. 48 KB)")
+            raise HTTPException(status_code=413, detail="Demasiados datos en las funciones Pro (máx. 48 KB)", headers={"X-Snk-Err": "prefs_big"})
         with _lock, _conn() as c:
             cur = c.execute("UPDATE pro_users SET prefs = ? WHERE uid = ?", (raw, uid))
             c.commit()
         if cur.rowcount != 1:
-            raise HTTPException(status_code=403, detail="Este perfil no tiene Snake OS VP Pro")
+            raise HTTPException(status_code=403, detail="Este perfil no tiene Snake OS VP Pro", headers={"X-Snk-Err": "not_pro"})
         return {"ok": True}
 
     @r.delete("/api/pro")
@@ -347,7 +350,7 @@ def build_router(require_user: Callable[..., Any], visitor_ip: Callable[[Request
     def pro_badges(response: Response, ids: str = "", user=Depends(require_user)):
         """Consulta por lotes: {"pro": {"<id>": true|false}} para los ids pedidos (máx. 100). Solo el booleano público."""
         if _limited("badge:u%d" % int(user["id"]), BADGE_MAX, BADGE_WIN):
-            raise HTTPException(status_code=429, detail="Demasiadas consultas. Espera un momento.")
+            raise HTTPException(status_code=429, detail="Demasiadas consultas. Espera un momento.", headers={"X-Snk-Err": "too_many_queries"})
         out: dict[str, bool] = {}
         for part in str(ids or "").split(",")[:BADGE_MAX_IDS]:
             part = part.strip()

@@ -32,7 +32,8 @@ SITE_SESSION_MAX_AGE = 2 * 3600     # 2026.14: la sesión de las páginas (p. ej
 
 SITES = {"pro"}                     # añade aquí el id de cada página nueva
 SITE_RE = re.compile(r"^[a-z0-9-]{1,24}$")
-LOGIN_MAX, LOGIN_WIN = 10, 15 * 60  # intentos fallidos por IP y por correo+IP
+LOGIN_MAX, LOGIN_WIN = 10, 15 * 60  # intentos fallidos por correo+IP
+LOGIN_IP_MAX = 100                  # 2026.14b: por IP sola, alto (no bloquear a toda una red)
 LOGIN_EMAIL_MAX = 50                # 2026.14: por correo desde cualquier IP (más alto: un atacante no bloquea /pro a su dueño)
 SIGNUP_MAX, SIGNUP_WIN = 5, 3600    # cuentas nuevas por IP y hora
 _lock = threading.Lock()
@@ -46,7 +47,7 @@ def cookie_name(site: str) -> str:
 def _site(v: Any) -> str:
     s = str(v or "").strip().lower()
     if not SITE_RE.match(s) or s not in SITES:
-        raise HTTPException(status_code=400, detail="Página no válida")
+        raise HTTPException(status_code=400, detail="Página no válida", headers={"X-Snk-Err": "bad_site"})
     return s
 
 
@@ -88,7 +89,7 @@ def site_user(request: Request, site: str):
     if time.time() - float(row["created_at"]) > SITE_SESSION_MAX_AGE:
         end_session(sid)
         return None
-    return user_from_session(sid)
+    return user_from_session(sid, kind="site")
 
 
 def build_router(visitor_ip: Callable[[Request], str], blocked_domains: set[str], on_signup: Callable[[Any], None] | None = None) -> APIRouter:
@@ -109,7 +110,7 @@ def build_router(visitor_ip: Callable[[Request], str], blocked_domains: set[str]
             # soft=1 (doga-auth.js 2026.14): sin sesión responde 200 {"signed_in": false} para no llenar la consola de 401
             if soft:
                 return {"signed_in": False}
-            raise HTTPException(status_code=401, detail="No has iniciado sesión")
+            raise HTTPException(status_code=401, detail="No has iniciado sesión", headers={"X-Snk-Err": "not_signed_in"})
         return _me_view(user)
 
     @r.post("/api/doga-auth/login")
@@ -121,16 +122,16 @@ def build_router(visitor_ip: Callable[[Request], str], blocked_domains: set[str]
         password = str(body.get("password") or "")
         ip = visitor_ip(request)
         ipk, ek, gk = _k("li:", ip), _k("le:", email + "|" + ip), _k("lg:", email)
-        if _limited(ipk, LOGIN_MAX, LOGIN_WIN, False) or _limited(ek, LOGIN_MAX, LOGIN_WIN, False) or _limited(gk, LOGIN_EMAIL_MAX, LOGIN_WIN, False):
-            raise HTTPException(status_code=429, detail="Demasiados intentos. Espera unos minutos y vuelve a probar.")
+        if _limited(ipk, LOGIN_IP_MAX, LOGIN_WIN, False) or _limited(ek, LOGIN_MAX, LOGIN_WIN, False) or _limited(gk, LOGIN_EMAIL_MAX, LOGIN_WIN, False):
+            raise HTTPException(status_code=429, detail="Demasiados intentos. Espera unos minutos y vuelve a probar.", headers={"X-Snk-Err": "too_many_tries"})
         user = db.get_user_by_email(email) if email else None
         if not user or not verify_password(password, user["password_hash"]):
-            _limited(ipk, LOGIN_MAX, LOGIN_WIN, True)
+            _limited(ipk, LOGIN_IP_MAX, LOGIN_WIN, True)
             _limited(ek, LOGIN_MAX, LOGIN_WIN, True)
             _limited(gk, LOGIN_EMAIL_MAX, LOGIN_WIN, True)
-            raise HTTPException(status_code=401, detail="Correo o contraseña incorrectos")
+            raise HTTPException(status_code=401, detail="Correo o contraseña incorrectos", headers={"X-Snk-Err": "bad_login"})
         end_session(request.cookies.get(cookie_name(site)))
-        set_cookie(request, response, site, start_session(int(user["id"])))
+        set_cookie(request, response, site, start_session(int(user["id"]), kind="site"))
         return _me_view(user)
 
     @r.post("/api/doga-auth/signup")
@@ -139,29 +140,29 @@ def build_router(visitor_ip: Callable[[Request], str], blocked_domains: set[str]
         body = body if isinstance(body, dict) else {}
         site = _site(body.get("site"))
         if _limited(_k("su:", visitor_ip(request)), SIGNUP_MAX, SIGNUP_WIN, False):
-            raise HTTPException(status_code=429, detail="Se han creado muchas cuentas desde aquí. Vuelve a intentarlo más tarde.")
+            raise HTTPException(status_code=429, detail="Se han creado muchas cuentas desde aquí. Vuelve a intentarlo más tarde.", headers={"X-Snk-Err": "too_many_signups"})
         # Mismas reglas que /api/signup de Snake OS VP (main.py), en el mismo orden y con los mismos mensajes.
         email = str(body.get("email") or "").strip().lower()
         name = str(body.get("name") or "").strip()
         password = str(body.get("password") or "")
         avatar = db.safe_signup_avatar(body.get("avatar"))
         if not email or "@" not in email:
-            raise HTTPException(status_code=400, detail="Correo no válido")
+            raise HTTPException(status_code=400, detail="Correo no válido", headers={"X-Snk-Err": "bad_email"})
         if email.rsplit("@", 1)[1].strip().rstrip(".") in blocked_domains:
-            raise HTTPException(status_code=400, detail="No se pueden crear cuentas nuevas con Gmail. Usa otro correo, por ejemplo tu correo@dogaemail.com.")
+            raise HTTPException(status_code=400, detail="No se pueden crear cuentas nuevas con Gmail. Usa otro correo, por ejemplo tu correo@dogaemail.com.", headers={"X-Snk-Err": "no_gmail"})
         if not name:
-            raise HTTPException(status_code=400, detail="El nombre no puede estar vacío")
+            raise HTTPException(status_code=400, detail="El nombre no puede estar vacío", headers={"X-Snk-Err": "name_empty"})
         if len(name) > 60:
-            raise HTTPException(status_code=400, detail="El nombre es demasiado largo (máx. 60 caracteres)")
+            raise HTTPException(status_code=400, detail="El nombre es demasiado largo (máx. 60 caracteres)", headers={"X-Snk-Err": "name_long"})
         if len(email) > 254:
-            raise HTTPException(status_code=400, detail="Correo no válido")
+            raise HTTPException(status_code=400, detail="Correo no válido", headers={"X-Snk-Err": "bad_email"})
         if len(password) > 200:
-            raise HTTPException(status_code=400, detail="La contraseña es demasiado larga")
+            raise HTTPException(status_code=400, detail="La contraseña es demasiado larga", headers={"X-Snk-Err": "pw_long"})
         if len(password) < 4:
-            raise HTTPException(status_code=400, detail="La contraseña debe tener al menos 4 caracteres")
+            raise HTTPException(status_code=400, detail="La contraseña debe tener al menos 4 caracteres", headers={"X-Snk-Err": "pw_short"})
         db.release_tombstone_email(email)
         if db.get_user_by_email(email):
-            raise HTTPException(status_code=409, detail="Ya existe una cuenta con ese correo")
+            raise HTTPException(status_code=409, detail="Ya existe una cuenta con ese correo", headers={"X-Snk-Err": "email_taken"})
         _limited(_k("su:", visitor_ip(request)), SIGNUP_MAX, SIGNUP_WIN, True)
         user = db.create_user(email, name, hash_password(password), avatar)
         if on_signup:
@@ -169,7 +170,7 @@ def build_router(visitor_ip: Callable[[Request], str], blocked_domains: set[str]
                 on_signup(user)
             except Exception:
                 pass
-        set_cookie(request, response, site, start_session(int(user["id"])))
+        set_cookie(request, response, site, start_session(int(user["id"]), kind="site"))
         return _me_view(user)
 
     @r.post("/api/doga-auth/logout")

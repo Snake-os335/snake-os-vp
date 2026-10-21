@@ -53,7 +53,9 @@ class TestOrigin(unittest.TestCase):
     def test_rules(self):
         ok = hardening.origin_allowed
         self.assertTrue(ok("", "x.com", "", ""))
-        self.assertTrue(ok("null", "x.com", "", ""))
+        self.assertFalse(ok("null", "x.com", "", ""))
+        self.assertFalse(ok("null", "x.com", "", "cross-site"))
+        self.assertTrue(ok("null", "x.com", "", "same-origin"))
         self.assertTrue(ok("https://x.com", "x.com", "", ""))
         self.assertTrue(ok("http://localhost:8000", "localhost:8000", "", ""))
         self.assertTrue(ok("https://snake-os-vp.softportweb.com", "127.0.0.1:8000", "", ""))
@@ -62,6 +64,27 @@ class TestOrigin(unittest.TestCase):
         self.assertFalse(ok("https://evil.example", "x.com", "", "cross-site"))
         self.assertFalse(ok("https://evil.softportweb.com", "snake-os-vp.softportweb.com", "", "same-site"))
         self.assertFalse(ok("https://evil.example", "x.com", "", ""))
+
+
+@unittest.skipUnless(HAS_FASTAPI, "fastapi no instalado")
+class TestChunked(unittest.TestCase):
+    def test_chunked_body_capped(self):
+        os.environ["SNAKEOS_MAX_BODY_BYTES"] = "2048"
+        try:
+            c = TestClient(_mini_app(), raise_server_exceptions=False)
+            def gen(n):
+                yield b'{"a":"'
+                for _ in range(n):
+                    yield b"x" * 512
+                yield b'"}'
+            r = c.post("/api/echo", content=gen(2), headers={"Content-Type": "application/json"})
+            self.assertEqual(r.status_code, 200, r.text)  # bajo el tope: pasa
+            r = c.post("/api/echo", content=gen(20), headers={"Content-Type": "application/json"})
+            self.assertNotEqual(r.status_code, 200)  # sobre el tope: se corta
+            r = c.post("/api/echo", json={"a": 1})
+            self.assertEqual(r.status_code, 200)
+        finally:
+            os.environ.pop("SNAKEOS_MAX_BODY_BYTES", None)
 
 
 @unittest.skipUnless(HAS_FASTAPI, "fastapi no instalado")
@@ -182,11 +205,12 @@ class TestMainEndpoints(unittest.TestCase):
     def setUp(self):
         hardening.LOGIN_IP_FAILS.reset()
         hardening.LOGIN_EMAIL_FAILS.reset()
+        hardening.LOGIN_EMAIL_IP_FAILS.reset()
         hardening.GATE_IP_FAILS.reset()
         hardening.SIGNUP_IP.reset()
         hardening.PASSWORD_USER_FAILS.reset()
 
-    def _signup(self, email, name="Prueba", avatar="🐍", ip="198.51.100.1"):
+    def _signup(self, email, name="Prueba", avatar="🐍", ip="81.200.10.1"):
         return self.c.post("/api/signup", json={"email": email, "name": name, "password": "clave-segura", "avatar": avatar},
                            headers={"CF-Connecting-IP": ip})
 
@@ -201,18 +225,48 @@ class TestMainEndpoints(unittest.TestCase):
         self.assertEqual(r.json().get("avatar"), "🦊")
 
     def test_login_lockout(self):
-        self.assertEqual(self._signup("login@dogaemail.com", ip="198.51.100.2").status_code, 200)
-        h = {"CF-Connecting-IP": "198.51.100.3"}
+        self.assertEqual(self._signup("login@dogaemail.com", ip="81.200.10.2").status_code, 200)
+        h = {"CF-Connecting-IP": "81.200.10.3"}
         ok = self.c.post("/api/login", json={"email": "login@dogaemail.com", "password": "clave-segura"}, headers=h)
         self.assertEqual(ok.status_code, 200)
-        for _ in range(hardening.LOGIN_EMAIL_FAILS.limit):
+        for _ in range(hardening.LOGIN_EMAIL_IP_FAILS.limit):
             r = self.c.post("/api/login", json={"email": "login@dogaemail.com", "password": "mal"}, headers=h)
             self.assertEqual(r.status_code, 401)
         r = self.c.post("/api/login", json={"email": "login@dogaemail.com", "password": "clave-segura"}, headers=h)
         self.assertEqual(r.status_code, 429)
+        # 2026.14b: el bloqueo es por correo+IP: la misma cuenta desde otra IP sigue entrando
+        r = self.c.post("/api/login", json={"email": "login@dogaemail.com", "password": "clave-segura"}, headers={"CF-Connecting-IP": "81.200.10.4"})
+        self.assertEqual(r.status_code, 200, r.text)
+
+    def test_login_lockout_not_whole_network(self):
+        # 30 fallos de varias cuentas desde una misma IP (colegio/CGNAT) ya no bloquean a toda la red
+        self.assertEqual(self._signup("red@dogaemail.com", ip="81.200.10.20").status_code, 200)
+        h = {"CF-Connecting-IP": "81.200.10.21"}
+        for i in range(30):
+            r = self.c.post("/api/login", json={"email": "otro%d@dogaemail.com" % (i % 5), "password": "mal"}, headers=h)
+            self.assertIn(r.status_code, (401, 429))
+        r = self.c.post("/api/login", json={"email": "red@dogaemail.com", "password": "clave-segura"}, headers=h)
+        self.assertEqual(r.status_code, 200, r.text)
+
+    def test_site_session_is_not_os_session(self):
+        self.assertEqual(self._signup("sitio@dogaemail.com", ip="81.200.10.30").status_code, 200)
+        from auth import start_session, user_from_session
+        uid = int(self.main.db.get_user_by_email("sitio@dogaemail.com")["id"])
+        site = start_session(uid, kind="site")
+        os_sid = start_session(uid)
+        self.assertIsNone(user_from_session(site))
+        self.assertIsNotNone(user_from_session(site, kind="site"))
+        self.assertIsNotNone(user_from_session(os_sid))
+        self.assertIsNone(user_from_session(os_sid, kind="site"))
+        c2 = TestClient(self.main.app, raise_server_exceptions=False)
+        c2.cookies.set("session_id", site)
+        self.assertEqual(c2.get("/api/me").status_code, 401)
+        c3 = TestClient(self.main.app, raise_server_exceptions=False)
+        c3.cookies.set("session_id", os_sid)
+        self.assertEqual(c3.get("/api/me").status_code, 200)
 
     def test_os_gate_non_ascii_and_lockout(self):
-        h = {"CF-Connecting-IP": "198.51.100.9"}
+        h = {"CF-Connecting-IP": "81.200.10.9"}
         r = self.c.post("/api/os-gate", json={"password": "contraseña-ñ"}, headers=h)
         self.assertEqual(r.status_code, 403)  # antes: 500 (compare_digest con texto no ASCII)
         for _ in range(hardening.GATE_IP_FAILS.limit):

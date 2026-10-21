@@ -16,6 +16,14 @@
   function lsKey() { return 'snkPro:' + S.email; }
   function EN() { return !!(window.snakeI18n && window.snakeI18n.lang === 'en'); }
   function T(es, en) { if (EN()) { (window.__SNK_EN_OUT = window.__SNK_EN_OUT || {})[en] = 1; return en; } return es; }
+  /* 2026.14b: errores del servidor (en español) → inglés si Snake OS está en inglés */
+  var SRV_EN = {"Página no válida": "Invalid page", "No has iniciado sesión": "You are not signed in", "Demasiados intentos. Espera unos minutos y vuelve a probar.": "Too many attempts. Wait a few minutes and try again.", "Correo o contraseña incorrectos": "Wrong email or password", "Se han creado muchas cuentas desde aquí. Vuelve a intentarlo más tarde.": "Many accounts have been created from here. Try again later.", "Correo no válido": "Invalid email", "No se pueden crear cuentas nuevas con Gmail. Usa otro correo, por ejemplo tu correo@dogaemail.com.": "New accounts cannot use Gmail. Use another email, for example your address@dogaemail.com.", "El nombre no puede estar vacío": "The name cannot be empty", "El nombre es demasiado largo (máx. 60 caracteres)": "The name is too long (max. 60 characters)", "La contraseña es demasiado larga": "The password is too long", "La contraseña debe tener al menos 4 caracteres": "The password must have at least 4 characters", "Ya existe una cuenta con ese correo": "An account with that email already exists", "Inicia sesión con tu cuenta Dogaemail para pedir el código.": "Sign in with your Dogaemail account to request the code.", "Tu cuenta ya tiene Snake OS VP Pro activado.": "Your account already has Snake OS VP Pro activated.", "Has pedido muchos códigos seguidos. Vuelve a intentarlo dentro de un rato.": "You have requested many codes in a row. Try again in a while.", "No se pudo generar el código": "The code could not be generated", "Este perfil ya tiene Snake OS VP Pro activado.": "This profile already has Snake OS VP Pro activated.", "Código no válido. Revisa que tenga la forma SNKPRO-XXXX-XXXX-XXXX.": "Invalid code. Check that it looks like SNKPRO-XXXX-XXXX-XXXX.", "Código no válido.": "Invalid code.", "Este código ya se ha usado.": "This code has already been used.", "Preferencias no válidas": "Invalid preferences", "Demasiados datos en las funciones Pro (máx. 48 KB)": "Too much data in the Pro features (max. 48 KB)", "Este perfil no tiene Snake OS VP Pro": "This profile does not have Snake OS VP Pro", "Demasiadas consultas. Espera un momento.": "Too many requests. Wait a moment.", "El servidor tarda demasiado. Vuelve a intentarlo.": "The server is taking too long. Try again.", "Sin conexión con el servidor. Vuelve a intentarlo.": "No connection to the server. Try again.", "Petición bloqueada: viene de otra web.": "Request blocked: it comes from another website.", "El envío es demasiado grande.": "The upload is too large.", "Demasiadas peticiones seguidas; espera un momento.": "Too many requests in a row; wait a moment.", "Error interno del servidor. Inténtalo de nuevo.": "Internal server error. Please try again."};
+  function srvErr(m) {
+    if (!m || !EN()) return m;
+    if (SRV_EN[m]) return SRV_EN[m];
+    var o = /^Este código es de la cuenta Dogaemail (.+)\. Entra en Snake OS VP con esa cuenta para activarlo\.$/.exec(m);
+    return o ? 'This code belongs to the Dogaemail account ' + o[1] + '. Sign in to Snake OS VP with that account to activate it.' : m;
+  }
   function P(k, d) { var v = S.prefs[k]; return v === undefined ? d : v; }
   function setPref(k, v) {
     if (!S.active) return;
@@ -174,6 +182,8 @@
   }
 
   /* ---------------- clases del body ---------------- */
+  var LBL_EN = {"Oro": "Gold", "Rubí": "Ruby", "Zafiro": "Sapphire", "Amatista": "Amethyst", "Coral": "Coral", "Neón": "Neon", "Arcoíris": "Rainbow", "Escamas": "Scales", "◰ Arriba izq.": "◰ Top left", "◳ Arriba der.": "◳ Top right", "◱ Abajo izq.": "◱ Bottom left", "◲ Abajo der.": "◲ Bottom right", "▌ Dos tercios": "▌ Two thirds", "▐ Un tercio": "▐ One third", "▦ Mosaico": "▦ Tile", "Sin fondo Pro": "No Pro wallpaper", "Aurora (animado)": "Aurora (animated)", "Neón (animado)": "Neon (animated)", "Según la hora": "By time of day", "Circuito serpiente": "Snake circuit", "Escamas esmeralda": "Emerald scales", "Medianoche": "Midnight", "Océano": "Ocean", "Oro negro": "Black gold", "Ámbar retro": "Retro amber", "Matrix": "Matrix"};
+  function L_(x) { return EN() ? (LBL_EN[x] || x) : x; }
   var ACC = { gold: ['Oro', '#f5c542'], ruby: ['Rubí', '#ff4d6d'], sapphire: ['Zafiro', '#4c8dff'], amethyst: ['Amatista', '#b57cff'], coral: ['Coral', '#ff8a5c'] };
   var FRAMES = { gold: 'Oro', neon: 'Neón', rainbow: 'Arcoíris', scales: 'Escamas' };
   function applyBody() {
@@ -245,7 +255,7 @@
     var rec = { el: el, tick: null, off: null, sum: null };
     W[id] = rec;
     if (!pinned) { drag(el, el.querySelector('.snkp-wh'), id); resizable(el, id); el.addEventListener('pointerdown', function () { bump(el); }); }
-    el.querySelector('.wpin').onclick = function () { setKey('pin', id, !pinned); setKey('pos', id, [el.offsetLeft, el.offsetTop]); closeW(id, false); openW(id, false); toast(!pinned ? '📌 Widget fijado en el escritorio' : 'Widget libre: arrástralo o cambia su tamaño'); };
+    el.querySelector('.wpin').onclick = function () { setKey('pin', id, !pinned); setKey('pos', id, [el.offsetLeft, el.offsetTop]); closeW(id, false); openW(id, false); toast(!pinned ? T('📌 Widget fijado en el escritorio', '📌 Widget pinned to the desktop') : T('Widget libre: arrástralo o cambia su tamaño', 'Free widget: drag it or resize it')); };
     el.querySelector('.wmin').onclick = function () { var on = !el.classList.contains('mini'); el.classList.toggle('mini', on); setKey('min', id, on ? true : undefined); this.textContent = on ? '▢' : '▁'; this.title = on ? T('Mostrar', 'Show') : T('Minimizar', 'Minimise'); paintSum(rec); };
     el.querySelector('.wcmp').onclick = function () { var on = !el.classList.contains('compact'); el.classList.toggle('compact', on); setKey('cmp', id, on ? true : undefined); this.title = on ? T('Tamaño grande', 'Large size') : T('Tamaño compacto', 'Compact size'); };
     el.querySelector('.x').onclick = function () { if (d.onClose && d.onClose(id) === false) return; closeW(id, true); };
@@ -319,20 +329,20 @@
     if (W[id]) W[id].offResize = function () { window.removeEventListener('pointerup', up, true); };
   }
   /* «Añadir widget»: desde el menú del botón derecho del escritorio y desde el Centro Pro */
-  var PICK = [['aclock', '🕰️', 'Reloj analógico'], ['world', '🌍', 'Reloj mundial'], ['month', '📅', 'Calendario'], ['monitor', '📈', 'Monitor'], ['kanban', '🗂️', 'Kanban'], ['focus', '🎯', 'Foco (Pomodoro)'], ['timers', '⏳', 'Temporizadores'], ['recorder', '🎥', 'Grabar pantalla'], ['passgen', '🔑', 'Contraseñas'], ['sketch', '✏️', 'Dibujo'], ['textpack', '🐍', 'Pack de texto']];
+  var PICK = [['aclock', '🕰️', T('Reloj analógico', 'Analogue clock')], ['world', '🌍', T('Reloj mundial', 'World clock')], ['month', '📅', T('Calendario', 'Calendar')], ['monitor', '📈', 'Monitor'], ['kanban', '🗂️', 'Kanban'], ['focus', '🎯', T('Foco (Pomodoro)', 'Focus (Pomodoro)')], ['timers', '⏳', T('Temporizadores', 'Timers')], ['recorder', '🎥', T('Grabar pantalla', 'Screen recorder')], ['passgen', '🔑', T('Contraseñas', 'Passwords')], ['sketch', '✏️', T('Dibujo', 'Sketch')], ['textpack', '🐍', T('Pack de texto', 'Text pack')]];
   function picker() {
     if (!S.active) return;
     var old = $('#snkProPick'); if (old) old.remove();
     var c = $('#snkProCenter'); if (c) c.remove();
-    var el = document.createElement('div'); el.id = 'snkProPick'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', 'Añadir widget');
+    var el = document.createElement('div'); el.id = 'snkProPick'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', T('Añadir widget', 'Add widget'));
     document.body.appendChild(el);
     function paint() {
       var hidden = notes().filter(function (n) { return !W[n.id]; });
-      el.innerHTML = '<div class="hd">🧩 Añadir widget <span class="snkp-badge">PRO</span><button type="button" class="snkp-btn x">✕</button></div>' +
-        '<p style="margin:2px 0 10px;opacity:.8;font-size:.75rem">📌 Los widgets fijados se quedan en el escritorio, detrás de las ventanas. Los libres se arrastran y cambian de tamaño (se ajustan a la rejilla y a los bordes).</p>' +
+      el.innerHTML = '<div class="hd">🧩 ' + T('Añadir widget', 'Add widget') + ' <span class="snkp-badge">PRO</span><button type="button" class="snkp-btn x">✕</button></div>' +
+        '<p style="margin:2px 0 10px;opacity:.8;font-size:.75rem">📌 ' + T('Los widgets fijados se quedan en el escritorio, detrás de las ventanas. Los libres se arrastran y cambian de tamaño (se ajustan a la rejilla y a los bordes).', 'Pinned widgets stay on the desktop, behind the windows. Free ones can be dragged and resized (they snap to the grid and the edges).') + '</p>' +
         '<div class="snkp-grid">' + PICK.map(function (x) { return '<button type="button" data-add="' + x[0] + '" class="' + (W[x[0]] ? 'on' : '') + '"><span>' + x[1] + '</span><span>' + esc(x[2]) + (W[x[0]] ? ' ✓' : '') + '</span></button>'; }).join('') +
-        '<button type="button" data-note="1"><span>🗒️</span><span>Nota nueva</span></button></div>' +
-        (hidden.length ? '<h3>Notas guardadas</h3><div class="snkp-grid">' + hidden.map(function (n) { return '<button type="button" data-show="' + esc(n.id) + '"><span>🗒️</span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc((n.t || 'Nota vacía').slice(0, 24)) + '</span></button>'; }).join('') + '</div>' : '');
+        '<button type="button" data-note="1"><span>🗒️</span><span>' + T('Nota nueva', 'New note') + '</span></button></div>' +
+        (hidden.length ? '<h3>' + T('Notas guardadas', 'Saved notes') + '</h3><div class="snkp-grid">' + hidden.map(function (n) { return '<button type="button" data-show="' + esc(n.id) + '"><span>🗒️</span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc((n.t || T('Nota vacía', 'Empty note')).slice(0, 24)) + '</span></button>'; }).join('') + '</div>' : '');
       el.querySelector('.x').onclick = function () { el.remove(); };
       el.querySelectorAll('[data-add]').forEach(function (b) { b.onclick = function () { var id = b.dataset.add; if (W[id]) closeW(id, true); else openW(id); paint(); }; });
       el.querySelector('[data-note]').onclick = function () { newNote(); paint(); };
@@ -345,7 +355,7 @@
   function two(n) { return (n < 10 ? '0' : '') + n; }
 
   /* Reloj analógico */
-  DEFS.aclock = { title: '🕰️ Reloj Pro', w: 200, render: function (b, r) {
+  DEFS.aclock = { title: function () { return T('🕰️ Reloj Pro', '🕰️ Pro clock'); }, w: 200, render: function (b, r) {
     b.innerHTML = '<canvas width="316" height="316" style="width:158px;height:158px;display:block;margin:0 auto"></canvas><div class="d" style="text-align:center;font-weight:700;margin-top:4px"></div>';
     var cv = b.querySelector('canvas'), c = cv.getContext('2d'), dd = b.querySelector('.d');
     function draw() {
@@ -363,7 +373,7 @@
 
   /* Reloj mundial */
   var ZONES = [['Europe/Madrid', 'Madrid'], ['Europe/London', 'Londres'], ['America/New_York', 'Nueva York'], ['America/Mexico_City', 'Ciudad de México'], ['America/Bogota', 'Bogotá'], ['America/Buenos_Aires', 'Buenos Aires'], ['America/Los_Angeles', 'Los Ángeles'], ['Asia/Tokyo', 'Tokio'], ['Asia/Shanghai', 'Pekín'], ['Asia/Dubai', 'Dubái'], ['Asia/Kolkata', 'Bombay'], ['Australia/Sydney', 'Sídney'], ['Atlantic/Canary', 'Canarias'], ['Pacific/Auckland', 'Auckland']];
-  DEFS.world = { title: '🌍 Reloj mundial', w: 250, render: function (b, r) {
+  DEFS.world = { title: function () { return T('🌍 Reloj mundial', '🌍 World clock'); }, w: 250, render: function (b, r) {
     function zs() { var z = P('world', null); return Array.isArray(z) && z.length ? z.slice(0, 4) : ['Europe/Madrid', 'America/New_York', 'Asia/Tokyo']; }
     function paint() {
       var list = zs();
@@ -380,7 +390,7 @@
   /* Calendario mensual */
   var HOL = { '01-01': 'Año Nuevo', '01-06': 'Reyes', '05-01': 'Día del Trabajo', '08-15': 'Asunción', '10-12': 'Fiesta Nacional', '11-01': 'Todos los Santos', '12-06': 'Constitución', '12-08': 'Inmaculada', '12-25': 'Navidad' };
   var MES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
-  DEFS.month = { title: '📅 Calendario Pro', w: 250, render: function (b, r) {
+  DEFS.month = { title: function () { return T('📅 Calendario Pro', '📅 Pro calendar'); }, w: 250, render: function (b, r) {
     r.sum = function () { var t = new Date(); return t.getDate() + ' ' + MES[t.getMonth()].slice(0, 3); };
     var now = new Date(), y = now.getFullYear(), m = now.getMonth();
     function paint() {
@@ -400,7 +410,7 @@
   } };
 
   /* Kanban */
-  DEFS.kanban = { title: '🗂️ Kanban Pro', w: 460, tool: true, render: function (b) {
+  DEFS.kanban = { title: function () { return T('🗂️ Kanban Pro', '🗂️ Pro Kanban'); }, w: 460, tool: true, render: function (b) {
     var COLS = [['todo', 'Por hacer'], ['doing', 'En curso'], ['done', 'Hecho']];
     function data() { var k = P('kanban', null); k = k && typeof k === 'object' ? k : {}; COLS.forEach(function (c) { if (!Array.isArray(k[c[0]])) k[c[0]] = []; }); return k; }
     function paint() {
@@ -435,7 +445,7 @@
   } }; /* ✕ solo la quita del escritorio (sigue guardada en «Añadir widget»); 🗑 la borra */
 
   /* Monitor */
-  DEFS.monitor = { title: '📈 Monitor Pro', w: 230, render: function (b, r) {
+  DEFS.monitor = { title: function () { return T('📈 Monitor Pro', '📈 Pro monitor'); }, w: 230, render: function (b, r) {
     b.innerHTML = '<div class="m" style="display:grid;grid-template-columns:auto 1fr;gap:3px 10px"></div><canvas width="400" height="80" style="width:100%;height:40px;margin-top:6px"></canvas>';
     var frames = 0, fps = 0, hist = [], raf = 0, last = performance.now(), bat = null, t0 = S.loginAt || Date.now();
     function loop(ts) { frames++; if (ts - last >= 1000) { fps = Math.round(frames * 1000 / (ts - last)); frames = 0; last = ts; } raf = requestAnimationFrame(loop); }
@@ -477,18 +487,18 @@
   function beep() { try { var a = new (window.AudioContext || window.webkitAudioContext)(), o = a.createOscillator(), g = a.createGain(); o.frequency.value = 880; g.gain.value = 0.06; o.connect(g); g.connect(a.destination); o.start(); setTimeout(function () { o.stop(); a.close(); }, 350); } catch (e) {} }
   window.addEventListener('pagehide', function () { if (S.active) saveClocks(); });
   function dayKey() { var d = new Date(); return d.getFullYear() + '-' + two(d.getMonth() + 1) + '-' + two(d.getDate()); }
-  DEFS.focus = { title: '🎯 Foco Pro', w: 240, tool: true, render: function (b, r) {
-    var LEN = { work: 25 * 60, short: 5 * 60, long: 15 * 60 }, NAME = { work: 'Foco', short: 'Descanso', long: 'Descanso largo' };
+  DEFS.focus = { title: function () { return T('🎯 Foco Pro', '🎯 Pro Focus'); }, w: 240, tool: true, render: function (b, r) {
+    var LEN = { work: 25 * 60, short: 5 * 60, long: 15 * 60 }, NAME = { work: T('Foco', 'Focus'), short: T('Descanso', 'Break'), long: T('Descanso largo', 'Long break') };
     b.innerHTML = '<div style="text-align:center"><div class="ph" style="font-weight:800;opacity:.8"></div><div class="tm" style="font:800 2.4rem ui-monospace,monospace;margin:4px 0"></div><div style="height:6px;border-radius:4px;background:rgba(255,255,255,.12);overflow:hidden"><i class="bar" style="display:block;height:100%;background:' + GOLD + ';width:0"></i></div>' +
-      '<div class="snkp-row" style="justify-content:center;margin-top:8px"><button type="button" class="snkp-btn pri go"></button><button type="button" class="snkp-btn sk">Saltar</button><button type="button" class="snkp-btn rs">Reiniciar</button></div><div class="st" style="margin-top:8px;font-size:.75rem;opacity:.8"></div></div>';
+      '<div class="snkp-row" style="justify-content:center;margin-top:8px"><button type="button" class="snkp-btn pri go"></button><button type="button" class="snkp-btn sk">' + T('Saltar', 'Skip') + '</button><button type="button" class="snkp-btn rs">' + T('Reiniciar', 'Reset') + '</button></div><div class="st" style="margin-top:8px;font-size:.75rem;opacity:.8"></div></div>';
     function stats() { var f = P('focus', {}); return f && f.d === dayKey() ? f.n || 0 : 0; }
     function next() {
-      if (FOCUS.phase === 'work') { var n = stats() + 1; setPref('focus', { d: dayKey(), n: n }); FOCUS.n++; FOCUS.phase = FOCUS.n % 4 === 0 ? 'long' : 'short'; toast('🎯 ¡Pomodoro completado! Toca descansar'); }
-      else { FOCUS.phase = 'work'; toast('🎯 Vuelta al foco'); }
+      if (FOCUS.phase === 'work') { var n = stats() + 1; setPref('focus', { d: dayKey(), n: n }); FOCUS.n++; FOCUS.phase = FOCUS.n % 4 === 0 ? 'long' : 'short'; toast(T('🎯 ¡Pomodoro completado! Toca descansar', '🎯 Pomodoro complete! Time for a break')); }
+      else { FOCUS.phase = 'work'; toast(T('🎯 Vuelta al foco', '🎯 Back to focus')); }
       FOCUS.left = LEN[FOCUS.phase]; if (FOCUS.run) FOCUS.end = Date.now() + FOCUS.left * 1000; beep(); saveClocks();
     }
     function paint() {
-      b.querySelector('.ph').textContent = NAME[FOCUS.phase] + ' · ciclo ' + (FOCUS.n % 4 + 1) + '/4';
+      b.querySelector('.ph').textContent = NAME[FOCUS.phase] + ' · ' + T('ciclo', 'cycle') + ' ' + (FOCUS.n % 4 + 1) + '/4';
       b.querySelector('.tm').textContent = two(Math.floor(FOCUS.left / 60)) + ':' + two(FOCUS.left % 60);
       b.querySelector('.bar').style.width = (100 - FOCUS.left / LEN[FOCUS.phase] * 100).toFixed(1) + '%';
       b.querySelector('.go').textContent = FOCUS.run ? '⏸ Pausa' : '▶ Empezar';
@@ -510,7 +520,7 @@
 
   /* Temporizadores múltiples (2026.14: siguen al recargar) */
   setInterval(function () { if (!S.active) return; var now = Date.now(), ch = false; TIMERS.forEach(function (t) { if (t.run && !t.done && now >= t.end) { t.done = true; t.run = false; ch = true; beep(); toast('⏳ ' + t.name + T(': ¡tiempo!', ': time’s up!')); } }); if (ch) saveClocks(); }, 500);
-  DEFS.timers = { title: '⏳ Temporizadores Pro', w: 290, tool: true, render: function (b, r) {
+  DEFS.timers = { title: function () { return T('⏳ Temporizadores Pro', '⏳ Pro timers'); }, w: 290, tool: true, render: function (b, r) {
     b.innerHTML = '<div class="snkp-row" style="margin-bottom:6px"><input class="nm" maxlength="30" placeholder="Nombre" style="flex:1;min-width:0"><input class="mn" type="number" min="0" max="999" value="5" style="width:56px" title="Minutos"><span>min</span><button type="button" class="snkp-btn pri add">＋</button></div><div class="ls"></div>';
     function fmt(ms) { var s = Math.max(0, Math.ceil(ms / 1000)); return (s >= 3600 ? Math.floor(s / 3600) + ':' : '') + two(Math.floor(s % 3600 / 60)) + ':' + two(s % 60); }
     var ls = b.querySelector('.ls'), shape = '';
@@ -527,23 +537,23 @@
         return;
       }
       shape = sh;
-      ls.innerHTML = TIMERS.length ? TIMERS.map(function (t, i) { var left = t.run ? t.end - now : t.left; return '<div class="snkp-row" style="justify-content:space-between;padding:5px 0;border-top:1px solid rgba(255,255,255,.1)"><span style="flex:1;overflow:hidden;text-overflow:ellipsis">' + esc(t.name) + '</span><b data-tm="' + i + '" data-noi18n style="font:800 1rem ui-monospace,monospace' + (t.done ? ';color:#ff8a7a' : '') + '">' + (t.done ? T('¡Ya!', 'Done!') : fmt(left)) + '</b><button type="button" class="snkp-btn" data-p="' + i + '">' + (t.run ? '⏸' : '▶') + '</button><button type="button" class="snkp-btn" data-d="' + i + '">✕</button></div>'; }).join('') : '<div style="opacity:.6">Sin temporizadores</div>';
+      ls.innerHTML = TIMERS.length ? TIMERS.map(function (t, i) { var left = t.run ? t.end - now : t.left; return '<div class="snkp-row" style="justify-content:space-between;padding:5px 0;border-top:1px solid rgba(255,255,255,.1)"><span style="flex:1;overflow:hidden;text-overflow:ellipsis">' + esc(t.name) + '</span><b data-tm="' + i + '" data-noi18n style="font:800 1rem ui-monospace,monospace' + (t.done ? ';color:#ff8a7a' : '') + '">' + (t.done ? T('¡Ya!', 'Done!') : fmt(left)) + '</b><button type="button" class="snkp-btn" data-p="' + i + '">' + (t.run ? '⏸' : '▶') + '</button><button type="button" class="snkp-btn" data-d="' + i + '">✕</button></div>'; }).join('') : '<div style="opacity:.6">' + T('Sin temporizadores', 'No timers') + '</div>';
     }
-    b.querySelector('.add').onclick = function () { var m = Math.max(0, Math.min(999, parseFloat(b.querySelector('.mn').value) || 0)); if (!m) return; if (TIMERS.length >= 8) { toast('Máximo 8 temporizadores'); return; } var ms = Math.round(m * 60000); TIMERS.push({ name: b.querySelector('.nm').value.trim() || (T('Temporizador ', 'Timer ') + (TIMERS.length + 1)), total: ms, left: ms, end: Date.now() + ms, run: true, done: false }); b.querySelector('.nm').value = ''; saveClocks(); paint(true); };
+    b.querySelector('.add').onclick = function () { var m = Math.max(0, Math.min(999, parseFloat(b.querySelector('.mn').value) || 0)); if (!m) return; if (TIMERS.length >= 8) { toast(T('Máximo 8 temporizadores', 'Maximum 8 timers')); return; } var ms = Math.round(m * 60000); TIMERS.push({ name: b.querySelector('.nm').value.trim() || (T('Temporizador ', 'Timer ') + (TIMERS.length + 1)), total: ms, left: ms, end: Date.now() + ms, run: true, done: false }); b.querySelector('.nm').value = ''; saveClocks(); paint(true); };
     r.tick = function () { paint(false); }; paint(true);
     r.sum = function () { var now = Date.now(), run = TIMERS.filter(function (t) { return t.run && !t.done; }).sort(function (a, b) { return a.end - b.end; }); return run.length ? '⏳ ' + fmt(run[0].end - now) + (run.length > 1 ? ' +' + (run.length - 1) : '') : (TIMERS.some(function (t) { return t.done; }) ? T('¡Ya!', 'Done!') : ''); };
   } };
 
   /* Grabador de pantalla (todo en el navegador) */
   var REC = null;
-  DEFS.recorder = { title: '🎥 Grabador Pro', w: 250, tool: true, render: function (b, r) {
+  DEFS.recorder = { title: function () { return T('🎥 Grabador Pro', '🎥 Pro recorder'); }, w: 250, tool: true, render: function (b, r) {
     function paint() {
-      if (REC) { var s = Math.floor((Date.now() - REC.t0) / 1000); b.innerHTML = '<div style="text-align:center"><div class="rt" data-noi18n style="font:800 1.6rem ui-monospace,monospace;color:#ff6b6b">● ' + two(Math.floor(s / 60)) + ':' + two(s % 60) + '</div><button type="button" class="snkp-btn pri stop" style="margin-top:6px">⏹ Parar y guardar</button></div>'; b.querySelector('.stop').onclick = stop; }
-      else b.innerHTML = '<p style="margin:0 0 8px;opacity:.8;font-size:.75rem">Elige pantalla, ventana o pestaña. El vídeo (WebM) se guarda en tu equipo; no se sube a ningún sitio.</p><label class="snkp-row" style="margin-bottom:8px"><input type="checkbox" class="au"> Con sonido de la pestaña</label><button type="button" class="snkp-btn pri go">● Grabar</button><div class="er" style="color:#ff8a7a;margin-top:6px;font-size:.75rem"></div>';
+      if (REC) { var s = Math.floor((Date.now() - REC.t0) / 1000); b.innerHTML = '<div style="text-align:center"><div class="rt" data-noi18n style="font:800 1.6rem ui-monospace,monospace;color:#ff6b6b">● ' + two(Math.floor(s / 60)) + ':' + two(s % 60) + '</div><button type="button" class="snkp-btn pri stop" style="margin-top:6px">⏹ ' + T('Parar y guardar', 'Stop and save') + '</button></div>'; b.querySelector('.stop').onclick = stop; }
+      else b.innerHTML = '<p style="margin:0 0 8px;opacity:.8;font-size:.75rem">' + T('Elige pantalla, ventana o pestaña. El vídeo (WebM) se guarda en tu equipo; no se sube a ningún sitio.', 'Choose a screen, window or tab. The video (WebM) is saved on your device; it is never uploaded.') + '</p><label class="snkp-row" style="margin-bottom:8px"><input type="checkbox" class="au"> ' + T('Con sonido de la pestaña', 'With tab audio') + '</label><button type="button" class="snkp-btn pri go">● ' + T('Grabar', 'Record') + '</button><div class="er" style="color:#ff8a7a;margin-top:6px;font-size:.75rem"></div>';
       var go = b.querySelector('.go'); if (go) go.onclick = start;
     }
     function start() {
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia || !window.MediaRecorder) { b.querySelector('.er').textContent = 'Este navegador no permite grabar la pantalla.'; return; }
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia || !window.MediaRecorder) { b.querySelector('.er').textContent = T('Este navegador no permite grabar la pantalla.', 'This browser cannot record the screen.'); return; }
       var au = !!b.querySelector('.au').checked;
       navigator.mediaDevices.getDisplayMedia({ video: { frameRate: 30 }, audio: au }).then(function (stream) {
         var mt = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'].filter(function (t) { return MediaRecorder.isTypeSupported(t); })[0] || '';
@@ -554,7 +564,7 @@
           var blob = new Blob(chunks, { type: 'video/webm' }), d = new Date();
           var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'snake-os-grabacion-' + d.getFullYear() + two(d.getMonth() + 1) + two(d.getDate()) + '-' + two(d.getHours()) + two(d.getMinutes()) + '.webm';
           document.body.appendChild(a); a.click(); a.remove(); setTimeout(function () { URL.revokeObjectURL(a.href); }, 60000);
-          toast('🎥 Grabación guardada (' + (blob.size / 1048576).toFixed(1) + ' MB)'); REC = null; window.__snkProLastRec = blob.size; if (W.recorder) paint();
+          toast(T('🎥 Grabación guardada (', '🎥 Recording saved (') + (blob.size / 1048576).toFixed(1) + ' MB)'); REC = null; window.__snkProLastRec = blob.size; if (W.recorder) paint();
         };
         stream.getVideoTracks()[0].addEventListener('ended', function () { if (REC && REC.mr.state !== 'inactive') REC.mr.stop(); });
         mr.start(1000); REC = { mr: mr, t0: Date.now(), stream: stream, em: S.email }; paint();
@@ -574,7 +584,7 @@
   }, onClose: function () { if (REC) { toast('Para la grabación antes de cerrar'); return false; } } };
 
   /* Generador de contraseñas */
-  DEFS.passgen = { title: '🔑 Contraseñas Pro', w: 300, tool: true, render: function (b) {
+  DEFS.passgen = { title: function () { return T('🔑 Contraseñas Pro', '🔑 Pro passwords'); }, w: 300, tool: true, render: function (b) {
     b.innerHTML = '<input class="out" readonly data-noi18n translate="no" style="width:100%;font:700 .95rem ui-monospace,monospace;margin-bottom:8px"><div class="snkp-row"><span>Longitud</span><input class="ln" type="range" min="8" max="64" value="20" style="flex:1"><b class="lv">20</b></div>' +
       '<div class="snkp-row" style="margin:6px 0"><label><input type="checkbox" class="sy" checked> Símbolos</label><label><input type="checkbox" class="nu" checked> Números</label><label><input type="checkbox" class="am" checked> Sin ambiguos</label></div><div class="snkp-row"><button type="button" class="snkp-btn pri gen">Generar</button><button type="button" class="snkp-btn cp">Copiar</button><span class="en" style="font-size:.72rem;opacity:.75"></span></div>';
     function gen() {
@@ -594,7 +604,7 @@
   function copy(t, msg) { (navigator.clipboard && navigator.clipboard.writeText ? navigator.clipboard.writeText(t) : Promise.reject()).then(function () { toast(msg || 'Copiado'); }, function () { var ta = document.createElement('textarea'); ta.value = t; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); toast(msg || 'Copiado'); } catch (e) {} ta.remove(); }); }
 
   /* Bloc de dibujo */
-  DEFS.sketch = { title: '✏️ Dibujo Pro', w: 380, tool: true, render: function (b) {
+  DEFS.sketch = { title: function () { return T('✏️ Dibujo Pro', '✏️ Pro sketch'); }, w: 380, tool: true, render: function (b) {
     b.innerHTML = '<canvas width="712" height="440" style="width:356px;height:220px;background:#fff;border-radius:10px;touch-action:none;cursor:crosshair;display:block"></canvas><div class="snkp-row" style="margin-top:6px"><input type="color" class="co" value="#16a34a" style="width:34px;height:28px;padding:0"><input type="range" class="sz" min="1" max="30" value="4" style="width:90px"><button type="button" class="snkp-btn er">Goma</button><button type="button" class="snkp-btn cl">Borrar</button><button type="button" class="snkp-btn pri dl">⬇ PNG</button></div>';
     var cv = b.querySelector('canvas'), c = cv.getContext('2d'), down = false, eraser = false, lx = 0, ly = 0;
     c.fillStyle = '#fff'; c.fillRect(0, 0, 712, 440); c.lineCap = 'round'; c.lineJoin = 'round';
@@ -610,7 +620,7 @@
   /* Pack de texto */
   var TEXTS = ['🐍', '(◕‿◕)🐍', '~~~~~~~~=o<', '__/~~\\__/~~\\__o<', '(｡♥‿♥｡)', '( •_•)>⌐■-■', '(⌐■_■)', '¯\\_(ツ)_/¯', '(ﾉ◕ヮ◕)ﾉ*:･ﾟ✧', 'ʕ•ᴥ•ʔ', '(╯°□°)╯︵ ┻━┻', '┬─┬ノ( º _ ºノ)', '(づ｡◕‿‿◕｡)づ', '(☞ﾟヮﾟ)☞', '✧･ﾟ: *✧･ﾟ:*', 'ᕦ(ò_óˇ)ᕤ', '(¬‿¬)', '(ಥ﹏ಥ)', '٩(◕‿◕｡)۶', '(￣▽￣)ノ', '>°)))彡', '~~(__^·>', 'S N A K E   O S', '★ PRO ★'];
   var ART = ['    ____\n   / . .\\\n   \\  ---<\n    \\  /\n  __/ /\n-=:___/', '  /^\\/^\\\n_|__|  O|\n\\/     /~ \\_/ \\\n \\____|__________/  \\\n        \\_______      \\\n                `\\     \\'];
-  DEFS.textpack = { title: '🐍 Pack de texto Pro', w: 320, tool: true, render: function (b) {
+  DEFS.textpack = { title: function () { return T('🐍 Pack de texto Pro', '🐍 Pro text pack'); }, w: 320, tool: true, render: function (b) {
     b.innerHTML = '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:5px">' + TEXTS.map(function (t, i) { return '<button type="button" class="snkp-btn" data-t="' + i + '" data-noi18n translate="no" style="font-family:ui-monospace,monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(t) + '</button>'; }).join('') + '</div>' +
       ART.map(function (a, i) { return '<pre data-a="' + i + '" data-noi18n translate="no" title="Copiar" style="cursor:pointer;margin:8px 0 0;padding:6px;border-radius:8px;background:rgba(0,0,0,.35);font-size:.62rem;line-height:1.15;color:#4ade80">' + esc(a) + '</pre>'; }).join('');
     b.querySelectorAll('[data-t]').forEach(function (x) { x.onclick = function () { copy(TEXTS[+x.dataset.t]); }; });
@@ -694,22 +704,22 @@
   function center() {
     var ex = $('#snkProCenter'); if (ex) { ex.remove(); return; }
     if (!S.active) return;
-    var el = document.createElement('div'); el.id = 'snkProCenter'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', 'Centro Pro');
+    var el = document.createElement('div'); el.id = 'snkProCenter'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', T('Centro Pro', 'Pro Centre'));
     document.body.appendChild(el);
     function tg(k, label, def) { return '<label class="snkp-tg"><span>' + label + '</span><input type="checkbox" data-tg="' + k + '"' + (P(k, def) ? ' checked' : '') + '></label>'; }
     function paint() {
       var wall = P('wall', ''), acc = P('acc', ''), fr = P('frame', ''), open = P('open', {}) || {};
-      el.innerHTML = '<div class="hd">⭐ Centro Pro <span class="snkp-badge">PRO</span><button type="button" class="snkp-btn x">✕</button></div>' +
-        '<h3>Fondos Pro</h3><div class="snkp-sw walls" style="margin-bottom:14px">' + WALL_LIST.map(function (w) { var bg = w[2] || (WALLS[w[0]] ? svgUrl(WALLS[w[0]].svg) : ''); return '<button type="button" data-wall="' + w[0] + '" class="' + (wall === w[0] ? 'on' : '') + '" title="' + esc(w[1]) + '" style="background-image:' + esc(bg).replace(/&quot;/g, "'") + '"><span>' + esc(w[1]) + '</span></button>'; }).join('') + '</div>' +
-        '<h3>Colores Pro</h3><div class="snkp-sw dots"><button type="button" data-acc="" class="' + (!acc ? 'on' : '') + '" title="Color normal" style="background:#34d17a"></button>' + Object.keys(ACC).map(function (k) { return '<button type="button" data-acc="' + k + '" class="' + (acc === k ? 'on' : '') + '" title="' + ACC[k][0] + '" style="background:' + ACC[k][1] + '"></button>'; }).join('') + '</div>' +
-        '<h3>Aspecto Pro</h3>' + tg('win', '🪟 Tema de ventanas Pro', false) + tg('tb', '🧊 Barra de tareas Pro', false) + tg('intro', '✨ Animación de entrada', true) +
-        '<div class="snkp-row" style="margin:4px 0"><span>🖼 Marco de perfil</span><select data-sel="frame"><option value="">Ninguno</option>' + Object.keys(FRAMES).map(function (k) { return '<option value="' + k + '"' + (fr === k ? ' selected' : '') + '>' + FRAMES[k] + '</option>'; }).join('') + '</select></div>' +
-        '<h3>Widgets de escritorio</h3><div class="snkp-row" style="margin-bottom:8px"><button type="button" class="snkp-btn pri pick">🧩 Añadir widget…</button></div><div class="snkp-grid">' + [['aclock', '🕰️ Reloj analógico'], ['world', '🌍 Reloj mundial'], ['month', '📅 Calendario'], ['monitor', '📈 Monitor']].map(function (x) { return '<button type="button" data-w="' + x[0] + '" class="' + (W[x[0]] ? 'on' : '') + '">' + x[1] + '</button>'; }).join('') + '<button type="button" data-note="1">🗒️ Nueva nota</button></div>' +
-        '<h3>Herramientas Pro</h3><div class="snkp-grid">' + [['kanban', '🗂️ Kanban'], ['focus', '🎯 Foco'], ['timers', '⏳ Temporizadores'], ['recorder', '🎥 Grabar pantalla'], ['passgen', '🔑 Contraseñas'], ['sketch', '✏️ Dibujo'], ['textpack', '🐍 Pack de texto']].map(function (x) { return '<button type="button" data-w="' + x[0] + '" class="' + (W[x[0]] ? 'on' : '') + '">' + x[1] + '</button>'; }).join('') + '</div>' +
-        '<h3>Diseños de ventanas <small style="text-transform:none;letter-spacing:0">(Alt+Mayús+1…7)</small></h3><div class="snkp-grid">' + LAYOUTS.map(function (l) { return '<button type="button" data-lay="' + l[0] + '">' + l[1] + '</button>'; }).join('') + '</div>' +
-        '<h3>Salvapantallas Pro <small style="text-transform:none;letter-spacing:0">(Ctrl+Alt+P)</small></h3><div class="snkp-row"><button type="button" class="snkp-btn" data-saver="rain">🐍 Lluvia de serpientes</button><button type="button" class="snkp-btn" data-saver="stars">🌠 Estrellas doradas</button></div>' +
-        '<div class="snkp-row" style="margin-top:6px"><span>Usar</span><select data-sel="saverKind"><option value="rain">Lluvia de serpientes</option><option value="stars"' + (P('saverKind', 'rain') === 'stars' ? ' selected' : '') + '>Estrellas doradas</option></select><span>tras</span><select data-sel="saverIdle">' + [[0, 'nunca'], [2, '2 min'], [5, '5 min'], [10, '10 min'], [15, '15 min']].map(function (o) { return '<option value="' + o[0] + '"' + (+P('saverIdle', 0) === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></div>' +
-        '<h3>Máquinas virtuales</h3><p style="margin:0 0 6px;opacity:.8;font-size:.75rem">En la máquina (Ubuntu 26.10 (estilo)) abre Configuración › Pro: estilos de terminal e instantánea de la máquina.</p><button type="button" class="snkp-btn vm">🖥️ Abrir Máquinas virtuales</button>';
+      el.innerHTML = '<div class="hd">⭐ ' + T('Centro Pro', 'Pro Centre') + ' <span class="snkp-badge">PRO</span><button type="button" class="snkp-btn x">✕</button></div>' +
+        '<h3>' + T('Fondos Pro', 'Pro wallpapers') + '</h3><div class="snkp-sw walls" style="margin-bottom:14px">' + WALL_LIST.map(function (w) { var bg = w[2] || (WALLS[w[0]] ? svgUrl(WALLS[w[0]].svg) : ''); return '<button type="button" data-wall="' + w[0] + '" class="' + (wall === w[0] ? 'on' : '') + '" title="' + esc(L_(w[1])) + '" style="background-image:' + esc(bg).replace(/&quot;/g, "'") + '"><span>' + esc(L_(w[1])) + '</span></button>'; }).join('') + '</div>' +
+        '<h3>' + T('Colores Pro', 'Pro colours') + '</h3><div class="snkp-sw dots"><button type="button" data-acc="" class="' + (!acc ? 'on' : '') + '" title="' + T('Color normal', 'Default colour') + '" style="background:#34d17a"></button>' + Object.keys(ACC).map(function (k) { return '<button type="button" data-acc="' + k + '" class="' + (acc === k ? 'on' : '') + '" title="' + L_(ACC[k][0]) + '" style="background:' + ACC[k][1] + '"></button>'; }).join('') + '</div>' +
+        '<h3>' + T('Aspecto Pro', 'Pro look') + '</h3>' + tg('win', T('🪟 Tema de ventanas Pro', '🪟 Pro window theme'), false) + tg('tb', T('🧊 Barra de tareas Pro', '🧊 Pro taskbar'), false) + tg('intro', T('✨ Animación de entrada', '✨ Intro animation'), true) +
+        '<div class="snkp-row" style="margin:4px 0"><span>🖼 ' + T('Marco de perfil', 'Profile frame') + '</span><select data-sel="frame"><option value="">' + T('Ninguno', 'None') + '</option>' + Object.keys(FRAMES).map(function (k) { return '<option value="' + k + '"' + (fr === k ? ' selected' : '') + '>' + L_(FRAMES[k]) + '</option>'; }).join('') + '</select></div>' +
+        '<h3>' + T('Widgets de escritorio', 'Desktop widgets') + '</h3><div class="snkp-row" style="margin-bottom:8px"><button type="button" class="snkp-btn pri pick">🧩 ' + T('Añadir widget…', 'Add widget…') + '</button></div><div class="snkp-grid">' + [['aclock', T('🕰️ Reloj analógico', '🕰️ Analogue clock')], ['world', T('🌍 Reloj mundial', '🌍 World clock')], ['month', T('📅 Calendario', '📅 Calendar')], ['monitor', '📈 Monitor']].map(function (x) { return '<button type="button" data-w="' + x[0] + '" class="' + (W[x[0]] ? 'on' : '') + '">' + x[1] + '</button>'; }).join('') + '<button type="button" data-note="1">🗒️ ' + T('Nueva nota', 'New note') + '</button></div>' +
+        '<h3>' + T('Herramientas Pro', 'Pro tools') + '</h3><div class="snkp-grid">' + [['kanban', '🗂️ Kanban'], ['focus', T('🎯 Foco', '🎯 Focus')], ['timers', T('⏳ Temporizadores', '⏳ Timers')], ['recorder', T('🎥 Grabar pantalla', '🎥 Screen recorder')], ['passgen', T('🔑 Contraseñas', '🔑 Passwords')], ['sketch', T('✏️ Dibujo', '✏️ Sketch')], ['textpack', T('🐍 Pack de texto', '🐍 Text pack')]].map(function (x) { return '<button type="button" data-w="' + x[0] + '" class="' + (W[x[0]] ? 'on' : '') + '">' + x[1] + '</button>'; }).join('') + '</div>' +
+        '<h3>' + T('Diseños de ventanas', 'Window layouts') + ' <small style="text-transform:none;letter-spacing:0">(' + T('Alt+Mayús+1…7', 'Alt+Shift+1…7') + ')</small></h3><div class="snkp-grid">' + LAYOUTS.map(function (l) { return '<button type="button" data-lay="' + l[0] + '">' + L_(l[1]) + '</button>'; }).join('') + '</div>' +
+        '<h3>Salvapantallas Pro <small style="text-transform:none;letter-spacing:0">(Ctrl+Alt+P)</small></h3><div class="snkp-row"><button type="button" class="snkp-btn" data-saver="rain">🐍 ' + T('Lluvia de serpientes', 'Snake rain') + '</button><button type="button" class="snkp-btn" data-saver="stars">🌠 ' + T('Estrellas doradas', 'Golden stars') + '</button></div>' +
+        '<div class="snkp-row" style="margin-top:6px"><span>' + T('Usar', 'Use') + '</span><select data-sel="saverKind"><option value="rain">' + T('Lluvia de serpientes', 'Snake rain') + '</option><option value="stars"' + (P('saverKind', 'rain') === 'stars' ? ' selected' : '') + '>' + T('Estrellas doradas', 'Golden stars') + '</option></select><span>' + T('tras', 'after') + '</span><select data-sel="saverIdle">' + [[0, T('nunca', 'never')], [2, '2 min'], [5, '5 min'], [10, '10 min'], [15, '15 min']].map(function (o) { return '<option value="' + o[0] + '"' + (+P('saverIdle', 0) === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></div>' +
+        '<h3>' + T('Máquinas virtuales', 'Virtual machines') + '</h3><p style="margin:0 0 6px;opacity:.8;font-size:.75rem">' + T('En la máquina (Ubuntu 26.10 (estilo)) abre Configuración › Pro: estilos de terminal e instantánea de la máquina.', 'In the machine (Ubuntu 26.10 (style)) open Settings › Pro: terminal styles and machine snapshot.') + '</p><button type="button" class="snkp-btn vm">🖥️ ' + T('Abrir Máquinas virtuales', 'Open Virtual machines') + '</button>';
       el.querySelector('.x').onclick = function () { el.remove(); };
       el.querySelectorAll('[data-wall]').forEach(function (b) { b.onclick = function () { setPref('wall', b.dataset.wall); applyWall(); paint(); }; });
       el.querySelectorAll('[data-acc]').forEach(function (b) { b.onclick = function () { setPref('acc', b.dataset.acc); applyBody(); paint(); }; });
@@ -729,7 +739,7 @@
     var ub = $('#userBadge'), b = $('#snkProBtn');
     if (!S.active) { if (b) { b.remove(); try { if (window.snkTbOpen && window.snkTbOpen.refresh) window.snkTbOpen.refresh(); } catch (e) {} } return; }
     if (!ub || !ub.parentNode || b) return;
-    b = document.createElement('button'); b.type = 'button'; b.className = 'tb-tool'; b.id = 'snkProBtn'; b.title = 'Centro Pro (Snake OS VP Pro)'; b.setAttribute('aria-label', 'Centro Pro'); b.innerHTML = '<span aria-hidden="true">⭐</span><span class="snkp-badge">PRO</span>';
+    b = document.createElement('button'); b.type = 'button'; b.className = 'tb-tool'; b.id = 'snkProBtn'; b.title = T('Centro Pro (Snake OS VP Pro)', 'Pro Centre (Snake OS VP Pro)'); b.setAttribute('aria-label', T('Centro Pro', 'Pro Centre')); b.innerHTML = '<span aria-hidden="true">⭐</span><span class="snkp-badge">PRO</span>';
     b.onclick = function (e) { e.stopPropagation(); center(); };
     ub.parentNode.insertBefore(b, ub.nextSibling); // a la izquierda, junto a tu nombre (no mueve los botones que ya existen)
     try { if (window.snkTbOpen && window.snkTbOpen.refresh) window.snkTbOpen.refresh(); } catch (e) {}
@@ -809,8 +819,8 @@
         var v = cleanCode(inp.value); if (!v) { paint('Pega primero tu código', 'err'); return; }
         go.disabled = true; go.textContent = 'Comprobando…';
         api('/api/pro/redeem', { method: 'POST', body: { code: v } }).then(function (d) {
-          inp.value = ''; setStatus(d); paint('✅ ¡Snake OS VP Pro activado en este perfil!', 'ok'); toast('⭐ Snake OS VP Pro activado'); if (repaint) setTimeout(repaint, 50);
-        }, function (e) { var m = (e && e.message) || 'No se pudo comprobar el código'; if (e && e.status === 401) { m = 'Tu sesión de Snake OS VP se ha cerrado (por ejemplo, al abrir Snake OS en otra pestaña). Inicia sesión otra vez y vuelve a pegar el código: sigue siendo válido.'; try { if (window.snkSessionGuard) window.snkSessionGuard.show(); } catch (e3) {} } paint('❌ ' + m, 'err'); var i2 = box.querySelector('#snkProCode'); if (i2) { i2.value = v; i2.focus(); } });
+          inp.value = ''; setStatus(d); paint(T('✅ ¡Snake OS VP Pro activado en este perfil!', '✅ Snake OS VP Pro activated on this profile!'), 'ok'); toast(T('⭐ Snake OS VP Pro activado', '⭐ Snake OS VP Pro activated')); if (repaint) setTimeout(repaint, 50);
+        }, function (e) { var m = srvErr((e && e.message) || '') || T('No se pudo comprobar el código', 'The code could not be checked'); if (e && e.status === 401) { m = T('Tu sesión de Snake OS VP se ha cerrado (por ejemplo, al abrir Snake OS en otra pestaña). Inicia sesión otra vez y vuelve a pegar el código: sigue siendo válido.', 'Your Snake OS VP session has ended (for example, by opening Snake OS in another tab). Sign in again and paste the code again: it is still valid.'); try { if (window.snkSessionGuard) window.snkSessionGuard.show(); } catch (e3) {} } paint('❌ ' + m, 'err'); var i2 = box.querySelector('#snkProCode'); if (i2) { i2.value = v; i2.focus(); } });
       }
       go.onclick = submit; inp.onkeydown = function (e) { if (e.key === 'Enter') submit(); };
     }

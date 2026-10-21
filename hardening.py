@@ -6,7 +6,7 @@ Todo es aditivo y conservador: un usuario normal no nota nada.
     * corta con 413 los cuerpos /api/ con Content-Length enorme (por defecto > 160 MB);
     * rechaza con 403 un POST/PUT/PATCH/DELETE /api/ que llega desde OTRA web
       (cabecera Origin de otro sitio y el navegador NO dice Sec-Fetch-Site: same-origin);
-      sin Origin, con Origin "null" o desde la propia web pasa siempre;
+      sin Origin o desde la propia web pasa siempre; Origin "null" solo con Sec-Fetch-Site: same-origin;
     * limita por IP las rutas caras que llaman a servicios externos (imágenes IA,
       traducir, buscar en la web, mapas). Los límites son muy generosos.
   y un manejador para que cualquier excepción no prevista salga como JSON 500.
@@ -87,7 +87,20 @@ def client_ip_from(headers: dict[str, str], peer: str) -> str:
     return _valid_ip(peer) or "unknown"
 
 
+# 2026.14b: main.py pone aquí su _visitor_ip (solo se fía de CF-Connecting-IP/X-Real-IP/X-Forwarded-For
+# cuando la conexión llega del túnel o de un proxy interno, nunca de un visitante con IP pública).
+IP_RESOLVER: Any = None
+
+
 def request_ip(request: Request) -> str:
+    if IP_RESOLVER is not None:
+        try:
+            ip = _valid_ip(str(IP_RESOLVER(request) or ""))
+            if ip:
+                return ip
+        except Exception:
+            pass
+        return "unknown"
     peer = request.client.host if request.client and request.client.host else ""
     headers = {k.lower(): v for k, v in request.headers.items()}
     return client_ip_from(headers, peer)
@@ -100,9 +113,13 @@ def _host_only(value: str) -> str:
 def origin_allowed(origin: str, host: str, forwarded_host: str, fetch_site: str) -> bool:
     """True si una petición que cambia datos puede pasar. Muy conservador."""
     origin = (origin or "").strip()
-    if not origin or origin.lower() == "null":
+    same = (fetch_site or "").strip().lower() == "same-origin"
+    if not origin:
         return True
-    if (fetch_site or "").strip().lower() == "same-origin":
+    if origin.lower() == "null":
+        # 2026.14b: «null» (iframes con sandbox, redirecciones entre webs…) solo si el navegador dice que es la propia web
+        return same
+    if same:
         return True
     try:
         parts = urlsplit(origin)
@@ -203,8 +220,11 @@ class FailThrottle:
 
 
 _MSG_LOGIN = "Demasiados intentos fallidos. Espera unos minutos y vuelve a probar."
-LOGIN_IP_FAILS = FailThrottle(30, 15 * 60, _MSG_LOGIN)
-LOGIN_EMAIL_FAILS = FailThrottle(10, 15 * 60, _MSG_LOGIN)
+# 2026.14b: el bloqueo va por correo+IP (10); por IP sola el tope es alto (100) para no dejar fuera a toda una red
+# (colegio, oficina, operador móvil con CGNAT); por correo desde cualquier IP, 50, para que nadie bloquee al dueño.
+LOGIN_IP_FAILS = FailThrottle(100, 15 * 60, _MSG_LOGIN)
+LOGIN_EMAIL_IP_FAILS = FailThrottle(10, 15 * 60, _MSG_LOGIN)
+LOGIN_EMAIL_FAILS = FailThrottle(50, 15 * 60, _MSG_LOGIN)
 GATE_IP_FAILS = FailThrottle(15, 15 * 60, _MSG_LOGIN)
 PASSWORD_USER_FAILS = FailThrottle(10, 15 * 60, _MSG_LOGIN)
 SIGNUP_IP = FailThrottle(20, 3600, "Se han creado demasiadas cuentas desde esta conexión. Prueba más tarde.")
@@ -239,7 +259,10 @@ class HardeningMiddleware:
 
     async def _reply(self, send: Any, status: int, detail: str, extra: list[tuple[bytes, bytes]] | None = None) -> None:
         body = _json_bytes(status, detail)
+        code = {403: b"blocked_origin", 413: b"too_big", 429: b"rate"}.get(status, b"")
         headers = [(b"content-type", b"application/json; charset=utf-8"), (b"content-length", str(len(body)).encode())]
+        if code:
+            headers.append((b"x-snk-err", code))
         headers.extend(extra or [])
         await send({"type": "http.response.start", "status": status, "headers": headers})
         await send({"type": "http.response.body", "body": body})
@@ -286,8 +309,11 @@ class HardeningMiddleware:
         if _env("SNAKEOS_RATE_LIMITS", "on") != "off":
             limit = rate_rule_for(path)
             if limit:
-                client = scope.get("client") or ("", 0)
-                ip = client_ip_from(headers, str(client[0] or ""))
+                if IP_RESOLVER is not None:
+                    ip = request_ip(Request(scope))
+                else:
+                    client = scope.get("client") or ("", 0)
+                    ip = client_ip_from(headers, str(client[0] or ""))
                 prefix = next(p for p, lim in RATE_RULES if path.startswith(p))
                 wait = RATE.hit(prefix + "|" + ip, limit)
                 if wait:
@@ -295,12 +321,29 @@ class HardeningMiddleware:
                                       [(b"retry-after", str(wait).encode())])
                     return
 
+        # 4) Cuerpos sin Content-Length (chunked): mismo tope, contando lo que llega
+        if not cl and method in UNSAFE_METHODS:
+            limit_b, seen = max_body_bytes(), [0]
+
+            async def capped_receive() -> dict:
+                msg = await receive()
+                if msg.get("type") == "http.request":
+                    seen[0] += len(msg.get("body") or b"")
+                    if seen[0] > limit_b:
+                        print(f"[harden] cuerpo chunked demasiado grande en {method} {path}", flush=True)
+                        return {"type": "http.disconnect"}
+                return msg
+
+            await self.app(scope, capped_receive, send)
+            return
+
         await self.app(scope, receive, send)
 
 
 async def _unhandled(request: Request, exc: Exception) -> JSONResponse:
     print(f"[harden] error no controlado en {request.method} {request.url.path}: {type(exc).__name__}", flush=True)
-    return JSONResponse(status_code=500, content={"detail": "Error interno del servidor. Inténtalo de nuevo."})
+    return JSONResponse(status_code=500, content={"detail": "Error interno del servidor. Inténtalo de nuevo."},
+                        headers={"X-Snk-Err": "server"})
 
 
 def install(app: Any) -> None:

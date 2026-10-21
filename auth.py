@@ -29,9 +29,10 @@ def new_session_id() -> str:
     return str(uuid4())
 
 
-def start_session(user_id: int) -> str:
+def start_session(user_id: int, kind: str = "os") -> str:
+    """kind='os': sesión de Snake OS; kind='site': solo para páginas propias (/pro), no vale como sesión de Snake OS."""
     sid = new_session_id()
-    create_session(sid, user_id, time.time())
+    create_session(sid, user_id, time.time(), kind)
     return sid
 
 
@@ -40,11 +41,21 @@ def end_session(session_id: str | None) -> None:
         delete_session(session_id)
 
 
-def user_from_session(session_id: str | None):
+def session_kind(row) -> str:
+    try:
+        return "site" if row["kind"] == "site" else "os"
+    except (IndexError, KeyError):
+        return "os"
+
+
+def user_from_session(session_id: str | None, kind: str = "os"):
+    """Por defecto solo acepta sesiones de Snake OS: una sesión de página (/pro) no abre Snake OS ni su API."""
     if not session_id:
         return None
     row = get_session(session_id)
     if not row:
+        return None
+    if session_kind(row) != ("site" if kind == "site" else "os"):
         return None
     if time.time() - float(row["created_at"]) > SESSION_MAX_AGE:
         delete_session(session_id)

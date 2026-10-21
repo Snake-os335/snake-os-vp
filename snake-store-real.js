@@ -178,6 +178,7 @@
           } });
       } catch (e) {}
       // IndexedDB propia de la app (origen opaco: el navegador no la permite) → aviso claro en vez de excepción
+      try { Object.defineProperty(window, 'indexedDB', { configurable: true, value: undefined }); } catch (e) {}
       // Workers: un origen opaco no puede crear Worker('/static/…'); se crea uno desde blob que importa el script real
       // y resuelve sus rutas relativas (fetch, XHR, importScripts y la ruta del .wasm de Emscripten) contra su URL real.
       try {
@@ -187,6 +188,11 @@
             var u = String(url && url.href ? url.href : url);
             if (/^(blob|data):/i.test(u)) return new RW(url, opts);
             var abs = new URL(u, document.baseURI).href;
+            if (opts && opts.type === 'module') {
+              // Worker de tipo módulo (p. ej. PDF.js): un blob que importa el módulo real por su URL absoluta
+              var mu = URL.createObjectURL(new Blob(['import ' + JSON.stringify(abs) + ';'], { type: 'text/javascript' }));
+              var mw = new RW(mu, opts); setTimeout(function () { try { URL.revokeObjectURL(mu); } catch (e) {} }, 30000); return mw;
+            }
             var pre = 'var __sraBase=' + JSON.stringify(abs) + ';(function(){' +
               'function fx(x){try{x=String(x&&x.url?x.url:x);if(/^blob:/i.test(x)){var t=x.replace(/^blob:[^/]*\\/+/,"");if(/\\./.test(t)&&!/^[0-9a-f-]{36}$/i.test(t))return new URL(t,__sraBase).href;return x;}return new URL(x,__sraBase).href;}catch(e){return x;}}' +
               'var F=self.fetch;if(F)self.fetch=function(i,o){if(typeof i==="string"||(i&&i.href))i=fx(i);return F.call(self,i,o);};' +
@@ -312,27 +318,30 @@
     return function () {
       dead = true;
       if (!frame) return;
-      // La app guarda lo último (onClose) antes de desaparecer: el iframe sigue vivo, oculto, hasta que contesta o 1,5 s
+      // 2026.14b: el iframe NO se mueve (moverlo lo recargaba y la copia recargada pisaba los datos nuevos con los
+      // de la apertura). Se queda donde está mientras dura la animación de cierre: recibe «closing», guarda lo último
+      // (onClose → SRA.save / localStorage) y se borra al contestar «closed», al quitarse la ventana o a los 1,5 s.
       var f = frame; frame = null;
-      try {
-        var hold = document.getElementById('sraHold');
-        if (!hold) { hold = document.createElement('div'); hold.id = 'sraHold'; hold.setAttribute('aria-hidden', 'true'); hold.style.cssText = 'position:fixed;left:-9999px;top:0;width:10px;height:10px;overflow:hidden;opacity:0;pointer-events:none'; document.body.appendChild(hold); }
-        hold.appendChild(f);
-        var gone = false, kill = function () { if (gone) return; gone = true; try { if (f.__sraOff) f.__sraOff(); f.srcdoc = ''; f.remove(); } catch (e) {} };
-        f.__sraClosed = kill; setTimeout(kill, 1500);
-        f.contentWindow.postMessage({ sra: f.__sraTok, op: 'closing' }, '*');
-      } catch (e) { try { f.remove(); } catch (e2) {} }
+      f.__sraClosing = true;
+      var gone = false, kill = function () { if (gone) return; gone = true; try { if (f.__sraOff) f.__sraOff(); f.srcdoc = ''; f.remove(); } catch (e) {} };
+      f.__sraClosed = kill;
+      if (!f.isConnected || !f.contentWindow) { kill(); return; }
+      try { f.contentWindow.postMessage({ sra: f.__sraTok, op: 'closing' }, '*'); } catch (e) { kill(); return; }
+      setTimeout(kill, 1500);
     };
   }
 
   /* Puente con el iframe: solo mensajes de ESE iframe y con su token; el iframe nunca toca Snake OS directamente */
   function bridge(frame, a, tok, win) {
     var p = who(), K = lsPrefix(p, a.id), pre = p + '|' + a.id + '|';
-    frame.__sraTok = tok;
+    frame.__sraTok = tok; frame.__sraLoads = 0;
+    frame.addEventListener('load', function () { frame.__sraLoads++; if (frame.__sraClosing && frame.__sraLoads > 1 && frame.__sraClosed) frame.__sraClosed(); });
     function reply(id, val, err) { try { frame.contentWindow.postMessage({ sra: tok, op: 'ret', id: id, val: val, err: err ? { message: String(err.message || err), status: err.status || 0 } : null }, '*'); } catch (e) {} }
     function onMsg(e) {
-      if (!frame.contentWindow || e.source !== frame.contentWindow) return;
+      if (!frame.isConnected || !frame.contentWindow || e.source !== frame.contentWindow) return;
       var d = e.data; if (!d || d.sra !== tok || typeof d.op !== 'string') return;
+      // Cerrándose: si el iframe se ha recargado (copia con datos viejos) no se acepta nada; si no, solo lo último que guarda.
+      if (frame.__sraClosing && (frame.__sraLoads > 1 || !(d.op === 'ls' || d.op === 'put' || d.op === 'closed'))) return;
       if (d.op === 'ls') {
         var k = String(d.k || '').slice(0, 512); if (!k) return;
         try { if (d.v === null) localStorage.removeItem(K + k); else localStorage.setItem(K + k, String(d.v)); } catch (x) { if (!onMsg.warned) { onMsg.warned = 1; try { if (window.snkToast) window.snkToast(T('No queda espacio para guardar los datos de esta app', 'No space left to save this app’s data')); } catch (y) {} } }
