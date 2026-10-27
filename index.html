@@ -227,6 +227,7 @@ window.SNAKE_OS_CHANGES=[
 <script src="/static/snake-maps.js?v=202610141800" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-locshare.js?v=202610180010"></script>
 <script src="/static/doganiero-bots-os.js?v=202610272300"></script>
+<script src="/static/doganiero-hub-os.js?v=202610272330"></script>
 <script src="/static/doganiero-bots.js?v=202610180010"></script>
 <script src="/static/snake-bluetooth.js?v=202610111725" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-keypad.js?v=202610161800" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
@@ -8251,6 +8252,7 @@ function buildIcons(){
   function renderProfileApp(container){
     if(!currentUser){ container.innerHTML = '<p style="padding:16px">Inicia sesión para ver tu perfil.</p>'; return; }
     container.innerHTML =
+      '<div id="dogaHubBox-x"></div>' +
       '<label>Tu nombre</label>' +
       '<input type="text" id="profileName-x">' +
       '<label>Foto o emoji de perfil</label>' +
@@ -8273,6 +8275,7 @@ function buildIcons(){
       '<button type="button" id="profileDeleteBtn-x" class="link-btn" style="margin-top:8px;color:#ff9c9c;">🗑️ Eliminar mi cuenta</button>' +
       '<div class="status" id="profileStatus-x"></div>';
 
+    if (window.DogaHubOS) window.DogaHubOS.mount(container.querySelector('#dogaHubBox-x'));
     const nameInput = container.querySelector('#profileName-x');
     nameInput.value = currentUser.name;
     const grid = container.querySelector('#profileAvatarGrid-x');

@@ -484,6 +484,11 @@ def signup(body: SignupBody, response: Response, request: Request, _gate: None =
         dog_phone.ensure_number(int(user["id"]))
     except Exception:
         pass
+    try:
+        import doga_hub as _dh
+        _dh.ensure_card(int(user["id"]))   # tarjeta Doganiero Points™ con 0 puntos
+    except Exception:
+        pass
     sid = start_session(int(user["id"]))
     set_session_cookie(response, sid)
     note_activity("cuenta", user["name"])
@@ -1591,6 +1596,7 @@ def upload_file(body: FileUploadBody, user=Depends(require_user)):
             except (TypeError, ValueError):
                 pass
         fid = max_id + 1
+    doga_hub.check_quota(uid, (len(body.dataUrl or "") * 3) // 4)
     try:
         entry = db.save_uploaded_file(
             uid,
@@ -7599,6 +7605,7 @@ def _chat_peer_for_send(user: Any, to_email: str) -> Any:
 @app.post("/api/chat/video/start")
 def chat_video_start(body: ChatVideoStartBody, user=Depends(require_user)):
     peer = _chat_peer_for_send(user, body.to)
+    doga_hub.check_quota(int(user["id"]), int(body.size or 0))
     try:
         return chat_media.start(int(user["id"]), int(peer["id"]), body.name, body.type, body.size)
     except (ValueError, LookupError) as exc:
@@ -9384,11 +9391,16 @@ app.include_router(osx_extras.build_router(require_user))
 
 # Snake OS VP Pro + inicio de sesión compartido con cuentas Dogaemail para páginas propias (2026-10-21)
 import doga_auth
+import doga_hub
 import pro_extras
 
 
 def _doga_on_signup(user) -> None:
     # Lo mismo que hace /api/signup al crear una cuenta
+    try:
+        doga_hub.ensure_card(int(user["id"]))   # tarjeta Doganiero Points™ con 0 puntos
+    except Exception:
+        pass
     try:
         dog_phone.ensure_number(int(user["id"]))
     except Exception:
@@ -9398,6 +9410,7 @@ def _doga_on_signup(user) -> None:
 
 hardening.IP_RESOLVER = _visitor_ip  # 2026.14b: misma IP de visitante en límites y bloqueos
 app.include_router(doga_auth.build_router(_visitor_ip, BLOCKED_SIGNUP_DOMAINS, _doga_on_signup))
+app.include_router(doga_hub.build_router(COOKIE_NAME, _visitor_ip))
 app.include_router(pro_extras.build_router(require_user, _visitor_ip, lambda request: doga_auth.site_user(request, "pro")))
 import v2614_extras  # 2026.14: /api/calendar y /api/store/ratings (faltaban)
 app.include_router(v2614_extras.build_router(require_user))
