@@ -35,6 +35,7 @@ import db
 import dog_phone
 import added_accounts
 import chat_extras
+import chat_media
 import store_extras
 import calendar_extras
 import bots_extras
@@ -7546,6 +7547,175 @@ async def chat_send(body: ChatSendBody, user=Depends(require_user)):
     _queue_notif_push(peer_id, notif)
     note_activity("chat", user["name"])
     return {"message": saved, "notificationId": notif["id"]}
+
+
+# ── Doganiero Chat: vídeos de cualquier tamaño (subida por trozos, ver chat_media.py) ──
+class ChatVideoStartBody(BaseModel):
+    to: str = Field(..., min_length=3, max_length=200)
+    name: str = Field(default="video", max_length=300)
+    type: str = Field(default="", max_length=80)
+    size: int = Field(..., ge=1)
+
+
+class ChatVideoFinishBody(BaseModel):
+    text: str = Field(default="", max_length=2000)
+    replyTo: int | None = Field(default=None)
+
+
+_CHAT_VIDEO_ERR = {
+    "notvideo": (400, "Solo se pueden enviar vídeos"),
+    "empty": (400, "El vídeo está vacío"),
+    "nospace": (507, "No queda espacio en el servidor para este vídeo"),
+    "chunk": (413, "Trozo demasiado grande"),
+    "toolong": (400, "El vídeo es más grande de lo anunciado"),
+    "incomplete": (409, "La subida del vídeo no está completa"),
+}
+
+
+def _chat_video_http(exc: Exception) -> HTTPException:
+    if isinstance(exc, LookupError):
+        return HTTPException(status_code=404, detail="Subida no encontrada")
+    code, msg = _CHAT_VIDEO_ERR.get(str(exc), (400, "No se pudo subir el vídeo"))
+    return HTTPException(status_code=code, detail=msg)
+
+
+def _chat_peer_for_send(user: Any, to_email: str) -> Any:
+    to_email = (to_email or "").strip().lower()
+    peer = db.get_user_by_email(to_email)
+    if not peer:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    uid = int(user["id"])
+    if int(peer["id"]) == uid:
+        raise HTTPException(status_code=400, detail="No puedes enviarte mensajes a ti mismo")
+    _kp = osx_extras.kids_policy(uid)
+    if _kp is not None and (_kp["chat"] == "off" or to_email not in _kp["contacts"]):
+        osx_extras.log_blocked(uid, "chat", to_email)
+        raise HTTPException(status_code=403, detail="Snake OS Kids: solo puedes escribir a los contactos que ha aprobado un adulto" if _kp["chat"] != "off" else "Snake OS Kids: el chat está desactivado")
+    if not added_accounts.has(uid, int(peer["id"])):
+        raise HTTPException(status_code=403, detail="Solo puedes chatear con cuentas que has añadido.")
+    return peer
+
+
+@app.post("/api/chat/video/start")
+def chat_video_start(body: ChatVideoStartBody, user=Depends(require_user)):
+    peer = _chat_peer_for_send(user, body.to)
+    try:
+        return chat_media.start(int(user["id"]), int(peer["id"]), body.name, body.type, body.size)
+    except (ValueError, LookupError) as exc:
+        raise _chat_video_http(exc) from exc
+
+
+@app.put("/api/chat/video/{upload_id}")
+async def chat_video_chunk(upload_id: str, request: Request, offset: int = Query(..., ge=0), user=Depends(require_user)):
+    data = bytearray()
+    async for part in request.stream():
+        data.extend(part)
+        if len(data) > chat_media.CHUNK_MAX:
+            raise HTTPException(status_code=413, detail="Trozo demasiado grande")
+    try:
+        got = await asyncio.to_thread(chat_media.put_chunk, upload_id, int(user["id"]), int(offset), bytes(data))
+    except (ValueError, LookupError) as exc:
+        raise _chat_video_http(exc) from exc
+    return {"received": got}
+
+
+@app.delete("/api/chat/video/{upload_id}")
+def chat_video_cancel(upload_id: str, user=Depends(require_user)):
+    chat_media.cancel(upload_id, int(user["id"]))
+    return {"ok": True}
+
+
+@app.post("/api/chat/video/{upload_id}/finish")
+async def chat_video_finish(upload_id: str, body: ChatVideoFinishBody, user=Depends(require_user)):
+    uid = int(user["id"])
+    try:
+        info = chat_media.take_finished(upload_id, uid)
+    except (ValueError, LookupError) as exc:
+        raise _chat_video_http(exc) from exc
+    peer_id = int(info["to"])
+    if not added_accounts.has(uid, peer_id):
+        raise HTTPException(status_code=403, detail="Solo puedes chatear con cuentas que has añadido.")
+    text = (body.text or "").strip() or "🎬 Vídeo"
+    ts = time_mod.time()
+    saved = db.save_chat_message(from_user_id=uid, to_user_id=peer_id, text=text, created_at=ts, image=None)
+    chat_media.link(int(saved["id"]), info)
+    if body.replyTo:
+        try:
+            chat_extras.set_reply(int(saved["id"]), int(body.replyTo), uid)
+        except Exception:
+            pass
+    try:
+        chat_extras.decorate([saved])
+    except Exception:
+        pass
+    notif = db.create_notification(
+        user_id=peer_id,
+        kind="chat",
+        title=(f"{user['avatar']} {user['name']}" if (user['avatar'] and not db._is_image_avatar_str(str(user['avatar']))) else str(user['name'])),
+        body="🎬 Vídeo" if text == "🎬 Vídeo" else ("🎬 " + (text if len(text) <= 117 else text[:116] + "…")),
+        data={"app": "chat", "peerEmail": user["email"], "peerName": user["name"], "peerAvatar": user["avatar"], "peerId": uid, "messageId": saved["id"]},
+        created_at=ts,
+    )
+    await chat_hub.send_to_user(peer_id, {"type": "chat_message", "message": saved})
+    await chat_hub.send_to_user(peer_id, {"type": "notification", "notification": notif, "unread": db.count_unread_notifications(user_id=peer_id)})
+    _queue_notif_push(peer_id, notif)
+    note_activity("chat", user["name"])
+    return {"message": saved, "notificationId": notif["id"]}
+
+
+@app.get("/api/chat/video/{message_id}")
+def chat_video_get(message_id: int, request: Request, user=Depends(require_user)):
+    v = chat_media.for_viewer(int(message_id), int(user["id"]))
+    if not v:
+        raise HTTPException(status_code=404, detail="Vídeo no encontrado")
+    size = int(v["path"].stat().st_size)
+    start, end = 0, size - 1
+    rng = request.headers.get("range") or ""
+    m = re.match(r"bytes=(\d*)-(\d*)$", rng.strip())
+    status = 200
+    if m and (m.group(1) or m.group(2)):
+        if m.group(1):
+            start = int(m.group(1))
+            end = min(int(m.group(2)), size - 1) if m.group(2) else size - 1
+        else:
+            start = max(0, size - int(m.group(2)))
+        if start > end or start >= size:
+            return Response(status_code=416, headers={"Content-Range": f"bytes */{size}"})
+        status = 206
+
+    def _iter(path=v["path"], a=start, b=end):
+        with open(path, "rb") as fh:
+            fh.seek(a)
+            left = b - a + 1
+            while left > 0:
+                chunk = fh.read(min(1024 * 1024, left))
+                if not chunk:
+                    break
+                left -= len(chunk)
+                yield chunk
+
+    headers = {"Accept-Ranges": "bytes", "Content-Length": str(end - start + 1), "Cache-Control": "private, max-age=3600"}
+    if status == 206:
+        headers["Content-Range"] = f"bytes {start}-{end}/{size}"
+    return StreamingResponse(_iter(), status_code=status, media_type=v["mime"], headers=headers)
+
+
+class ChatHiddenBody(BaseModel):
+    email: str = Field(..., min_length=3, max_length=200)
+    hidden: bool = True
+
+
+@app.get("/api/chat/hidden")
+def chat_hidden_list(user=Depends(require_user)):
+    return {"hidden": chat_extras.list_hidden(int(user["id"]))}
+
+
+@app.post("/api/chat/hidden")
+def chat_hidden_set(body: ChatHiddenBody, user=Depends(require_user)):
+    try:
+        return {"hidden": chat_extras.set_hidden(int(user["id"]), body.email, bool(body.hidden))}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.post("/api/chat/messages/{message_id}/react")

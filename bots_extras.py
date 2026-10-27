@@ -1438,7 +1438,7 @@ def build_router(
             "Céntrate SOLO en el objetivo pedido: no explores, no abras apps ni webs que no hagan falta y no añadas tareas extra. "
             "Mira el historial: no repitas lo que ya funcionó. Antes de actuar comprueba si el objetivo YA está cumplido según lo visible (app abierta, texto escrito, página cargada…): si es así responde done con goal_met true. "
             "Cada paso del historial termina con su VERIFICACIÓN (la pantalla cambió / NO cambió, el campo contiene o NO el texto): úsala para saber si el paso funcionó; si no funcionó, prueba otra forma (otro elemento, doble comprobación, tecla Enter, abrir la app desde el menú 🐍). "
-            "Si te dicen que estás atascado, cambia de estrategia; nunca repitas el mismo clic. No te rindas mientras haya otra forma razonable; fail solo si es imposible, explicando por qué. No hay prisa: no menciones el número de pasos. "
+            "Si te dicen que estás atascado, cambia de estrategia; nunca repitas el mismo clic ni la misma escritura. Si ya probaste las formas razonables, responde fail explicando por qué en vez de repetir. No menciones el número de pasos. "
             "En el PRIMER paso añade \"plan\": lista corta (2-6) de subpasos concretos para cumplir el objetivo; después sigue ese plan. "
             "Añade siempre \"goal_met\": true|false. "
             "Nunca escribas contraseñas, claves, tokens ni datos privados; nunca inicies ni cierres sesión. Llamar, borrar, enviar, pagar o apagar requieren el permiso del usuario (el sistema lo pedirá)."
@@ -1447,7 +1447,9 @@ def build_router(
             _step, _max = int(body.get("step") or 1), int(body.get("max") or 25)
         except (TypeError, ValueError):
             _step, _max = 1, 25
-        stuck = str(body.get("stuck") or "")[:120]
+        stuck = str(body.get("stuck") or "")[:400]
+        if _step >= 30:  # 2026-10 backlog: cerca del límite de pasos del cliente (40) → cerrar
+            stuck = (stuck + ". " if stuck else "") + "Llevas muchos pasos: termina ya (done si está cumplido, fail explicando qué falta)"
         prompt = (f"Objetivo (no te desvíes): {goal}\nPaso {_step}.\n"
                   + ("Conversación reciente (contexto):\n" + "\n".join(mem) + "\n" if mem else "")
                   + ("Tu plan: " + " → ".join(plan_in) + "\n" if plan_in else "Primer paso: incluye \"plan\".\n")

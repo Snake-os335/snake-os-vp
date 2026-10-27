@@ -26,6 +26,12 @@ def _ensure(conn: sqlite3.Connection) -> None:
             PRIMARY KEY (message_id, user_id)
         );
         CREATE INDEX IF NOT EXISTS idx_chat_reactions_msg ON chat_reactions(message_id);
+        CREATE TABLE IF NOT EXISTS chat_hidden (
+            owner_id INTEGER NOT NULL,
+            email TEXT NOT NULL,
+            created_at REAL NOT NULL,
+            PRIMARY KEY (owner_id, email)
+        );
         CREATE TABLE IF NOT EXISTS chat_replies (
             message_id INTEGER PRIMARY KEY,
             reply_to_id INTEGER NOT NULL
@@ -156,4 +162,36 @@ def decorate(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
         m["replyTo"] = quoted.get(rid) if rid else None
         if rid and not m["replyTo"]:
             m["replyTo"] = {"id": rid, "text": "Mensaje no disponible", "hasImage": False, "fromName": "", "fromUserId": 0}
+    try:
+        import chat_media  # vídeos del chat (2026-10)
+        chat_media.decorate(messages)
+    except Exception:
+        pass
     return messages
+
+
+# ── Contactos ocultos (2026-10): solo afecta a la lista de quien los oculta ──
+HIDDEN_MAX = 500
+
+
+def list_hidden(owner_id: int) -> list[str]:
+    with db.get_conn() as conn:
+        _ensure(conn)
+        rows = conn.execute("SELECT email FROM chat_hidden WHERE owner_id = ? ORDER BY created_at", (int(owner_id),)).fetchall()
+    return [str(r["email"]) for r in rows]
+
+
+def set_hidden(owner_id: int, email: str, hidden: bool) -> list[str]:
+    email = str(email or "").strip().lower()
+    if not email or "@" not in email or len(email) > 200:
+        raise ValueError("Correo no válido")
+    with db.get_conn() as conn:
+        _ensure(conn)
+        if hidden:
+            n = conn.execute("SELECT COUNT(*) FROM chat_hidden WHERE owner_id = ?", (int(owner_id),)).fetchone()[0]
+            if int(n) >= HIDDEN_MAX:
+                raise ValueError("Has ocultado demasiados contactos")
+            conn.execute("INSERT OR IGNORE INTO chat_hidden (owner_id, email, created_at) VALUES (?,?,?)", (int(owner_id), email, time.time()))
+        else:
+            conn.execute("DELETE FROM chat_hidden WHERE owner_id = ? AND email = ?", (int(owner_id), email))
+    return list_hidden(owner_id)

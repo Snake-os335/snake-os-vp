@@ -630,15 +630,17 @@
   }
   function agentLoop(bot, goal, surface, snapFn, execFn, log, stopped, status) {
     // Bucle del agente: ve la pantalla, la IA decide UN paso, se ejecuta y se VERIFICA el resultado.
-    // Sin límite de pasos: sigue hasta cumplir el objetivo o hasta que el usuario pulse Parar.
+    // 2026-10 (backlog): máx. 40 pasos; una acción idéntica sobre la misma pantalla no se ejecuta más de 2 veces;
+    // tras 2 cambios de estrategia sin avance el bot para y explica lo que hizo (antes podía repetir sin fin).
     var T = { start: Date.now(), think: 0, exec: 0, steps: [] }; LAST_T = T;
-    var MAX = Infinity, hist = [], said = [], n = 0, noChange = 0, warned = 0, sigs = [], plan = null, apiErr = 0, lastErr = '';
+    var MAX = 40, hist = [], said = [], n = 0, noChange = 0, warned = 0, sigs = [], plan = null, apiErr = 0, lastErr = '', resets = 0, tried = {}, banned = [];
     status = status || function () {};
     function fp(s) { return (s.items || []).map(function (x) { return x.label + '|' + (x.value || '') + '|' + (x.win || ''); }).join('~') + '#' + JSON.stringify(s.page || {}); }
     function fin(ok, msg) { status(''); if (msg) said.push(msg); T.end = Date.now(); T.total = T.end - T.start; try { log('⏱ ' + T.steps.length + ' pasos en ' + (T.total / 1000).toFixed(1) + ' s (IA ' + (T.think / 1000).toFixed(1) + ' s · acciones ' + (T.exec / 1000).toFixed(1) + ' s)'); console.info('[dbots] agente', JSON.stringify(T)); } catch (e) {} return { done: said, ok: ok, stopped: !!(stopped && stopped()), plan: plan }; }
     function summary() { var d = hist.filter(function (h) { return !/error|NO /.test(h.result); }).slice(-4).map(function (h) { return h.label || h.action; }); return d.length ? d.join(', ') : 'nada aún'; }
     function step() {
       if (stopped && stopped()) return Promise.resolve(fin(false, '⏹ Parado. Lo último que hice: ' + summary() + '.'));
+      if (n >= MAX) return Promise.resolve(fin(false, '⏸️ He parado tras ' + MAX + ' pasos para no quedarme en bucle. Lo último que hice: ' + summary() + '. Puedes pedírmelo de nuevo con más detalle.'));
       n++;
       var tS = performance.now(), s = snapFn(), before = fp(s), snapMs = Math.round(performance.now() - tS);
       var loopish = sigs.length >= 4 && sigs.slice(-4).every(function (x, i, a) { return x === a[i % 2]; });
@@ -646,13 +648,13 @@
       var stuck = noChange >= 2 || loopish || rep3;
       if (stuck) {
         warned++;
-        if (warned > 4) { warned = 1; sigs = []; noChange = 0; status('🔄 Cambio de estrategia…'); log('🔄 Atascado: empiezo de nuevo con otro enfoque' + (lastErr ? ' (' + lastErr + ')' : '')); }
+        if (warned > 3) { resets++; if (resets > 2) return Promise.resolve(fin(false, '⚠️ Me he atascado y paro para no repetir lo mismo. Lo último que hice: ' + summary() + (lastErr ? ' (' + lastErr + ')' : '') + '.')); warned = 1; sigs = []; noChange = 0; status('🔄 Cambio de estrategia…'); log('🔄 Atascado: pruebo otro enfoque' + (lastErr ? ' (' + lastErr + ')' : '')); }
         log('🔁 Eso no funcionó; pruebo otra forma');
       }
       status('🧠 Paso ' + n + ' · pensando…');
       var stepAc = typeof AbortController !== 'undefined' ? new AbortController() : null, stepTo = setTimeout(function () { if (stepAc) stepAc.abort(); }, 40000), tT = Date.now(),
         tick = setInterval(function () { if (stopped && stopped()) { if (stepAc) stepAc.abort(); return; } status('🧠 Paso ' + n + ' · pensando… ' + ((Date.now() - tT) / 1000).toFixed(1) + ' s'); }, 250);
-      return api('/api/dbots/agent/' + encodeURIComponent(bot.id), { signal: stepAc ? stepAc.signal : undefined, method: 'POST', body: { goal: goal, surface: surface, ui: s.items, page: s.page || null, history: hist.slice(-12), step: n, max: null, plan: plan, tries: warned, stuck: stuck ? (noChange >= 2 ? 'la pantalla no cambia tras tus últimos pasos' : 'estás repitiendo las mismas acciones') : '' } })
+      return api('/api/dbots/agent/' + encodeURIComponent(bot.id), { signal: stepAc ? stepAc.signal : undefined, method: 'POST', body: { goal: goal, surface: surface, ui: s.items, page: s.page || null, history: hist.slice(-12), step: n, max: null, plan: plan, tries: warned, stuck: (stuck ? (noChange >= 2 ? 'la pantalla no cambia tras tus últimos pasos' : 'estás repitiendo las mismas acciones') : '') + (banned.length ? (stuck ? '. ' : '') + 'NO repitas: ' + banned.slice(-4).join('; ') : '') } })
         .then(function (a) {
           clearTimeout(stepTo); clearInterval(tick);
           var thinkMs = Date.now() - tT, tE = Date.now(); T.think += thinkMs;
@@ -671,7 +673,16 @@
             if (alt) { it = alt; el = s.map[alt.id]; }
           }
           status('▶️ Paso ' + n + ': ' + (a.say || a.action));
-          sigs.push(a.action + ':' + (it ? it.label : a.id || '') + ':' + (a.text || a.key || ''));
+          var sig = a.action + ':' + (it ? it.label : a.id || '') + ':' + (a.text || a.key || '');
+          sigs.push(sig);
+          var tk = sig + '@' + before;
+          if (a.action !== 'wait' && a.action !== 'scroll' && (tried[tk] || 0) >= 2) {
+            // Misma acción, misma pantalla, ya probada 2 veces: no la ejecuto otra vez.
+            if (banned.indexOf(sig) < 0) banned.push(sig.slice(0, 70));
+            noChange++; hist.push({ action: a.action, id: a.id || '', label: it ? it.label : '', text: a.text || a.key || '', result: 'NO ejecutado: ya lo intentaste 2 veces aquí sin éxito' });
+            return step();
+          }
+          tried[tk] = (tried[tk] || 0) + 1;
           return Promise.resolve(execFn(a, el, it)).then(function (r) {
             if (r === 'el usuario no lo permitió') { hist.push({ action: a.action, label: it ? it.label : '', result: r }); return fin(false, '🛑 No lo hice porque no diste permiso.'); }
             return wait(SPD.settle).then(function () {
