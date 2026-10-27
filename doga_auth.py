@@ -30,7 +30,7 @@ from auth import end_session, hash_password, start_session, user_from_session, v
 
 SITE_SESSION_MAX_AGE = 2 * 3600     # 2026.14: la sesión de las páginas (p. ej. /pro) dura 2 horas
 
-SITES = {"pro"}                     # añade aquí el id de cada página nueva
+SITES = {"pro", "tv"}                   # añade aquí el id de cada página nueva
 SITE_RE = re.compile(r"^[a-z0-9-]{1,24}$")
 LOGIN_MAX, LOGIN_WIN = 10, 15 * 60  # intentos fallidos por correo+IP
 LOGIN_IP_MAX = 100                  # 2026.14b: por IP sola, alto (no bloquear a toda una red)
