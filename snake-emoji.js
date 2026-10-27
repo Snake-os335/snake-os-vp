@@ -473,6 +473,16 @@ function processText(node) {
       src.__snkEiBgColorSaved = cs.backgroundColor;
     }
   }
+  /* Mover un input en el DOM le quita el foco: el teclado dejaba de escribir tras el primer emoji. Guardamos y devolvemos foco + selección. */
+  function eiKeepFocus(el, fn) {
+    var had = document.activeElement === el, a = null, b = null, d = null;
+    if (had) { try { a = el.selectionStart; b = el.selectionEnd; d = el.selectionDirection; } catch (e0) {} }
+    fn();
+    if (had && el.isConnected && document.activeElement !== el) {
+      try { el.focus({ preventScroll: true }); } catch (e1) { try { el.focus(); } catch (e2) {} }
+      try { if (a != null) el.setSelectionRange(a, b, d || none); } catch (e3) {}
+    }
+  }
   function eiEnsure(el) {
     if (el.__snkEi) return el.__snkEi;
     var parent = el.parentNode;
@@ -497,8 +507,7 @@ function processText(node) {
       el.style.minWidth = '0';
       el.style.boxSizing = 'border-box';
     } catch (eFlex) {}
-    parent.insertBefore(wrap, el);
-    wrap.appendChild(el);
+    eiKeepFocus(el, function () { parent.insertBefore(wrap, el); wrap.appendChild(el); });
     var layer = document.createElement('div');
     layer.className = 'snk-ei-layer' + (el.nodeName === 'TEXTAREA' ? ' snk-ei-ta' : '');
     layer.setAttribute('aria-hidden', 'true');
@@ -539,8 +548,7 @@ function processText(node) {
     var wrap = st.wrap;
     var parent = wrap && wrap.parentNode;
     if (parent && wrap) {
-      parent.insertBefore(el, wrap);
-      wrap.remove();
+      eiKeepFocus(el, function () { parent.insertBefore(el, wrap); wrap.remove(); });
     }
     el.__snkEi = null;
   }
