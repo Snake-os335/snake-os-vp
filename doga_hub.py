@@ -42,8 +42,8 @@ HUB_SITES = {"mail", "games", "tv"}
 
 # juego → (duración mínima s, puntuación máx. por segundo, puntuación por punto, tope por partida)
 GAMES: dict[str, dict[str, Any]] = {
-    "snake": {"name": "Snake", "min_s": 20, "rate": 1.5, "per_point": 10, "cap": 3},
-    "superdoga": {"name": "Super Doga", "min_s": 30, "rate": 3.0, "per_point": 25, "cap": 3},
+    "snake": {"name": "Snake", "min_s": 15, "rate": 1.5, "per_point": 3, "cap": 3},
+    "superdoga": {"name": "Super Doga", "min_s": 20, "rate": 3.0, "per_point": 5, "cap": 3},
     "minesweeper": {"name": "Buscaminas", "levels": {"facil": (10, 1), "medio": (30, 2), "dificil": (60, 3)}},
 }
 
@@ -386,7 +386,9 @@ def game_finish(uid: int, token: str, score: Any, won: bool = False) -> dict[str
             elif score > dur * g["rate"] + 5:
                 reason = "Puntuación imposible para ese tiempo"
             else:
-                pts = min(g["cap"], score // g["per_point"])
+                # Antes: 25 huesos o 10 manzanas para 1 Point™ → casi nadie ganaba nada. Ahora: cualquier partida
+                # legal con algo de puntuación da al menos 1 Point™.
+                pts = min(g["cap"], max(1 if score > 0 else 0, score // g["per_point"]))
         left = max(0, DAILY_POINTS_CAP - _today_earned(c, uid))
         if pts > left:
             pts = left
