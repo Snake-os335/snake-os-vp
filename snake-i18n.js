@@ -60,6 +60,12 @@
     m = k.match(/^día (\d+)( de (\d+))?$/); if (m) return 'day ' + m[1] + (m[3] ? ' of ' + m[3] : '');
     m = k.match(/^Ahora: (.+)$/); if (m) return 'Now: ' + (D[m[1]] || m[1]);
     m = k.match(/^Símbolos · (\d+)$/); if (m) return 'Symbols · ' + m[1];
+    m = k.match(/^(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\s+(\d{4})$/i);
+    if (m && MON[m[1].toLowerCase()]) return MON[m[1].toLowerCase()] + ' ' + m[2];
+    m = k.match(/^(\d+) caracteres · (\d+) palabras?$/);
+    if (m) return m[1] + (m[1] === '1' ? ' character' : ' characters') + ' · ' + m[2] + (m[2] === '1' ? ' word' : ' words');
+    m = k.match(/^(\d+) palabras?$/);
+    if (m) return m[1] + (m[1] === '1' ? ' word' : ' words');
     m = k.match(/^hace (\d+) (minutos?|horas?|días?|segundos?)$/i);
     if (m) { var u = {minuto:'minute',hora:'hour','día':'day',segundo:'second'}[m[2].toLowerCase().replace(/s$/, '')] || m[2]; return m[1] + ' ' + u + (m[1] === '1' ? '' : 's') + ' ago'; }
     return null;

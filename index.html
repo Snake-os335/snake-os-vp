@@ -48,13 +48,44 @@ window.addEventListener('error', function(e){
 <script src="/static/snake-voice.js?v=202610161905"></script>
 <script src="/static/snake-pro-badge.js?v=202610212130"></script>
 <script src="/static/metaverse.js?v=202610220400" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
-<script src="/static/snake-notify-sound.js?v=202610172200"></script>
-<script src="/static/doganiero-chat.js?v=202610272300" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
+<script src="/static/snake-notify-sound.js?v=202611032100"></script>
+<script src="/static/doganiero-chat.js?v=202611032100" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/doganiero-desk.js?v=202610180120" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/desktop-extras.js?v=202610212130" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
-<script>window.SNAKE_OS_VERSION='2026.14';/* versión de Snake OS: cambiar SOLO aquí */</script>
+<script>window.SNAKE_OS_VERSION='2026.15';/* versión de Snake OS: cambiar SOLO aquí */</script>
 <script>/* Novedades por versión (Ajustes › Acerca de). En cada actualización: cambia SNAKE_OS_VERSION y AÑADE una entrada al principio. */
 window.SNAKE_OS_CHANGES=[
+ {v:'2026.15',es:[
+  'Ajustes: un interruptor ya no se vuelve a encender solo si lo pulsas muy rápido',
+  'Calendario: «Hoy» abre el día de verdad aunque la ventana lleve abierta desde ayer, y con Snake OS en inglés salen los meses, los días y los festivos en inglés',
+  'Calendario: al sonar un recordatorio puedes posponerlo 5 minutos, 15 minutos o 1 hora',
+  'Doganiero Chat: un contacto oculto ya no reaparece un instante al abrir Chats, y la búsqueda global tampoco lo enseña',
+  'Doganiero Chat: si la subida de un vídeo no avanza, se reanuda o se avisa; ya no se queda dando vueltas',
+  'Archivos: el espacio usado cuenta los bytes del archivo (antes contaba el texto en base64 y salía más grande). Lo que ya tenías guardado no se toca',
+  'Mostrar escritorio: si abres otra ventana después, la siguiente vez sí minimiza todas',
+  'Calculadora: % es un porcentaje',
+  'Notas: además de caracteres, cuentan las palabras',
+  'Papelera: vaciado automático a los 7 o a los 30 días (desactivado de serie; lo que ya está en la papelera empieza a contar desde ahora)',
+  'Horas de silencio: silencia los avisos en el horario que elijas, sin cambiar «No molestar»',
+  'Reabrir la última ventana cerrada con Alt+Mayús+T (también en Ajustes › Escritorio)',
+  'En el móvil, la cabecera del Calendario ya no se sale de la pantalla',
+  'Al entrar la primera vez en la 2026.15, una ventana breve con lo más destacado (se puede volver a ver en Ajustes › Acerca de)'
+ ],en:[
+  'Settings: a switch no longer turns itself back on if you tap it very quickly',
+  'Calendar: Today opens the real day even if the window has been open since yesterday, and months, days and holidays are in English when Snake OS is in English',
+  'Calendar: when a reminder rings you can snooze it for 5 minutes, 15 minutes or 1 hour',
+  'Doganiero Chat: a hidden contact no longer flashes back when you open Chats, and global search hides them too',
+  'Doganiero Chat: if a video upload stops moving, it resumes or tells you; it no longer spins forever',
+  'Files: used space counts the file’s real bytes (it used to count the base64 text and looked bigger). Files you already saved are left as they are',
+  'Show desktop: if you open another window afterwards, the next time it minimises all of them',
+  'Calculator: % is a percentage',
+  'Notes: they count words as well as characters',
+  'Trash: automatic empty after 7 or 30 days (off by default; what is already in the Trash starts counting from now)',
+  'Quiet hours: silences alerts on the schedule you choose, without changing Do not disturb',
+  'Reopen the last closed window with Alt+Shift+T (also in Settings › Desktop)',
+  'On phones, the Calendar header no longer spills off the screen',
+  'The first time you sign in to 2026.15, a short window shows the highlights (you can see it again in Settings › About)'
+ ]},
  {v:'2026.14',es:[
   'Novedades de bienvenida: al entrar por primera vez en la 2026.14 sale una ventana con lo más destacado (se puede volver a ver en Ajustes › Acerca de)',
   'Máquinas virtuales vuelve al escritorio estilo Ubuntu 26.10: barra superior con Actividades, dock, fondos y fuentes Ubuntu, y Terminal, Archivos, Editor, Monitor y Configuración; las máquinas guardadas pasan solas conservando sus archivos',
@@ -220,7 +251,7 @@ window.SNAKE_OS_CHANGES=[
 <script src="/static/doganiero-tv.js?v=202610091150" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/prism.js?v=202610080900" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/doganiero-phone.js?v=202610212130" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
-<script src="/static/snake-apps-extras.js?v=202610220400" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
+<script src="/static/snake-apps-extras.js?v=202611032100" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-cursor.js?v=202610211605" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-emoji-data.js?v=202610100831" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-emoji.js?v=202610272230" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
@@ -239,14 +270,15 @@ window.SNAKE_OS_CHANGES=[
 <script src="/static/snake-i18n-dict.js?v=202610220400" defer></script>
 <script src="/static/snake-update-screen.js?v=202610180010"></script>
 <script src="/static/snake-session-guard.js?v=202610212015"></script>
-<script src="/static/snake-i18n.js?v=202610220400" defer></script>
+<script src="/static/snake-i18n.js?v=202611032100" defer></script>
 <script src="/static/snake-taskbar11.js?v=202610180130" defer></script>
 <script src="/static/snake-screensaver.js?v=202610210900" defer></script>
 <script src="/static/snake-osx.js?v=202610210900" defer></script>
 <script src="/static/snake-store-real.js?v=202610220510" defer></script>
 <script src="/static/snake-pro-features.js?v=202610220400" defer></script>
 <script src="/static/snake-pro.js?v=202610220510" defer></script>
-<script src="/static/snake-2614.js?v=202610220400" defer></script>
+<script src="/static/snake-2614.js?v=202611032100" defer></script>
+<script src="/static/snake-2615.js?v=202611032100" defer></script>
 <style>
   :root{
     --text:#ffffff; --muted:rgba(255,255,255,0.82);
@@ -4537,7 +4569,7 @@ window.SNAKE_OS_CHANGES=[
 
   function filesMetaOnly(list){
     return (list || []).map(function(e){
-      return { id: e.id, name: e.name, type: e.type || 'application/octet-stream', size: e.size || (e.dataUrl ? e.dataUrl.length : 0) };
+      return { id: e.id, name: e.name, type: e.type || 'application/octet-stream', size: snkFileBytes(e) };
     });
   }
   // Guardados de archivos/papelera en cola (uno detrás de otro, con la lista del momento):
@@ -4597,7 +4629,7 @@ window.SNAKE_OS_CHANGES=[
       method: 'POST',
       body: { id: entry.id, name: entry.name, type: entry.type || 'application/octet-stream', dataUrl: entry.dataUrl, inTrash: !!inTrash }
     });
-    entry.size = saved.size || entry.dataUrl.length;
+    entry.size = (saved && typeof saved.size === 'number') ? saved.size : snkFileBytes(entry);
     return entry;
   }
 
@@ -5362,6 +5394,7 @@ window.SNAKE_OS_CHANGES=[
   function closeApp(appId, instant){
     const rec = openApps[appId];
     if(!rec || rec._closing) return;
+    try { if (typeof window.__snkOnAppClose === 'function') window.__snkOnAppClose(appId, !!instant); } catch (eHook) {}
     rec._closing = true;
     const win = rec.win;
     /* Cortar audio/vídeo YA (no esperar la animación de cierre) */
@@ -7264,8 +7297,8 @@ function buildIcons(){
       if(k === '⌫'){ expr = expr.slice(0, -1); updateDisplay(); return; }
       if(k === '='){
         try{
-          const safe = expr.replace(/[÷×−]/g, m => opMap[m]);
-          if(!/^[0-9+\-*/.%() ]+$/.test(safe)) throw new Error('bad');
+          const safe = expr.replace(/[÷×−]/g, m => opMap[m]).replace(/(\d+(?:\.\d+)?)%/g, '($1/100)');
+          if(!/^[0-9+\-*/.() ]+$/.test(safe)) throw new Error('bad');
           const result = Function('"use strict";return (' + safe + ')')();
           expr = String(result);
         }catch(e){ expr = 'Error'; }
@@ -7294,10 +7327,23 @@ function buildIcons(){
     do{ val /= 1024; i++; } while(val >= 1024 && i < units.length - 1);
     return val.toFixed(1) + ' ' + units[i];
   }
+  // Bytes del archivo. Si aún está el data URL, se descodifica el base64
+  // (antes se contaba la longitud del texto y el espacio salía ~33 % más grande).
+  function snkFileBytes(e){
+    if(!e) return 0;
+    var url = (typeof e.dataUrl === 'string') ? e.dataUrl : '';
+    var i = url.indexOf('base64,');
+    if(i >= 0){
+      var b64 = url.slice(i + 7);
+      var pad = b64.endsWith('==') ? 2 : (b64.endsWith('=') ? 1 : 0);
+      return Math.max(0, Math.floor(b64.length * 3 / 4) - pad);
+    }
+    return (typeof e.size === 'number' && isFinite(e.size) && e.size > 0) ? e.size : 0;
+  }
+  window.snkFileBytes = snkFileBytes;
   function getUsedBytes(){
     return uploadedFiles.concat(trashFiles).reduce(function(sum, e){
-      if(typeof e.size === 'number' && e.size > 0) return sum + e.size;
-      return sum + (e.dataUrl ? e.dataUrl.length : 0);
+      return sum + snkFileBytes(e);
     }, 0);
   }
 
@@ -7603,7 +7649,7 @@ function buildIcons(){
           return new Promise(function(resolve){
             const reader = new FileReader();
             reader.onload = function(){
-              const entry = { id: ++fileIdCounter, name: (explorerPath ? explorerPath + '/' : '') + snkCleanName(file.name || 'archivo'), type: file.type || 'application/octet-stream', dataUrl: reader.result, size: (reader.result || '').length };
+              const entry = { id: ++fileIdCounter, name: (explorerPath ? explorerPath + '/' : '') + snkCleanName(file.name || 'archivo'), type: file.type || 'application/octet-stream', dataUrl: reader.result, size: file.size || 0 };
               uploadFileToServer(entry, false).then(function(saved){
                 // drop heavy dataUrl from memory after server has it (keep for immediate open)
                 uploadedFiles.push(saved);

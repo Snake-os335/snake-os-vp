@@ -4015,13 +4015,24 @@ function handleRealtimePayload(msg) {
     // Contactos ocultos (se guardan en el servidor, solo para ti; buscar por nombre los muestra igualmente)
     var hiddenSet = [], showHidden = false;
     function isHidden(email) { return hiddenSet.indexOf(String(email || '').toLowerCase()) >= 0; }
+    var hiddenReady = false, hiddenInflight = null;
+    function tellHidden() { try { window.dispatchEvent(new CustomEvent('snk-chat-hidden', { detail: hiddenSet.slice() })); } catch (eN) {} }
     async function loadHidden() {
       try { var d = await apiFn()('/api/chat/hidden'); hiddenSet = (d && d.hidden) || []; } catch (eH) {}
+      hiddenReady = true;
+      tellHidden();
+    }
+    function ensureHidden() {
+      if (hiddenReady) return Promise.resolve();
+      if (!hiddenInflight) hiddenInflight = loadHidden().then(function () { hiddenInflight = null; }, function () { hiddenInflight = null; hiddenReady = true; });
+      return hiddenInflight;
     }
     async function setHidden(email, on) {
       try {
         var d = await apiFn()('/api/chat/hidden', { method: 'POST', body: { email: String(email || '').toLowerCase(), hidden: !!on } });
         hiddenSet = (d && d.hidden) || [];
+        hiddenReady = true;
+        tellHidden();
       } catch (err) { alert((err && err.message) || 'No se pudo cambiar'); }
       renderList();
     }
@@ -4167,6 +4178,7 @@ function handleRealtimePayload(msg) {
 
     async function loadThreads() {
       try {
+        await ensureHidden();
         var data = await apiFn()('/api/chat/threads');
         threads = data.threads || [];
         if (mode === 'threads') renderList();
@@ -4387,6 +4399,7 @@ function handleRealtimePayload(msg) {
       mode = next;
       tabUsers.classList.toggle('active', mode === 'users');
       tabThreads.classList.toggle('active', mode === 'threads');
+      if (!hiddenReady) ensureHidden().then(function () { if (mode === next) renderList(); });
       renderList();
       if (mode === 'threads') loadThreads();
       else loadUsers();
@@ -4468,8 +4481,17 @@ function handleRealtimePayload(msg) {
         while (sent < file.size) {
           if (cancelled) throw new Error('cancelado');
           try {
-            var res = await raw('PUT', '/api/chat/video/' + encodeURIComponent(uploadId) + '?offset=' + sent, file.slice(sent, Math.min(file.size, sent + CH)), false);
-            sent = Number(res.received) || sent; fails = 0; paint();
+            var slice = file.slice(sent, Math.min(file.size, sent + Math.max(1, CH)));
+            var res = await raw('PUT', '/api/chat/video/' + encodeURIComponent(uploadId) + '?offset=' + sent, slice, false);
+            var next = Number(res && res.received);
+            if (!isFinite(next) || next < 0) next = sent;
+            if (next <= sent) {
+              fails++;
+              if (fails > 6) throw new Error('la subida no avanza');
+              if (next < sent) sent = next;
+              info.textContent = 'Conexión inestable; reintento ' + fails + '/6…';
+              await new Promise(function (r) { setTimeout(r, 1500 * fails); });
+            } else { sent = next; fails = 0; paint(); }
           } catch (eC) {
             if (eC.status && eC.status < 500 && eC.status !== 429) throw eC;
             fails++; if (fails > 6) throw eC;
