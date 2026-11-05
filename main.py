@@ -8303,9 +8303,44 @@ def phone_recents(user=Depends(require_user)):
 # WebRTC signaling + 16 kHz PCM relay. Only the two parties of a call receive media.
 
 _CALL_ID_RE = re.compile(r"^[A-Za-z0-9_-]{6,48}$")
+_CALL_RESUME_GRACE_S = 12.0
 _calls_lock = asyncio.Lock()
 _calls: dict[str, dict[str, Any]] = {}
 _ended_peers: dict[str, dict[str, Any]] = {}
+_call_grace_tasks: dict[int, asyncio.Task] = {}
+
+
+def _cancel_call_grace(user_id: int) -> None:
+    task = _call_grace_tasks.pop(int(user_id), None)
+    if task and task is not asyncio.current_task():
+        task.cancel()
+
+
+def _schedule_call_grace(user_id: int) -> None:
+    """Keep a live call across a short socket drop so the client can reconnect."""
+    uid = int(user_id)
+    _cancel_call_grace(uid)
+
+    async def _wait() -> None:
+        try:
+            await asyncio.sleep(_CALL_RESUME_GRACE_S)
+        except asyncio.CancelledError:
+            return
+        if _call_grace_tasks.get(uid) is asyncio.current_task():
+            _call_grace_tasks.pop(uid, None)
+        async with chat_hub._lock:
+            still = list(chat_hub._clients.get(uid, []))
+        if still:
+            return
+        try:
+            await _end_calls_for_disconnect(uid, immediate=True)
+        except Exception:
+            pass
+
+    try:
+        _call_grace_tasks[uid] = asyncio.get_running_loop().create_task(_wait())
+    except RuntimeError:
+        pass
 
 
 def _remember_ended(snap: dict[str, Any]) -> None:
@@ -8812,12 +8847,17 @@ async def _handle_chat_voice(uid: int, msg: dict[str, Any], websocket: WebSocket
         )
 
 
-async def _end_calls_for_disconnect(user_id: int) -> None:
-    async with chat_hub._lock:
-        still = list(chat_hub._clients.get(int(user_id), []))
-    if still:
-        return
+async def _end_calls_for_disconnect(user_id: int, immediate: bool = False) -> None:
     uid = int(user_id)
+    async with chat_hub._lock:
+        still = list(chat_hub._clients.get(uid, []))
+    if still:
+        _cancel_call_grace(uid)
+        return
+    if not immediate:
+        _schedule_call_grace(uid)
+        return
+    _cancel_call_grace(uid)
     async with _calls_lock:
         ids = [
             c["id"]
@@ -8863,6 +8903,7 @@ async def chat_ws(websocket: WebSocket):
         return
     uid = int(user_row["id"])
     await chat_hub.connect(uid, websocket)
+    _cancel_call_grace(uid)
     try:
         await websocket.send_text(
             json.dumps(

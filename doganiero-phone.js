@@ -535,6 +535,14 @@
         setStatus('El sistema de llamadas no está disponible. Recarga la página.', 'err');
         return;
       }
+      if (typeof global.primeDoganieroCallMedia === 'function') {
+        try { global.primeDoganieroCallMedia(!!asVideo); } catch (ePrime) {}
+      }
+      function dropPrime() {
+        if (typeof global.cancelDoganieroCallPrime === 'function') {
+          try { global.cancelDoganieroCallPrime(); } catch (eDrop) {}
+        }
+      }
       state.busy = true;
       paintCall();
       setStatus('Buscando ' + target + '…');
@@ -552,8 +560,9 @@
         return Promise.resolve(true);
       }
       apiGet('/api/phone/lookup?number=' + encodeURIComponent(target)).then(function (peer) {
-        if (!alive) return null;
+        if (!alive) { dropPrime(); return null; }
         if (peer.self) {
+          dropPrime();
           state.busy = false;
           setStatus('No puedes llamarte a ti mismo.', 'err');
           paintCall();
@@ -561,8 +570,9 @@
         }
         setStatus('Conectando…');
         return ensureChatLive().then(function (live) {
-          if (!alive) return;
+          if (!alive) { dropPrime(); return; }
           if (!live) {
+            dropPrime();
             state.busy = false;
             setStatus('Sin conexión con el chat. Espera un momento y vuelve a intentar.', 'err');
             paintCall();
@@ -579,6 +589,7 @@
           paintCall();
         });
       }).catch(function (err) {
+        dropPrime();
         if (!alive) return;
         state.busy = false;
         paintCall();
