@@ -34,17 +34,18 @@
   window.snk2615 = { prefs: P, set: setP, version: VER };
 
   function mins(s) { var m = /^(\d{1,2}):(\d{2})$/.exec(String(s || '')); if (!m) return null; var h = +m[1], mm = +m[2]; if (h > 23 || mm > 59) return null; return h * 60 + mm; }
-  function quietNow(p) {
+  function quietNow(p, when) {
     p = p || P();
     if (!p.qOn) return false;
     var a = mins(p.qFrom), b = mins(p.qTo);
     if (a == null || b == null) return false;
-    var d = new Date(), m = d.getHours() * 60 + d.getMinutes();
+    var d = when instanceof Date ? when : new Date(), m = d.getHours() * 60 + d.getMinutes();
     if (a === b) return true;
     if (a < b) return m >= a && m < b;
     return m >= a || m < b;
   }
   window.snkQuietNow = function () { try { return quietNow(); } catch (e) { return false; } };
+  window.snkQuietAt = function (when) { try { return quietNow(null, when); } catch (e) { return false; } };
 
   function askTime(cur, title) {
     var v = window.prompt(title, cur || '22:00');

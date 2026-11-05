@@ -96,8 +96,8 @@
     'body.theme-light .desktop-icon .lb{color:#0d2818;text-shadow:0 1px 2px rgba(255,255,255,0.85),0 0 6px rgba(255,255,255,0.6);}' +
     /* Móvil 351-379 px: el botón Inicio solo con logo para que quepa el reloj */
     '@media (max-width:379px){body.phone-mode #startBtn{font-size:0 !important;gap:0;padding:6px !important;}body.phone-mode #startBtn .start-btn-logo{margin:0;}}' +
-    /* Teléfono: pestañas desplazables en pantallas estrechas */
-    '.dph-tabs{overflow-x:auto;scrollbar-width:none;}.dph-tabs::-webkit-scrollbar{display:none;}@media (max-width:380px){.dph-tabs{gap:4px !important;padding:8px 6px !important;}.dph-tabs>.dph-tab{flex:1 0 auto !important;padding:6px 5px !important;font-size:.72rem !important;}}@media (max-width:350px){.dph-tabs>.dph-tab{font-size:.66rem !important;padding:6px 3px !important;}}' +
+    /* Teléfono: en pantallas estrechas las cuatro pestañas se ven (antes se iban a un scroll sin barra) */
+    '.dph-tabs{flex-wrap:wrap;overflow:visible;}@media (max-width:520px){.dph-tabs{gap:4px !important;padding:8px 6px !important;}.dph-tabs>.dph-tab,#win-phone .dph-tabs>.dph-tab{flex:1 1 calc(50% - 4px) !important;min-width:0 !important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:6px 4px !important;font-size:.72rem !important;}}' +
     '.snk4a-btn{margin:0;width:auto;display:inline-flex;align-items:center;justify-content:center;gap:5px;min-height:34px;padding:6px 12px;border-radius:10px;font-size:0.8rem;font-weight:700;cursor:pointer;' +
       'background:var(--input-bg,rgba(255,255,255,0.08));color:var(--text,#fff);border:1px solid var(--input-border,rgba(255,255,255,0.2));transition:background .15s ease,transform .1s ease;}' +
     '.snk4a-btn:hover{border-color:var(--accent,#34d17a);}' +
@@ -593,6 +593,8 @@
   var MONTHS = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
   var WD = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
   var HOLIDAYS = { '01-01': 'Año Nuevo', '01-06': 'Reyes', '05-01': 'Día del Trabajo', '08-15': 'Asunción', '10-12': 'Fiesta Nacional', '11-01': 'Todos los Santos', '12-06': 'Constitución', '12-08': 'Inmaculada', '12-25': 'Navidad' };
+  var HOL_EN = { '01-01': 'New Year', '01-06': 'Epiphany', '05-01': 'Labour Day', '08-15': 'Assumption', '10-12': 'National Day', '11-01': 'All Saints', '12-06': 'Constitution', '12-08': 'Immaculate Conception', '12-25': 'Christmas' };
+  function holLabel(key) { return EN() ? (HOL_EN[key] || '') : (HOLIDAYS[key] || ''); }
   var EV_COLORS = ['#34d17a', '#4aa3ff', '#ffb547', '#ff6b8a', '#b07cff'];
   function pad2(n) { return (n < 10 ? '0' : '') + n; }
   function ymd(d) { return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); }
@@ -642,7 +644,8 @@
     '.snk4a-cal{display:flex;flex-direction:column;height:100%;min-height:0;gap:8px;color:var(--text,#fff);}' +
     '.snk4a-cal-head{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}' +
     '.snk4a-cal-head h3{flex:1;margin:0;font-size:1.02rem;text-transform:capitalize;min-width:0;}' +
-    '@media (max-width:420px){.snk4a-cal-head h3{flex:1 0 100%;text-align:center;order:-1;font-size:.95rem;}.snk4a-cal-head .snk4a-btn{flex:1;}}' +
+    '.snk4a-cal-jump{flex:1 1 140px;width:auto;min-width:0;min-height:34px;padding:4px 8px;}' +
+    '@media (max-width:420px){.snk4a-cal-head h3{flex:1 0 100%;text-align:center;order:-1;font-size:.95rem;}.snk4a-cal-head .snk4a-btn{flex:1;}.snk4a-cal-jump{flex:1 1 100%;}}' +
     '.snk4a-cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;}' +
     '.snk4a-cal-wd{text-align:center;font-size:0.7rem;font-weight:800;opacity:0.6;padding:2px 0;}' +
     '.snk4a-cal-day{position:relative;margin:0;width:auto;min-height:40px;padding:4px 2px 12px;border-radius:10px;font-size:0.82rem;font-weight:700;cursor:pointer;box-shadow:none;' +
@@ -684,19 +687,20 @@
     var MONTHS_EN = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
     var WD_EN = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
     var WD_LONG_EN = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    var HOL_EN = { '01-01': 'New Year', '01-06': 'Epiphany', '05-01': 'Labour Day', '08-15': 'Assumption', '10-12': 'National Day', '11-01': 'All Saints', '12-06': 'Constitution', '12-08': 'Immaculate Conception', '12-25': 'Christmas' };
     function monthName(i) { return EN() ? MONTHS_EN[i] : MONTHS[i]; }
-    function holName(key) { var k = String(key || '').slice(5); return EN() ? (HOL_EN[k] || '') : (HOLIDAYS[k] || ''); }
+    function holName(key) { return holLabel(String(key || '').slice(5)); }
     body.innerHTML =
       '<div class="snk4a-cal" data-noi18n translate="no">' +
       '<div class="snk4a-cal-head"><button type="button" class="snk4a-btn" data-nav="-1" aria-label="' + esc(T('Mes anterior', 'Previous month')) + '">‹</button>' +
       '<h3></h3><button type="button" class="snk4a-btn" data-nav="today">' + esc(T('Hoy', 'Today')) + '</button>' +
-      '<button type="button" class="snk4a-btn" data-nav="1" aria-label="' + esc(T('Mes siguiente', 'Next month')) + '">›</button></div>' +
+      '<button type="button" class="snk4a-btn" data-nav="1" aria-label="' + esc(T('Mes siguiente', 'Next month')) + '">›</button>' +
+      '<input type="date" class="snk4a-input snk4a-cal-jump" aria-label="' + esc(T('Ir a una fecha', 'Go to a date')) + '"></div>' +
       '<div class="snk4a-cal-grid"></div>' +
       '<div class="snk4a-cal-side"></div></div>';
     var title = body.querySelector('h3');
     var grid = body.querySelector('.snk4a-cal-grid');
     var side = body.querySelector('.snk4a-cal-side');
+    var jump = body.querySelector('.snk4a-cal-jump');
     body.querySelectorAll('[data-nav]').forEach(function (b) {
       b.addEventListener('click', function () {
         var n = b.dataset.nav;
@@ -705,11 +709,22 @@
         paint();
       });
     });
+    if (jump) jump.addEventListener('change', function () {
+      var v = jump.value;
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return;
+      var parts = v.split('-');
+      var jd = new Date(+parts[0], +parts[1] - 1, +parts[2]);
+      if (isNaN(jd.getTime()) || jd.getFullYear() !== +parts[0] || jd.getMonth() !== +parts[1] - 1) return;
+      sel = ymd(jd);
+      view = new Date(jd.getFullYear(), jd.getMonth(), 1);
+      paint();
+    });
     function paint() {
       var evs = calEvents();
       var today = ymd(new Date());
       var todayBtn = body.querySelector('[data-nav="today"]');
       if (todayBtn) todayBtn.textContent = T('Hoy', 'Today');
+      if (jump && document.activeElement !== jump) jump.value = sel;
       title.textContent = monthName(view.getMonth()) + ' ' + view.getFullYear();
       grid.innerHTML = (EN() ? WD_EN : WD).map(function (w) { return '<div class="snk4a-cal-wd">' + w + '</div>'; }).join('');
       var first = (view.getDay() + 6) % 7;
@@ -780,14 +795,14 @@
       side.querySelector('[data-add]').addEventListener('click', add);
       tIn.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') add(); });
       side.querySelectorAll('.snk4a-cal-ev span').forEach(function (sp) {
-        sp.title = 'Clic para editar';
+        sp.title = T('Clic para editar', 'Click to edit');
         sp.style.cursor = 'text';
         sp.addEventListener('click', function () {
           var row = sp.closest('.snk4a-cal-ev');
           var id = row.querySelector('[data-del]').dataset.del;
           var inp = document.createElement('input');
           inp.type = 'text'; inp.className = 'snk4a-input'; inp.maxLength = 80; inp.value = sp.textContent;
-          inp.setAttribute('aria-label', 'Editar evento');
+          inp.setAttribute('aria-label', T('Editar evento', 'Edit event'));
           inp.style.minHeight = '28px'; inp.style.padding = '3px 8px';
           sp.replaceWith(inp);
           inp.focus(); inp.select();
@@ -863,7 +878,45 @@
   function todayEvents() { var e = calEvents()[ymd(new Date())]; return Array.isArray(e) ? e : []; }
 
   /* Recordatorios: aviso cuando llega la hora de un evento de hoy (respeta «No molestar» y las horas de silencio).
-     Posponer guarda la hora en localStorage del perfil; no cambia el evento. */
+     Si el sondeo no cae en el minuto exacto, aún suena dentro de 10 minutos.
+     En silencio o «No molestar» no se pierde: se enseña al terminar. Posponer no cambia el evento. */
+  var SNK_REMIND_CATCH = 10 * 60 * 1000;
+  var SNK_QUIET_AFTER = 90 * 60 * 1000;
+  function hmToMin(s) {
+    var m = /^(\d{1,2}):(\d{2})$/.exec(String(s || ''));
+    if (!m) return null;
+    var h = +m[1], mm = +m[2];
+    if (h > 23 || mm > 59) return null;
+    return h * 60 + mm;
+  }
+  function quietEndMs(evMs, fromStr, toStr) {
+    var a = hmToMin(fromStr), b = hmToMin(toStr);
+    if (a == null || b == null || evMs == null) return null;
+    var ev = new Date(evMs);
+    var min = ev.getHours() * 60 + ev.getMinutes();
+    var inside = a === b ? true : (a < b ? (min >= a && min < b) : (min >= a || min < b));
+    if (!inside) return null;
+    var end = new Date(ev.getFullYear(), ev.getMonth(), ev.getDate(), Math.floor(b / 60), b % 60, 0, 0);
+    if (end.getTime() <= evMs) end.setDate(end.getDate() + 1);
+    return end.getTime();
+  }
+  function quietDeferOpen(now, endMs, windowMs) {
+    if (endMs == null) return false;
+    return now >= endMs && (now - endMs) <= windowMs;
+  }
+  function reminderAction(o) {
+    if (o.fired) return 'skip';
+    if (o.snoozeWait) return 'wait';
+    if (o.snoozeDue) return o.blocked ? 'hold' : 'ping';
+    if (o.ev == null || o.now < o.ev) return 'wait';
+    var late = o.now - o.ev;
+    if (o.blocked) return (o.held || late <= o.catchMs || o.quietSlot) ? 'hold' : 'skip';
+    if (o.held || late <= o.catchMs || o.quietDefer) return 'ping';
+    return 'skip';
+  }
+  window.__snkReminderAction = reminderAction;
+  window.__snkQuietEndMs = quietEndMs;
+  window.__snkQuietDeferOpen = quietDeferOpen;
   (function () {
     var fired = {};
     function snoozeMap() { return lsGet('calSnooze', {}) || {}; }
@@ -896,32 +949,64 @@
       try { if (window.snakeNotifSound) window.snakeNotifSound(); } catch (err) {}
       showSnooze(e, key);
     }
+    var held = {};
+    function firedBag() {
+      var day = ymd(new Date());
+      var m = lsGet('calFiredDay', null);
+      if (!m || m.day !== day || !m.ids) return { day: day, ids: {} };
+      return m;
+    }
+    function wasFired(id) { return !!fired[id] || !!firedBag().ids[id]; }
+    function markFired(id) {
+      fired[id] = 1;
+      var m = firedBag();
+      m.ids[id] = 1;
+      lsSet('calFiredDay', m);
+    }
     function check() {
       try {
         if (!email()) return;
         if (!calSynced[email()]) syncCal();
-        if (document.body.classList.contains('qs-dnd')) return;
-        if (window.snkQuietNow && window.snkQuietNow()) return;
         var d = new Date();
-        var hm = pad2(d.getHours()) + ':' + pad2(d.getMinutes());
-        var day = ymd(d);
+        var now = d.getTime();
+        var blocked = document.body.classList.contains('qs-dnd') || !!(window.snkQuietNow && window.snkQuietNow());
+        var prefs = (window.snk2615 && window.snk2615.prefs) ? window.snk2615.prefs() : null;
         var map = snoozeMap();
-        todayEvents().forEach(function (e) {
-          var id = email() + '|' + day + '|' + e.id;
+        var sent = false;
+        var yest = new Date(d.getFullYear(), d.getMonth(), d.getDate() - 1);
+        [{ base: d, day: ymd(d) }, { base: yest, day: ymd(yest) }].forEach(function (slot) {
+          (Array.isArray(calEvents()[slot.day]) ? calEvents()[slot.day] : []).forEach(function (e) {
+          if (sent) return;
+          var id = email() + '|' + slot.day + '|' + e.id;
           var until = +map[id] || 0;
-          if (until && Date.now() < until) return;
-          if (until && Date.now() >= until) {
-            var zk = id + '|z|' + until;
-            if (fired[zk]) return;
-            fired[zk] = 1;
-            setSnooze(id, 0);
-            ping(e, id);
-            return;
+          var ev = null;
+          if (e.h && /^\d{2}:\d{2}$/.test(e.h)) {
+            var hm = e.h.split(':');
+            ev = new Date(slot.base.getFullYear(), slot.base.getMonth(), slot.base.getDate(), +hm[0], +hm[1], 0, 0).getTime();
           }
-          if (!e.h || e.h !== hm) return;
-          if (fired[id]) return;
-          fired[id] = 1;
+          var end = (ev != null && prefs && prefs.qOn) ? quietEndMs(ev, prefs.qFrom, prefs.qTo) : null;
+          var zk = until ? (id + '|z|' + until) : id;
+          var act = reminderAction({
+            now: now,
+            ev: ev,
+            fired: wasFired(until ? zk : id),
+            snoozeWait: !!(until && now < until),
+            snoozeDue: !!(until && now >= until),
+            blocked: blocked,
+            held: !!(until ? held[zk] : held[id]),
+            catchMs: SNK_REMIND_CATCH,
+            quietSlot: !!(ev != null && window.snkQuietAt && window.snkQuietAt(new Date(ev))),
+            quietDefer: quietDeferOpen(now, end, SNK_QUIET_AFTER)
+          });
+          var key = until ? zk : id;
+          if (act === 'hold') { held[key] = 1; return; }
+          if (act !== 'ping') return;
+          delete held[key];
+          markFired(key);
+          if (until) setSnooze(id, 0);
           ping(e, id);
+          sent = true;
+          });
         });
       } catch (x) {}
     }
@@ -1125,7 +1210,7 @@
         } else {
           p.innerHTML = highlight(n.text || '');
         }
-        p.title = 'Haz clic para editar';
+        p.title = T('Haz clic para editar', 'Click to edit');
         p.addEventListener('click', function () { editing = n.id; openColors = null; paint(); });
         el.appendChild(p);
       }
@@ -1145,7 +1230,16 @@
       else fb('✏️', 'Editar', function () { editing = n.id; openColors = null; paint(); });
       fb('📌', n.pinned ? 'Quitar de fijadas' : 'Fijar arriba', function () { n.pinned = !n.pinned; if (!n.pinned) delete n.pinned; saveNow(); paint(); }, n.pinned);
       fb('🎨', 'Color', function () { openColors = openColors === n.id ? null : n.id; paint(); }, openColors === n.id);
-      fb('📋', 'Copiar texto', function () { copyText(n.text || '').then(function () { toast('Nota copiada'); }, function () { toast('No se pudo copiar'); }); });
+      fb('📋', T('Copiar texto', 'Copy text'), function () { copyText(n.text || '').then(function () { toast(T('Nota copiada', 'Note copied')); }, function () { toast(T('No se pudo copiar', 'Could not copy')); }); });
+      fb('📄', T('Duplicar', 'Duplicate'), function () {
+        var arr = notesArr();
+        var copy = { id: Date.now() + '-' + Math.random().toString(36).slice(2), text: n.text, date: nowStr() };
+        if (n.color) copy.color = n.color;
+        arr.push(copy);
+        saveNow();
+        toast(T('Nota duplicada', 'Note duplicated'));
+        paint();
+      });
       fb('⬇️', 'Descargar como .txt', function () {
         var name = String(n.text || 'nota').split('\n')[0].replace(/[\\/:*?"<>|]+/g, '').trim().slice(0, 40) || 'nota';
         downloadText(name + '.txt', n.text || '');
@@ -1372,8 +1466,8 @@
       withIdx.sort(function (a, b) {
         if (sort === 'recent') return (+b.e.id || 0) - (+a.e.id || 0);
         if (sort === 'size') return fSize(b.e) - fSize(a.e);
-        if (sort === 'type') return (fKind(a.e) + a.e.name).localeCompare(fKind(b.e) + b.e.name, 'es');
-        return String(a.e.name || '').localeCompare(String(b.e.name || ''), 'es', { numeric: true, sensitivity: 'base' });
+        if (sort === 'type') return (fKind(a.e) + a.e.name).localeCompare(fKind(b.e) + b.e.name, EN() ? 'en' : 'es');
+        return String(a.e.name || '').localeCompare(String(b.e.name || ''), EN() ? 'en' : 'es', { numeric: true, sensitivity: 'base' });
       });
       return withIdx.map(function (x) { return x.e; });
     }
@@ -1909,14 +2003,14 @@
   }
   function nextHoliday(p) {
     var base = new Date(p.y, p.mo - 1, p.d);
+    var wdays = EN() ? ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] : ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
     for (var i = 0; i <= 14; i++) {
       var d = new Date(base.getFullYear(), base.getMonth(), base.getDate() + i);
-      var h = HOLIDAYS[pad2(d.getMonth() + 1) + '-' + pad2(d.getDate())];
+      var h = holLabel(pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()));
       if (h) {
-        if (i === 0) return '🎉 Hoy es festivo: ' + h;
-        if (i === 1) return '🎉 Mañana es festivo: ' + h;
-        var wd = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'][d.getDay()];
-        return '🎉 Próximo festivo: ' + h + ' (' + wd + ' ' + d.getDate() + ')';
+        if (i === 0) return '🎉 ' + T('Hoy es festivo', 'Today is a holiday') + ': ' + h;
+        if (i === 1) return '🎉 ' + T('Mañana es festivo', 'Tomorrow is a holiday') + ': ' + h;
+        return '🎉 ' + T('Próximo festivo', 'Next holiday') + ': ' + h + ' (' + wdays[d.getDay()] + ' ' + d.getDate() + ')';
       }
     }
     return '';
@@ -1931,8 +2025,10 @@
     sec.innerHTML = '<i></i>';
     var greet = document.createElement('div');
     greet.className = 'snk4a-lc-greet';
+    greet.setAttribute('data-noi18n', '');
     var extra = document.createElement('div');
     extra.className = 'snk4a-lc-extra';
+    extra.setAttribute('data-noi18n', '');
     var date = $('lockClockDate');
     if (date && date.parentNode === lc) { lc.insertBefore(sec, date); } else lc.appendChild(sec);
     lc.appendChild(greet);
@@ -1942,7 +2038,7 @@
       if (lock.classList.contains('hidden')) return;
       var p = madridParts();
       bar.style.width = ((p.s + 1) / 60 * 100).toFixed(1) + '%';
-      var g = p.h < 6 ? '🌙 Buenas noches' : p.h < 13 ? '☀️ Buenos días' : p.h < 21 ? '🌤️ Buenas tardes' : '🌙 Buenas noches';
+      var g = p.h < 6 ? T('🌙 Buenas noches', '🌙 Good night') : p.h < 13 ? T('☀️ Buenos días', '☀️ Good morning') : p.h < 21 ? T('🌤️ Buenas tardes', '🌤️ Good afternoon') : T('🌙 Buenas noches', '🌙 Good evening');
       if (greet.textContent !== g) greet.textContent = g;
       var x = nextHoliday(p);
       if (extra.textContent !== x) extra.textContent = x;
@@ -1964,6 +2060,20 @@
     '.snk4a-calc-hh button{margin:0;width:auto;min-height:0;padding:1px 6px;border-radius:6px;background:transparent;border:none;box-shadow:none;color:var(--text,#fff);cursor:pointer;font-size:0.7rem;text-decoration:underline;}' +
     'body.light .calc-btn.calc-op,body.theme-light .calc-btn.calc-op{color:#0b6b3a;}'
   );
+  function calcSignToggle(expr) {
+    expr = String(expr || '');
+    var m = /(\d+(?:\.\d*)?|\.\d+)$/.exec(expr);
+    if (!m || m[0] === '.') return null;
+    var num = m[0];
+    var start = expr.length - num.length;
+    var unary = false;
+    if (start > 0 && expr.charAt(start - 1) === '−') {
+      var before = start > 1 ? expr.charAt(start - 2) : '';
+      if (!before || /[÷×+%−(]/.test(before)) { unary = true; start -= 1; }
+    }
+    return expr.slice(0, start) + (unary ? '' : '−') + num;
+  }
+  window.__snkCalcSignToggle = calcSignToggle;
   function calcEval(expr) {
     var s = String(expr).replace(/÷/g, '/').replace(/×/g, '*').replace(/−/g, '-');
     s = s.replace(/(\d+(?:\.\d+)?)%/g, '($1/100)');
@@ -2027,12 +2137,10 @@
           justEval = true;
           paintHist();
         } catch (e) { expr = ''; display.textContent = 'Error'; prev.textContent = 'Operación no válida'; justEval = false; return; }
-      } else if (k === '±') {
-        var m = lastNumRange();
-        if (!m) return;
-        var start = expr.length - m[0].length;
-        expr = expr.slice(0, start) + (m[1] ? m[2] : '−' + m[2]);
-        if (start > 0 && /\d$/.test(expr.slice(0, start))) { /* no-op */ }
+      }       else if (k === '±') {
+        var flipped = calcSignToggle(expr);
+        if (flipped == null) return;
+        expr = flipped;
         justEval = false;
       } else {
         var isOp = /[÷×−+%]/.test(k);

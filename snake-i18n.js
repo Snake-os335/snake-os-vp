@@ -21,6 +21,7 @@
     'Error al iniciar Snake OS!':'Snake OS failed to start!','Idioma':'Language','Español':'Spanish','Inglés':'English',
     'Escribe un mensaje…':'Type a message…','Mensaje':'Message','Hoy':'Today','Ayer':'Yesterday','Ahora':'Now','Sí':'Yes','No':'No',
     'Llamar':'Call','Colgar':'Hang up','Contactos':'Contacts','Recientes':'Recent','Favoritos':'Favorites','Ejecutar':'Run','Parar':'Stop',
+    'Borrador sin enviar':'Unsent draft',
     'Notas del bot':'Bot notes','Ajustes del bot':'Bot settings','Reiniciar mini OS':'Restart mini OS','Apagar mini OS':'Shut down mini OS','Encender':'Power on',
     'Despertar':'Wake up','La computadora está dormida':'The computer is asleep','Snake OS Lite está apagado':'Snake OS Lite is off','Vacío':'Empty','Crear':'Create'
   };
