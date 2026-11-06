@@ -231,9 +231,7 @@
     var email = document.getElementById("email").value;
     var password = document.getElementById("pass").value;
     var path = mode === "signup" ? "/api/doga-auth/signup" : "/api/doga-auth/login";
-    var body = mode === "signup"
-      ? { site: "goback", email: email, name: (email.split("@")[0] || "Cuenta").slice(0, 60), password: password }
-      : { site: "goback", email: email, password: password };
+    var body = { site: "goback", email: email, password: password };  // sin nombre: es opcional (privacidad)
     api(path, { method: "POST", body: body }).then(show, function (ex) {
       document.getElementById("err").textContent = ex.message || "No se ha podido entrar";
     });

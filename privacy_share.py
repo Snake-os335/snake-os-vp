@@ -224,7 +224,7 @@ def _brief(user_id: int) -> dict[str, str]:
     row = db.get_user_by_id(int(user_id))
     if not row:
         return {"name": "Contacto", "avatar": "🐶"}
-    name = str(row["name"] or "").strip()[:80] or "Contacto"
+    name = db.display_name(row)[:80]
     avatar = str(row["avatar"] or "🐶")[:300]
     return {"name": name, "avatar": avatar}
 

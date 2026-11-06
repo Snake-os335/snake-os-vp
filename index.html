@@ -5240,7 +5240,7 @@ window.SNAKE_OS_CHANGES=[
     if(typeof primeOsTutorialSpeech === 'function') primeOsTutorialSpeech();
     showSignupStatus('Creando cuenta...', true);
     try{
-      await api('/api/signup', { method: 'POST', body: { name: name, email: email, password: password, avatar: selectedAvatar } });
+      await api('/api/signup', { method: 'POST', body: { email: email, password: password, avatar: selectedAvatar } });
       window.__snkNeedReauth = false;
       let data = await api('/api/bootstrap');
       applyBootstrap(data);
@@ -8434,8 +8434,8 @@ function buildIcons(){
     if(!currentUser){ container.innerHTML = '<p style="padding:16px">Inicia sesión para ver tu perfil.</p>'; return; }
     container.innerHTML =
       '<div id="dogaHubBox-x"></div>' +
-      '<label>Tu nombre</label>' +
-      '<input type="text" id="profileName-x">' +
+      '<label>Tu nombre (opcional)</label>' +
+      '<input type="text" id="profileName-x" placeholder="Si no lo pones, se verá tu correo">' +
       '<label>Foto o emoji de perfil</label>' +
       '<p class="profile-photo-hint">Tu foto o GIF la verán todos (chat, llamadas, etc.). Los GIF se animan para los demás. Máx. 10 MB.</p>' +
       '<div class="profile-photo-row">' +
@@ -8458,7 +8458,7 @@ function buildIcons(){
 
     if (window.DogaHubOS) window.DogaHubOS.mount(container.querySelector('#dogaHubBox-x'));
     const nameInput = container.querySelector('#profileName-x');
-    nameInput.value = currentUser.name;
+    nameInput.value = String(currentUser.name || '');
     const grid = container.querySelector('#profileAvatarGrid-x');
     let selected = currentUser.avatar;
     const status = container.querySelector('#profileStatus-x');
@@ -8541,8 +8541,7 @@ function buildIcons(){
     });
 
     container.querySelector('#profileSaveBtn-x').addEventListener('click', async function(){
-      const newName = nameInput.value.trim();
-      if(!newName){ showStatus('El nombre no puede estar vacío.', false); return; }
+      const newName = nameInput.value.trim();  // 2026.16b: puede quedar vacío (cuenta sin nombre)
       const p1 = container.querySelector('#profilePass1-x').value;
       const p2 = container.querySelector('#profilePass2-x').value;
       if(p1 || p2){

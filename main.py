@@ -198,7 +198,7 @@ def require_user(request: Request):
 
 class SignupBody(BaseModel):
     email: str
-    name: str
+    name: str | None = None  # 2026.16b: opcional — las cuentas nuevas no piden nombre (privacidad)
     password: str
     avatar: str = "🐶"
 
@@ -456,7 +456,9 @@ BLOCKED_SIGNUP_DOMAINS = {"gmail.com", "googlemail.com"}
 @app.post("/api/signup")
 def signup(body: SignupBody, response: Response, request: Request, _gate: None = Depends(require_os_gate)):
     email = body.email.strip().lower()
-    name = hardening.clean_name(body.name)
+    # 2026.16b: el nombre es opcional. Sin nombre la cuenta funciona igual y se muestra
+    # la parte local del correo (db.display_name), así nadie tiene que dar datos personales.
+    name = hardening.clean_name(body.name or "")
     password = body.password
     avatar = db.safe_signup_avatar(body.avatar)
     if len(email) > 320:
@@ -467,8 +469,6 @@ def signup(body: SignupBody, response: Response, request: Request, _gate: None =
     # Solo cuentas NUEVAS: las de Gmail que ya existen siguen entrando con /api/login.
     if email.rsplit("@", 1)[1].strip().rstrip(".") in BLOCKED_SIGNUP_DOMAINS:
         raise HTTPException(status_code=400, detail="No se pueden crear cuentas nuevas con Gmail. Usa otro correo, por ejemplo tu correo@dogaemail.com.")
-    if not name:
-        raise HTTPException(status_code=400, detail="El nombre no puede estar vacío")
     if len(password) < 4:
         raise HTTPException(status_code=400, detail="La contraseña debe tener al menos 4 caracteres")
     # A row only marked deleted must not occupy the address.
@@ -491,7 +491,7 @@ def signup(body: SignupBody, response: Response, request: Request, _gate: None =
         pass
     sid = start_session(int(user["id"]))
     set_session_cookie(response, sid)
-    note_activity("cuenta", user["name"], int(user["id"]))
+    note_activity("cuenta", db.display_name(user), int(user["id"]))
     return db.user_public(user)
 
 
@@ -547,7 +547,7 @@ def login(body: LoginBody, response: Response, request: Request, _gate: None = D
             user = unlocked
         sid = start_session(int(user["id"]))
         set_session_cookie(response, sid)
-        note_activity("inicio", user["name"], int(user["id"]))
+        note_activity("inicio", db.display_name(user), int(user["id"]))
         return db.user_public(user)
     finally:
         _login_matrix_dots(False)
@@ -592,8 +592,8 @@ def verify_me_password(body: VerifyPasswordBody, user=Depends(require_user), _ga
 
 @app.patch("/api/me")
 def patch_me(body: PatchMeBody, request: Request, response: Response, user=Depends(require_user)):
-    if body.name is not None and not body.name.strip():
-        raise HTTPException(status_code=400, detail="El nombre no puede estar vacío")
+    # 2026.16b: mandar name="" borra el nombre (cuenta sin nombre, por privacidad);
+    # se sigue mostrando la parte local del correo.
     if body.name is not None and body.name.strip() != str(user["name"] or "").strip():
         hardening.clean_name(body.name)  # solo al cambiar el nombre: los nombres largos de antes siguen valiendo
     if body.password is not None and len(body.password) < 4:
@@ -893,7 +893,7 @@ def desk_me(user=Depends(require_user)):
     return {
         "code": code,
         "formatted": db.format_desk_code(code),
-        "name": user["name"],
+        "name": db.display_name(user),
         "email": user["email"],
         "avatar": user["avatar"],
         "online": desk_hub.is_online(str(user["email"])),
@@ -916,7 +916,7 @@ def desk_lookup(body: DeskLookupBody, user=Depends(require_user)):
         "exists": True,
         "code": code,
         "formatted": db.format_desk_code(code),
-        "name": target["name"],
+        "name": db.display_name(target),
         "avatar": target["avatar"],
         "online": desk_hub.is_online(target_email),
     }
@@ -9800,7 +9800,7 @@ def _doga_on_signup(user) -> None:
         dog_phone.ensure_number(int(user["id"]))
     except Exception:
         pass
-    note_activity("cuenta", user["name"], int(user["id"]))
+    note_activity("cuenta", db.display_name(user), int(user["id"]))
 
 
 hardening.IP_RESOLVER = _visitor_ip  # 2026.14b: misma IP de visitante en límites y bloqueos

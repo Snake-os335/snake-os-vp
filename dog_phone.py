@@ -106,7 +106,7 @@ def number_for(user_id: int) -> str:
 def _contact(row: sqlite3.Row) -> dict[str, Any]:
     return {
         "id": int(row["id"]),
-        "name": row["name"] or "Usuario",
+        "name": db.display_name(row),
         "avatar": row["avatar"] or "🐶",
         "number": str(row["number"]),
         "pro": db.pro_flag(row["id"]),
@@ -118,7 +118,7 @@ def lookup(number: str) -> dict[str, Any] | None:
     with db.get_conn() as conn:
         _ensure_tables(conn)
         row = conn.execute(
-            "SELECT u.id, u.name, u.avatar, p.number FROM dog_phone_numbers p "
+            "SELECT u.id, u.name, u.email, u.avatar, p.number FROM dog_phone_numbers p "
             "JOIN users u ON u.id = p.user_id WHERE p.number = ?",
             (number,),
         ).fetchone()
@@ -129,7 +129,7 @@ def contacts(exclude_user_id: int) -> list[dict[str, Any]]:
     init_and_assign_all()
     with db.get_conn() as conn:
         rows = conn.execute(
-            "SELECT u.id, u.name, u.avatar, p.number FROM users u "
+            "SELECT u.id, u.name, u.email, u.avatar, p.number FROM users u "
             "JOIN dog_phone_numbers p ON p.user_id = u.id "
             "WHERE u.id <> ? ORDER BY u.name COLLATE NOCASE ASC, u.id ASC",
             (int(exclude_user_id),),

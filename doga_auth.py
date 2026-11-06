@@ -11,7 +11,7 @@ HTTPS). Entrar o salir en una página no toca la cookie «session_id» de Snake 
 API (sitio = [a-z0-9-]{1,24}, en la lista SITES):
   GET  /api/doga-auth/me?site=pro          → datos públicos de la cuenta (o 401)
   POST /api/doga-auth/login   {site,email,password}
-  POST /api/doga-auth/signup  {site,email,name,password,avatar?}  (mismas reglas que /api/signup)
+  POST /api/doga-auth/signup  {site,email,password,avatar?,name?}  (mismas reglas que /api/signup; el nombre es opcional)
   POST /api/doga-auth/logout  {site}
 Límites por IP (y por correo en el inicio de sesión), en memoria.
 """
@@ -152,8 +152,7 @@ def build_router(visitor_ip: Callable[[Request], str], blocked_domains: set[str]
             raise HTTPException(status_code=400, detail="Correo no válido", headers={"X-Snk-Err": "bad_email"})
         if email.rsplit("@", 1)[1].strip().rstrip(".") in blocked_domains:
             raise HTTPException(status_code=400, detail="No se pueden crear cuentas nuevas con Gmail. Usa otro correo, por ejemplo tu correo@dogaemail.com.", headers={"X-Snk-Err": "no_gmail"})
-        if not name:
-            raise HTTPException(status_code=400, detail="El nombre no puede estar vacío", headers={"X-Snk-Err": "name_empty"})
+        # 2026.16b: el nombre es opcional; sin nombre se muestra la parte local del correo (db.display_name).
         if len(name) > 60:
             raise HTTPException(status_code=400, detail="El nombre es demasiado largo (máx. 60 caracteres)", headers={"X-Snk-Err": "name_long"})
         if len(email) > 254:

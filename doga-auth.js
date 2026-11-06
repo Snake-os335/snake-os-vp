@@ -5,7 +5,7 @@
  *   var auth = DogaAuth.create('pro');
  *   auth.mount(document.getElementById('login'), { onChange: function (user) { ... } });  // formulario listo
  *   auth.me().then(function (user) { ... });   // null si no hay sesión
- *   auth.login(email, password) · auth.signup({ email, name, password }) · auth.logout()
+ *   auth.login(email, password) · auth.signup({ email, password }) · auth.logout()
  *   auth.fetch('/api/...', { method: 'POST', body: {...} })  // JSON con la cookie de esta página
  * Misma cuenta que Snake OS VP (mismo almacén y contraseña). La sesión de la página va en su propia cookie
  * (doga_s_<sitio>): entrar o salir aquí no cierra ni cambia la sesión de Snake OS en otra pestaña.
@@ -55,8 +55,8 @@
     });
   }
   var TXT = {
-    es: { in: 'Iniciar sesión', up: 'Crear cuenta', email: 'Correo Dogaemail', name: 'Nombre', pw: 'Contraseña', pw2: 'Repite la contraseña', go_in: 'Entrar', go_up: 'Crear cuenta', mism: 'Las contraseñas no coinciden', hint: 'Es la misma cuenta que usas en Snake OS VP.', hint_up: 'La cuenta nueva también sirve para entrar en Snake OS VP.', out: 'Cerrar sesión', as: 'Sesión iniciada como', wait: 'Un momento…' },
-    en: { in: 'Sign in', up: 'Create account', email: 'Dogaemail address', name: 'Name', pw: 'Password', pw2: 'Repeat the password', go_in: 'Sign in', go_up: 'Create account', mism: 'The passwords do not match', hint: 'It is the same account you use in Snake OS VP.', hint_up: 'The new account also works to sign in to Snake OS VP.', out: 'Sign out', as: 'Signed in as', wait: 'One moment…' }
+    es: { in: 'Iniciar sesión', up: 'Crear cuenta', email: 'Correo Dogaemail', pw: 'Contraseña', pw2: 'Repite la contraseña', go_in: 'Entrar', go_up: 'Crear cuenta', mism: 'Las contraseñas no coinciden', hint: 'Es la misma cuenta que usas en Snake OS VP.', hint_up: 'La cuenta nueva también sirve para entrar en Snake OS VP.', out: 'Cerrar sesión', as: 'Sesión iniciada como', wait: 'Un momento…' },
+    en: { in: 'Sign in', up: 'Create account', email: 'Dogaemail address', pw: 'Password', pw2: 'Repeat the password', go_in: 'Sign in', go_up: 'Create account', mism: 'The passwords do not match', hint: 'It is the same account you use in Snake OS VP.', hint_up: 'The new account also works to sign in to Snake OS VP.', out: 'Sign out', as: 'Signed in as', wait: 'One moment…' }
   };
   var CSS = '.doga-auth{font:inherit;color:inherit;display:flex;flex-direction:column;gap:10px}' +
     '.doga-auth .da-tabs{display:flex;gap:6px;padding:4px;border-radius:12px;background:rgba(255,255,255,.07)}' +
@@ -82,7 +82,7 @@
       user: function () { return user; },
       me: function () { return req('/api/doga-auth/me?soft=1&site=' + encodeURIComponent(site)).then(function (u) { if (u && u.signed_in === false) u = null; user = u; return u; }, function (e) { if (e.status === 401) { user = null; return null; } throw e; }); },
       login: function (email, password) { return req('/api/doga-auth/login', { method: 'POST', body: { site: site, email: email, password: password } }).then(function (u) { user = u; emit(); return u; }); },
-      signup: function (d) { return req('/api/doga-auth/signup', { method: 'POST', body: { site: site, email: d.email, name: d.name, password: d.password, avatar: d.avatar } }).then(function (u) { user = u; emit(); return u; }); },
+      signup: function (d) { return req('/api/doga-auth/signup', { method: 'POST', body: { site: site, email: d.email, name: d.name || '', password: d.password, avatar: d.avatar } }).then(function (u) { user = u; emit(); return u; }); },
       logout: function () { return req('/api/doga-auth/logout', { method: 'POST', body: { site: site } }).catch(function () {}).then(function () { user = null; emit(); }); },
       onChange: function (f) { listeners.push(f); },
       fetch: req,
@@ -96,7 +96,7 @@
           var t = TXT[lang()];
           el.classList.add('doga-auth');
           if (user) {
-            el.innerHTML = '<div class="da-user">' + avatarHtml(user) + '<div class="da-who"><span>' + t.as + '</span><b translate="no" class="da-name"><span class="da-nm">' + esc(user.name) + '</span>' + (user.pro === true ? '<span class="da-pro" data-noi18n translate="no" title="Snake OS VP Pro">⭐ PRO</span>' : '') + '</b><span translate="no" class="da-mail">' + esc(user.email) + '</span></div><button type="button" class="da-out">' + t.out + '</button></div>';
+            el.innerHTML = '<div class="da-user">' + avatarHtml(user) + '<div class="da-who"><span>' + t.as + '</span><b translate="no" class="da-name"><span class="da-nm">' + esc(user.name || user.email) + '</span>' + (user.pro === true ? '<span class="da-pro" data-noi18n translate="no" title="Snake OS VP Pro">⭐ PRO</span>' : '') + '</b><span translate="no" class="da-mail">' + esc(user.email) + '</span></div><button type="button" class="da-out">' + t.out + '</button></div>';
             var img = el.querySelector('.da-av img');
             if (img) img.onerror = function () { var sp = img.parentNode; if (sp) { sp.className = 'da-av da-ini'; sp.textContent = initial(user); } };
             el.querySelector('.da-out').onclick = function () { api.logout().then(paint); };
@@ -104,7 +104,6 @@
           }
           el.innerHTML = '<div class="da-tabs" role="tablist"><button type="button" data-m="in">' + t.in + '</button><button type="button" data-m="up">' + t.up + '</button></div>' +
             '<form novalidate>' +
-            (mode === 'up' ? '<label>' + t.name + '<input name="name" autocomplete="name" maxlength="60" required></label>' : '') +
             '<label>' + t.email + '<input name="email" type="email" autocomplete="' + (mode === 'up' ? 'email' : 'username') + '" placeholder="tu@dogaemail.com" required></label>' +
             '<label>' + t.pw + '<input name="pw" type="password" autocomplete="' + (mode === 'up' ? 'new-password' : 'current-password') + '" required></label>' +
             (mode === 'up' ? '<label>' + t.pw2 + '<input name="pw2" type="password" autocomplete="new-password" required></label>' : '') +
@@ -117,7 +116,7 @@
             var em = f.email.value.trim(), pw = f.pw.value;
             if (mode === 'up' && pw !== f.pw2.value) { msg.textContent = t.mism; return; }
             msg.textContent = ''; go.disabled = true; go.textContent = t.wait;
-            (mode === 'up' ? api.signup({ email: em, name: f.name.value.trim(), password: pw }) : api.login(em, pw))
+            (mode === 'up' ? api.signup({ email: em, password: pw }) : api.login(em, pw))
               .then(function () { paint(); }, function (e) { go.disabled = false; go.textContent = mode === 'up' ? t.go_up : t.go_in; msg.textContent = (e && e.message) || 'Error'; });
           };
         }

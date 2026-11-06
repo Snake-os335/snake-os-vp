@@ -98,7 +98,7 @@ def mount(app) -> None:
         user = _user(request)
         uid = int(user["id"])
         return {
-            "name": user["name"],
+            "name": db.display_name(user),
             "email": user["email"],
             "files": _items(uid, "files"),
             "trash": _items(uid, "trash"),

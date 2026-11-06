@@ -265,8 +265,8 @@ def _mail_view(r, me: int) -> dict[str, Any]:
     tu = db.get_user_by_id(int(r["to_id"]))
     return {"id": r["id"], "subject": r["subject"], "body": r["body"], "at": r["created_at"], "read": bool(r["read_at"]) or r["from_id"] == me,
             "star": bool(r["star"]) and r["to_id"] == me, "mine": r["from_id"] == me,
-            "from": {"id": r["from_id"], "name": fu["name"] if fu else "?", "email": address_of(fu) if fu else "", "avatar": fu["avatar"] if fu else "🐶"},
-            "to": {"id": r["to_id"], "name": tu["name"] if tu else "?", "email": address_of(tu) if tu else ""}}
+            "from": {"id": r["from_id"], "name": db.display_name(fu) if fu else "?", "email": address_of(fu) if fu else "", "avatar": fu["avatar"] if fu else "🐶"},
+            "to": {"id": r["to_id"], "name": db.display_name(tu) if tu else "?", "email": address_of(tu) if tu else ""}}
 
 
 def resolve_recipient(me: int, to: str):
@@ -306,7 +306,7 @@ def send_mail(me_user, to: str, subject: str, body: str) -> dict[str, Any]:
         row = c.execute("SELECT * FROM doga_mail WHERE id=?", (mid,)).fetchone()
     if prefs(int(rcpt["id"])).get("notif_mail", True):
         try:
-            db.create_notification(user_id=int(rcpt["id"]), kind="dogaemail", title=f"📧 Correo de {me_user['name']}", body=subject,
+            db.create_notification(user_id=int(rcpt["id"]), kind="dogaemail", title=f"📧 Correo de {db.display_name(me_user)}", body=subject,
                                    data={"mail_id": mid}, created_at=now)
         except Exception:
             pass
@@ -414,7 +414,7 @@ def leaderboard(game: str) -> list[dict[str, Any]]:
     for r in rows:
         u = db.get_user_by_id(int(r["user_id"]))
         if u:
-            out.append({"name": u["name"], "avatar": u["avatar"], "score": int(r["s"] or 0)})
+            out.append({"name": db.display_name(u), "avatar": u["avatar"], "score": int(r["s"] or 0)})
     return out
 
 
@@ -462,8 +462,9 @@ def build_router(os_cookie: str, visitor_ip: Callable[[Request], str]) -> APIRou
         avatar = body.get("avatar")
         if name is not None:
             name = str(name).strip()
-            if not (1 <= len(name) <= 40):
-                raise _err(400, "El nombre debe tener entre 1 y 40 caracteres", "bad_name")
+            # 2026.16b: el nombre es opcional; name="" lo borra (se muestra la parte local del correo).
+            if len(name) > 40:
+                raise _err(400, "El nombre es demasiado largo (máx. 40 caracteres)", "bad_name")
         if avatar is not None:
             avatar = str(avatar).strip()
             if not (1 <= len(avatar) <= 16) or avatar.startswith(("/", "http")):
@@ -536,7 +537,7 @@ def build_router(os_cookie: str, visitor_ip: Callable[[Request], str]) -> APIRou
         for c in added_accounts.list_for(int(u["id"])):
             cu = db.get_user_by_id(int(c.get("id") or c.get("contact_id") or 0)) if (c.get("id") or c.get("contact_id")) else None
             if cu:
-                out.append({"name": cu["name"], "email": address_of(cu), "avatar": cu["avatar"]})
+                out.append({"name": db.display_name(cu), "email": address_of(cu), "avatar": cu["avatar"]})
         return {"items": out}
 
     @r.post("/api/doga/mail/send")

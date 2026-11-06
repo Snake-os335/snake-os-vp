@@ -32,7 +32,7 @@ def _profile(row, number: str) -> dict[str, Any]:
     return {
         "id": int(row["id"]),
         "email": str(row["email"] or ""),
-        "name": str(row["name"] or "Usuario"),
+        "name": db.display_name(row),
         "avatar": str(row["avatar"] or "🐶"),
         "number": str(number or ""),
         "pro": db.pro_flag(row["id"]),

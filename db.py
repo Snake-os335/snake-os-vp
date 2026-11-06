@@ -598,10 +598,25 @@ def set_account_locked(user_id: int, locked: bool) -> sqlite3.Row | None:
         return conn.execute("SELECT * FROM users WHERE id = ?", (uid,)).fetchone()
 
 
+def display_name(row: Any) -> str:
+    """Nombre visible de una cuenta. Desde 2026.16b el nombre es opcional (las cuentas nuevas
+    no lo piden, por privacidad): si no hay nombre se usa la parte local del correo y nunca
+    queda vacío, así todo lo que muestra un nombre (chat, correo, teléfono, escritorio…) funciona."""
+    def _get(key: str) -> str:
+        try:
+            return str(row[key] or "").strip()
+        except (KeyError, IndexError, TypeError):
+            return ""
+    name = _get("name")
+    if name:
+        return name
+    return _get("email").split("@", 1)[0].strip() or "Usuario"
+
+
 def user_public(row: sqlite3.Row) -> dict[str, Any]:
     return {
         "email": row["email"],
-        "name": row["name"],
+        "name": display_name(row),
         "avatar": row["avatar"],
         "cloudSub": bool(row["cloud_sub"]),
         "tutorialDone": tutorial_is_done(row),
@@ -852,7 +867,7 @@ def list_users() -> list[dict[str, Any]]:
         {
             "id": int(row["id"]),
             "email": row["email"],
-            "name": row["name"],
+            "name": display_name(row),
             "avatar": row["avatar"],
             "cloudSub": bool(row["cloud_sub"]),
             "highscore": int(row["highscore"]),
@@ -2159,7 +2174,7 @@ def _user_brief_from_row(row: sqlite3.Row | None) -> dict[str, Any] | None:
     return {
         "id": int(row["id"]),
         "email": row["email"],
-        "name": row["name"],
+        "name": display_name(row),
         "avatar": row["avatar"],
         "pro": pro_flag(row["id"]),
     }
@@ -2183,7 +2198,7 @@ def list_chat_profiles(*, exclude_user_id: int | None = None) -> list[dict[str, 
             {
                 "id": uid,
                 "email": row["email"],
-                "name": row["name"],
+                "name": display_name(row),
                 "avatar": row["avatar"],
             }
         )
@@ -2943,7 +2958,7 @@ def _book_user_brief(row: sqlite3.Row | None) -> dict[str, Any]:
     return {
         "id": int(row["id"]),
         "email": str(row["email"] or ""),
-        "name": str(row["name"] or "Usuario"),
+        "name": display_name(row),
         "avatar": str(row["avatar"] or "👤"),
     }
 
@@ -3189,7 +3204,7 @@ def book_list_channels(limit: int = 50) -> list[dict[str, Any]]:
             owner = {
                 "id": int(r["uid"]),
                 "email": str(r["email"] or ""),
-                "name": str(r["name"] or ""),
+                "name": display_name(r),
                 "avatar": str(r["avatar"] or "👤"),
             }
             # reuse helper with a fake row-like for channel fields
@@ -3209,7 +3224,7 @@ def _enrich_post_from_join(r: sqlite3.Row) -> dict[str, Any]:
     owner = {
         "id": int(r["uid"]),
         "email": str(r["email"] or ""),
-        "name": str(r["name"] or ""),
+        "name": display_name(r),
         "avatar": str(r["avatar"] or "👤"),
     }
     try:
@@ -3708,7 +3723,7 @@ def book_list_comments(post_id: int, limit: int = 100) -> list[dict[str, Any]]:
                 "author": {
                     "id": int(r["user_id"]),
                     "email": str(r["email"] or ""),
-                    "name": str(r["name"] or ""),
+                    "name": display_name(r),
                     "avatar": str(r["avatar"] or "👤"),
                 },
             }
@@ -3743,9 +3758,9 @@ def book_add_comment(post_id: int, user_id: int, body: str) -> dict[str, Any]:
         owner_id = int(post["user_id"])
         if owner_id != uid:
             author = conn.execute(
-                "SELECT name FROM users WHERE id = ?", (uid,)
+                "SELECT name, email FROM users WHERE id = ?", (uid,)
             ).fetchone()
-            aname = str(author["name"] if author else "Alguien")
+            aname = display_name(author) if author else "Alguien"
             ch = conn.execute(
                 "SELECT handle FROM book_channels WHERE user_id = ?", (uid,)
             ).fetchone()

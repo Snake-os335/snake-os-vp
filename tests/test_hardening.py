@@ -224,6 +224,30 @@ class TestMainEndpoints(unittest.TestCase):
         self.assertEqual(r.status_code, 200, r.text)
         self.assertEqual(r.json().get("avatar"), "🦊")
 
+    def test_signup_without_name(self):
+        # 2026.16b: las cuentas se crean sin pedir nombre (privacidad). Sin nombre la cuenta
+        # funciona igual: el nombre visible es la parte local del correo.
+        r = self.c.post("/api/signup", json={"email": "sin-nombre@dogaemail.com", "password": "clave-segura"},
+                        headers={"CF-Connecting-IP": "81.200.10.40"})
+        self.assertEqual(r.status_code, 200, r.text)
+        self.assertEqual(r.json().get("name"), "sin-nombre")
+        # El perfil puede volver a quedarse sin nombre sin que falle.
+        r = self.c.patch("/api/me", json={"name": ""})
+        self.assertEqual(r.status_code, 200, r.text)
+        self.assertEqual(r.json().get("name"), "sin-nombre")
+        # Y se puede entrar con la cuenta creada sin nombre.
+        r = self.c.post("/api/login", json={"email": "sin-nombre@dogaemail.com", "password": "clave-segura"},
+                        headers={"CF-Connecting-IP": "81.200.10.41"})
+        self.assertEqual(r.status_code, 200, r.text)
+
+    def test_site_signup_without_name(self):
+        # Las páginas con DogaAuth (por ejemplo /pro) tampoco piden nombre.
+        r = self.c.post("/api/doga-auth/signup",
+                        json={"site": "pro", "email": "sitio-sin-nombre@dogaemail.com", "password": "clave-segura"},
+                        headers={"CF-Connecting-IP": "81.200.10.42"})
+        self.assertEqual(r.status_code, 200, r.text)
+        self.assertEqual(r.json().get("name"), "sitio-sin-nombre")
+
     def test_login_lockout(self):
         self.assertEqual(self._signup("login@dogaemail.com", ip="81.200.10.2").status_code, 200)
         h = {"CF-Connecting-IP": "81.200.10.3"}
