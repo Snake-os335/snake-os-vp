@@ -17,8 +17,8 @@ function grab(name) {
 var sandbox = {};
 vm.createContext(sandbox);
 vm.runInContext(
-  [grab('dcCollectInbound'), grab('dcMarkRtpVoice'), grab('dcShouldPlayRemotePcm'), grab('dcPlanAudioSenders')].join('\n') +
-  '\nthis.dcCollectInbound=dcCollectInbound; this.dcMarkRtpVoice=dcMarkRtpVoice; this.dcShouldPlayRemotePcm=dcShouldPlayRemotePcm; this.dcPlanAudioSenders=dcPlanAudioSenders;',
+  [grab('dcCollectInbound'), grab('dcMarkRtpVoice'), grab('dcShouldPlayRemotePcm'), grab('dcPlanAudioSenders'), grab('dcNextRtpVoice')].join('\n') +
+  '\nthis.dcCollectInbound=dcCollectInbound; this.dcMarkRtpVoice=dcMarkRtpVoice; this.dcShouldPlayRemotePcm=dcShouldPlayRemotePcm; this.dcPlanAudioSenders=dcPlanAudioSenders; this.dcNextRtpVoice=dcNextRtpVoice;',
   sandbox
 );
 
@@ -59,10 +59,33 @@ assert.strictEqual(sandbox.dcShouldPlayRemotePcm({
 function plain(v) { return JSON.parse(JSON.stringify(v)); }
 var ended = plain(sandbox.dcPlanAudioSenders(1, [{ kind: 'audio', live: false }, { kind: 'video', live: true }]));
 assert.deepStrictEqual(ended, { add: 0, replace: [0] });
+var videoFirst = plain(sandbox.dcPlanAudioSenders(1, [{ i: 1, kind: 'audio', live: false }]));
+assert.deepStrictEqual(videoFirst, { add: 0, replace: [1] });
+var middle = plain(sandbox.dcPlanAudioSenders(1, [
+  { i: 0, kind: 'audio', live: true },
+  { i: 2, kind: 'audio', live: false }
+]));
+assert.deepStrictEqual(middle, { add: 0, replace: [2] });
 var missing = plain(sandbox.dcPlanAudioSenders(1, []));
 assert.deepStrictEqual(missing, { add: 1, replace: [] });
 var ok = plain(sandbox.dcPlanAudioSenders(1, [{ kind: 'audio', live: true }]));
 assert.deepStrictEqual(ok, { add: 0, replace: [] });
+
+var voice = { voice: false, quiet: 0 };
+voice = sandbox.dcNextRtpVoice(voice, true);
+assert.strictEqual(voice.voice, true);
+voice = sandbox.dcNextRtpVoice(voice, false);
+assert.strictEqual(voice.voice, true);
+voice = sandbox.dcNextRtpVoice(voice, false);
+voice = sandbox.dcNextRtpVoice(voice, false);
+voice = sandbox.dcNextRtpVoice(voice, false);
+assert.strictEqual(voice.voice, false);
+voice = sandbox.dcNextRtpVoice({ voice: false, quiet: 0 }, true);
+assert.strictEqual(voice.voice, true);
+assert.ok(src.indexOf('dcCall._rtpQuiet = 0') > 0);
+assert.ok(src.indexOf('dcReviveCallerMic') > 0);
+assert.ok(src.indexOf('pcmGain.gain.value = 1') > 0);
+assert.ok(src.indexOf('pcmSink.gain.value = 0') > 0);
 
 assert.ok(src.indexOf('dcWatchInbound') > 0);
 assert.ok(src.indexOf('dcBindLiveAudio') > 0);

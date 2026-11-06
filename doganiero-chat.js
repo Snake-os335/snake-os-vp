@@ -2418,7 +2418,9 @@ function handleRealtimePayload(msg) {
   function dcPlanAudioSenders(liveCount, senders) {
     var audio = [];
     (senders || []).forEach(function (s, i) {
-      if (s && s.kind === 'audio') audio.push({ i: i, live: !!s.live });
+      if (!s || s.kind !== 'audio') return;
+      var idx = typeof s.i === 'number' ? s.i : i;
+      audio.push({ i: idx, live: !!s.live });
     });
     if (!liveCount) return { add: 0, replace: [] };
     if (!audio.length) return { add: liveCount, replace: [] };
@@ -2456,7 +2458,41 @@ function handleRealtimePayload(msg) {
     }
     plan.replace.forEach(function (idx) {
       var s = senders[idx];
-      if (s && live[0] && s.replaceTrack) s.replaceTrack(live[0]).catch(function () {});
+      if (!s || !live[0] || !s.replaceTrack || !s.track || s.track.kind !== 'audio') return;
+      s.replaceTrack(live[0]).catch(function () {});
+    });
+  }
+  function dcNextRtpVoice(state, heard) {
+    var quiet = state && state.quiet ? state.quiet : 0;
+    if (heard) return { voice: true, quiet: 0 };
+    quiet += 1;
+    if (quiet >= 4) return { voice: false, quiet: quiet };
+    return { voice: !!(state && state.voice), quiet: quiet };
+  }
+  function dcLiveAudioTracks() {
+    var live = [];
+    if (!dcCall.localStream || !dcCall.localStream.getAudioTracks) return live;
+    dcCall.localStream.getAudioTracks().forEach(function (t) {
+      if (t && t.readyState === 'live') live.push(t);
+    });
+    return live;
+  }
+  function dcReviveCallerMic() {
+    if (dcCall.role !== 'caller' || dcCall.phase !== 'active') return;
+    if (dcLiveAudioTracks().length || dcCall._revivingMic) return;
+    if (dcCall._reviveAfter && Date.now() < dcCall._reviveAfter) return;
+    dcCall._revivingMic = true;
+    dcEnsureMic().then(function () {
+      dcCall._revivingMic = false;
+      if (dcCall.phase !== 'active' || dcCall.role !== 'caller') return;
+      if (!dcLiveAudioTracks().length) { dcCall._reviveAfter = Date.now() + 4000; return; }
+      dcStopPcmSend();
+      dcStartPcmSend();
+      if (dcCall.pc) dcBindLiveAudio(dcCall.pc);
+      dcMakeOffer();
+    }, function () {
+      dcCall._revivingMic = false;
+      dcCall._reviveAfter = Date.now() + 4000;
     });
   }
   function dcWatchInbound() {
@@ -2471,7 +2507,10 @@ function handleRealtimePayload(msg) {
         if (dcCall.callId !== id) return;
         var mark = dcMarkRtpVoice(dcCall._inBytes, dcCollectInbound(stats));
         dcCall._inBytes = mark.bytes;
-        if (mark.heard) dcCall._rtpVoice = true;
+        var next = dcNextRtpVoice({ voice: !!dcCall._rtpVoice, quiet: dcCall._rtpQuiet || 0 }, mark.heard);
+        dcCall._rtpVoice = next.voice;
+        dcCall._rtpQuiet = next.quiet;
+        if (dcCall.role === 'caller' && !dcLiveAudioTracks().length) dcReviveCallerMic();
       }).catch(function () {});
     }
     tick();
@@ -2644,7 +2683,9 @@ function handleRealtimePayload(msg) {
     dcWatchInbound();
     dcSyncVideoStage();
     dcStartVideoFallback();
-    if (dcCall.role === 'caller') dcMakeOffer();
+    if (dcCall.role !== 'caller') return;
+    if (dcLiveAudioTracks().length) dcMakeOffer();
+    else dcReviveCallerMic();
   }
   function dcReset(reason) {
     dcPushRingStop('');
@@ -2676,6 +2717,9 @@ function handleRealtimePayload(msg) {
     if (dcCall._rtpTimer) { try { clearTimeout(dcCall._rtpTimer); } catch (eRt) {} }
     dcCall._rtpTimer = null;
     dcCall._rtpVoice = false;
+    dcCall._rtpQuiet = 0;
+    dcCall._revivingMic = false;
+    dcCall._reviveAfter = 0;
     dcCall._inBytes = 0;
     if (pc) {
       try { pc.onicecandidate = null; pc.ontrack = null; pc.close(); } catch (ePc) {}
