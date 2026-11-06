@@ -1,10 +1,24 @@
 LICENCIA DOGANIERO v1.0
 Copyright (c) 2026 Doganiero. Todos los derechos no concedidos aquí quedan reservados.
 
-1. Uso: cualquiera puede usar, estudiar y modificar Snake OS! y crear su propio sistema basado en Doganiero OS! 3.
+1. Uso: cualquiera puede usar, estudiar y modificar Snake OS! y crear su propio sistema basado en Doganiero OS! 4.
 2. Derivados: toda versión derivada debe publicar su código fuente bajo esta misma licencia e indicar claramente "Basado en Snake OS! de Doganiero".
 3. Marcas: «Snake OS!», «Doganiero» y sus logos son del proyecto oficial. Los derivados deben usar otro nombre y otro logo.
-4. Venta: vender Snake OS! o un derivado requiere permiso por escrito de Doganiero.
+4. Venta: vender Snake OS! o un derivado requiere permiso por escrito de Doganiero a liviantools@gmail.com.
 5. Sin garantía: se entrega "tal cual", sin garantías de ningún tipo. Doganiero no responde de daños derivados de su uso.
 6. Si se incumple cualquiera de estas condiciones, el permiso de uso termina automáticamente.
 7. Terceros: el código de terceros incluido (por ejemplo Leaflet, Prism o Pyodide) conserva su licencia original.
+-------------------------------English------------------------------------------------------------------------------------------------------------------------------
+1. Use: Anyone can use, study, and modify Snake OS! and create their own system based on Doganiero OS! 4.
+
+2. Derivatives: All derivative versions must publish their source code under this same license and clearly state "Based on Snake OS! by Doganiero."
+
+3. Trademarks: "Snake OS!", "Doganiero," and their logos belong to the official project. Derivatives must use a different name and logo.
+
+4. Sale: Selling Snake OS! or a derivative requires written permission from Doganiero, sent to liviantools@gmail.com.
+
+5. No Warranty: It is delivered "as is," without warranties of any kind. Doganiero is not liable for damages resulting from its use.
+
+6. If any of these conditions are breached, the license to use it automatically terminates.
+
+7. Third Parties: Included third-party code (e.g., Leaflet, Prism, or Pyodide) retains its original license.
