@@ -3615,6 +3615,16 @@ window.SNAKE_OS_CHANGES=[
   .os-tut-hot{outline:3px solid #ffe14a !important;outline-offset:3px;border-radius:14px;}
 </style>
 <link rel="stylesheet" href="/static/snake-taskbar11.css?v=202610210900">
+<style id="doga-cuenta-css">
+.doga-cuenta-aviso{margin:0 0 12px;text-align:left;scroll-margin-top:12px}
+.doga-cuenta-frase{margin:0 0 8px;font-size:1.55rem;line-height:1.25;font-weight:800}
+.doga-cuenta-frase strong{font-weight:800}
+.doga-cuenta-en{margin:0 0 8px;font-size:1.05rem;line-height:1.3;font-weight:700}
+.doga-cuenta-texto{max-height:34vh;overflow:auto;font-size:.92rem;line-height:1.45}
+.doga-cuenta-texto:focus{outline:3px solid #ffd400;outline-offset:2px}
+@media (max-width:360px){.doga-cuenta-frase{font-size:1.25rem}}
+#lock:has(#signupView:not(.hidden)){justify-content:flex-start !important;align-items:center}
+</style>
 </head>
 <body>
   <div id="bootError" role="alert">
@@ -3715,6 +3725,11 @@ window.SNAKE_OS_CHANGES=[
     </div>
 
     <div class="card hidden" id="signupView">
+      <div class="doga-cuenta-aviso" id="dogaCuentaAviso">
+        <p class="doga-cuenta-frase"><strong>La cuenta que crees se guarda en el servidor</strong></p>
+        <p class="doga-cuenta-en"><strong>The account you create is stored on the server</strong></p>
+        <div class="doga-cuenta-texto" tabindex="0">También se envían el nombre que escribes y la imagen o el emoji que eliges. La contraseña se envía al servidor en ese alta y no vuelve a mostrarse en la ficha pública de la cuenta. Se abre una sesión con cookie. Si después usas las apps, el servidor puede guardar notas, archivos, calendario y mensajes. La ubicación solo se comparte si la activas tú. El micrófono y la cámara se piden al usarlos, no al abrir esta pantalla. Aquí no figura quién responde de los datos ni cuánto tiempo se conserva la cuenta.</div>
+      </div>
       <h1><span class="lock-snake" aria-hidden="true"><img src="/static/assets/snake-os-logo-v2.svg?v=202610161925" alt="" style="width:1.1em;height:1.1em;vertical-align:-0.15em"></span><span>Snake OS!</span></h1>
       <p class="sub">Crea tu cuenta para entrar al sistema.</p>
       <form id="signupForm">
@@ -4985,7 +5000,11 @@ window.SNAKE_OS_CHANGES=[
   startI9Watch();
 
   // ---------- Navegación login / registro ----------
-  document.getElementById('goToSignup').addEventListener('click', () => showView(signupView));
+  document.getElementById('goToSignup').addEventListener('click', () => {
+    showView(signupView);
+    var aviso = document.getElementById('dogaCuentaAviso');
+    if(aviso && aviso.scrollIntoView) aviso.scrollIntoView({block:'start', inline:'nearest'});
+  });
   document.getElementById('goToLogin').addEventListener('click', () => showView(loginView));
 
   const avatarGrid = document.getElementById('avatarGrid');
