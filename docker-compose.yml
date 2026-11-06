@@ -3,6 +3,12 @@ services:
     build: .
     container_name: snake-os-vp
     restart: unless-stopped
+    # Logs con tope: el driver json-file crece sin límite y puede llenar el disco del VPS.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     ports:
       - "8988:8000"
     volumes:
@@ -41,6 +47,11 @@ services:
     image: cloudflare/cloudflared:latest
     container_name: snake-os-vp-cloudflared
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     command: tunnel --no-autoupdate run --token ${TUNNEL_TOKEN}
     environment:
       TUNNEL_TOKEN: ${TUNNEL_TOKEN}
