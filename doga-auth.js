@@ -82,7 +82,15 @@
       user: function () { return user; },
       me: function () { return req('/api/doga-auth/me?soft=1&site=' + encodeURIComponent(site)).then(function (u) { if (u && u.signed_in === false) u = null; user = u; return u; }, function (e) { if (e.status === 401) { user = null; return null; } throw e; }); },
       login: function (email, password) { return req('/api/doga-auth/login', { method: 'POST', body: { site: site, email: email, password: password } }).then(function (u) { user = u; emit(); return u; }); },
-      signup: function (d) { return req('/api/doga-auth/signup', { method: 'POST', body: { site: site, email: d.email, name: d.name || '', password: d.password, avatar: d.avatar } }).then(function (u) { user = u; emit(); return u; }); },
+      signup: function (d) {
+        function post(name) { return req('/api/doga-auth/signup', { method: 'POST', body: { site: site, email: d.email, name: name, password: d.password, avatar: d.avatar } }); }
+        /* El nombre es opcional (2026.16b). Si el servidor todavía exige uno (name_empty), se reintenta
+           con la parte local del correo, que es lo que se muestra cuando la cuenta no tiene nombre. */
+        return post(d.name || '').catch(function (e) {
+          if (e && e.code === 'name_empty') return post(String(d.email || '').split('@')[0]);
+          throw e;
+        }).then(function (u) { user = u; emit(); return u; });
+      },
       logout: function () { return req('/api/doga-auth/logout', { method: 'POST', body: { site: site } }).catch(function () {}).then(function () { user = null; emit(); }); },
       onChange: function (f) { listeners.push(f); },
       fetch: req,

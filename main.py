@@ -305,12 +305,18 @@ def emailjs_config():
 
 
 _UPDATING_FLAG = FsPath(os.path.dirname(os.path.abspath(__file__))) / ".updating"
+# Hora de arranque de ESTE proceso (epoch). El «version» cambia con los archivos, pero el código Python
+# solo se recarga al reiniciar el contenedor: si tras un push con cambios en .py «started» no cambia,
+# el proceso sigue con el código anterior.
+_PROCESS_STARTED = time.time()
 
 
 @app.get("/api/status")
 def os_status():
-    """Público y ligero: ¿se está actualizando Snake OS? (lo activan scripts/update-start.sh y update-end.sh)."""
-    return JSONResponse({"updating": _UPDATING_FLAG.exists(), "version": _os_version()}, headers={"Cache-Control": "no-store"})
+    """Público y ligero: ¿se está actualizando Snake OS? (lo activan scripts/update-start.sh y update-end.sh).
+    «started» = arranque de este proceso: sirve para verificar que el contenedor se reinició de verdad."""
+    payload = {"updating": _UPDATING_FLAG.exists(), "version": _os_version(), "started": int(_PROCESS_STARTED)}
+    return JSONResponse(payload, headers={"Cache-Control": "no-store"})
 
 
 def _git_version() -> str:

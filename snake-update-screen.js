@@ -1,8 +1,9 @@
 /* Snake OS · actualizaciones (la «update» de Snake OS).
    Cómo se publica: scripts/update-start.sh → desplegar → scripts/update-end.sh (lo hace solo el auto-deploy
    de la VM al hacer push a main; ver README «Actualizar Snake OS»).
-   - /api/status → { updating, version }. version = commit + firma de los archivos estáticos: cambia en CADA
-     despliegue (git pull, merge o copia de archivos), aunque no se reinicie el contenedor.
+   - /api/status → { updating, version, started }. version = commit + firma de los archivos estáticos: cambia en CADA
+     despliegue (git pull, merge o copia de archivos), aunque no se reinicie el contenedor. started = hora de
+     arranque del proceso: solo cambia al reiniciar el contenedor (es lo que recarga el código Python).
    - Pestañas abiertas (se comprueba cada 20 s, cada 3 s durante una actualización, y al volver a la pestaña):
        · updating=true → pantalla completa «Snake OS! se está actualizando...»; cuando termina se recarga
          y entra en la versión nueva.

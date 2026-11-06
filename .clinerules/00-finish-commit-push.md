@@ -61,10 +61,15 @@ Si la tarea termina en un punto intermedio (a medias, sin validar), se avisa exp
   "¿lo despliego?"**; termina, valida, commitea, pushea y verifica el deploy.
 - **Verificar el deploy** (público, sin SSH ni contraseñas):
   ```bash
-  curl -s https://snake-os-vp.softportweb.com/api/status   # {"updating":false,"version":"<sha>-<firma>"}
+  curl -s https://snake-os-vp.softportweb.com/api/status   # {"updating":false,"version":"<sha>-<firma>","started":<epoch>}
   git rev-parse --short HEAD                                # debe coincidir con <sha>
   ```
   El sufijo tras el guion es la firma de los estáticos servidos; el SHA del commit es lo que importa.
+- **`.html`/`.js`/`.css` se sirven al instante; el código Python no**: `/api/status` cambia con los
+  archivos, aunque el contenedor no se haya reiniciado. Por eso el push con cambios en `.py` **tiene que
+  mover `started`** (hora de arranque del proceso). Si `started` sigue igual, producción está corriendo el
+  código anterior aunque el `version` ya muestre el SHA nuevo: toca reiniciar el contenedor
+  (`ssh vps4_david 'cd /srv/juegos_david/snake-os-vp && docker compose restart web'`) y volver a comprobar.
 - **Deploy inmediato** (no esperar los 3 min del cron), desde el Mac:
   ```bash
   ssh vps4_david 'bash /srv/juegos_david/snake-os-vp/scripts/publicar-update.sh'

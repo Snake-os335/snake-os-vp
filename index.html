@@ -5240,7 +5240,17 @@ window.SNAKE_OS_CHANGES=[
     if(typeof primeOsTutorialSpeech === 'function') primeOsTutorialSpeech();
     showSignupStatus('Creando cuenta...', true);
     try{
-      await api('/api/signup', { method: 'POST', body: { email: email, password: password, avatar: selectedAvatar } });
+      const signupBody = { email: email, password: password, avatar: selectedAvatar };
+      try{
+        await api('/api/signup', { method: 'POST', body: signupBody });
+      }catch(errSignup){
+        /* El nombre es opcional (2026.16b). Si el servidor todavía lo exige (422 con body.name), se
+           reintenta con la parte local del correo, que es lo que se muestra cuando no hay nombre. */
+        const faltaNombre = errSignup && errSignup.status === 422 && String(errSignup.message || '').indexOf('"name"') !== -1;
+        if(!faltaNombre) throw errSignup;
+        signupBody.name = email.split('@')[0];
+        await api('/api/signup', { method: 'POST', body: signupBody });
+      }
       window.__snkNeedReauth = false;
       let data = await api('/api/bootstrap');
       applyBootstrap(data);
