@@ -41,12 +41,13 @@ Uso: `/commit-and-push` al finalizar una tarea ya validada.
    Si falla: `git pull --rebase origin main` y reintentar. Si hay conflicto, resolver o avisar.
    Nunca dejar commits sin subir.
 
-7. **Resumen**: informar del SHA corto, rama, confirmación de push y del deploy.
-
-8. **Comprobar el deploy en producción** (el push ya lanza el auto-deploy del VPS, ≤3 min):
+7. **Comprobar el deploy en producción** (el push ya lanza el auto-deploy del VPS, ≤3 min):
    ```bash
    curl -s https://snake-os-vp.softportweb.com/api/status   # version debe empezar por el SHA corto
    ```
    Si no coincide todavía, esperar al cron (3 min) y repetir; si corre prisa:
    `ssh vps4_david 'bash /srv/juegos_david/snake-os-vp/scripts/publicar-update.sh'` y volver a comprobar.
    No hay autorización que pedir: el auto-deploy hace health-check y rollback solo.
+
+8. **Resumen**: informar del SHA corto, rama, confirmación de push y de que producción
+   (`/api/status`) ya sirve ese SHA.
