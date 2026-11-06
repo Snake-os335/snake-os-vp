@@ -1,0 +1,220 @@
+/* Publicidad propia de software Doganiero, al lado del vídeo de la llamada.
+   No entra en el canvas ni en la pista. Sin red, cookies ni medición. */
+(function (root, factory) {
+  var api = factory(root);
+  if (typeof module !== "undefined" && module.exports) module.exports = api;
+  if (root) root.DoganieroCallAd = api;
+})(typeof globalThis !== "undefined" ? globalThis : this, function (root) {
+  var SLOTS = [
+    {
+      app: "chat",
+      name: "Doganiero Chat",
+      line: "Doganiero Chat es para mensajes y llamadas con otras cuentas.",
+      mark: "💬"
+    },
+    {
+      app: "store",
+      name: "Doganiero Store",
+      line: "Doganiero Store es la tienda. Aquí descargas juegos y herramientas.",
+      mark: "🛍️",
+      img: "/static/assets/doganiero-store-logo.png?v=bag2"
+    },
+    {
+      app: "ai",
+      name: "Doganiero AI",
+      line: "Doganiero AI responde, abre apps y puede hablar contigo.",
+      mark: "✨",
+      img: "/static/assets/doganiero-ai-logo.png"
+    },
+    {
+      app: "browser",
+      name: "Doganiero Search",
+      line: "Buscar en Doganiero Search.",
+      mark: "🔍",
+      img: "/static/assets/doganiero-search-logo.png?v=20261015g"
+    }
+  ];
+
+  function stageBox(vw, vh, minimized) {
+    var width = Math.min(minimized ? 156 : 360, Math.max(0, vw - 24));
+    var height = Math.round(width * 3 / 4);
+    var left = vw - 16 - width;
+    var top = vh - 92 - height;
+    return { left: left, top: top, right: left + width, bottom: top + height, width: width, height: height };
+  }
+
+  function layout(vw, vh, minimized) {
+    var stage = stageBox(vw, vh, minimized);
+    var hang = hangupBox(vw, vh);
+    var gap = 8;
+    var sideW = 148;
+    var box = null;
+    if (stage.left >= sideW + gap + 8) {
+      var top = Math.max(8, stage.top);
+      var limit = Math.min(stage.bottom, hang.top - gap);
+      var height = Math.min(176, limit - top);
+      if (height >= 72) {
+        box = {
+          mode: "side",
+          left: stage.left - gap - sideW,
+          top: top,
+          width: sideW,
+          height: height,
+          right: stage.left - gap,
+          bottom: top + height
+        };
+      }
+    }
+    if (!box) {
+      var bandH = 120;
+      var bandTop = stage.top - gap - bandH;
+      if (bandTop < 8) bandTop = 8;
+      var left = Math.max(8, stage.left);
+      var width = Math.min(stage.width, vw - left - 8);
+      box = {
+        mode: "above",
+        left: left,
+        top: bandTop,
+        width: width,
+        height: bandH,
+        right: left + width,
+        bottom: bandTop + bandH
+      };
+    }
+    box.stage = stage;
+    box.hangup = hang;
+    return box;
+  }
+
+  function overlaps(a, b) {
+    return a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+  }
+
+  function controlsBox(stage) {
+    return {
+      left: stage.left + 8,
+      top: stage.bottom - 8 - 34,
+      right: stage.left + 8 + 114,
+      bottom: stage.bottom - 8
+    };
+  }
+
+  function hangupBox(vw, vh) {
+    var width = Math.min(320, Math.max(0, vw - 20));
+    var height = 48;
+    var left = Math.round((vw - width) / 2);
+    var top = vh - 84 - height;
+    return { left: left, top: top, right: left + width, bottom: top + height, width: width, height: height };
+  }
+
+  var index = 0;
+  var timer = null;
+
+  function paint(aside) {
+    var slot = SLOTS[index % SLOTS.length];
+    aside.textContent = "";
+    var tag = document.createElement("div");
+    tag.textContent = "Publicidad";
+    tag.style.cssText = "font-size:10px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:#9dffc2;";
+    var row = document.createElement("div");
+    row.style.cssText = "display:flex;gap:6px;align-items:center;min-width:0;";
+    var mark = document.createElement("span");
+    mark.textContent = slot.mark;
+    mark.style.cssText = "font-size:16px;flex:0 0 auto;";
+    if (slot.img) {
+      var img = document.createElement("img");
+      img.src = slot.img;
+      img.alt = "";
+      img.width = 22;
+      img.height = 22;
+      img.style.cssText = "width:22px;height:22px;object-fit:contain;flex:0 0 auto;";
+      row.appendChild(img);
+    } else {
+      row.appendChild(mark);
+    }
+    var name = document.createElement("b");
+    name.textContent = slot.name;
+    name.style.cssText = "font-size:12px;line-height:1.2;";
+    row.appendChild(name);
+    var line = document.createElement("div");
+    line.textContent = slot.line;
+    line.style.cssText = "font-size:11px;line-height:1.3;color:#eafff0;";
+    var open = document.createElement("button");
+    open.type = "button";
+    open.textContent = "Abrir";
+    open.style.cssText = "margin-top:4px;width:auto;padding:4px 8px;border-radius:999px;border:0;background:#34d17a;color:#053018;font-weight:800;font-size:11px;cursor:pointer;";
+    open.addEventListener("click", function (ev) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      try {
+        if (typeof root.openApp === "function") root.openApp(slot.app);
+      } catch (eOpen) {}
+    });
+    aside.appendChild(tag);
+    aside.appendChild(row);
+    aside.appendChild(line);
+    aside.appendChild(open);
+  }
+
+  function sync(doc, stage) {
+    if (!doc || !stage || !stage.isConnected) {
+      hide(doc);
+      return null;
+    }
+    var vw = root.innerWidth || doc.documentElement.clientWidth || 360;
+    var vh = root.innerHeight || doc.documentElement.clientHeight || 640;
+    var box = layout(vw, vh, stage.classList.contains("is-minimized"));
+    var aside = doc.getElementById("dcCallAd");
+    if (!aside) {
+      aside = doc.createElement("aside");
+      aside.id = "dcCallAd";
+      aside.setAttribute("role", "complementary");
+      aside.setAttribute("aria-label", "Publicidad de Doganiero");
+      aside.style.position = "fixed";
+      aside.style.zIndex = "11940";
+      aside.style.boxSizing = "border-box";
+      aside.style.overflow = "auto";
+      aside.style.padding = "8px";
+      aside.style.borderRadius = "12px";
+      aside.style.background = "rgba(8,24,16,.94)";
+      aside.style.border = "1px solid rgba(52,209,122,.45)";
+      aside.style.color = "#eafff0";
+      aside.style.fontFamily = "inherit";
+      doc.body.appendChild(aside);
+      paint(aside);
+      timer = root.setInterval(function () {
+        index = (index + 1) % SLOTS.length;
+        var node = doc.getElementById("dcCallAd");
+        if (node) paint(node);
+      }, 12000);
+    }
+    if (aside.parentNode === stage) doc.body.appendChild(aside);
+    aside.style.left = box.left + "px";
+    aside.style.top = box.top + "px";
+    aside.style.width = box.width + "px";
+    aside.style.height = box.height + "px";
+    aside.hidden = false;
+    return box;
+  }
+
+  function hide(doc) {
+    if (timer) {
+      root.clearInterval(timer);
+      timer = null;
+    }
+    if (!doc) return;
+    var aside = doc.getElementById("dcCallAd");
+    if (aside && aside.parentNode) aside.parentNode.removeChild(aside);
+  }
+
+  return {
+    SLOTS: SLOTS,
+    stageBox: stageBox,
+    layout: layout,
+    overlaps: overlaps,
+    controlsBox: controlsBox,
+    hangupBox: hangupBox,
+    sync: sync,
+    hide: hide
+  };
+});
