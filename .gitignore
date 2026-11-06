@@ -9,4 +9,15 @@ emailjs.local.json
 
 # Copias de seguridad
 *.bak.*
+*.bak-*
+*.bak
 .updating
+backups/
+
+# Núcleos / volcados (core dumps)
+core
+core.*
+
+# Secretos locales del proyecto (NUNCA subir)
+block.env
+entry.env

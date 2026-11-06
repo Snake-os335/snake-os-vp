@@ -30,7 +30,7 @@ from auth import end_session, hash_password, start_session, user_from_session, v
 
 SITE_SESSION_MAX_AGE = 2 * 3600     # 2026.14: la sesión de las páginas (p. ej. /pro) dura 2 horas
 
-SITES = {"pro", "tv", "mail", "games"}                   # añade aquí el id de cada página nueva
+SITES = {"pro", "tv", "mail", "games", "channel", "blog", "hub", "ai", "create", "search", "goback", "verse", "cloud"}                   # añade aquí el id de cada página nueva
 SITE_RE = re.compile(r"^[a-z0-9-]{1,24}$")
 LOGIN_MAX, LOGIN_WIN = 10, 15 * 60  # intentos fallidos por correo+IP
 LOGIN_IP_MAX = 100                  # 2026.14b: por IP sola, alto (no bloquear a toda una red)
@@ -130,6 +130,8 @@ def build_router(visitor_ip: Callable[[Request], str], blocked_domains: set[str]
             _limited(ek, LOGIN_MAX, LOGIN_WIN, True)
             _limited(gk, LOGIN_EMAIL_MAX, LOGIN_WIN, True)
             raise HTTPException(status_code=401, detail="Correo o contraseña incorrectos", headers={"X-Snk-Err": "bad_login"})
+        import account_block
+        account_block.refuse(email)
         end_session(request.cookies.get(cookie_name(site)))
         set_cookie(request, response, site, start_session(int(user["id"]), kind="site"))
         return _me_view(user)
@@ -180,5 +182,28 @@ def build_router(visitor_ip: Callable[[Request], str], blocked_domains: set[str]
         end_session(request.cookies.get(cookie_name(site)))
         response.delete_cookie(key=cookie_name(site), path="/")
         return {"ok": True}
+
+
+    @r.post("/api/doga-auth/block")
+    def apply_block(body: dict, request: Request):
+        import account_block
+        account_block.guard(request)
+        body = body if isinstance(body, dict) else {}
+        email = str(body.get("email") or "").strip().lower()
+        if "@" not in email or not db.get_user_by_email(email):
+            raise HTTPException(status_code=404, detail="No existe esa cuenta")
+        exp = account_block.block(email)
+        return {"ok": True, "until": exp, "message": account_block.message(exp)}
+
+    @r.post("/api/doga-auth/block-check")
+    def block_check(body: dict, request: Request):
+        import account_block
+        account_block.guard(request)
+        body = body if isinstance(body, dict) else {}
+        email = str(body.get("email") or "").strip().lower()
+        exp = account_block.until(email)
+        if not exp:
+            return {"blocked": False}
+        return {"blocked": True, "until": exp, "message": account_block.message(exp)}
 
     return r

@@ -491,7 +491,7 @@ def signup(body: SignupBody, response: Response, request: Request, _gate: None =
         pass
     sid = start_session(int(user["id"]))
     set_session_cookie(response, sid)
-    note_activity("cuenta", user["name"])
+    note_activity("cuenta", user["name"], int(user["id"]))
     return db.user_public(user)
 
 
@@ -538,6 +538,8 @@ def login(body: LoginBody, response: Response, request: Request, _gate: None = D
             hardening.LOGIN_EMAIL_IP_FAILS.fail(email_ip_keys)
             hardening.LOGIN_EMAIL_FAILS.fail(email_keys)
             raise HTTPException(status_code=401, detail="Correo o contraseña incorrectos")
+        import account_block
+        account_block.refuse(email)
         hardening.LOGIN_EMAIL_FAILS.clear(email_keys)
         hardening.LOGIN_EMAIL_IP_FAILS.clear(email_ip_keys)
         unlocked = db.set_account_locked(int(user["id"]), False)
@@ -545,7 +547,7 @@ def login(body: LoginBody, response: Response, request: Request, _gate: None = D
             user = unlocked
         sid = start_session(int(user["id"]))
         set_session_cookie(response, sid)
-        note_activity("inicio", user["name"])
+        note_activity("inicio", user["name"], int(user["id"]))
         return db.user_public(user)
     finally:
         _login_matrix_dots(False)
@@ -1567,6 +1569,11 @@ def get_notes(user=Depends(require_user)):
 def put_notes(payload: list[Any], user=Depends(require_user)):
     payload = _tomb_notes(int(user["id"]), payload)
     db.set_json_field(int(user["id"]), "notes", payload)
+    try:
+        import privacy_share
+        privacy_share.retain_notes(int(user["id"]), payload)
+    except Exception:
+        pass
     return payload
 
 
@@ -1608,7 +1615,7 @@ def upload_file(body: FileUploadBody, user=Depends(require_user)):
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
-    note_activity("archivo", user["name"])
+    note_activity("archivo", user["name"], int(user["id"]))
     return entry
 
 
@@ -1729,7 +1736,29 @@ def resolve_askbox_key(user_id: int) -> str:
                     own = str(raw.get("askbox") or "").strip()
         except Exception:
             own = ""
+    if own and not _askbox_own_key_ok(own):
+        own = ""
     return own or askbox_client.default_key()
+
+
+# 2026-11-02 (migración a vps4): claves propias antiguas (del AskBox local de Alpine) dan 500/401 en el AskBox
+# remoto -> la IA fallaba con 422. Si la clave propia no vale, se usa la del sistema. Caché 30 min por clave.
+_ASKBOX_OWN_OK: dict = {}
+
+
+def _askbox_own_key_ok(key: str) -> bool:
+    now = time.monotonic()
+    hit = _ASKBOX_OWN_OK.get(key)
+    if hit and now - hit[1] < 1800:
+        return hit[0]
+    # validate_key() da True para estas claves aunque /v1/ask devuelve 500: se prueba con una pregunta mínima.
+    try:
+        r = askbox_client.ask("ok", tier="balanced", max_output_tokens=5, api_key=key)
+        ok = bool(isinstance(r, dict) and (r.get("text") or "").strip())
+    except Exception:
+        ok = False
+    _ASKBOX_OWN_OK[key] = (ok, now)
+    return ok
 
 
 class AskboxAskBody(BaseModel):
@@ -6283,34 +6312,66 @@ async def online_count():
 _activity = []
 
 
-def note_activity(kind, who):
-    """Hecho reciente de Snake OS. Solo el tipo y el nombre, nunca el texto privado."""
+def note_activity(kind, who, user_id=None):
+    """Hecho reciente. Sin user_id no se guarda: el nombre suelto no se puede autorizar."""
     name = str(who or "").strip()[:24]
     label = str(kind or "hecho").strip()[:16]
-    if not name:
+    try:
+        uid = int(user_id)
+    except (TypeError, ValueError):
         return
-    _activity.append({"k": label, "w": name, "at": time.time()})
+    if not name or uid <= 0:
+        return
+    _activity.append({"k": label, "uid": uid, "w": name, "at": time.time()})
     del _activity[:-12]
 
 
-@app.get("/api/online/names")
-async def online_names():
-    """Nombres de las cuentas Dogaemail con Snake OS abierto."""
-    names = []
+def _directory_for(viewer_id: int) -> dict[str, Any]:
+    """Nombres en línea y actividad solo de contactos autorizados. Sin correos ni ids."""
+    import privacy_share
+
+    allowed = privacy_share.directory_user_ids(int(viewer_id))
+    names: list[str] = []
+    seen: set[str] = set()
     for uid in list(chat_hub._clients.keys()):
         try:
-            row = db.get_user_by_id(int(uid))
+            uid_i = int(uid)
+        except (TypeError, ValueError):
+            continue
+        if uid_i not in allowed:
+            continue
+        try:
+            row = db.get_user_by_id(uid_i)
         except Exception:
             row = None
         if not row:
             continue
-        name = str(row["name"] or "").strip()
-        email = str(row["email"] or "").strip()
-        if not name and "@" in email:
-            name = email.split("@", 1)[0]
-        if name:
-            names.append(name)
-    return {"names": names}
+        name = str(row["name"] or "").strip()[:24]
+        if not name or name in seen:
+            continue
+        seen.add(name)
+        names.append(name)
+    events: list[dict[str, Any]] = []
+    for ev in list(_activity):
+        try:
+            uid_i = int(ev.get("uid") or 0)
+        except (TypeError, ValueError):
+            continue
+        if uid_i not in allowed:
+            continue
+        label = str(ev.get("k") or "")[:16]
+        who = str(ev.get("w") or "").strip()[:24]
+        if not label or not who:
+            continue
+        events.append({"k": label, "w": who, "at": float(ev.get("at") or 0)})
+    names.sort()
+    return {"names": names, "events": events}
+
+
+@app.get("/api/online/names")
+async def online_names(user=Depends(require_user)):
+    """Nombres de contactos mutuos con Snake OS abierto y sin ocultar el directorio."""
+    return {"names": _directory_for(int(user["id"]))["names"]}
 
 
 _room_climate = {"c": None, "h": None, "err": "", "at": 0.0}
@@ -6669,10 +6730,9 @@ def keypad_poll(after: int = 0):
 
 
 @app.get("/api/activity")
-async def activity_feed():
-    """Resumen para la placa: quien esta dentro y los ultimos hechos, sin mensajes."""
-    live = await online_names()
-    return {"names": live.get("names") or [], "events": list(_activity)}
+async def activity_feed(user=Depends(require_user)):
+    """Quién está dentro y los últimos hechos, solo de contactos autorizados. Sin correos."""
+    return _directory_for(int(user["id"]))
 
 
 @app.get("/api/room/climate")
@@ -7551,7 +7611,7 @@ async def chat_send(body: ChatSendBody, user=Depends(require_user)):
     await chat_hub.send_to_user(peer_id, msg_payload)
     await chat_hub.send_to_user(peer_id, notif_payload)
     _queue_notif_push(peer_id, notif)
-    note_activity("chat", user["name"])
+    note_activity("chat", user["name"], uid)
     return {"message": saved, "notificationId": notif["id"]}
 
 
@@ -7666,7 +7726,7 @@ async def chat_video_finish(upload_id: str, body: ChatVideoFinishBody, user=Depe
     await chat_hub.send_to_user(peer_id, {"type": "chat_message", "message": saved})
     await chat_hub.send_to_user(peer_id, {"type": "notification", "notification": notif, "unread": db.count_unread_notifications(user_id=peer_id)})
     _queue_notif_push(peer_id, notif)
-    note_activity("chat", user["name"])
+    note_activity("chat", user["name"], uid)
     return {"message": saved, "notificationId": notif["id"]}
 
 
@@ -8285,6 +8345,8 @@ def phone_lookup(number: str = Query("", max_length=40), user=Depends(require_us
     found = dog_phone.lookup(norm)
     if not found:
         raise HTTPException(status_code=404, detail=f"El número {norm} no existe en la red Doganiero.")
+    if norm == "DOG-153000" or str(found.get("number") or "") == "DOG-153000":
+        return found
     if int(found["id"]) == int(user["id"]):
         found = dict(found, self=True)
         return found
@@ -8342,6 +8404,7 @@ def _call_snap(c: dict[str, Any]) -> dict[str, Any]:
         "status": c["status"],
         "media": "video" if c.get("media") == "video" else "audio",
         "answered_at": float(c["answered_at"]) if c.get("answered_at") else None,
+        "doga": bool(c.get("doga")),
     }
 
 
@@ -8540,6 +8603,8 @@ async def _emit_declined(snap: dict[str, Any]) -> None:
 
 async def _emit_ended(snap: dict[str, Any], reason: str) -> None:
     _remember_ended(snap)
+    if dog_phone.number_for(int(snap.get("callee_id") or 0)) == "DOG-153000":
+        asyncio.create_task(asyncio.to_thread(_doga_post, "hangup", {"email": snap.get("caller_email") or ""}))
     try:
         dog_phone.log_call_status(snap["id"], "ended")
     except Exception:
@@ -8564,12 +8629,12 @@ async def _push_pending_calls(user_id: int, websocket: WebSocket) -> None:
     pending: list[dict[str, Any]] = []
     async with _calls_lock:
         for c in _calls.values():
-            if int(c["callee_id"]) == uid and c["status"] == "ringing":
+            if c["status"] == "ringing" and uid in (int(c["caller_id"]), int(c["callee_id"])):
                 pending.append(_call_snap(c))
-            elif int(c["caller_id"]) == uid and c["status"] in ("ringing", "active"):
+            elif c["status"] == "active" and uid in (int(c["caller_id"]), int(c["callee_id"])):
                 pending.append(_call_snap(c))
     for snap in pending:
-        if int(snap["callee_id"]) == uid and snap["status"] == "ringing":
+        if snap["status"] == "ringing" and int(snap["callee_id"]) == uid:
             caller = db.get_user_by_id(int(snap["caller_id"]))
             if not caller:
                 continue
@@ -8579,14 +8644,24 @@ async def _push_pending_calls(user_id: int, websocket: WebSocket) -> None:
                     ensure_ascii=False,
                 )
             )
-        elif int(snap["caller_id"]) == uid:
+        elif snap["status"] == "ringing" and int(snap["caller_id"]) == uid:
             callee = db.get_user_by_id(int(snap["callee_id"]))
             if not callee:
                 continue
-            kind = "call_ringing" if snap["status"] == "ringing" else "call_answered"
             await websocket.send_text(
                 json.dumps(
-                    {"type": kind, "callId": snap["id"], "to": _brief_user(callee), "peer": _brief_user(callee), "media": snap.get("media") or "audio"},
+                    {"type": "call_ringing", "callId": snap["id"], "to": _brief_user(callee), "peer": _brief_user(callee), "media": snap.get("media") or "audio"},
+                    ensure_ascii=False,
+                )
+            )
+        elif snap["status"] == "active":
+            peer_id = int(snap["callee_id"]) if uid == int(snap["caller_id"]) else int(snap["caller_id"])
+            peer = db.get_user_by_id(peer_id)
+            if not peer:
+                continue
+            await websocket.send_text(
+                json.dumps(
+                    {"type": "call_answered", "callId": snap["id"], "from": _brief_user(peer), "peer": _brief_user(peer), "media": snap.get("media") or "audio"},
                     ensure_ascii=False,
                 )
             )
@@ -8627,7 +8702,19 @@ async def _handle_chat_voice(uid: int, msg: dict[str, Any], websocket: WebSocket
         if int(peer["id"]) == uid:
             await websocket.send_text(json.dumps({"type": "call_error", "callId": call_id, "detail": "No puedes llamarte a ti mismo"}, ensure_ascii=False))
             return
-        if not added_accounts.has(uid, int(peer["id"])):
+        # sqlite3.Row has no .get(); use key access (this AttributeError made every
+        # call_invite return "No se pudo completar la llamada" / videollamada).
+        peer_email = str(peer["email"] or "").strip().lower()
+        doga_line = (
+            dog_phone.number_for(int(peer["id"])) == "DOG-153000"
+            or dog_phone.normalize(msg.get("toNumber")) == "DOG-153000"
+            or peer_email == "doga-en-antena@doganiero.local"
+        )
+        if doga_line:
+            if not await asyncio.to_thread(_doga_show_on):
+                await websocket.send_text(json.dumps({"type": "call_error", "callId": call_id, "detail": "Doga contesta en directo los sábados, de 15:30 a 16:30."}, ensure_ascii=False))
+                return
+        elif not added_accounts.has(uid, int(peer["id"])):
             await websocket.send_text(json.dumps({"type": "call_error", "callId": call_id, "detail": "Solo puedes llamar a cuentas que has añadido."}, ensure_ascii=False))
             return
         if await _find_live_call(uid) or await _find_live_call(int(peer["id"])):
@@ -8649,6 +8736,27 @@ async def _handle_chat_voice(uid: int, msg: dict[str, Any], websocket: WebSocket
                 "status": "ringing",
                 "media": media,
             }
+        if doga_line:
+            async with _calls_lock:
+                row = _calls.get(call_id)
+                if row:
+                    row["status"] = "active"
+                    row["answered_at"] = time_mod.time()
+                    row["doga"] = True
+                    row["media"] = "audio"
+            try:
+                dog_phone.log_call_start(call_id, uid, int(peer["id"]), "audio")
+            except Exception:
+                pass
+            claimed, detail = await asyncio.to_thread(_doga_claim, cb)
+            if claimed != 200:
+                async with _calls_lock:
+                    _calls.pop(call_id, None)
+                await websocket.send_text(json.dumps({"type": "call_error", "callId": call_id, "detail": detail or "Doga no puede ponerse ahora."}, ensure_ascii=False))
+                return
+            await websocket.send_text(json.dumps({"type": "call_answered", "callId": call_id, "to": eb, "peer": eb, "media": "audio"}, ensure_ascii=False))
+            asyncio.create_task(_relay_doga_voice(call_id, uid))
+            return
         video = media == "video"
         try:
             dog_phone.log_call_start(call_id, uid, int(peer["id"]), media)
@@ -8800,6 +8908,9 @@ async def _handle_chat_voice(uid: int, msg: dict[str, Any], websocket: WebSocket
         pcm = msg.get("pcm")
         if not isinstance(pcm, str) or not pcm or len(pcm) > 12000:
             return
+        if snap_live.get("doga") and uid == int(snap_live["caller_id"]):
+            asyncio.create_task(asyncio.to_thread(_doga_mic, snap_live.get("caller_email") or "", pcm, int(msg.get("rate") or 16000)))
+            return
         await _send_call(
             other,
             {
@@ -8810,6 +8921,38 @@ async def _handle_chat_voice(uid: int, msg: dict[str, Any], websocket: WebSocket
                 "pcm": pcm,
             },
         )
+
+
+CALL_DISCONNECT_GRACE_S = 12.0
+_call_disconnect_grace: dict[int, asyncio.Task] = {}
+
+
+def _cancel_call_disconnect_grace(user_id: int) -> None:
+    task = _call_disconnect_grace.pop(int(user_id), None)
+    if task and not task.done():
+        task.cancel()
+
+
+def _schedule_call_disconnect_grace(user_id: int) -> None:
+    uid = int(user_id)
+    _cancel_call_disconnect_grace(uid)
+
+    async def _wait() -> None:
+        try:
+            await asyncio.sleep(CALL_DISCONNECT_GRACE_S)
+        except asyncio.CancelledError:
+            return
+        try:
+            await _end_calls_for_disconnect(uid)
+        except Exception:
+            pass
+        if _call_disconnect_grace.get(uid) is asyncio.current_task():
+            _call_disconnect_grace.pop(uid, None)
+
+    try:
+        _call_disconnect_grace[uid] = asyncio.get_running_loop().create_task(_wait())
+    except RuntimeError:
+        pass
 
 
 async def _end_calls_for_disconnect(user_id: int) -> None:
@@ -8842,6 +8985,215 @@ async def _end_calls_for_disconnect(user_id: int) -> None:
             if taken:
                 await _emit_ended(taken, "disconnect")
 
+
+def _doga_post(path: str, payload: dict) -> tuple[int, dict]:
+    import urllib.error
+    import urllib.request
+    try:
+        key = open("/app/data/live-call.key", "r", encoding="utf-8").read().strip()
+    except OSError:
+        return 500, {"detail": "La tele no tiene la línea de Doga preparada."}
+    req = urllib.request.Request(
+        "http://host.docker.internal:8991/api/channel/call/" + path.lstrip("/"),
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json", "X-Live-Key": key},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            raw = resp.read().decode("utf-8", "replace")
+            try:
+                body = json.loads(raw) if raw else {}
+            except json.JSONDecodeError:
+                body = {}
+            return int(resp.status), body if isinstance(body, dict) else {}
+    except urllib.error.HTTPError as exc:
+        raw = ""
+        try:
+            raw = exc.read().decode("utf-8", "replace")
+        except Exception:
+            pass
+        try:
+            body = json.loads(raw) if raw else {}
+        except json.JSONDecodeError:
+            body = {}
+        if not isinstance(body, dict):
+            body = {}
+        return int(exc.code), body
+    except Exception:
+        return 502, {"detail": "La tele no contesta ahora mismo."}
+
+
+def _doga_show_on() -> bool:
+    import urllib.request
+    try:
+        with urllib.request.urlopen("http://host.docker.internal:8991/api/channel/now", timeout=3) as resp:
+            data = json.loads(resp.read().decode("utf-8", "replace"))
+        return isinstance(data, dict) and data.get("special") == "llamada"
+    except Exception:
+        return False
+
+
+def _doga_claim(caller: dict) -> tuple[int, str]:
+    status, body = _doga_post("dial", {
+        "number": "DOG-153000",
+        "email": caller.get("email") or "",
+        "name": caller.get("name") or "",
+        "avatar": caller.get("avatar") or "",
+    })
+    return status, str(body.get("detail") or "")
+
+
+def _doga_mic(email: str, pcm: str, rate: int) -> None:
+    if not email or not pcm:
+        return
+    _doga_post("mic", {"email": email, "pcm": pcm, "rate": int(rate or 16000)})
+
+
+def _doga_wav_chunks(data: bytes) -> list[str]:
+    import array
+    import base64
+    import io
+    import wave
+    try:
+        with wave.open(io.BytesIO(data), "rb") as handle:
+            rate = int(handle.getframerate() or 16000)
+            width = int(handle.getsampwidth() or 2)
+            channels = int(handle.getnchannels() or 1)
+            frames = handle.readframes(handle.getnframes())
+    except Exception:
+        return []
+    if width != 2 or not frames:
+        return []
+    if channels == 2:
+        samples = array.array("h")
+        samples.frombytes(frames[:len(frames) - (len(frames) % 4)])
+        mono = array.array("h", (((int(samples[i]) + int(samples[i + 1])) // 2) for i in range(0, len(samples), 2)))
+        frames = mono.tobytes()
+    if rate != 16000 and rate > 0:
+        src = array.array("h")
+        src.frombytes(frames[:len(frames) - (len(frames) % 2)])
+        step = rate / 16000.0
+        out = array.array("h")
+        pos = 0.0
+        last = len(src) - 1
+        while int(pos) <= last:
+            out.append(src[int(pos)])
+            pos += step
+        frames = out.tobytes()
+    pieces = []
+    for start in range(0, len(frames), 6400):
+        pieces.append(base64.b64encode(frames[start:start + 6400]).decode("ascii"))
+    return pieces
+
+
+async def _relay_doga_voice(call_id: str, caller_id: int) -> None:
+    import urllib.request
+    last = 0
+    misses = 0
+    doga = db.get_user_by_id(int(caller_id and _doga_uid() or 0)) if False else db.get_user_by_id(_doga_uid())
+    doga_email = str(doga["email"]).strip().lower() if doga else ""
+    while True:
+        await asyncio.sleep(0.45)
+        async with _calls_lock:
+            row = _calls.get(call_id)
+            if not row or row.get("status") != "active" or not row.get("doga"):
+                return
+        try:
+            with urllib.request.urlopen("http://host.docker.internal:8991/api/channel/call", timeout=3) as resp:
+                status = json.loads(resp.read().decode("utf-8", "replace"))
+        except Exception:
+            misses += 1
+            if misses > 8:
+                return
+            continue
+        if not isinstance(status, dict) or not status.get("active"):
+            misses += 1
+            if misses < 4:
+                continue
+            taken = await _take_call(call_id, allowed={"active"})
+            if taken:
+                await _emit_ended(taken, "hangup")
+            return
+        misses = 0
+        seq = int(status.get("doga_seq") or 0)
+        while last < seq:
+            last += 1
+            try:
+                with urllib.request.urlopen("http://host.docker.internal:8991/api/channel/call/doga/" + str(last), timeout=8) as resp:
+                    wav = resp.read()
+            except Exception:
+                continue
+            for piece in _doga_wav_chunks(wav):
+                await _send_call(int(caller_id), {
+                    "type": "voice_pcm",
+                    "callId": call_id,
+                    "from": doga_email,
+                    "rate": 16000,
+                    "pcm": piece,
+                })
+
+
+def _doga_uid() -> int:
+    found = dog_phone.lookup("DOG-153000")
+    return int(found["id"]) if found else 0
+
+
+@app.post("/api/live-doga/dial")
+async def live_doga_dial(request: Request, user=Depends(require_user)):
+    body = await request.json()
+    number = str((body or {}).get("number") or "") if isinstance(body, dict) else ""
+    status, data = await asyncio.to_thread(_doga_post, "dial", {
+        "number": number,
+        "email": user["email"],
+        "name": user["name"],
+        "avatar": user["avatar"],
+    })
+    if status >= 400:
+        raise HTTPException(status_code=status, detail=(data.get("detail") if isinstance(data, dict) else "") or "No se pudo llamar")
+    return data
+
+
+@app.post("/api/live-doga/hangup")
+async def live_doga_hangup(user=Depends(require_user)):
+    status, data = await asyncio.to_thread(_doga_post, "hangup", {"email": user["email"], "name": user["name"], "avatar": user["avatar"]})
+    if status >= 400:
+        raise HTTPException(status_code=status, detail=(data.get("detail") if isinstance(data, dict) else "") or "No se pudo colgar")
+    return data
+
+
+@app.post("/api/live-doga/mic")
+async def live_doga_mic(request: Request, user=Depends(require_user)):
+    body = await request.json()
+    if not isinstance(body, dict):
+        body = {}
+    status, data = await asyncio.to_thread(_doga_post, "mic", {
+        "email": user["email"],
+        "name": user["name"],
+        "avatar": user["avatar"],
+        "pcm": str(body.get("pcm") or ""),
+        "rate": int(body.get("rate") or 16000),
+    })
+    if status >= 400:
+        raise HTTPException(status_code=status, detail=(data.get("detail") if isinstance(data, dict) else "") or "No se pudo enviar la voz")
+    return data
+
+
+@app.post("/api/live-doga/said")
+async def live_doga_said(request: Request, user=Depends(require_user)):
+    body = await request.json()
+    text = str((body or {}).get("text") or "") if isinstance(body, dict) else ""
+    status, data = await asyncio.to_thread(_doga_post, "said", {
+        "email": user["email"],
+        "name": user["name"],
+        "avatar": user["avatar"],
+        "text": text,
+    })
+    if status >= 400:
+        raise HTTPException(status_code=status, detail=(data.get("detail") if isinstance(data, dict) else "") or "Doga no ha podido contestar")
+    return data
+
+
 # ===== END DOGANIERO CHAT VOICE CALLS =====
 
 @app.websocket("/api/chat/ws")
@@ -8864,6 +9216,10 @@ async def chat_ws(websocket: WebSocket):
     uid = int(user_row["id"])
     await chat_hub.connect(uid, websocket)
     try:
+        _cancel_call_disconnect_grace(uid)
+    except Exception:
+        pass
+    try:
         await websocket.send_text(
             json.dumps(
                 {
@@ -8885,6 +9241,10 @@ async def chat_ws(websocket: WebSocket):
             mtype = msg.get("type")
             if mtype == "ping":
                 await websocket.send_text(json.dumps({"type": "pong"}))
+                continue
+            if mtype in ("directory", "online_names", "activity"):
+                snap = _directory_for(uid)
+                await websocket.send_text(json.dumps({"type": "directory", "names": snap["names"], "events": snap["events"]}, ensure_ascii=False))
                 continue
             if mtype == "loc_share":
                 try:
@@ -8927,7 +9287,8 @@ async def chat_ws(websocket: WebSocket):
         _i9_untrack(websocket)
         await chat_hub.disconnect(uid, websocket)
         try:
-            await _end_calls_for_disconnect(uid)
+            # Brief network blips must not kill an active call — wait for reconnect.
+            _schedule_call_disconnect_grace(uid)
         except Exception:
             pass
         try:
@@ -9068,6 +9429,40 @@ def serve_doganiero_chat_js():
         },
     )
 
+
+@app.get("/static/doganiero-phone.js")
+def serve_doganiero_phone_js():
+    """Serve Phone app client; no-store so call UI changes reach devices immediately."""
+    return FileResponse(
+        "doganiero-phone.js",
+        media_type="application/javascript",
+        headers={
+            "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+            "CDN-Cache-Control": "no-store",
+            "Cloudflare-CDN-Cache-Control": "no-store",
+            "Pragma": "no-cache",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
+
+
+
+@app.get("/static/call-video-ad.js")
+def serve_call_video_ad_js():
+    """Publicidad propia de las llamadas (Doganiero Call Ad). Vive en la raíz del proyecto
+    (GET /static/call-video-ad.js se sirve de ./call-video-ad.js); no-store para que CF/phone
+    no guarden una versión vieja, igual que el resto de scripts de llamadas."""
+    return FileResponse(
+        "call-video-ad.js",
+        media_type="application/javascript",
+        headers={
+            "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+            "CDN-Cache-Control": "no-store",
+            "Cloudflare-CDN-Cache-Control": "no-store",
+            "Pragma": "no-cache",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
 
 
 @app.get("/static/desktop-extras.js")
@@ -9405,7 +9800,7 @@ def _doga_on_signup(user) -> None:
         dog_phone.ensure_number(int(user["id"]))
     except Exception:
         pass
-    note_activity("cuenta", user["name"])
+    note_activity("cuenta", user["name"], int(user["id"]))
 
 
 hardening.IP_RESOLVER = _visitor_ip  # 2026.14b: misma IP de visitante en límites y bloqueos
@@ -9414,6 +9809,8 @@ app.include_router(doga_hub.build_router(COOKIE_NAME, _visitor_ip))
 app.include_router(pro_extras.build_router(require_user, _visitor_ip, lambda request: doga_auth.site_user(request, "pro")))
 import v2614_extras  # 2026.14: /api/calendar y /api/store/ratings (faltaban)
 app.include_router(v2614_extras.build_router(require_user))
+import privacy_share
+app.include_router(privacy_share.build_router(require_user))
 
 
 # --- Snake OS Kids: entrega del resumen semanal y códigos al Dogaemail del adulto (notificaciones de Snake OS) ---
@@ -9469,3 +9866,10 @@ snake_tts.warm()
 
 app.mount("/static", _PublicStaticFiles(directory="."), name="static")
 # ===== END /static seguro =====
+
+
+import doga_gate
+doga_gate.install(app)
+
+import go_back
+go_back.mount(app)

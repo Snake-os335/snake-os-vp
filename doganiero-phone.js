@@ -356,8 +356,14 @@
     hangBtn.type = 'button';
     hangBtn.addEventListener('click', function () {
       var s = callState();
-      if (s.phase === 'ringing' && s.role === 'callee' && typeof global.declineDoganieroCall === 'function') global.declineDoganieroCall();
-      else if (typeof global.hangupDoganieroCall === 'function') global.hangupDoganieroCall();
+      state.busy = false;
+      // Always end the media session via Chat engine — never leave a half-dead PC.
+      if (s.phase === 'ringing' && s.role === 'callee' && typeof global.declineDoganieroCall === 'function') {
+        global.declineDoganieroCall();
+      } else if (typeof global.hangupDoganieroCall === 'function') {
+        global.hangupDoganieroCall();
+      }
+      try { paintCall(); } catch (eH) {}
     });
     actions.appendChild(callBtn);
     actions.appendChild(vidBtn);
@@ -367,7 +373,7 @@
     var statusEl = el('div', 'dph-status', '');
     statusEl.setAttribute('role', 'status');
     padPane.appendChild(statusEl);
-    padPane.appendChild(el('div', 'dph-hint', 'Consejo: clic derecho o mantén pulsado un contacto para copiar su número.'));
+    padPane.appendChild(el('div', 'dph-hint', 'El 153000 es de Doga. Lo marcas y te contesta; no hace falta tenerlo de contacto.'));
 
     // --- Favoritos ---
     var favsPane = el('div', 'dph-pane');
@@ -519,11 +525,12 @@
         return;
       }
       var target = 'DOG-' + d;
+      var dogaLine = d === '153000';
       if (state.mine && target === state.mine) {
         setStatus('No puedes llamarte a ti mismo.', 'err');
         return;
       }
-      if (state.contactsLoaded && !state.contacts.some(function (c) { return digitsOf(c.number) === d; })) {
+      if (!dogaLine && state.contactsLoaded && !state.contacts.some(function (c) { return digitsOf(c.number) === d; })) {
         setStatus('Solo puedes llamar a números que has añadido.', 'err');
         return;
       }
@@ -538,6 +545,8 @@
       state.busy = true;
       paintCall();
       setStatus('Buscando ' + target + '…');
+      // Keep the click gesture warm for getUserMedia inside startDoganieroCall.
+      try { if (typeof global.ensureDoganieroChatWs === 'function') global.ensureDoganieroChatWs(); } catch (eWs0) {}
       function ensureChatLive() {
         try {
           if (typeof global.ensureDoganieroChatWs === 'function') {
@@ -551,9 +560,9 @@
         } catch (e1) {}
         return Promise.resolve(true);
       }
-      apiGet('/api/phone/lookup?number=' + encodeURIComponent(target)).then(function (peer) {
+      var afterLookup = function (peer) {
         if (!alive) return null;
-        if (peer.self) {
+        if (peer && peer.self) {
           state.busy = false;
           setStatus('No puedes llamarte a ti mismo.', 'err');
           paintCall();
@@ -569,15 +578,22 @@
             return;
           }
           state.busy = false;
-          setStatus('Llamando a ' + (peer.name || target) + '…', 'live');
+          setStatus('Llamando a ' + ((peer && peer.name) || target) + '…', 'live');
           global.startDoganieroCall({
-            id: peer.id,
-            name: peer.name,
-            avatar: peer.avatar,
-            number: peer.number || target
+            id: peer && peer.id,
+            name: (peer && peer.name) || (dogaLine ? 'Doga' : target),
+            avatar: (peer && peer.avatar) || '🐶',
+            number: (peer && peer.number) || target
           }, !!asVideo);
           paintCall();
         });
+      };
+      if (dogaLine) {
+        afterLookup({ name: 'Doga', avatar: '🐶', number: target });
+        return;
+      }
+      apiGet('/api/phone/lookup?number=' + encodeURIComponent(target)).then(function (peer) {
+        return afterLookup(peer);
       }).catch(function (err) {
         if (!alive) return;
         state.busy = false;

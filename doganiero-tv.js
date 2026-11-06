@@ -836,7 +836,17 @@
         '.dtv-top .dtv-btn{width:auto!important;margin:0!important}',
         '.dtv-eps .dtv-ep{margin:0!important;width:auto!important}',
         '.dtv-continue{margin:0 12px 8px!important;width:auto!important;flex-direction:column;align-items:flex-start;gap:2px}',
-        '.dtv-msg:empty{display:none}'
+        '.dtv-msg:empty{display:none}',
+        '.dtv-live{position:absolute;inset:0;z-index:5;display:flex;flex-direction:column;gap:8px;background:#05070d;padding:10px}',
+        '.dtv-live[hidden]{display:none!important}',
+        '.dtv-live .ch-wrap{flex:1;position:relative;border-radius:16px;overflow:hidden;background:#000;min-height:180px}',
+        '.dtv-live canvas,.dtv-live video{width:100%;height:100%;display:block}',
+        '.dtv-live video{position:absolute;inset:0;object-fit:contain;background:#000}',
+        '.dtv-live .tag{position:absolute;top:12px;left:12px;background:#e0242f;color:#fff;font-weight:700;padding:4px 10px;border-radius:8px;font-size:13px}',
+        '.dtv-live .snd{position:absolute;top:10px;right:10px}',
+        '.dtv-live .sub{position:absolute;left:8%;right:8%;bottom:6%;text-align:center;font-size:18px;font-weight:600;background:#000b;padding:8px 14px;border-radius:12px}',
+        '.dtv-live .sched{display:flex;gap:8px;overflow:auto;font-size:13px}',
+        '.dtv-live .sched div{background:#14203a;border-radius:10px;padding:6px 10px;white-space:nowrap}'
       ].join('\n');
       document.head.appendChild(st2);
     }
@@ -845,9 +855,11 @@
     var balEl = el('div', 'dtv-bal', 'Huesitos: …');
     var daysEl = el('div', 'dtv-days', '');
     var msgEl = el('div', 'dtv-msg', '');
+    var liveBtn = el('button', 'dtv-btn', 'Canal en directo');
+    liveBtn.type = 'button';
     var payBtn = el('button', 'dtv-btn', 'Suscribirme · 5 huesitos al mes');
     payBtn.type = 'button';
-    top.appendChild(balEl); top.appendChild(daysEl); top.appendChild(payBtn); top.appendChild(msgEl);
+    top.appendChild(liveBtn); top.appendChild(balEl); top.appendChild(daysEl); top.appendChild(payBtn); top.appendChild(msgEl);
     var epsEl = el('div', 'dtv-eps');
     var stageEl = el('div', 'dtv-stage');
     var story = el('div', 'dtv-story');
@@ -877,8 +889,11 @@
     var contBtn = el('button', 'dtv-continue', '');
     contBtn.type = 'button';
     contBtn.hidden = true;
-    root.appendChild(top); root.appendChild(contBtn); root.appendChild(epsEl); root.appendChild(stageEl);
+    var liveLayer = el('div', 'dtv-live');
+    liveLayer.hidden = true;
+    root.appendChild(top); root.appendChild(contBtn); root.appendChild(epsEl); root.appendChild(stageEl); root.appendChild(liveLayer);
     body.appendChild(root);
+    root.style.position = 'relative';
 
     var state = { huesitos: 0, subscribed: false, daysLeft: 0 };
     var alive = true, gen = 0, renderer = null, currentEp = null, partIndex = -1;
@@ -1273,8 +1288,219 @@
       obs.observe(win, { attributes: true, attributeFilter: ['class'] });
     }
     refresh();
+    var TVHOST = 'https://doganiero-tv.softportweb.com';
+    if (!window.DogaLive) { var liveTag = document.createElement('script'); liveTag.src = TVHOST + '/static/doga-live.js?v=1'; document.head.appendChild(liveTag); }
+    var liveRun = null;
+    function stopLive() {
+      liveLayer.hidden = true;
+      liveBtn.textContent = 'Canal en directo';
+      if (liveRun) { liveRun(); liveRun = null; }
+    }
+    function escH(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+    function loadCartoon() {
+      if (window.DogaCartoon && window.DogaCartoon.drawEp) return Promise.resolve(window.DogaCartoon);
+      return new Promise(function (ok, ko) {
+        var s = document.createElement('script');
+        s.src = TVHOST + '/static/doga-cartoon.js?v=26';
+        s.onload = function () { window.DogaCartoon ? ok(window.DogaCartoon) : ko(new Error('canal')); };
+        s.onerror = function () { ko(new Error('canal')); };
+        document.head.appendChild(s);
+      });
+    }
+    function startLive() {
+      stopLive();
+      haltLoop();
+      try { if (window.speechSynthesis) window.speechSynthesis.cancel(); } catch (e) {}
+      liveLayer.hidden = false;
+      liveBtn.hidden = true;
+      liveLayer.innerHTML = '<div class="ch-wrap"><canvas id="snake-ch-canvas"></canvas><video id="snake-ch-video" playsinline preload="auto" style="display:none"></video><span class="tag" id="snake-ch-live">● EN DIRECTO · Canal Doganiero</span><button class="dtv-btn snd" type="button" id="snake-ch-sound">Activar sonido</button><div class="sub" id="snake-ch-sub"></div></div><div class="sched" id="snake-ch-sched"></div>';
+      var on = true, skew = 0, now = null, lastKey = '', raf = 0, soundOn = false, HC = {};
+      var AEL = null;
+      function setH(id, v) { if (HC[id] !== v) { HC[id] = v; var n = document.getElementById(id); if (n) n.innerHTML = v; } }
+      function voiceBusy() { return AEL && !AEL.paused && isFinite(AEL.duration) && AEL.currentTime < AEL.duration - 0.08; }
+      function stopAudio() { if (AEL) { try { AEL.pause(); } catch (e) {} } }
+      function playClip(url) {
+        if (voiceBusy()) return false;
+        stopAudio();
+        AEL = new Audio(url);
+        AEL.volume = 1;
+        AEL.playbackRate = 1;
+        AEL.onloadedmetadata = function () { try { AEL.currentTime = 0; } catch (e) {} };
+        var p = AEL.play();
+        if (p && p.catch) p.catch(function () {});
+        return true;
+      }
+
+      var SCENES = {
+        casa: { pad: 196, wave: 'sine', every: 760, peak: 0.55, notes: [523.25, 659.25, 783.99, 659.25, 587.33, 523.25, 493.88, 440] },
+        ciudad: { pad: 220, wave: 'triangle', every: 420, peak: 0.5, notes: [587.33, 698.46, 880, 783.99, 659.25, 587.33, 523.25, 587.33] },
+        parque: { pad: 246.94, wave: 'sine', every: 560, peak: 0.5, notes: [659.25, 783.99, 880, 783.99, 659.25, 523.25, 587.33, 659.25] },
+        playa: { pad: 233.08, wave: 'sine', every: 680, peak: 0.48, notes: [523.25, 587.33, 659.25, 698.46, 783.99, 698.46, 659.25, 523.25] },
+        taller: { pad: 146.83, wave: 'square', every: 340, peak: 0.24, notes: [392, 440, 392, 349.23, 329.63, 349.23, 392, 440] },
+        espacio: { pad: 110, wave: 'sine', every: 980, peak: 0.42, notes: [523.25, 622.25, 698.46, 783.99, 698.46, 523.25, 466.16, 415.3] },
+        arcade: { pad: 261.63, wave: 'square', every: 280, peak: 0.22, notes: [523.25, 659.25, 783.99, 1046.5, 783.99, 659.25, 523.25, 659.25] },
+        password: { pad: 130.81, wave: 'triangle', every: 820, peak: 0.4, notes: [415.3, 466.16, 523.25, 466.16, 392, 349.23, 329.63, 349.23] },
+        ai: { pad: 174.61, wave: 'sine', every: 500, peak: 0.45, notes: [698.46, 830.61, 987.77, 880, 739.99, 659.25, 739.99, 830.61] },
+        code: { pad: 164.81, wave: 'square', every: 360, peak: 0.22, notes: [440, 554.37, 659.25, 554.37, 440, 392, 440, 523.25] },
+        battery: { pad: 185, wave: 'sine', every: 600, peak: 0.48, notes: [493.88, 587.33, 659.25, 587.33, 523.25, 493.88, 440, 392] },
+        bosque: { pad: 174.61, wave: 'triangle', every: 640, peak: 0.45, notes: [440, 523.25, 587.33, 659.25, 587.33, 523.25, 493.88, 440] },
+        montana: { pad: 146.83, wave: 'triangle', every: 740, peak: 0.42, notes: [392, 493.88, 587.33, 493.88, 440, 392, 349.23, 329.63] },
+        cueva: { pad: 98, wave: 'sine', every: 1000, peak: 0.38, notes: [329.63, 392, 440, 392, 349.23, 329.63, 293.66, 329.63] }
+      };
+      SCENES.computer = SCENES.casa;
+      SCENES.internet = SCENES.ciudad;
+      SCENES.phone = SCENES.parque;
+      SCENES.robot = SCENES.taller;
+      SCENES.space = SCENES.espacio;
+      SCENES.game = SCENES.arcade;
+
+      var bedAC = null, bedGain = null, bedStep = 0, bedMood = '', bedEvery = 760, bedNext = 0, bedPeak = 0.55;
+      var BED = SCENES.casa.notes, BED_PAD = null, BED_MEL = null;
+      function bedApply(scene) {
+        var key = String(scene || 'casa');
+        var mood = SCENES[key] || SCENES.casa;
+        if (!SCENES[key]) key = 'casa';
+        bedEvery = mood.every; BED = mood.notes; bedPeak = mood.peak;
+        if (bedMood === key) return;
+        bedMood = key; bedStep = 0; bedNext = 0;
+        if (BED_PAD) BED_PAD.frequency.setTargetAtTime(mood.pad, bedAC.currentTime, 0.4);
+        if (BED_MEL) BED_MEL.type = mood.wave;
+      }
+      function bedSet(on, scene) {
+        if (!bedAC) {
+        var Ctx = window.AudioContext || window.webkitAudioContext;
+        if (!Ctx) return;
+        bedAC = new Ctx();
+        bedGain = bedAC.createGain(); bedGain.gain.value = 0; bedGain.connect(bedAC.destination);
+        BED_PAD = bedAC.createOscillator(); var pg = bedAC.createGain();
+        BED_PAD.type = 'sine'; BED_PAD.frequency.value = 196; pg.gain.value = 0.22;
+        BED_PAD.connect(pg); pg.connect(bedGain); BED_PAD.start();
+        BED_MEL = bedAC.createOscillator(); var mg = bedAC.createGain();
+        BED_MEL.type = 'sine'; mg.gain.value = 0.0001;
+        BED_MEL.connect(mg); mg.connect(bedGain); BED_MEL.start();
+        setInterval(function () {
+          if (!bedGain || bedGain.gain.value < 0.001 || !bedAC) return;
+          var t = bedAC.currentTime;
+          if (bedNext && t < bedNext) return;
+          var epRate = window.__epSpeed || 1;
+          bedNext = t + (bedEvery || 760) / 1000 / epRate;
+          var f = BED[bedStep % BED.length]; bedStep++;
+          var hold = Math.min(0.62, (bedEvery || 760) / 1000 * 0.78 / epRate);
+          BED_MEL.frequency.setTargetAtTime(f, t, 0.04);
+          mg.gain.cancelScheduledValues(t);
+          mg.gain.setValueAtTime(0.0001, t);
+          mg.gain.linearRampToValueAtTime(bedPeak, t + Math.min(0.05, hold * 0.25));
+          mg.gain.linearRampToValueAtTime(0.0001, t + hold);
+        }, 120);
+      }
+      if (bedAC.state !== 'running') { try { bedAC.resume(); } catch (e) {} }
+        bedApply(scene);
+        if (bedGain._want === on) return;
+        bedGain._want = on;
+        bedGain.gain.setTargetAtTime(on ? 0.4 : 0, bedAC.currentTime, 0.25);
+      }
+      var snd = document.getElementById('snake-ch-sound');
+      snd.onclick = function () { soundOn = !soundOn; if (!soundOn) stopAudio(); lastKey = ''; snd.textContent = soundOn ? 'Sonido activado' : 'Activar sonido'; };
+      function poll() {
+        if (!on) return;
+        var t0 = Date.now();
+        fetch(TVHOST + '/api/channel/now', { credentials: 'omit' }).then(function (r) { return r.json(); }).then(function (d) {
+          skew = d.server_time * 1000 - (t0 + Date.now()) / 2; now = d; now._at = Date.now();
+        }).catch(function () {}).then(function () { if (on) setTimeout(poll, 1500); });
+      }
+      function sched() {
+        fetch(TVHOST + '/api/channel/schedule?hours=2', { credentials: 'omit' }).then(function (r) { return r.json(); }).then(function (d) {
+          if (!on) return;
+          var box = document.getElementById('snake-ch-sched'); if (!box) return;
+          box.innerHTML = (d.items || []).slice(0, 8).map(function (i, k) {
+            return '<div>' + (k === 0 ? '<b>AHORA</b> ' : escH(i.hora) + ' ') + escH(i.title) + '</div>';
+          }).join('');
+        }).catch(function () {});
+      }
+      poll(); sched();
+      var si = setInterval(sched, 20000);
+      var VID = null, vidSrc = '';
+      function vidOff() {
+        var cv = document.getElementById('snake-ch-canvas');
+        if (VID && VID.style.display !== 'none') { VID.style.display = 'none'; try { VID.pause(); } catch (e) {} }
+        if (cv) cv.style.visibility = '';
+      }
+      function vidOn(src, pos) {
+        VID = VID || document.getElementById('snake-ch-video'); if (!VID) return false;
+        if (vidSrc !== src) { vidSrc = src; VID.src = src.indexOf('http') === 0 ? src : TVHOST + src; VID.load(); }
+        if (VID.style.display === 'none') { VID.style.display = ''; var cv = document.getElementById('snake-ch-canvas'); if (cv) cv.style.visibility = 'hidden'; stopAudio(); }
+        VID.muted = !soundOn; VID.volume = 1;
+        if (VID.readyState >= 1 && Math.abs(VID.currentTime - pos) > 0.35) { try { VID.currentTime = pos; } catch (e) {} }
+        if (VID.paused && VID.readyState >= 1) { var p = VID.play(); if (p && p.catch) p.catch(function () { VID.muted = true; VID.play().catch(function () {}); }); }
+        return true;
+      }
+      function frame() {
+        if (!on) return;
+        var cv = document.getElementById('snake-ch-canvas');
+        var t = (Date.now() + skew) / 1000, talking = false;
+        if (now && now.kind === 'episode' && now.special !== 'llamada') {
+          var advB = (Date.now() - (now._at || Date.now())) / 1000;
+          var leftB = (now.remaining || 0) - advB;
+          if (leftB <= 5) {
+            if (vidOn('/static/anuncios.mp4?v=1', Math.min(4.9, Math.max(0, 5 - leftB)))) {
+              var remB = Math.max(0, leftB), mB = Math.floor(remB / 60), sB = Math.floor(remB % 60);
+              setH('snake-ch-live', '● EN DIRECTO · Canal Doganiero · quedan ' + mB + ':' + (sB < 10 ? '0' : '') + sB);
+              setH('snake-ch-sub', '<small style="opacity:.7">' + escH(now.title) + ' · Anuncios</small>');
+              raf = requestAnimationFrame(frame); return;
+            }
+          }
+        }
+        if (now && now.kind === 'episode' && now.video && now.phase !== undefined) {
+          var adv0 = (Date.now() - now._at) / 1000;
+          if (vidOn(now.video, (now.offset || 0) + adv0)) {
+            var rem0 = Math.max(0, (now.remaining || 0) - adv0), m0 = Math.floor(rem0 / 60), s0 = Math.floor(rem0 % 60);
+            setH('snake-ch-live', '● EN DIRECTO · Canal Doganiero · quedan ' + m0 + ':' + (s0 < 10 ? '0' : '') + s0);
+            setH('snake-ch-sub', '<small style="opacity:.7">' + escH(now.title) + '</small>');
+            raf = requestAnimationFrame(frame); return;
+          }
+        }
+        vidOff();
+        if (now && cv && window.DogaCartoon) {
+          window.__epSpeed = (now.kind === 'episode' && now.special !== 'llamada') ? 1.5 : 1;
+          var adv = (Date.now() - now._at) / 1000, sub = '';
+          if (!now.gap) {
+            sub = now.text || '';
+            var lo = (now.line_offset || 0) + adv;
+            talking = lo < (now.line_secs || 0) - 1.2;
+            var k = now.ep + ':' + now.line;
+            if (soundOn && k !== lastKey && !voiceBusy()) {
+              if (playClip(TVHOST + '/api/channel/voice/' + now.ep + '/' + now.line + '.wav')) lastKey = k;
+            }
+          }
+          bedSet(soundOn && now.kind === 'episode' && !window.__dogaLineBusy, now.loc || now.scene);
+          var rem = Math.max(0, (now.remaining || 0) - adv), mm = Math.floor(rem / 60), ss = Math.floor(rem % 60), tl = mm + ':' + (ss < 10 ? '0' : '') + ss;
+          if (now.kind === 'ads') {
+            setH('snake-ch-live', '📺 ANUNCIOS · Volvemos en ' + tl);
+            setH('snake-ch-sub', (sub && !now.gap ? escH(sub) + '<br>' : '') + '<small style="opacity:.7">Después: ' + escH(now.next_title || '') + '</small>');
+            var o = {}; for (var q in now) o[q] = now[q]; o.ad_offset = (now.ad_offset || 0) + adv;
+            window.DogaCartoon.drawAd(cv, o, t);
+          } else {
+            setH('snake-ch-live', '● EN DIRECTO · Canal Doganiero · quedan ' + tl);
+            setH('snake-ch-sub', '<small style="opacity:.7">' + escH(now.title) + '</small>' + (now.gap ? '' : '<br>' + escH(sub)));
+            if (window.__dogaTalking) talking = true;
+            window.DogaCartoon.drawEp(cv, now.scene, t, talking, { offset: (now.offset || 0) + adv, length: now.length, title: now.title, ep: now.ep, line: now.line, line_offset: now.gap ? 0 : (now.line_offset || 0) + adv, line_secs: now.line_secs, act: now.act, loc: now.loc, text: now.text, beat_off: (now.beat_off || 0) + adv, beat_len: now.beat_len, speed: now.special === 'llamada' ? 1 : 1.5 });
+          }
+        }
+        raf = requestAnimationFrame(frame);
+      }
+      loadCartoon().then(function () { if (on) raf = requestAnimationFrame(frame); }).catch(function () { setH('snake-ch-live', 'No se pudo abrir el canal'); });
+      liveRun = function () {
+        on = false; cancelAnimationFrame(raf); clearInterval(si); stopAudio();
+        if (VID) { try { VID.pause(); VID.removeAttribute('src'); VID.load(); } catch (e) {} }
+      };
+    }
+    epsEl.style.display = 'none';
+    contBtn.style.display = 'none';
+    stageEl.style.display = 'none';
+    liveBtn.hidden = true;
+    startLive();
     return function cleanup() {
-      alive = false; gen++; speechToken++; haltLoop();
+      alive = false; gen++; speechToken++; haltLoop(); stopLive();
       if (keepAlive) clearInterval(keepAlive);
       try { if (window.speechSynthesis) window.speechSynthesis.cancel(); } catch (e) {}
       disposeAll();

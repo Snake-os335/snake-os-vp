@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Go back</title>
+<link rel="icon" href="/static/assets/doga-navidad.jpg">
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; min-height: 100vh; color: #f7f4ff; font-family: "Avenir Next", "Segoe UI", sans-serif; background: #070814; overflow-x: hidden; }
+  .sky { position: fixed; inset: 0; background:
+    radial-gradient(680px 420px at 8% 8%, rgba(255, 78, 125, .55), transparent 62%),
+    radial-gradient(760px 480px at 92% 0%, rgba(78, 92, 255, .62), transparent 58%),
+    radial-gradient(640px 460px at 70% 100%, rgba(32, 214, 176, .32), transparent 55%),
+    #070814; }
+  .orb { position: absolute; border-radius: 50%; filter: blur(2px); opacity: .85; animation: float 14s ease-in-out infinite; }
+  .orb.a { width: 220px; height: 220px; left: 8%; top: 18%; background: rgba(255,255,255,.08); }
+  .orb.b { width: 140px; height: 140px; right: 12%; bottom: 16%; background: rgba(255, 196, 92, .16); animation-delay: -4s; }
+  .stars { position: absolute; inset: 0; background-image: radial-gradient(circle, rgba(255,255,255,.85) 0 1px, transparent 1.6px); background-size: 140px 110px; opacity: .28; animation: drift 36s linear infinite; }
+  @keyframes drift { to { background-position: 140px 110px; } }
+  @keyframes float { 50% { transform: translateY(-18px); } }
+  .wrap { position: relative; width: min(1120px, calc(100% - 36px)); margin: 0 auto; padding: 42px 0 80px; }
+  .hidden { display: none !important; }
+  .card { background: linear-gradient(180deg, rgba(22, 18, 40, .78), rgba(10, 12, 28, .72)); border: 1px solid rgba(255,255,255,.16); border-radius: 28px; box-shadow: 0 24px 70px rgba(0,0,0,.38), inset 0 1px 0 rgba(255,255,255,.16); backdrop-filter: blur(18px); }
+  .gate { width: min(520px, 100%); margin: 6vh auto 0; padding: 34px 32px 28px; text-align: left; }
+  .face { width: 92px; height: 92px; border-radius: 28px; background: #1a1030 center/cover no-repeat; box-shadow: 0 16px 40px rgba(255, 78, 125, .28); }
+  h1 { margin: 16px 0 8px; font-size: 56px; line-height: .9; letter-spacing: -0.06em; background: linear-gradient(90deg, #fff, #ffd0dc 42%, #b9c6ff); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  p.lead { margin: 0 0 8px; color: #ddd6f5; font-size: 17px; line-height: 1.45; }
+  label { display: block; margin: 16px 0 7px; font-size: 13px; letter-spacing: .04em; text-transform: uppercase; color: #c9bee8; }
+  input { width: 100%; border: 1px solid rgba(255,255,255,.16); background: rgba(255,255,255,.07); color: white; border-radius: 16px; padding: 14px 16px; font: inherit; font-size: 16px; }
+  input:focus { outline: 2px solid rgba(255, 120, 160, .7); border-color: transparent; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
+  button { border: 0; border-radius: 999px; padding: 12px 18px; font: inherit; font-weight: 700; cursor: pointer; }
+  button:disabled { opacity: .55; cursor: wait; }
+  .primary { background: linear-gradient(100deg, #ff5c86, #7a5cff); color: white; box-shadow: 0 10px 24px rgba(122, 92, 255, .35); }
+  .ghost { background: rgba(255,255,255,.1); color: white; }
+  .err { min-height: 1.3em; margin: 12px 0 0; color: #ffc1c8; font-weight: 650; }
+  header.top { display: flex; justify-content: space-between; gap: 18px; align-items: flex-end; margin-bottom: 22px; }
+  header.top h1 { margin: 8px 0 4px; font-size: 64px; }
+  .who { margin: 0; color: #d9d0f2; }
+  .switch { display: flex; gap: 8px; margin: 0 0 18px; }
+  .switch button { min-width: 140px; }
+  .switch button.on { background: white; color: #24143d; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; }
+  .file { padding: 16px; min-height: 210px; display: flex; flex-direction: column; gap: 8px; transition: transform .2s ease, box-shadow .2s ease; }
+  .file:hover { transform: translateY(-4px); box-shadow: 0 28px 60px rgba(0,0,0,.42); }
+  .file b { font-size: 18px; word-break: break-word; }
+  .file span { color: #cbbfe6; font-size: 13px; }
+  .file img.thumb { width: 100%; height: 112px; object-fit: cover; border-radius: 16px; background: rgba(255,255,255,.06); }
+  .ribbon { align-self: flex-start; background: rgba(255, 92, 134, .22); color: #ffd5de; border-radius: 999px; padding: 5px 10px; font-size: 12px; letter-spacing: .04em; text-transform: uppercase; }
+  .empty { padding: 42px 28px; text-align: center; font-size: 18px; color: #ddd4f6; }
+  #viewer { position: fixed; inset: 0; background: rgba(4, 3, 12, .78); display: grid; place-items: center; padding: 24px; z-index: 5; }
+  #viewer.hidden { display: none !important; }
+  #viewer img { max-width: min(960px, 100%); max-height: 82vh; border-radius: 22px; box-shadow: 0 30px 80px rgba(0,0,0,.5); }
+  @media (max-width: 700px) {
+    h1, header.top h1 { font-size: 42px; }
+    .gate { margin-top: 24px; padding: 24px 18px; }
+  }
+</style>
+</head>
+<body>
+<div class="sky"><div class="stars"></div><div class="orb a"></div><div class="orb b"></div></div>
+<main class="wrap">
+  <section id="gate" class="card gate">
+    <div class="face"></div>
+    <h1>Go back</h1>
+    <p class="lead">Entra con Dogaemail y vuelve a ver los archivos de tu nube, también los que habías eliminado.</p>
+    <form id="login">
+      <label for="email">Correo de Dogaemail</label>
+      <input id="email" type="email" autocomplete="username" required>
+      <label for="pass">Contraseña</label>
+      <input id="pass" type="password" autocomplete="current-password" required>
+      <p class="err" id="err"></p>
+      <div class="row">
+        <button class="primary" id="submit" type="submit">Entrar</button>
+        <button class="ghost" id="mode" type="button">Crear cuenta</button>
+      </div>
+    </form>
+  </section>
+  <section id="app" class="hidden">
+    <header class="top">
+      <div>
+        <div class="face"></div>
+        <h1>Go back</h1>
+        <p class="who" id="who"></p>
+      </div>
+      <button class="ghost" id="out" type="button">Salir</button>
+    </header>
+    <div class="switch">
+      <button class="ghost on" id="tabCloud" type="button">En la nube</button>
+      <button class="ghost" id="tabTrash" type="button">Eliminados</button>
+    </div>
+    <div class="grid" id="grid"></div>
+  </section>
+</main>
+<div id="viewer" class="hidden"><img id="viewImg" alt=""></div>
+<script>
+(function () {
+  var mode = "login";
+  var data = { files: [], trash: [] };
+  var tab = "files";
+  function problem(body) {
+    if (!body) return "No se ha podido entrar";
+    if (typeof body.detail === "string") return body.detail;
+    return body.message || "No se ha podido entrar";
+  }
+  function api(path, options) {
+    options = options || {};
+    return fetch(path, {
+      method: options.method || "GET",
+      credentials: "same-origin",
+      headers: options.body ? { "content-type": "application/json" } : {},
+      body: options.body ? JSON.stringify(options.body) : undefined
+    }).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (body) {
+        if (!r.ok) throw new Error(problem(body));
+        return body;
+      });
+    });
+  }
+  function entered(user) { return !!(user && user.signed_in !== false && (user.email || user.name)); }
+  function sizeOf(n) {
+    n = Number(n) || 0;
+    if (n < 1024) return n + " B";
+    if (n < 1048576) return (n / 1024).toFixed(1) + " KB";
+    return (n / 1048576).toFixed(1) + " MB";
+  }
+  function paint() {
+    var grid = document.getElementById("grid");
+    var rows = tab === "trash" ? data.trash : data.files;
+    grid.textContent = "";
+    if (!rows.length) {
+      var empty = document.createElement("div");
+      empty.className = "card empty";
+      empty.textContent = tab === "trash" ? "No hay archivos eliminados." : "Todavía no hay archivos en la nube.";
+      grid.appendChild(empty);
+      return;
+    }
+    rows.forEach(function (file) {
+      var card = document.createElement("article");
+      card.className = "card file";
+      if (tab === "trash") {
+        var ribbon = document.createElement("span");
+        ribbon.className = "ribbon";
+        ribbon.textContent = "Eliminado";
+        card.appendChild(ribbon);
+      }
+      var name = document.createElement("b");
+      name.textContent = file.name;
+      var meta = document.createElement("span");
+      meta.textContent = sizeOf(file.size);
+      card.appendChild(name);
+      card.appendChild(meta);
+      var actions = document.createElement("div");
+      actions.className = "row";
+      var open = document.createElement("button");
+      open.className = "ghost";
+      open.type = "button";
+      open.textContent = "Ver";
+      open.onclick = function () { showFile(file); };
+      actions.appendChild(open);
+      if (tab === "trash") {
+        var back = document.createElement("button");
+        back.className = "primary";
+        back.type = "button";
+        back.textContent = "Recuperar";
+        back.onclick = function () {
+          back.disabled = true;
+          api("/api/goback/restore", { method: "POST", body: { id: file.id } }).then(function (next) {
+            data.files = next.files || [];
+            data.trash = next.trash || [];
+            paint();
+          }, function (ex) {
+            back.disabled = false;
+            alert(ex.message || "No se ha podido recuperar");
+          });
+        };
+        actions.appendChild(back);
+      }
+      card.appendChild(actions);
+      grid.appendChild(card);
+      if (String(file.type || "").indexOf("image/") === 0) {
+        api("/api/goback/content/" + file.id).then(function (body) {
+          if (!body.dataUrl) return;
+          var img = document.createElement("img");
+          img.className = "thumb";
+          img.alt = "";
+          img.src = body.dataUrl;
+          card.insertBefore(img, name);
+        }).catch(function () {});
+      }
+    });
+  }
+  function showFile(file) {
+    api("/api/goback/content/" + file.id).then(function (body) {
+      if (String(file.type || "").indexOf("image/") === 0 && body.dataUrl) {
+        document.getElementById("viewImg").src = body.dataUrl;
+        document.getElementById("viewer").classList.remove("hidden");
+        return;
+      }
+      var link = document.createElement("a");
+      link.href = body.dataUrl;
+      link.download = file.name || "archivo";
+      link.click();
+    }, function (ex) { alert(ex.message || "No se ha podido abrir"); });
+  }
+  function show(user) {
+    var ok = entered(user);
+    document.getElementById("gate").classList.toggle("hidden", ok);
+    document.getElementById("app").classList.toggle("hidden", !ok);
+    if (!ok) return;
+    document.getElementById("who").textContent = (user.name || user.email) + " · " + (user.email || "");
+    api("/api/goback/files").then(function (body) {
+      data = body;
+      if (body.name) document.getElementById("who").textContent = body.name + " · " + body.email;
+      paint();
+    }, function (ex) {
+      document.getElementById("err").textContent = ex.message;
+      show(null);
+    });
+  }
+  document.getElementById("mode").onclick = function () {
+    mode = mode === "login" ? "signup" : "login";
+    document.getElementById("submit").textContent = mode === "signup" ? "Crear cuenta" : "Entrar";
+    this.textContent = mode === "signup" ? "Ya tengo cuenta" : "Crear cuenta";
+  };
+  document.getElementById("login").onsubmit = function (ev) {
+    ev.preventDefault();
+    document.getElementById("err").textContent = "";
+    var email = document.getElementById("email").value;
+    var password = document.getElementById("pass").value;
+    var path = mode === "signup" ? "/api/doga-auth/signup" : "/api/doga-auth/login";
+    var body = mode === "signup"
+      ? { site: "goback", email: email, name: (email.split("@")[0] || "Cuenta").slice(0, 60), password: password }
+      : { site: "goback", email: email, password: password };
+    api(path, { method: "POST", body: body }).then(show, function (ex) {
+      document.getElementById("err").textContent = ex.message || "No se ha podido entrar";
+    });
+  };
+  document.getElementById("out").onclick = function () {
+    api("/api/doga-auth/logout", { method: "POST", body: { site: "goback" } }).catch(function () {}).then(function () { location.reload(); });
+  };
+  document.getElementById("tabCloud").onclick = function () {
+    tab = "files";
+    this.classList.add("on");
+    document.getElementById("tabTrash").classList.remove("on");
+    paint();
+  };
+  document.getElementById("tabTrash").onclick = function () {
+    tab = "trash";
+    this.classList.add("on");
+    document.getElementById("tabCloud").classList.remove("on");
+    paint();
+  };
+  document.getElementById("viewer").onclick = function () { this.classList.add("hidden"); };
+  api("/api/doga-auth/me?site=goback&soft=1").then(function (user) { show(user); }, function () { show(null); });
+})();
+</script>
+<script id="doga-temporada">
+(function () {
+  var key = "";
+  try {
+    var parts = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Madrid", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
+    var g = {};
+    for (var i = 0; i < parts.length; i++) g[parts[i].type] = parts[i].value;
+    key = g.year + g.month + g.day;
+  } catch (e) { key = "20261101"; }
+  var src = key < "20270107" ? "/static/assets/doga-navidad.jpg" : "/static/assets/doga-azul.jpg";
+  var faces = document.querySelectorAll(".face");
+  for (var i = 0; i < faces.length; i++) faces[i].style.backgroundImage = 'url("' + src + '")';
+  var icon = document.querySelector('link[rel="icon"]');
+  if (icon) icon.href = src;
+})();
+</script>
+</body>
+</html>

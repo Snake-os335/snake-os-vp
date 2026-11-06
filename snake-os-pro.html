@@ -203,5 +203,45 @@
   paintText();
 })();
 </script>
+<script id="doga-temporada">
+(function () {
+  var key = "";
+  try {
+    var parts = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Madrid", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
+    var g = {};
+    for (var i = 0; i < parts.length; i++) g[parts[i].type] = parts[i].value;
+    key = g.year + g.month + g.day;
+  } catch (e) { key = "20261101"; }
+  var xmas = key < "20270107";
+  var src = xmas
+    ? "/static/assets/doga-navidad.jpg"
+    : "/static/assets/doga-azul.jpg";
+  var host = (location.hostname || "").toLowerCase();
+  if (host === "doganiero.softportweb.com" && !xmas) document.documentElement.classList.remove("doga-xmas");
+  function icon(rel) {
+    var el = document.querySelector('link[rel="' + rel + '"]');
+    if (!el) { el = document.createElement("link"); el.rel = rel; document.head.appendChild(el); }
+    el.type = "image/jpeg";
+    el.href = src;
+  }
+  icon("icon");
+  var apple = document.querySelector('link[rel="apple-touch-icon"]');
+  if (apple) { apple.type = "image/jpeg"; apple.href = src; }
+  var faces = document.querySelectorAll(".face");
+  for (var i = 0; i < faces.length; i++) faces[i].style.backgroundImage = 'url("' + src + '")';
+  var imgs = document.querySelectorAll('img[alt="Doganiero"]');
+  var shown = faces.length > 0;
+  for (var j = 0; j < imgs.length; j++) { imgs[j].src = src; shown = true; }
+  if (host === "doganiero.softportweb.com" || shown || document.getElementById("doga-season-mark")) return;
+  var css = document.createElement("style");
+  css.textContent = "#doga-season-mark{position:fixed;right:12px;bottom:12px;width:76px;height:76px;object-fit:cover;border-radius:18px;z-index:80;box-shadow:0 8px 22px rgba(0,0,0,.28);pointer-events:none;background:#124a9a}";
+  document.head.appendChild(css);
+  var mark = document.createElement("img");
+  mark.id = "doga-season-mark";
+  mark.alt = "Doganiero";
+  mark.src = src;
+  document.body.appendChild(mark);
+})();
+</script>
 </body>
 </html>

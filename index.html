@@ -22,9 +22,9 @@
 <meta name="theme-color" content="#1f9e57">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<link rel="icon" type="image/svg+xml" href="/static/assets/snake-os-logo-v2.svg?v=202610161925">
-<link rel="icon" type="image/png" sizes="64x64" href="/static/assets/snake-os-favicon-64.png?v=202610161925">
-<link rel="apple-touch-icon" sizes="180x180" href="/static/assets/snake-os-icon-180.png?v=202610161925">
+<link rel="icon" type="image/png" href="/static/assets/doga-navidad.jpg?v=20261102">
+<link rel="apple-touch-icon" href="/static/assets/doga-navidad.jpg?v=20261102">
+<link rel="apple-touch-icon" sizes="180x180" href="/static/assets/doga-navidad.jpg?v=20261102">
 <script>
 window.__snakeBootBroken = 0;
 window.__snakeBootAck = 0;
@@ -89,7 +89,8 @@ window.SNAKE_OS_CHANGES=[
   'Truco secreto en el escritorio (pista: ↑↑↓↓←→←→BA)',
   'Más seguridad: la sesión web caduca a las 2 horas y se cierra en todos los sitios al cambiar la contraseña, límites de intentos de inicio de sesión, comprobación del origen de las peticiones, validación de fotos de perfil y apps de la Store más aisladas',
   'Más estabilidad: si una app falla ya no se lleva por delante el resto, peticiones con tiempo límite y menos errores en la consola',
-  'Correcciones: título del reloj analógico Pro que se cortaba, textos de Snake OS VP Pro y Los Snakes en inglés, avisos 401 innecesarios en páginas sin sesión, el Foco ya no se desfasa, grabador de pantalla y salvapantallas Pro más fiables y análisis antiguos del ajedrez que se mezclaban'
+  'Correcciones: título del reloj analógico Pro que se cortaba, textos de Snake OS VP Pro y Los Snakes en inglés, avisos 401 innecesarios en páginas sin sesión, el Foco ya no se desfasa, grabador de pantalla y salvapantallas Pro más fiables y análisis antiguos del ajedrez que se mezclaban',
+  'Privacidad: quién está conectado y la actividad reciente solo los ven tus contactos, y puedes ocultarlos en Ajustes › Cuenta. Una nota o un evento solo se comparte si tú lo eliges (🤝); revocarlo lo quita'
  ],en:[
   'Welcome to what’s new: the first time you sign in to 2026.14 a window shows the highlights (you can see it again in Settings › About)',
   'Virtual machines is back to the Ubuntu 26.10-style desktop: top bar with Activities, dock, Ubuntu wallpapers and fonts, and Terminal, Files, Editor, Monitor and Settings; saved machines move over on their own and keep their files',
@@ -124,7 +125,8 @@ window.SNAKE_OS_CHANGES=[
   'Secret trick on the desktop (hint: ↑↑↓↓←→←→BA)',
   'More security: the web session expires after 2 hours and is closed everywhere when you change your password, sign-in attempt limits, request origin checks, profile photo validation and better isolated Store apps',
   'More stability: if an app fails it no longer takes the others down, requests with time limits and fewer console errors',
-  'Fixes: the Pro analog clock title that was cut off, Snake OS VP Pro and Los Snakes texts in English, unnecessary 401 notices on signed-out pages, Focus no longer drifts, more reliable Pro screen recorder and screensaver, and old chess analyses that got mixed up'
+  'Fixes: the Pro analog clock title that was cut off, Snake OS VP Pro and Los Snakes texts in English, unnecessary 401 notices on signed-out pages, Focus no longer drifts, more reliable Pro screen recorder and screensaver, and old chess analyses that got mixed up',
+  'Privacy: who is online and recent activity are visible only to your contacts, and you can hide them in Settings › Account. A note or event is shared only if you choose to (🤝); revoking removes it'
  ]},
  {v:'2026.13',es:[
   'Brillo de pantalla con F5 (bajar) y F6 (subir), guardado por perfil',
@@ -217,10 +219,10 @@ window.SNAKE_OS_CHANGES=[
 ];</script>
 <script src="/static/snake-terminal.js?v=202610220400" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-win-resize.js?v=202610152140"></script>
-<script src="/static/doganiero-tv.js?v=202610091150" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
+<script src="/static/doganiero-tv.js?v=202610301620" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/prism.js?v=202610080900" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/doganiero-phone.js?v=202610212130" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
-<script src="/static/snake-apps-extras.js?v=202610220400" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
+<script src="/static/snake-apps-extras.js?v=202611060915" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-cursor.js?v=202610211605" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-emoji-data.js?v=202610100831" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/snake-emoji.js?v=202610272230" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
@@ -1708,6 +1710,13 @@ window.SNAKE_OS_CHANGES=[
     background:
       radial-gradient(circle at 30% 30%, rgba(255,255,255,0.22), transparent 40%),
       radial-gradient(circle at 75% 70%, rgba(255,255,255,0.12), transparent 45%);
+  }
+  /* Efecto navideño: nieve animada en la pantalla de inicio de sesión (temporada navideña).
+     Va fixed, por debajo de la tarjeta (z-index:1) y del reloj (z-index:2), y con
+     pointer-events:none para que nunca tape ni bloquee el formulario de acceso. */
+  .snk-snow{
+    position:fixed; inset:0; width:100%; height:100%;
+    pointer-events:none; z-index:0; display:block;
   }
   #lockClock{
     position:relative; z-index:2; text-align:center; margin:0;
@@ -3584,9 +3593,9 @@ window.SNAKE_OS_CHANGES=[
   <div class="blob blob3"></div>
 
   <div id="boot" class="hidden">
-    <img class="boot-logo-img" src="/static/assets/snake-os-logo-mark.png?v=202610161925" alt="" width="1024" height="1024" decoding="async" fetchpriority="high">
+    <img class="boot-logo-img" src="/static/assets/doga-navidad.jpg?v=20261102" alt="" width="1024" height="1024" decoding="async" fetchpriority="high">
     <div class="boot-brand">
-      <img src="/static/assets/snake-os-logo.jpg?v=202610161925" alt="" width="84" height="84">
+      <img src="/static/assets/doga-navidad.jpg?v=20261102" alt="" width="84" height="84">
       <span>Snake OS!</span>
     </div>
     <div class="bar" aria-hidden="true"><div class="bar-fill"></div></div>
@@ -3620,12 +3629,12 @@ window.SNAKE_OS_CHANGES=[
   setTimeout(function(){
     if(window.__snakeBootAck) return;
     window.revealSnakeBootError();
-  }, 20000);
+  }, 120000);
   window.addEventListener('load', function(){
     setTimeout(function(){
       if(window.__snakeBootAck) return;
       window.revealSnakeBootError();
-    }, 6000);
+    }, 45000);
   });
 })();
 </script>
@@ -3637,7 +3646,7 @@ window.SNAKE_OS_CHANGES=[
       
     </div>
     <div class="card" id="loginView">
-      <h1><span class="lock-snake" aria-hidden="true"><img src="/static/assets/snake-os-logo-v2.svg?v=202610161925" alt="" style="width:1.1em;height:1.1em;vertical-align:-0.15em"></span><span>Snake OS!</span></h1>
+      <h1><span class="lock-snake" aria-hidden="true"><img src="/static/assets/doga-navidad.jpg?v=20261102" alt="" style="width:1.1em;height:1.1em;vertical-align:-0.15em"></span><span>Snake OS!</span></h1>
       <p class="sub">powered by Doganiero OS! 3 — inicia sesión para continuar.</p>
       <form id="loginForm">
         <label for="login_email">Correo</label>
@@ -3653,11 +3662,9 @@ window.SNAKE_OS_CHANGES=[
     </div>
 
     <div class="card hidden" id="signupView">
-      <h1><span class="lock-snake" aria-hidden="true"><img src="/static/assets/snake-os-logo-v2.svg?v=202610161925" alt="" style="width:1.1em;height:1.1em;vertical-align:-0.15em"></span><span>Snake OS!</span></h1>
+      <h1><span class="lock-snake" aria-hidden="true"><img src="/static/assets/doga-navidad.jpg?v=20261102" alt="" style="width:1.1em;height:1.1em;vertical-align:-0.15em"></span><span>Snake OS!</span></h1>
       <p class="sub">Crea tu cuenta para entrar al sistema.</p>
       <form id="signupForm">
-        <label for="signup_name">Tu nombre</label>
-        <input type="text" id="signup_name" placeholder="Tu nombre" required autocomplete="name">
         <label for="signup_email">Correo</label>
         <input type="email" id="signup_email" placeholder="Tu correo@dogaemail.com" required autocomplete="email">
         <label>Elige una imagen</label>
@@ -3673,6 +3680,105 @@ window.SNAKE_OS_CHANGES=[
     </div>
   </div>
 
+<script id="doga-nieve">
+(function () {
+  // Efecto navideño de la pantalla de inicio de sesión: nieve animada que cae
+  // por detrás del formulario (no lo tapa y no captura clics).
+  // Solo se muestra en la temporada navideña, igual que el logo (hasta el 7/1/2027).
+  try {
+    var key = "";
+    try {
+      var parts = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Madrid", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
+      var g = {};
+      for (var i = 0; i < parts.length; i++) g[parts[i].type] = parts[i].value;
+      key = g.year + g.month + g.day;
+    } catch (e) { key = "20261101"; }
+    if (key >= "20270107") return;
+
+    var lock = document.getElementById("lock");
+    if (!lock) return;
+
+    var reduce = false;
+    try { reduce = !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches); } catch (e) {}
+
+    var canvas = document.createElement("canvas");
+    canvas.className = "snk-snow";
+    canvas.setAttribute("aria-hidden", "true");
+    lock.insertBefore(canvas, lock.firstChild);
+
+    var ctx = canvas.getContext("2d");
+    if (!ctx) { if (canvas.parentNode) canvas.parentNode.removeChild(canvas); return; }
+
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+    var W = 1, H = 1, flakes = [];
+
+    function rand(a, b) { return a + Math.random() * (b - a); }
+
+    function makeFlakes() {
+      var count = Math.round(Math.min(150, Math.max(36, (W * H) / 14000)));
+      flakes = [];
+      for (var i = 0; i < count; i++) {
+        flakes.push({
+          x: Math.random() * W,
+          y: Math.random() * H,
+          r: rand(1.1, 3.4),
+          vy: rand(0.35, 1.15),
+          drift: rand(0.15, 0.7),
+          sway: rand(0.6, 1.8),
+          phase: Math.random() * Math.PI * 2,
+          alpha: rand(0.45, 0.95)
+        });
+      }
+    }
+
+    function drawFrame() {
+      ctx.clearRect(0, 0, W, H);
+      ctx.fillStyle = "#ffffff";
+      for (var i = 0; i < flakes.length; i++) {
+        var f = flakes[i];
+        ctx.globalAlpha = f.alpha;
+        ctx.beginPath();
+        ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    function resize() {
+      W = Math.max(1, window.innerWidth || document.documentElement.clientWidth || 1);
+      H = Math.max(1, window.innerHeight || document.documentElement.clientHeight || 1);
+      canvas.width = Math.round(W * dpr);
+      canvas.height = Math.round(H * dpr);
+      canvas.style.width = W + "px";
+      canvas.style.height = H + "px";
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      makeFlakes();
+      if (reduce) drawFrame();
+    }
+
+    function step() {
+      if (!document.hidden && !lock.classList.contains("hidden")) {
+        for (var i = 0; i < flakes.length; i++) {
+          var f = flakes[i];
+          f.phase += 0.012;
+          f.y += f.vy;
+          f.x += Math.sin(f.phase) * f.sway * 0.4 + f.drift * 0.3;
+          if (f.y - f.r > H) { f.y = -f.r; f.x = Math.random() * W; }
+          if (f.x - f.r > W) { f.x = -f.r; }
+          else if (f.x + f.r < 0) { f.x = W + f.r; }
+        }
+        drawFrame();
+      }
+      window.requestAnimationFrame(step);
+    }
+
+    resize();
+    window.addEventListener("resize", resize, { passive: true });
+    if (!reduce) window.requestAnimationFrame(step);
+  } catch (e) { /* el efecto nunca debe impedir que cargue Snake OS */ }
+})();
+</script>
+
   <img id="wpCustomImg" alt="" decoding="async">
   <audio id="loginMelodyEl" preload="auto" playsinline src="/static/assets/login-melody.wav?v=202610092025"></audio>
   <div id="desktop" class="hidden">
@@ -3681,7 +3787,7 @@ window.SNAKE_OS_CHANGES=[
     <div id="windows"></div>
     <div id="startMenu"></div>
     <div id="taskbar">
-      <button type="button" id="startBtn"><img class="start-btn-logo" src="/static/assets/snake-os-icon.png?v=202610161925" alt="" aria-hidden="true" width="20" height="20">Snake OS</button>
+      <button type="button" id="startBtn"><img class="start-btn-logo" src="/static/assets/doga-navidad.jpg?v=20261102" alt="" aria-hidden="true" width="20" height="20">Snake OS</button>
       <div id="taskItems"></div>
       <div id="userBadge"></div>
       <div class="tb-tools" id="tbTools">
@@ -4919,7 +5025,7 @@ window.SNAKE_OS_CHANGES=[
     if(i9WatchTimer) return;
     i9WatchTimer = setInterval(watchServerI9, 4000);
   }
-  window.addEventListener('load', runBootLoader);
+  (function(){ /* arranque: en load, o en DOMContentLoaded si imágenes/recursos lentos retrasan load (VM cargada) */ var _bootRan=false; function _bootOnce(){ if(_bootRan) return; _bootRan=true; runBootLoader(); } window.addEventListener('load', _bootOnce); if(document.readyState==='complete'){ setTimeout(_bootOnce,0); } else { document.addEventListener('DOMContentLoaded', function(){ setTimeout(_bootOnce, 0); }); } })();
   startI9Watch();
 
   // ---------- Navegación login / registro ----------
@@ -5063,7 +5169,6 @@ window.SNAKE_OS_CHANGES=[
   function showSignupStatus(msg, ok){ signupStatus.textContent = msg; signupStatus.className = 'status show ' + (ok?'ok':'err'); }
   signupForm.addEventListener('submit', async function(e){
     e.preventDefault();
-    const name = document.getElementById('signup_name').value.trim();
     const email = document.getElementById('signup_email').value.trim().toLowerCase();
     const password = document.getElementById('signup_password').value;
     const password2 = document.getElementById('signup_password2').value;
@@ -10742,7 +10847,8 @@ function buildIcons(){
   // ---------- App: Code Lab ----------
   function codeLabDefaultSnippet(lang){
     if(lang === 'html'){
-      return '<!doctype html>\n<html>\n<head>\n  <meta charset="utf-8">\n  <title>Demo</title>\n  <style>\n    body{font-family:sans-serif;padding:16px;background:#f4fff8}\n    button{padding:8px 14px;border-radius:8px;border:0;background:#34d17a;color:#04170c;font-weight:700}\n  </style>\n</head>\n<body>\n  <h1>Hola Code Lab</h1>\n  <p>Edita este HTML y veras la vista previa.</p>\n  <button onclick="alert(\'Funciona!\')">Probar</button>\n</body>\n</html>';
+
+      return '<!doctype html>\n<html>\n<head>\n  <meta charset="utf-8">\n  <title>Demo</title>\n  <style>\n    body{font-family:sans-serif;padding:16px;background:#f4fff8}\n    button{padding:8px 14px;border-radius:8px;border:0;background:#34d17a;color:#04170c;font-weight:700}\n  </style>\n</head>\n<body>\n  <h1>Hola Code Lab</h1>\n  <p>Edita este HTML y veras la vista previa.</p>\n  <button onclick="alert(\'Funciona!\')">Probar</button>\n<script src="/static/assets/doga-translate.js" defer><\/script></body>\n</html>';
     }
     if(lang === 'css'){
       return 'body{font-family:sans-serif;background:linear-gradient(135deg,#e8fff2,#dff3ff);padding:24px}\n.demo{color:#0b3d24;font-weight:700}\nbutton.demo{background:#34d17a;border:0;padding:10px 16px;border-radius:10px;cursor:pointer}';
@@ -11053,12 +11159,12 @@ function renderCodeLabApp(container, opts){
         return '<!doctype html><html><head><meta charset="utf-8">' +
           '<meta name="viewport" content="width=device-width,initial-scale=1">' +
           '<style>' + fillCss + '</style>' + (extraHead || '') +
-          '</head><body>' + inner + iframePtrBoot + '</body></html>';
+          '</head><body>' + inner + iframePtrBoot + '<script src="/static/assets/doga-translate.js" defer><\/script></body></html>';
       };
       const ensureIframePtr = function(docHtml){
         var s = String(docHtml || '');
         if (s.indexOf('id="__sop"') >= 0) return s;
-        if (/<\/body>/i.test(s)) return s.replace(/<\/body>/i, iframePtrBoot + '</body>');
+        if (/<\/body>/i.test(s)) return s.replace(/<\/body>/i, iframePtrBoot + '<script src="/static/assets/doga-translate.js" defer><\/script></body>');
         return s + iframePtrBoot;
       };
       if(lang === 'html'){
@@ -11108,7 +11214,7 @@ function renderCodeLabApp(container, opts){
           'window.console = { log:show, warn:show, error:show, info:show, debug:show };\n' +
           'try{\n' + safeCode + '\n' +
           '}catch(e){ show("Error: " + (e && e.stack ? e.stack : e)); }\n' +
-          '})();' + closeTag + iframePtrBoot + '</body></html>';
+          '})();' + closeTag + iframePtrBoot + '<script src="/static/assets/doga-translate.js" defer><\/script></body></html>';
       }
       return null;
     }
@@ -11142,7 +11248,7 @@ function renderCodeLabApp(container, opts){
         // Quitar del traceback los marcos internos de Pyodide
         ' m=m.replace(/  File "\\/lib\\/python[^\\n]*\\n(?:    [^\\n]*\\n)*/g,"");\n' +
         ' w(m,"err");}\n' +
-        '})();</' + 'script></body></html>';
+        '})();</' + 'script><script src="/static/assets/doga-translate.js" defer><\/script></body></html>';
     }
     var lastPyRun = { code: null, at: 0 };
     function runPython(){
@@ -11367,7 +11473,7 @@ function renderCodeLabApp(container, opts){
   function renderAboutApp(container){
     container.innerHTML =
       '<div class="about-box">' +
-        '<div class="about-logo"><img src="/static/assets/snake-os-logo-v2.svg?v=202610161925" alt="" width="40" height="40" style="vertical-align:middle;margin-right:8px">Snake OS!</div>' +
+        '<div class="about-logo"><img src="/static/assets/doga-navidad.jpg?v=20261102" alt="" width="40" height="40" style="vertical-align:middle;margin-right:8px">Snake OS!</div>' +
         '<p class="sub">powered by Doganiero OS! 3</p>' +
         '<p style="font-size:0.85rem;">Sistema construido sobre Doganiero OS!3. Incluye correo, notas, juegos, calculadora, Code Lab, explorador y Doganiero Metaverse (2D, varios mundos y salas de eventos).</p>' +
         '<p class="note">Sesión iniciada como: <strong>' + (currentUser ? currentUser.name : '') + '</strong></p>' +
@@ -15181,8 +15287,21 @@ function renderStoreApp(container){
   showView(loginView);
   window.__snakeBootScriptsDone = 1;
 </script>
-
-
-
-</body>
+<script src="/static/snake-kernel-flip.js"></script>
+<script id="doga-temporada">
+(function () {
+  var key = "";
+  try {
+    var parts = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Madrid", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
+    var g = {};
+    for (var i = 0; i < parts.length; i++) g[parts[i].type] = parts[i].value;
+    key = g.year + g.month + g.day;
+  } catch (e) { key = "20261101"; }
+  var src = key < "20270107" ? "/static/assets/doga-navidad.jpg?v=20261102" : "/static/assets/doga-azul.jpg?v=20261102";
+  var nodes = document.querySelectorAll(".boot-logo-img, .boot-brand img, .lock-snake img, .start-btn-logo");
+  for (var n = 0; n < nodes.length; n++) nodes[n].src = src;
+  var icon = document.querySelector('link[rel="icon"]');
+  if (icon) { icon.type = "image/jpeg"; icon.href = src; }
+})();
+</script></body>
 </html>

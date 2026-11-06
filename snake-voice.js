@@ -20,9 +20,14 @@
     return out.filter(function (x) { return /[\wÀ-ÿ]/.test(x); });
   }
   function fetchWav(text, lang) {
-    return fetch('/api/tts', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: text, lang: lang }) })
+    // Timeout de 12 s: Askbox remoto; si no contesta, fail() cae a la voz del navegador.
+    var ac = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+    var tm = setTimeout(function () { try { if (ac) ac.abort(); } catch (e) {} }, 12000);
+    var p = fetch('/api/tts', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: text, lang: lang }), signal: ac ? ac.signal : undefined })
       .then(function (r) { if (!r.ok) throw new Error('tts ' + r.status); return r.blob(); })
-      .then(function (b) { return URL.createObjectURL(b); });
+      .then(function (b) { clearTimeout(tm); return URL.createObjectURL(b); }, function (e) { clearTimeout(tm); throw e; });
+    if (!ac) p = Promise.race([p, new Promise(function (_, rej) { setTimeout(function () { rej(new Error('tts timeout')); }, 12000); })]);
+    return p;
   }
   function native(u) {
     // Voz del sistema para esta frase; al terminar seguimos con la cola.

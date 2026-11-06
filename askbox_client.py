@@ -94,6 +94,7 @@ def _post(path: str, payload: dict[str, Any], api_key: str, timeout: float | Non
         headers={
             "Content-Type": "application/json",
             "Authorization": f"Bearer {api_key}",
+            "User-Agent": "SnakeOS/1.0 (+https://snake-os-vp.softportweb.com)",
         },
         method="POST",
     )
@@ -174,6 +175,10 @@ def ask(
         payload["json_schema"] = json_schema
     if variables is not None:
         payload["variables"] = variables
+    # allin mode (askBox): no forced provider/model. Override with SNAKEOS_ASKBOX_MODE.
+    mode = os.environ.get("SNAKEOS_ASKBOX_MODE", "allin").strip()
+    if mode:
+        payload["mode"] = mode
 
     status, body, headers = _post("/v1/ask", payload, key, timeout)
     if status < 200 or status >= 300:

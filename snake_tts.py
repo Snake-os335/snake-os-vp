@@ -21,6 +21,12 @@ from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 VOICE_DIR = os.environ.get("SNAKEOS_PIPER_DIR", "/voices")
+# Síntesis remota (Askbox POST /v1/tts): si hay URL, aquí solo se hace de proxy same-origin y la
+# clave de servicio se queda en el servidor (nunca llega al navegador). Sin URL: Piper local.
+REMOTE_URL = (os.environ.get("SNAKEOS_TTS_REMOTE_URL") or "").strip().rstrip("/")
+REMOTE_KEY = (os.environ.get("SNAKEOS_TTS_KEY") or "").strip()
+REMOTE_TIMEOUT = float(os.environ.get("SNAKEOS_TTS_REMOTE_TIMEOUT") or 15)
+_remote_status: dict[str, Any] = {"t": 0.0, "v": None}
 VOICES = {"es": "es_ES-davefx-medium", "en": "en_US-lessac-medium"}
 MAX_CHARS = 600
 PER_MIN = 40
@@ -94,12 +100,54 @@ def _signature(wav_bytes: bytes, out: io.BytesIO) -> None:
         w.writeframes((y * 32767).astype(np.int16).tobytes())
 
 
+def _remote_synth(lang: str, text: str) -> bytes:
+    import json
+    import urllib.request
+
+    req = urllib.request.Request(
+        REMOTE_URL + "/v1/tts",
+        data=json.dumps({"text": text, "lang": lang, "style": "snake"}).encode(),
+        headers={"Content-Type": "application/json", "Authorization": "Bearer " + REMOTE_KEY,
+                 "User-Agent": "SnakeOS-TTS/1.0"},
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=REMOTE_TIMEOUT) as r:
+        data = r.read()
+    if data[:4] != b"RIFF":
+        raise RuntimeError("respuesta TTS remota no es WAV")
+    return data
+
+
+def _remote_ready() -> dict:
+    import json
+    import urllib.request
+
+    now = time.monotonic()
+    if _remote_status["v"] is not None and now - _remote_status["t"] < 15:
+        return _remote_status["v"]
+    try:
+        req = urllib.request.Request(REMOTE_URL + "/v1/tts/status", headers={"User-Agent": "SnakeOS-TTS/1.0"})
+        with urllib.request.urlopen(req, timeout=5) as r:
+            st = json.loads(r.read().decode() or "{}")
+        v = {"ready": bool(st.get("ready")), "voices": VOICES, "remote": True}
+    except Exception as exc:
+        v = {"ready": False, "voices": VOICES, "remote": True, "error": type(exc).__name__}
+    _remote_status.update(t=now, v=v)
+    return v
+
+
 def _synth(lang: str, text: str) -> bytes:
     key = (lang, text)
     hit = _cache.get(key)
     if hit is not None:
         _cache.move_to_end(key)
         return hit
+    if REMOTE_URL:
+        data = _remote_synth(lang, text)
+        _cache[key] = data
+        if len(_cache) > _CACHE_MAX:
+            _cache.popitem(last=False)
+        return data
     v = _voice(lang)
     buf = io.BytesIO()
     raw = io.BytesIO()
@@ -124,6 +172,9 @@ def _synth(lang: str, text: str) -> bytes:
 
 def warm() -> None:
     """Carga las voces en segundo plano al arrancar (la primera carga tarda ~10 s)."""
+    if REMOTE_URL:
+        print("[tts] modo remoto: " + REMOTE_URL + "/v1/tts (sin Piper local)", flush=True)
+        return
     def run():
         for lang in VOICES:
             try:
@@ -140,6 +191,8 @@ def build_router(user_from_request) -> APIRouter:
 
     @r.get("/api/tts/status")
     def tts_status():
+        if REMOTE_URL:
+            return _remote_ready()
         return {"ready": all(l in _voices for l in VOICES), "voices": VOICES}
 
     @r.post("/api/tts")

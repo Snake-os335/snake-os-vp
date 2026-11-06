@@ -60,4 +60,8 @@ def user_from_session(session_id: str | None, kind: str = "os"):
     if time.time() - float(row["created_at"]) > SESSION_MAX_AGE:
         delete_session(session_id)
         return None
-    return get_user_by_id(int(row["user_id"]))
+    user = get_user_by_id(int(row["user_id"]))
+    if user:
+        import account_block
+        account_block.refuse(str(user["email"] or ""))
+    return user
