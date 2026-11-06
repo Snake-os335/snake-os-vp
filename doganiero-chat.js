@@ -2390,18 +2390,101 @@ function handleRealtimePayload(msg) {
       };
     } catch (e) {}
   }
-  function dcWebrtcHears() {
-    var pc = dcCall.pc;
-    if (!pc) return false;
-    var live = pc.connectionState === 'connected' || pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed';
-    if (!live) return false;
+  function dcCollectInbound(stats) {
+    var bytes = 0, level = null, haveLevel = false;
+    if (stats && stats.forEach) stats.forEach(function (s) {
+      if (!s || s.type !== 'inbound-rtp') return;
+      if (s.kind !== 'audio' && s.mediaType !== 'audio') return;
+      bytes += s.bytesReceived || 0;
+      if (typeof s.audioLevel === 'number') {
+        haveLevel = true;
+        if (level == null || s.audioLevel > level) level = s.audioLevel;
+      }
+    });
+    return { bytes: bytes, level: level, haveLevel: haveLevel };
+  }
+  function dcMarkRtpVoice(prevBytes, sample) {
+    var prev = prevBytes || 0;
+    if (!sample) return { heard: false, bytes: prev };
+    var bytes = sample.bytes || 0;
+    if (sample.haveLevel) return { heard: sample.level > 0.02, bytes: bytes };
+    return { heard: bytes > prev && prev > 0, bytes: bytes };
+  }
+  function dcShouldPlayRemotePcm(s) {
+    if (!s || s.phase !== 'active' || !s.b64) return false;
+    if (s.rtpVoice && s.elementPlaying) return false;
+    return true;
+  }
+  function dcPlanAudioSenders(liveCount, senders) {
+    var audio = [];
+    (senders || []).forEach(function (s, i) {
+      if (s && s.kind === 'audio') audio.push({ i: i, live: !!s.live });
+    });
+    if (!liveCount) return { add: 0, replace: [] };
+    if (!audio.length) return { add: liveCount, replace: [] };
+    var replace = [];
+    audio.forEach(function (s) { if (!s.live) replace.push(s.i); });
+    return { add: 0, replace: replace };
+  }
+  function dcElementPlaying() {
     var a = dcCall.remoteAudio;
     if (!a || !a.srcObject || a.muted || a.paused) return false;
     if (typeof a.volume === 'number' && a.volume <= 0) return false;
     return true;
   }
+  function dcBindLiveAudio(pc) {
+    if (!pc || !dcCall.localStream || !pc.getSenders) return;
+    var live = [];
+    dcCall.localStream.getAudioTracks().forEach(function (t) {
+      if (t && t.readyState === 'live') live.push(t);
+    });
+    var described = [];
+    pc.getSenders().forEach(function (s, i) {
+      if (s && s.track && s.track.kind === 'audio') {
+        described.push({ i: i, kind: 'audio', live: s.track.readyState === 'live' });
+      }
+    });
+    var plan = dcPlanAudioSenders(live.length, described);
+    var senders = pc.getSenders();
+    if (plan.add) {
+      live.forEach(function (t) {
+        var already = false;
+        senders.forEach(function (s) { if (s && s.track === t) already = true; });
+        if (!already) { try { pc.addTrack(t, dcCall.localStream); } catch (e) {} }
+      });
+      return;
+    }
+    plan.replace.forEach(function (idx) {
+      var s = senders[idx];
+      if (s && live[0] && s.replaceTrack) s.replaceTrack(live[0]).catch(function () {});
+    });
+  }
+  function dcWatchInbound() {
+    if (dcCall._rtpTimer) return;
+    var id = dcCall.callId;
+    function tick() {
+      if (dcCall.phase !== 'active' || dcCall.callId !== id) { dcCall._rtpTimer = null; return; }
+      dcCall._rtpTimer = setTimeout(tick, 400);
+      var pc = dcCall.pc;
+      if (!pc || !pc.getStats) return;
+      pc.getStats().then(function (stats) {
+        if (dcCall.callId !== id) return;
+        var mark = dcMarkRtpVoice(dcCall._inBytes, dcCollectInbound(stats));
+        dcCall._inBytes = mark.bytes;
+        if (mark.heard) dcCall._rtpVoice = true;
+      }).catch(function () {});
+    }
+    tick();
+  }
+  function dcWebrtcHears() {
+    var pc = dcCall.pc;
+    if (!pc) return false;
+    var conn = pc.connectionState === 'connected' || pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed';
+    if (!conn || !dcElementPlaying()) return false;
+    return !!dcCall._rtpVoice;
+  }
   function dcPlayPcm(b64, rate) {
-    if (dcCall.phase !== 'active' || !b64 || dcWebrtcHears()) return;
+    if (!dcShouldPlayRemotePcm({ phase: dcCall.phase, b64: b64, rtpVoice: !!dcCall._rtpVoice, elementPlaying: dcElementPlaying() })) return;
     try {
       var ctx = dcEnsureCtx();
       if (!ctx) return;
@@ -2463,15 +2546,17 @@ function handleRealtimePayload(msg) {
     list.forEach(function (cand) { pc.addIceCandidate(cand).catch(function () {}); });
   }
   function dcEnsurePc() {
-    if (dcCall.pc) return dcCall.pc;
+    if (dcCall.pc) { dcBindLiveAudio(dcCall.pc); return dcCall.pc; }
     var pc = new RTCPeerConnection({ iceServers: DC_ICE });
     dcCall.pc = pc;
     dcCall.pendingIce = [];
     if (dcCall.localStream) {
       dcCall.localStream.getTracks().forEach(function (track) {
+        if (!track || (track.kind === 'audio' && track.readyState !== 'live')) return;
         try { pc.addTrack(track, dcCall.localStream); } catch (e) {}
       });
     }
+    dcBindLiveAudio(pc);
     pc.onicecandidate = function (ev) {
       if (!ev.candidate || dcCall.phase !== 'active') return;
       dcSend({ type: 'voice_signal', callId: dcCall.callId, signal: { kind: 'ice', candidate: dcIcePlain(ev.candidate) } });
@@ -2531,6 +2616,7 @@ function handleRealtimePayload(msg) {
     if (!signal || dcCall.phase !== 'active') return;
     if (from && dcCall.peer && String(from).toLowerCase() !== String(dcCall.peer.email || '').toLowerCase()) return;
     var pc = dcEnsurePc();
+    dcBindLiveAudio(pc);
     try {
       if (signal.kind === 'offer' && signal.sdp) {
         if (dcCall.role !== 'callee') return;
@@ -2555,6 +2641,7 @@ function handleRealtimePayload(msg) {
     if (dcCall.phase !== 'active') return;
     try { dcEnsureCtx(); } catch (e) {}
     dcStartPcmSend();
+    dcWatchInbound();
     dcSyncVideoStage();
     dcStartVideoFallback();
     if (dcCall.role === 'caller') dcMakeOffer();
@@ -2586,6 +2673,10 @@ function handleRealtimePayload(msg) {
     dcCall.pcmPlayAt = 0;
     dcCall.answering = false;
     dcCall.labelHidden = false;
+    if (dcCall._rtpTimer) { try { clearTimeout(dcCall._rtpTimer); } catch (eRt) {} }
+    dcCall._rtpTimer = null;
+    dcCall._rtpVoice = false;
+    dcCall._inBytes = 0;
     if (pc) {
       try { pc.onicecandidate = null; pc.ontrack = null; pc.close(); } catch (ePc) {}
     }
