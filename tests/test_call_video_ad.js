@@ -1,6 +1,6 @@
 var assert = require("assert");
 var fs = require("fs");
-var ad = require("../static/call-video-ad.js");
+var ad = require("../call-video-ad.js");
 
 function rect(box) {
   return { left: box.left, top: box.top, right: box.right, bottom: box.bottom };
@@ -61,7 +61,7 @@ assert.strictEqual(wide.stage.width, 360);
 
 check(1280, 800, true);
 
-var src = fs.readFileSync(require("path").join(__dirname, "..", "static", "call-video-ad.js"), "utf8");
+var src = fs.readFileSync(require("path").join(__dirname, "..", "call-video-ad.js"), "utf8");
 assert.ok(src.indexOf("drawImage") === -1);
 assert.ok(src.indexOf("toDataURL") === -1);
 assert.ok(src.indexOf("getUserMedia") === -1);

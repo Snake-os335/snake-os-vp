@@ -1,10 +1,12 @@
-# Parche Oracle 2026.14 — publicidad propia junto al vídeo
-# NO aplicar sobre git main 2026.16. NO es el parche de audio ni el de distrito.
-# doganiero-chat.js sha256 base b263ad139a58c559b91fb14fb1d64eed0ed69312c09f0933155f2f4340a3d945
-# No toca PCM, canvas JPEG, volumen, micrófono ni doganiero-phone.js.
-# Archivo nuevo: static/call-video-ad.js (fuera de #dcVideoStage).
---- a/doganiero-chat.js	2026-11-06 15:00:04.733845616 +0000
-+++ b/doganiero-chat.js	2026-11-06 15:00:04.745845658 +0000
+# Parche residual Oracle 2026.14 — el anuncio sí se puede descargar
+# Base doganiero-chat.js b263ad139a58c559b91fb14fb1d64eed0ed69312c09f0933155f2f4340a3d945
+# Base main.py 18038b58333fc06370dc455f3cb144f670281de62c1c83c2567a3cd6bef3bd42 (no se modifica)
+# /static monta directory='.' y solo admite raíz, assets/ y assets/fonts.
+# Por eso el fichero va en la raíz de la app, no en static/.
+# La URL del enganche sigue siendo /static/call-video-ad.js.
+# No toca main.py, phone, index, audio ni distrito.
+--- a/doganiero-chat.js	2026-11-06 14:10:18.000000000 +0000
++++ b/doganiero-chat.js	2026-11-06 15:00:05.709849019 +0000
 @@ -3063,6 +3063,7 @@
      dcCall.remoteVideo = null;
      dcCall.fallbackImg = null;
@@ -33,9 +35,8 @@
    }
    function dcIsMobileUa() {
      return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '');
-
 --- /dev/null	2026-11-06 14:13:24.708197044 +0000
-+++ b/static/call-video-ad.js	2026-11-06 14:59:59.205826352 +0000
++++ b/call-video-ad.js	2026-11-06 14:59:59.205826352 +0000
 @@ -0,0 +1,325 @@
 +/* Publicidad propia de software Doganiero, al lado del vídeo de la llamada.
 +   No entra en el canvas ni en la pista. Sin red, cookies ni medición. */
