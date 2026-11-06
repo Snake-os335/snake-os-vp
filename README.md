@@ -2,7 +2,8 @@
 
 ## Actualizar Snake OS (obligatorio para agentes y personas)
 
-**Norma:** cada actualización terminada se sube a git **y** se lanza la update de Snake OS con el script:
+**Norma:** cada actualización terminada se sube a git **y** se despliega. El push a `main` ya dispara el
+auto-deploy de la VM (≤3 min); el script de abajo es el atajo para aplicarlo al momento:
 
 ```bash
 # 1) En tu worktree/rama (nunca en la carpeta en vivo):

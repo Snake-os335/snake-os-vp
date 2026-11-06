@@ -1,4 +1,4 @@
-# Norma del proyecto: al terminar, SIEMPRE commit y push
+# Norma del proyecto: al terminar, SIEMPRE commit, push y deploy
 
 > Esta norma es obligatoria en **snake-os-vp**. Aplica a cualquier tarea: arreglos, features,
 > refactors, tests o cambios de documentación.
@@ -9,9 +9,12 @@ Cuando el trabajo de una tarea está **terminado y validado**, hay que:
 
 1. **Commitear** los cambios en `main`.
 2. **Pushear** a `origin` (`git push origin main`).
+3. **Desplegar a producción**: el push ya despliega solo (auto-deploy del VPS, ≤3 min); hay que
+   **verificar** que prod sirve ese commit (`/api/status`) y, si corre prisa, lanzar la update a mano.
 
-No se deja trabajo terminado sin commitear ni commits sin subir. Si la tarea termina en un
-punto intermedio (a medias, sin validar), se avisa explícitamente de por qué **no** se commitea.
+No se deja trabajo terminado sin commitear, ni commits sin subir, ni commits sin desplegar y verificar.
+Si la tarea termina en un punto intermedio (a medias, sin validar), se avisa explícitamente de por qué
+**no** se commitea.
 
 ## Qué significa "terminado"
 
@@ -40,14 +43,41 @@ punto intermedio (a medias, sin validar), se avisa explícitamente de por qué *
   reintentar el push; si hay conflicto, resolverlo o avisar. Nunca dejar el árbol terminado
   sin subir.
 
-## Límite: producción (deploy) ≠ git
+## Producción: el push despliega (no hay "gate" de autorización)
 
-- Commitear y pushear es **siempre** obligatorio al terminar.
-- **Desplegar a producción** (reiniciar el contenedor, hot‑sync al servidor, etc.) **no** se hace
-  automáticamente: requiere que David lo autorice (respetar el "gate" de producción de cada
-  `ROLLBACK.json`/`MANIFEST.json`). Una vez autorizado, hacer el deploy y luego commit+push igual.
+- Producción es el VPS de Oracle (`vps4_david` → `143.47.39.192`), carpeta en vivo
+  `/srv/juegos_david/snake-os-vp` (contenedor `snake-os-vp` en :8988 + `snake-os-vp-cloudflared`),
+  URL pública <https://snake-os-vp.softportweb.com>.
+- **Push a `main` = deploy.** El cron del VPS (`/srv/juegos_david/bin/snake-auto-deploy.sh`, copia de
+  `scripts/auto-deploy.sh`) despliega cada 3 min sin intervención: pantalla de actualización, backup
+  (`git bundle`), `merge --ff-only`, reinicio del contenedor solo si cambian `.py`/Docker/requirements,
+  health-check y **rollback automático** si falla (ese commit queda marcado como `bad`).
+- **No existe autorización previa de nadie ni ficheros `ROLLBACK.json`/`MANIFEST.json` que respetar.**
+  El único control es el health-check con rollback del propio auto-deploy. Por tanto: **no preguntes
+  "¿lo despliego?"**; termina, valida, commitea, pushea y verifica el deploy.
+- **Verificar el deploy** (público, sin SSH ni contraseñas):
+  ```bash
+  curl -s https://snake-os-vp.softportweb.com/api/status   # {"updating":false,"version":"<sha>-<firma>"}
+  git rev-parse --short HEAD                                # debe coincidir con <sha>
+  ```
+  El sufijo tras el guion es la firma de los estáticos servidos; el SHA del commit es lo que importa.
+- **Deploy inmediato** (no esperar los 3 min del cron), desde el Mac:
+  ```bash
+  ssh vps4_david 'bash /srv/juegos_david/snake-os-vp/scripts/publicar-update.sh'
+  ```
+  Mismo procedimiento que el cron (comparte cerrojo) y mantiene la pantalla de actualización ≥25 s.
+  Si `ssh` pide contraseña (esta sesión no tiene la clave `id_ed25519_vps4_david` autorizada), se espera
+  al cron y se verifica con `/api/status`.
+- **Ojo con la carpeta local**: esta sesión trabaja en `/Users/antonella/vps-juegos-david/snake-os-vp`
+  (copia en el Mac; el "vps" del nombre es solo orientativo). **No es la carpeta en vivo**: nada de lo que
+  se edita aquí está en producción hasta el push.
+- **Editar por SSH en la carpeta en vivo no es la vía**: el auto-deploy rechaza desplegar si hay cambios
+  sin commit allí y un rollback (`git reset --hard`) los borraría; para `.py` haría falta reiniciar el
+  contenedor a mano. Si por urgencia se toca algo en vivo: traerlo al worktree, commit+push y
+  `publicar-update.sh`.
 
 ## Resumen final al usuario
 
 Al terminar, el resumen debe indicar: qué se cambió, resultados de validación y el SHA/estado
-del commit + push (o el motivo si no se pudo pushear).
+del commit + push, y la confirmación del deploy en producción (`/api/status` sirviendo ese SHA,
+o el motivo/estado si aún no ha pasado el auto-deploy).
