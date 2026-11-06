@@ -156,15 +156,15 @@
   var hiddenByDesk = null;
   function showDesktop() {
     var O = openWins();
-    if (hiddenByDesk && hiddenByDesk.length) {
+    var visible = Object.keys(O).filter(function (id) { return O[id] && !O[id].minimized && !O[id]._closing; });
+    if (hiddenByDesk && hiddenByDesk.length && !visible.length) {
       var back = hiddenByDesk; hiddenByDesk = null;
       back.forEach(function (id) { try { if (O[id] && O[id].minimized) restoreApp(id); } catch (e) {} });
       return;
     }
-    var list = Object.keys(O).filter(function (id) { return O[id] && !O[id].minimized; });
-    if (!list.length) { toast(T('No hay ventanas abiertas', 'No open windows')); return; }
-    list.forEach(function (id) { try { minimizeApp(id); } catch (e) {} });
-    hiddenByDesk = list;
+    if (!visible.length) { hiddenByDesk = null; toast(T('No hay ventanas abiertas', 'No open windows')); return; }
+    visible.forEach(function (id) { try { minimizeApp(id); } catch (e) {} });
+    hiddenByDesk = visible;
   }
   window.snkShowDesktop = showDesktop;
   css('#snkShowDesk{flex:0 0 auto;align-self:stretch;width:10px;min-width:10px;margin:0 0 0 6px;padding:0;border:0;border-left:1px solid rgba(255,255,255,.22);background:transparent;cursor:pointer;border-radius:0;box-shadow:none}' +

@@ -3705,10 +3705,10 @@ function handleRealtimePayload(msg) {
 
 
   function ensureDcExtraCss() {
-    if (document.getElementById('dc-extra-css-20261009')) return;
+    if (document.getElementById('dc-extra-css-20261105')) return;
     var st = document.createElement('style');
-    st.id = 'dc-extra-css-20261011b';
-    st.textContent = ".dc-msg{position:relative;}\n.dc-msg-actions{position:absolute;top:-12px;right:8px;display:none;gap:2px;padding:2px;border-radius:999px;background:rgba(10,24,16,0.9);border:1px solid rgba(255,255,255,0.22);box-shadow:0 4px 14px rgba(0,0,0,0.3);z-index:2;}\n.dc-msg.mine .dc-msg-actions{right:auto;left:8px;}\n.dc-msg:hover .dc-msg-actions,.dc-msg:focus-within .dc-msg-actions{display:flex;}\n.dc-msg-actions button{margin:0 !important;width:26px !important;height:26px !important;min-width:26px !important;padding:0 !important;border-radius:50% !important;border:0 !important;background:transparent !important;color:#fff !important;font-size:0.8rem;cursor:pointer;box-shadow:none !important;}\n.dc-msg-actions button:hover{background:rgba(52,209,122,0.35) !important;}\n@media (hover:none){.dc-msg-actions{display:flex;position:static;margin-top:4px;width:max-content;background:rgba(0,0,0,0.18);}}\n.dc-react-picker{position:absolute;bottom:calc(100% + 4px);left:0;display:flex;gap:2px;padding:4px;border-radius:999px;background:rgba(10,24,16,0.95);border:1px solid rgba(255,255,255,0.25);box-shadow:0 8px 24px rgba(0,0,0,0.35);z-index:5;animation:dcPop .14s ease-out;}\n.dc-msg.mine .dc-react-picker{left:auto;right:0;}\n.dc-react-picker button{margin:0 !important;width:32px !important;height:32px !important;min-width:32px !important;padding:0 !important;border:0 !important;border-radius:50% !important;background:transparent !important;font-size:1.1rem;cursor:pointer;box-shadow:none !important;transition:transform .12s ease;}\n.dc-react-picker button:hover{transform:scale(1.25);}\n@keyframes dcPop{from{opacity:0;transform:translateY(4px) scale(0.95);}to{opacity:1;transform:none;}}\n.dc-reacts{display:flex;flex-wrap:wrap;gap:4px;margin-top:5px;}\n.dc-react-chip{margin:0 !important;width:auto !important;padding:1px 7px !important;min-height:0 !important;border-radius:999px !important;font-size:0.76rem;line-height:1.5;cursor:pointer;\n  background:rgba(0,0,0,0.2) !important;border:1px solid rgba(255,255,255,0.22) !important;color:inherit !important;box-shadow:none !important;}\n.dc-react-chip.mine{border-color:#9dffc2 !important;background:rgba(52,209,122,0.3) !important;}\n.dc-ticks{margin-left:4px;font-weight:800;letter-spacing:-2px;opacity:0.75;}\n.dc-ticks.read{color:#4fc3ff;opacity:1;}\n.dc-quote{margin:2px 0 5px !important;width:100% !important;display:flex;flex-direction:column;align-items:flex-start;gap:1px;text-align:left;padding:5px 8px !important;min-height:0 !important;border-radius:8px !important;\n  border:0 !important;border-left:3px solid #34d17a !important;background:rgba(0,0,0,0.18) !important;color:inherit !important;font-size:0.74rem;cursor:pointer;box-shadow:none !important;}\n.dc-quote b{font-size:0.7rem;color:#9dffc2;}\n.dc-quote span{opacity:0.85;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}\n.dc-reply-bar{display:flex;align-items:center;gap:8px;padding:6px 10px;margin:0 8px;border-radius:10px 10px 0 0;border-left:3px solid #34d17a;background:rgba(0,0,0,0.2);font-size:0.76rem;}\n.dc-reply-bar[hidden]{display:none;}\n.dc-reply-bar-text{flex:1;min-width:0;display:flex;flex-direction:column;}\n.dc-reply-bar-text span{opacity:0.8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}\n.dc-reply-cancel{margin:0 !important;width:24px !important;height:24px !important;min-width:24px !important;padding:0 !important;border-radius:50% !important;font-size:0.7rem;cursor:pointer;}\n.dc-msearch{display:flex;align-items:center;gap:8px;padding:6px 10px;border-bottom:1px solid rgba(255,255,255,0.12);}\n.dc-msearch[hidden]{display:none;}\n.dc-msearch input{margin:0 !important;flex:1;min-width:0;padding:6px 10px !important;border-radius:10px !important;font-size:0.8rem;}\n.dc-msearch-info{font-size:0.7rem;opacity:0.75;white-space:nowrap;}\n.dc-msg.dc-search-hide{display:none;}\n.dc-msg.dc-search-hit{box-shadow:0 0 0 2px rgba(255,214,102,0.75);}\n.dc-msg.dc-flash{animation:dcFlash 1.2s ease;}\n@keyframes dcFlash{0%,100%{box-shadow:none;}30%{box-shadow:0 0 0 3px rgba(52,209,122,0.8);}}\n.dc-typing{color:#34d17a;font-weight:700;font-style:italic;}\n.dc-typing.on::after{content:'';}\n.dc-msg-photo{cursor:zoom-in;}\n.dc-lightbox{position:fixed;inset:0;z-index:300100;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;cursor:zoom-out;animation:dcPop .15s ease-out;}\n.dc-lightbox img{max-width:94vw;max-height:90vh;border-radius:12px;box-shadow:0 10px 40px rgba(0,0,0,0.6);}\n.dc-lightbox-close{position:absolute;top:14px;right:14px;width:40px !important;height:40px !important;border-radius:50% !important;font-size:1rem;cursor:pointer;}\n.dc-user{position:relative;}\n.dc-pin{margin-left:auto;flex-shrink:0;align-self:center;font-size:0.8rem;padding:2px 4px;border-radius:8px;opacity:0;filter:grayscale(1);cursor:pointer;transition:opacity .15s ease;}\n.dc-user:hover .dc-pin,.dc-pin:focus-visible{opacity:0.6;}\n.dc-pin.on{opacity:1 !important;filter:none;}\n@media (hover:none){.dc-pin{opacity:0.45;}}\nbody.theme-light .dc-msg-actions,body.theme-light .dc-react-picker{background:rgba(255,255,255,0.96);border-color:rgba(0,0,0,0.12);}\nbody.theme-light .dc-msg-actions button{color:#0d2818 !important;}\nbody.theme-light .dc-quote{background:rgba(0,0,0,0.06) !important;}\nbody.theme-light .dc-quote b{color:#147a42;}\nbody.theme-light .dc-reply-bar{background:rgba(0,0,0,0.06);}\nbody.theme-light .dc-react-chip{background:rgba(255,255,255,0.7) !important;border-color:rgba(0,0,0,0.12) !important;}\nbody.theme-light .dc-ticks.read{color:#0a84d6;}\nbody.theme-light .dc-typing{color:#147a42;}\n.dc-msg.dc-acts-on .dc-msg-actions{display:flex;}\n.dc-msg-actions button,.dc-react-picker button,.dc-react-chip,.dc-reply-cancel,.dc-lightbox-close{width:auto !important;margin-top:0 !important;}\n.dc-head-actions{flex:0 1 auto !important;min-width:0;}\n.dc-head-actions .dc-call-btn{width:auto !important;margin-top:0 !important;padding:6px 12px;white-space:nowrap;}\n.dc-head-actions .dc-call-btn[data-dc=msearch]{padding:6px 10px;}\n@media (max-width:520px){.dc-head-actions{gap:4px;}.dc-head-actions .dc-call-btn{padding:5px 9px;font-size:0.72rem;}}\n.dc-msearch input{width:100% !important;margin-top:0 !important;}\n.dc-photo-confirm{display:flex;align-items:center;gap:10px;padding:8px 12px;border-top:1px solid rgba(255,255,255,0.12);background:rgba(0,0,0,0.18);}\n.dc-photo-confirm img{width:56px;height:56px;object-fit:cover;border-radius:10px;flex:0 0 auto;border:1px solid rgba(255,255,255,0.25);}\n.dc-photo-confirm-info{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;font-size:0.8rem;}\n.dc-photo-confirm-info span{opacity:0.75;font-size:0.72rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}\n.dc-photo-confirm button{width:auto !important;margin:0 !important;padding:7px 12px !important;border-radius:999px !important;font-weight:700;font-size:0.78rem;cursor:pointer;flex:0 0 auto;}\n.dc-photo-confirm .dc-photo-ok{background:linear-gradient(135deg,#34d17a,#1fa85a) !important;color:#053018 !important;border:none !important;}\n.dc-photo-confirm .dc-photo-no{background:transparent !important;border:1px solid rgba(255,255,255,0.3) !important;color:inherit !important;}\nbody.theme-light .dc-photo-confirm{background:rgba(0,0,0,0.05);border-top-color:rgba(0,0,0,0.1);}\nbody.theme-light .dc-photo-confirm .dc-photo-no{border-color:rgba(0,0,0,0.2) !important;}\n@media (max-width:420px){.dc-photo-confirm{flex-wrap:wrap;}.dc-photo-confirm-info{flex-basis:calc(100% - 70px);}}\n.dc-main.dc-drop-on{outline:2px dashed #34d17a;outline-offset:-6px;background-color:rgba(52,209,122,0.10);}\n.dc-back{display:none;width:auto !important;margin:0 4px 0 0 !important;padding:2px 10px !important;border-radius:999px;border:1px solid rgba(255,255,255,0.25);background:rgba(255,255,255,0.08);color:inherit;font-weight:800;font-size:1rem;line-height:1.4;cursor:pointer;}\nbody.phone-mode .dc-back{display:inline-block;}\nbody.phone-mode .dc-root.dc-peer-open .dc-side{display:none;}\nbody.phone-mode .dc-root:not(.dc-peer-open) .dc-side{max-height:none;flex:1 1 auto;border-bottom:none;}\nbody.phone-mode .dc-root:not(.dc-peer-open) .dc-main{display:none;}\nbody.theme-light .dc-back{border-color:rgba(0,0,0,0.15);background:rgba(0,0,0,0.04);}\nbody.phone-mode .dc-head-row{flex-wrap:wrap;row-gap:6px;}\nbody.phone-mode .dc-head-who{flex:1 1 160px;}\nbody.phone-mode .dc-head-actions{flex:1 1 100% !important;justify-content:flex-start;}\n.dc-day{display:flex;justify-content:center;margin:10px 0 6px;pointer-events:none;}\n.dc-day span{font-size:0.7rem;font-weight:700;padding:3px 10px;border-radius:999px;background:rgba(0,0,0,0.28);color:#e9fff1;letter-spacing:0.02em;}\nbody.theme-light .dc-day span{background:rgba(255,255,255,0.75);color:#0d2818;box-shadow:0 1px 3px rgba(0,0,0,0.08);}\n.dc-searching .dc-day{display:none;}\n.dc-add{display:flex;gap:6px;margin:8px 0 0;}\n.dc-add input{flex:1;min-width:0;margin:0 !important;}\n.dc-add button{width:auto !important;margin:0 !important;padding:6px 12px !important;border-radius:999px !important;font-weight:800;}\n.dc-remove{margin-left:auto;flex:0 0 auto;padding:3px 8px;border-radius:999px;border:1px solid rgba(255,255,255,.28);font-size:.72rem;font-weight:800;cursor:pointer;}\n.dc-req{cursor:default;}\n.dc-req-actions{margin-left:auto;display:flex;gap:4px;flex:0 0 auto;}\n.dc-req-actions button{width:auto !important;margin:0 !important;padding:4px 8px !important;border-radius:999px !important;font-size:.72rem;font-weight:800;}\n.dc-req-ok{background:#34d17a !important;color:#053018 !important;border:0 !important;}\n.dc-req-no{background:transparent !important;color:inherit !important;border:1px solid rgba(255,255,255,.3) !important;}\n.dc-hide{opacity:.85;}\n.dc-hide + .dc-remove{margin-left:4px;}\n.dc-pin + .dc-hide{margin-left:4px;}\n.dc-user.dc-is-hidden{opacity:.6;}\n.dc-hidden-toggle{display:block;width:100% !important;margin:6px 0 0 !important;padding:6px 10px !important;border-radius:10px !important;border:1px dashed rgba(255,255,255,.3) !important;background:transparent !important;color:inherit !important;font-size:.75rem;font-weight:700;cursor:pointer;opacity:.85;}\nbody.theme-light .dc-hidden-toggle{border-color:rgba(0,0,0,.2) !important;}\n";
+    st.id = 'dc-extra-css-20261105';
+    st.textContent = ".dc-msg{position:relative;}\n.dc-msg-actions{position:absolute;top:-12px;right:8px;display:none;gap:2px;padding:2px;border-radius:999px;background:rgba(10,24,16,0.9);border:1px solid rgba(255,255,255,0.22);box-shadow:0 4px 14px rgba(0,0,0,0.3);z-index:2;}\n.dc-msg.mine .dc-msg-actions{right:auto;left:8px;}\n.dc-msg:hover .dc-msg-actions,.dc-msg:focus-within .dc-msg-actions{display:flex;}\n.dc-msg-actions button{margin:0 !important;width:26px !important;height:26px !important;min-width:26px !important;padding:0 !important;border-radius:50% !important;border:0 !important;background:transparent !important;color:#fff !important;font-size:0.8rem;cursor:pointer;box-shadow:none !important;}\n.dc-msg-actions button:hover{background:rgba(52,209,122,0.35) !important;}\n@media (hover:none){.dc-msg-actions{display:flex;position:static;margin-top:4px;width:max-content;background:rgba(0,0,0,0.18);}}\n.dc-react-picker{position:absolute;bottom:calc(100% + 4px);left:0;display:flex;gap:2px;padding:4px;border-radius:999px;background:rgba(10,24,16,0.95);border:1px solid rgba(255,255,255,0.25);box-shadow:0 8px 24px rgba(0,0,0,0.35);z-index:5;animation:dcPop .14s ease-out;}\n.dc-msg.mine .dc-react-picker{left:auto;right:0;}\n.dc-react-picker button{margin:0 !important;width:32px !important;height:32px !important;min-width:32px !important;padding:0 !important;border:0 !important;border-radius:50% !important;background:transparent !important;font-size:1.1rem;cursor:pointer;box-shadow:none !important;transition:transform .12s ease;}\n.dc-react-picker button:hover{transform:scale(1.25);}\n@keyframes dcPop{from{opacity:0;transform:translateY(4px) scale(0.95);}to{opacity:1;transform:none;}}\n.dc-reacts{display:flex;flex-wrap:wrap;gap:4px;margin-top:5px;}\n.dc-react-chip{margin:0 !important;width:auto !important;padding:1px 7px !important;min-height:0 !important;border-radius:999px !important;font-size:0.76rem;line-height:1.5;cursor:pointer;\n  background:rgba(0,0,0,0.2) !important;border:1px solid rgba(255,255,255,0.22) !important;color:inherit !important;box-shadow:none !important;}\n.dc-react-chip.mine{border-color:#9dffc2 !important;background:rgba(52,209,122,0.3) !important;}\n.dc-ticks{margin-left:4px;font-weight:800;letter-spacing:-2px;opacity:0.75;}\n.dc-ticks.read{color:#4fc3ff;opacity:1;}\n.dc-quote{margin:2px 0 5px !important;width:100% !important;display:flex;flex-direction:column;align-items:flex-start;gap:1px;text-align:left;padding:5px 8px !important;min-height:0 !important;border-radius:8px !important;\n  border:0 !important;border-left:3px solid #34d17a !important;background:rgba(0,0,0,0.18) !important;color:inherit !important;font-size:0.74rem;cursor:pointer;box-shadow:none !important;}\n.dc-quote b{font-size:0.7rem;color:#9dffc2;}\n.dc-quote span{opacity:0.85;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}\n.dc-reply-bar{display:flex;align-items:center;gap:8px;padding:6px 10px;margin:0 8px;border-radius:10px 10px 0 0;border-left:3px solid #34d17a;background:rgba(0,0,0,0.2);font-size:0.76rem;}\n.dc-reply-bar[hidden]{display:none;}\n.dc-reply-bar-text{flex:1;min-width:0;display:flex;flex-direction:column;}\n.dc-reply-bar-text span{opacity:0.8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}\n.dc-reply-cancel{margin:0 !important;width:24px !important;height:24px !important;min-width:24px !important;padding:0 !important;border-radius:50% !important;font-size:0.7rem;cursor:pointer;}\n.dc-msearch{display:flex;align-items:center;gap:8px;padding:6px 10px;border-bottom:1px solid rgba(255,255,255,0.12);}\n.dc-msearch[hidden]{display:none;}\n.dc-msearch input{margin:0 !important;flex:1;min-width:0;padding:6px 10px !important;border-radius:10px !important;font-size:0.8rem;}\n.dc-msearch-info{font-size:0.7rem;opacity:0.75;white-space:nowrap;}\n.dc-msg.dc-search-hide{display:none;}\n.dc-msg.dc-search-hit{box-shadow:0 0 0 2px rgba(255,214,102,0.75);}\n.dc-msg.dc-flash{animation:dcFlash 1.2s ease;}\n@keyframes dcFlash{0%,100%{box-shadow:none;}30%{box-shadow:0 0 0 3px rgba(52,209,122,0.8);}}\n.dc-typing{color:#34d17a;font-weight:700;font-style:italic;}\n.dc-typing.on::after{content:'';}\n.dc-msg-photo{cursor:zoom-in;}\n.dc-lightbox{position:fixed;inset:0;z-index:300100;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;cursor:zoom-out;animation:dcPop .15s ease-out;}\n.dc-lightbox img{max-width:94vw;max-height:90vh;border-radius:12px;box-shadow:0 10px 40px rgba(0,0,0,0.6);}\n.dc-lightbox-close{position:absolute;top:14px;right:14px;width:40px !important;height:40px !important;border-radius:50% !important;font-size:1rem;cursor:pointer;}\n.dc-user{position:relative;}\n.dc-pin{margin-left:auto;flex-shrink:0;align-self:center;font-size:0.8rem;padding:2px 4px;border-radius:8px;opacity:0;filter:grayscale(1);cursor:pointer;transition:opacity .15s ease;}\n.dc-user:hover .dc-pin,.dc-pin:focus-visible{opacity:0.6;}\n.dc-pin.on{opacity:1 !important;filter:none;}\n@media (hover:none){.dc-pin{opacity:0.45;}}\nbody.theme-light .dc-msg-actions,body.theme-light .dc-react-picker{background:rgba(255,255,255,0.96);border-color:rgba(0,0,0,0.12);}\nbody.theme-light .dc-msg-actions button{color:#0d2818 !important;}\nbody.theme-light .dc-quote{background:rgba(0,0,0,0.06) !important;}\nbody.theme-light .dc-quote b{color:#147a42;}\nbody.theme-light .dc-reply-bar{background:rgba(0,0,0,0.06);}\nbody.theme-light .dc-react-chip{background:rgba(255,255,255,0.7) !important;border-color:rgba(0,0,0,0.12) !important;}\nbody.theme-light .dc-ticks.read{color:#0a84d6;}\nbody.theme-light .dc-typing{color:#147a42;}\n.dc-msg.dc-acts-on .dc-msg-actions{display:flex;}\n.dc-msg-actions button,.dc-react-picker button,.dc-react-chip,.dc-reply-cancel,.dc-lightbox-close{width:auto !important;margin-top:0 !important;}\n.dc-head-actions{flex:0 1 auto !important;min-width:0;}\n.dc-head-actions .dc-call-btn{width:auto !important;margin-top:0 !important;padding:6px 12px;white-space:nowrap;}\n.dc-head-actions .dc-call-btn[data-dc=msearch]{padding:6px 10px;}\n@media (max-width:520px){.dc-head-actions{gap:4px;}.dc-head-actions .dc-call-btn{padding:5px 9px;font-size:0.72rem;}}\n.dc-msearch input{width:100% !important;margin-top:0 !important;}\n.dc-photo-confirm{display:flex;align-items:center;gap:10px;padding:8px 12px;border-top:1px solid rgba(255,255,255,0.12);background:rgba(0,0,0,0.18);}\n.dc-photo-confirm img{width:56px;height:56px;object-fit:cover;border-radius:10px;flex:0 0 auto;border:1px solid rgba(255,255,255,0.25);}\n.dc-photo-confirm-info{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;font-size:0.8rem;}\n.dc-photo-confirm-info span{opacity:0.75;font-size:0.72rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}\n.dc-photo-confirm button{width:auto !important;margin:0 !important;padding:7px 12px !important;border-radius:999px !important;font-weight:700;font-size:0.78rem;cursor:pointer;flex:0 0 auto;}\n.dc-photo-confirm .dc-photo-ok{background:linear-gradient(135deg,#34d17a,#1fa85a) !important;color:#053018 !important;border:none !important;}\n.dc-photo-confirm .dc-photo-no{background:transparent !important;border:1px solid rgba(255,255,255,0.3) !important;color:inherit !important;}\nbody.theme-light .dc-photo-confirm{background:rgba(0,0,0,0.05);border-top-color:rgba(0,0,0,0.1);}\nbody.theme-light .dc-photo-confirm .dc-photo-no{border-color:rgba(0,0,0,0.2) !important;}\n@media (max-width:420px){.dc-photo-confirm{flex-wrap:wrap;}.dc-photo-confirm-info{flex-basis:calc(100% - 70px);}}\n.dc-main.dc-drop-on{outline:2px dashed #34d17a;outline-offset:-6px;background-color:rgba(52,209,122,0.10);}\n.dc-back{display:none;width:auto !important;margin:0 4px 0 0 !important;padding:2px 10px !important;border-radius:999px;border:1px solid rgba(255,255,255,0.25);background:rgba(255,255,255,0.08);color:inherit;font-weight:800;font-size:1rem;line-height:1.4;cursor:pointer;}\nbody.phone-mode .dc-back{display:inline-block;}\nbody.phone-mode .dc-root.dc-peer-open .dc-side{display:none;}\nbody.phone-mode .dc-root:not(.dc-peer-open) .dc-side{max-height:none;flex:1 1 auto;border-bottom:none;}\nbody.phone-mode .dc-root:not(.dc-peer-open) .dc-main{display:none;}\nbody.theme-light .dc-back{border-color:rgba(0,0,0,0.15);background:rgba(0,0,0,0.04);}\nbody.phone-mode .dc-head-row{flex-wrap:wrap;row-gap:6px;}\nbody.phone-mode .dc-head-who{flex:1 1 160px;}\nbody.phone-mode .dc-head-actions{flex:1 1 100% !important;justify-content:flex-start;}\n.dc-day{display:flex;justify-content:center;margin:10px 0 6px;pointer-events:none;}\n.dc-day span{font-size:0.7rem;font-weight:700;padding:3px 10px;border-radius:999px;background:rgba(0,0,0,0.28);color:#e9fff1;letter-spacing:0.02em;}\nbody.theme-light .dc-day span{background:rgba(255,255,255,0.75);color:#0d2818;box-shadow:0 1px 3px rgba(0,0,0,0.08);}\n.dc-searching .dc-day{display:none;}\n.dc-add{display:flex;gap:6px;margin:8px 0 0;}\n.dc-add input{flex:1;min-width:0;margin:0 !important;}\n.dc-add button{width:auto !important;margin:0 !important;padding:6px 12px !important;border-radius:999px !important;font-weight:800;}\n.dc-remove{margin-left:auto;flex:0 0 auto;padding:3px 8px;border-radius:999px;border:1px solid rgba(255,255,255,.28);font-size:.72rem;font-weight:800;cursor:pointer;}\n.dc-req{cursor:default;}\n.dc-req-actions{margin-left:auto;display:flex;gap:4px;flex:0 0 auto;}\n.dc-req-actions button{width:auto !important;margin:0 !important;padding:4px 8px !important;border-radius:999px !important;font-size:.72rem;font-weight:800;}\n.dc-req-ok{background:#34d17a !important;color:#053018 !important;border:0 !important;}\n.dc-req-no{background:transparent !important;color:inherit !important;border:1px solid rgba(255,255,255,.3) !important;}\n.dc-hide{opacity:.85;}\n.dc-hide + .dc-remove{margin-left:4px;}\n.dc-pin + .dc-hide{margin-left:4px;}\n.dc-user.dc-is-hidden{opacity:.6;}\n.dc-draft{margin-left:4px;font-weight:800;opacity:.85;}\n.dc-draft{margin-left:4px;font-weight:800;opacity:.85;}\n.dc-hidden-toggle{display:block;width:100% !important;margin:6px 0 0 !important;padding:6px 10px !important;border-radius:10px !important;border:1px dashed rgba(255,255,255,.3) !important;background:transparent !important;color:inherit !important;font-size:.75rem;font-weight:700;cursor:pointer;opacity:.85;}\nbody.theme-light .dc-hidden-toggle{border-color:rgba(0,0,0,.2) !important;}\n";
     document.head.appendChild(st);
   }
 
@@ -3813,7 +3813,26 @@ function handleRealtimePayload(msg) {
     var filter = '';
     var seenMsgIds = Object.create(null);
     var sending = false;
+    var sendInflight = 0;
+    var sendGen = 0;
+    var drafts = Object.create(null);
     var sendCooldownUntil = 0;
+    function draftKey(email) { return String(email || '').toLowerCase(); }
+    function draftMark(email) {
+      var t = (drafts[draftKey(email)] || '').trim();
+      if (!t) return '';
+      return '<span class="dc-draft" title="Borrador sin enviar">✎</span>';
+    }
+    function lockSend() {
+      sendInflight++;
+      sending = true;
+      setComposeEnabled(false);
+    }
+    function unlockSend() {
+      sendInflight = Math.max(0, sendInflight - 1);
+      sending = sendInflight > 0;
+      if (!sending) setComposeEnabled(!!peer);
+    }
     var offCall = null;
     var unsub = onNotifEvent(function (evt, data) {
       if (evt === 'open_peer' && data) {
@@ -4281,13 +4300,24 @@ function handleRealtimePayload(msg) {
     // Contactos ocultos (se guardan en el servidor, solo para ti; buscar por nombre los muestra igualmente)
     var hiddenSet = [], showHidden = false;
     function isHidden(email) { return hiddenSet.indexOf(String(email || '').toLowerCase()) >= 0; }
+    var hiddenReady = false, hiddenInflight = null;
+    function tellHidden() { try { window.dispatchEvent(new CustomEvent('snk-chat-hidden', { detail: hiddenSet.slice() })); } catch (eN) {} }
     async function loadHidden() {
       try { var d = await apiFn()('/api/chat/hidden'); hiddenSet = (d && d.hidden) || []; } catch (eH) {}
+      hiddenReady = true;
+      tellHidden();
+    }
+    function ensureHidden() {
+      if (hiddenReady) return Promise.resolve();
+      if (!hiddenInflight) hiddenInflight = loadHidden().then(function () { hiddenInflight = null; }, function () { hiddenInflight = null; hiddenReady = true; });
+      return hiddenInflight;
     }
     async function setHidden(email, on) {
       try {
         var d = await apiFn()('/api/chat/hidden', { method: 'POST', body: { email: String(email || '').toLowerCase(), hidden: !!on } });
         hiddenSet = (d && d.hidden) || [];
+        hiddenReady = true;
+        tellHidden();
       } catch (err) { alert((err && err.message) || 'No se pudo cambiar'); }
       renderList();
     }
@@ -4340,7 +4370,7 @@ function handleRealtimePayload(msg) {
           btn.innerHTML =
             '<span class="dc-av">' + avHtml(u.avatar || '🐶') + '</span>' +
             '<span class="dc-user-meta">' +
-              '<span class="dc-user-name">' + dcPB(u, esc(u.name || u.email)) + '</span>' +
+              '<span class="dc-user-name">' + dcPB(u, esc(u.name || u.email)) + draftMark(u.email) + '</span>' +
               '<span class="dc-user-email">' + esc(u.email) + '</span>' +
             '</span>';
           btn.appendChild(hideBtn(u));
@@ -4378,7 +4408,7 @@ function handleRealtimePayload(msg) {
           btn.innerHTML =
             '<span class="dc-av">' + avHtml(u.avatar || '🐶') + '</span>' +
             '<span class="dc-user-meta">' +
-              '<span class="dc-user-name">' + dcPB(u, esc(u.name || u.email)) + badge + '</span>' +
+              '<span class="dc-user-name">' + dcPB(u, esc(u.name || u.email)) + draftMark(u.email) + badge + '</span>' +
               '<span class="dc-user-email">' + esc(last.image ? '📷 Foto' : (last.text || '')) + '</span>' +
             '</span>';
           btn.setAttribute('data-peer', String(u.email || '').toLowerCase());
@@ -4433,6 +4463,7 @@ function handleRealtimePayload(msg) {
 
     async function loadThreads() {
       try {
+        await ensureHidden();
         var data = await apiFn()('/api/chat/threads');
         threads = data.threads || [];
         if (mode === 'threads') renderList();
@@ -4486,6 +4517,8 @@ function handleRealtimePayload(msg) {
         return;
       }
       var prevEmail = peer && peer.email ? String(peer.email).toLowerCase() : '';
+      if (prevEmail) drafts[prevEmail] = inputEl.value || '';
+      if (prevEmail && prevEmail !== nextEmail) sendGen++;
       if (prevEmail && prevEmail !== nextEmail && (dcLoc.peerEmail === prevEmail || dcLoc.pendingEmail === prevEmail)) dcLocStop();
       peer = u;
       try { var dcRootEl = container.querySelector('.dc-root'); if (dcRootEl) dcRootEl.classList.add('dc-peer-open'); } catch (eRoot) {}
@@ -4509,15 +4542,14 @@ function handleRealtimePayload(msg) {
         '</div>';
       syncCallButton();
       dcLocPaint();
-      setComposeEnabled(true);
+      setComposeEnabled(sendInflight === 0);
       seenMsgIds = Object.create(null);
       msgCache = Object.create(null);
       setReplyTo(null);
       msgSearchQ = '';
+      inputEl.value = drafts[nextEmail] || '';
       var msb = container.querySelector('[data-dc="msearchbar"]');
       if (msb) { msb.hidden = true; var msi = msb.querySelector('input'); if (msi) msi.value = ''; }
-      sending = false;
-      sendCooldownUntil = 0;
       messagesEl.innerHTML = '<div class="dc-empty">Cargando…</div>';
       renderList();
       try {
@@ -4546,19 +4578,23 @@ function handleRealtimePayload(msg) {
       if (Date.now() < sendCooldownUntil) return;
       var text = (inputEl.value || '').trim();
       if (!text) return;
-      sending = true;
-      sendBtn.disabled = true;
-      inputEl.disabled = true;
+      var toEmail = draftKey(peer.email);
+      var gen = sendGen;
+      var replyId = replyTo && replyTo.id;
+      lockSend();
       try {
         var data = await apiFn()('/api/chat/messages', {
           method: 'POST',
-          body: replyTo ? { to: peer.email, text: text, replyTo: replyTo.id } : { to: peer.email, text: text }
+          body: replyId ? { to: toEmail, text: text, replyTo: replyId } : { to: toEmail, text: text }
         });
-        inputEl.value = '';
-        setReplyTo(null);
-        if (messagesEl.querySelector('.dc-empty')) messagesEl.innerHTML = '';
-        // Paint once from REST; server no longer echoes WS to sender
-        if (data && data.message) appendMsg(data.message);
+        delete drafts[toEmail];
+        if (gen === sendGen && peer && draftKey(peer.email) === toEmail) {
+          inputEl.value = '';
+          setReplyTo(null);
+          if (messagesEl.querySelector('.dc-empty')) messagesEl.innerHTML = '';
+          // Paint once from REST; server no longer echoes WS to sender
+          if (data && data.message) appendMsg(data.message);
+        }
         await loadThreads();
         // Keep lock through ghost-click window after fast POST
         sendCooldownUntil = Date.now() + 1000;
@@ -4567,9 +4603,8 @@ function handleRealtimePayload(msg) {
       } finally {
         var unlockIn = Math.max(0, sendCooldownUntil - Date.now());
         setTimeout(function () {
-          sending = false;
-          setComposeEnabled(!!peer);
-          try { inputEl.focus(); } catch (e2) {}
+          unlockSend();
+          try { if (gen === sendGen) inputEl.focus(); } catch (e2) {}
         }, unlockIn || 0);
       }
     });
@@ -4653,6 +4688,7 @@ function handleRealtimePayload(msg) {
       mode = next;
       tabUsers.classList.toggle('active', mode === 'users');
       tabThreads.classList.toggle('active', mode === 'threads');
+      if (!hiddenReady) ensureHidden().then(function () { if (mode === next) renderList(); });
       renderList();
       if (mode === 'threads') loadThreads();
       else loadUsers();
@@ -4663,28 +4699,26 @@ function handleRealtimePayload(msg) {
     async function sendPhotoFile(file) {
       if (!peer || sending) return;
       if (Date.now() < sendCooldownUntil) return;
-      sending = true;
-      sendBtn.disabled = true;
-      inputEl.disabled = true;
-      if (photoBtn) photoBtn.disabled = true;
+      var toEmail = draftKey(peer.email);
+      var gen = sendGen;
+      lockSend();
       try {
         var dataUrl = await dcCompressImage(file);
         var data = await apiFn()('/api/chat/messages', {
           method: 'POST',
-          body: { to: peer.email, text: '', image: dataUrl }
+          body: { to: toEmail, text: '', image: dataUrl }
         });
-        if (messagesEl.querySelector('.dc-empty')) messagesEl.innerHTML = '';
-        if (data && data.message) appendMsg(data.message);
+        if (gen === sendGen && peer && draftKey(peer.email) === toEmail) {
+          if (messagesEl.querySelector('.dc-empty')) messagesEl.innerHTML = '';
+          if (data && data.message) appendMsg(data.message);
+        }
         await loadThreads();
         sendCooldownUntil = Date.now() + 1000;
       } catch (err) {
         alert((err && err.message) || 'No se pudo enviar la foto');
       } finally {
         var unlockIn = Math.max(0, sendCooldownUntil - Date.now());
-        setTimeout(function () {
-          sending = false;
-          setComposeEnabled(!!peer);
-        }, unlockIn || 0);
+        setTimeout(function () { unlockSend(); }, unlockIn || 0);
       }
     }
     if (photoBtn && photoFile) {
@@ -4712,8 +4746,9 @@ function handleRealtimePayload(msg) {
     // Vídeos de cualquier tamaño: se suben por trozos de 8 MB y se reanudan si un trozo falla.
     async function sendVideoFile(file) {
       if (!peer || sending) return;
-      var to = peer.email, sent = 0, uploadId = '', cancelled = false;
-      sending = true; sendBtn.disabled = true; inputEl.disabled = true; if (photoBtn) photoBtn.disabled = true;
+      var to = draftKey(peer.email), sent = 0, uploadId = '', cancelled = false;
+      var gen = sendGen;
+      lockSend();
       var bar = document.createElement('div');
       bar.className = 'dc-photo-confirm dc-video-up';
       bar.innerHTML = '<div class="dc-photo-confirm-info"><b>🎬 Enviando vídeo…</b><span></span><progress max="100" value="0" style="width:100%"></progress></div><button type="button" class="dc-photo-no">Cancelar</button>';
@@ -4734,8 +4769,17 @@ function handleRealtimePayload(msg) {
         while (sent < file.size) {
           if (cancelled) throw new Error('cancelado');
           try {
-            var res = await raw('PUT', '/api/chat/video/' + encodeURIComponent(uploadId) + '?offset=' + sent, file.slice(sent, Math.min(file.size, sent + CH)), false);
-            sent = Number(res.received) || sent; fails = 0; paint();
+            var slice = file.slice(sent, Math.min(file.size, sent + Math.max(1, CH)));
+            var res = await raw('PUT', '/api/chat/video/' + encodeURIComponent(uploadId) + '?offset=' + sent, slice, false);
+            var next = Number(res && res.received);
+            if (!isFinite(next) || next < 0) next = sent;
+            if (next <= sent) {
+              fails++;
+              if (fails > 6) throw new Error('la subida no avanza');
+              if (next < sent) sent = next;
+              info.textContent = 'Conexión inestable; reintento ' + fails + '/6…';
+              await new Promise(function (r) { setTimeout(r, 1500 * fails); });
+            } else { sent = next; fails = 0; paint(); }
           } catch (eC) {
             if (eC.status && eC.status < 500 && eC.status !== 429) throw eC;
             fails++; if (fails > 6) throw eC;
@@ -4745,18 +4789,18 @@ function handleRealtimePayload(msg) {
         }
         var body = { text: '' }; if (replyTo && replyTo.id) body.replyTo = replyTo.id;
         var data = await raw('POST', '/api/chat/video/' + encodeURIComponent(uploadId) + '/finish', body, true);
-        if (peer && peer.email === to) {
+        if (gen === sendGen && peer && draftKey(peer.email) === to) {
           if (messagesEl.querySelector('.dc-empty')) messagesEl.innerHTML = '';
           if (data && data.message) appendMsg(data.message);
+          try { if (replyTo) setReplyTo(null); } catch (eR) {}
         }
-        try { if (replyTo) setReplyTo(null); } catch (eR) {}
         await loadThreads();
       } catch (err) {
         if (uploadId) { try { fetch('/api/chat/video/' + encodeURIComponent(uploadId), { method: 'DELETE', credentials: 'include' }); } catch (eD) {} }
         if (!cancelled) alert((err && err.message) || 'No se pudo enviar el vídeo');
       } finally {
         try { bar.remove(); } catch (eB) {}
-        sending = false; setComposeEnabled(!!peer);
+        unlockSend();
       }
     }
     function showPhotoConfirm(file) {

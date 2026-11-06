@@ -1603,7 +1603,7 @@ def upload_file(body: FileUploadBody, user=Depends(require_user)):
             except (TypeError, ValueError):
                 pass
         fid = max_id + 1
-    doga_hub.check_quota(uid, (len(body.dataUrl or "") * 3) // 4)
+    doga_hub.check_quota(uid, db.data_url_payload_len(body.dataUrl or ""))
     try:
         entry = db.save_uploaded_file(
             uid,

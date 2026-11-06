@@ -20,6 +20,7 @@ import re
 import secrets
 import threading
 import time
+from pathlib import Path
 from typing import Any, Callable
 
 from fastapi import APIRouter, HTTPException, Request
@@ -196,7 +197,8 @@ def usage(uid: int, fresh: bool = False) -> int:
         if p.is_dir():
             for e in os.scandir(p):
                 if e.is_file():
-                    total += e.stat().st_size
+                    n = db.blob_payload_len(Path(e.path))
+                    total += int(n or 0)
     except Exception:
         pass
     try:

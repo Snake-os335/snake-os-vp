@@ -356,7 +356,10 @@
   };
   C.whoami = function(){ return [uname()]; };
   C.hostname = function(){ return ['snake-os']; };
-  C.date = function(){ return [new Date().toLocaleString('es-ES', { weekday:'long', year:'numeric', month:'long', day:'numeric', hour:'2-digit', minute:'2-digit', second:'2-digit', timeZoneName:'short' })]; };
+  C.date = function(){
+    var en = termEN();
+    return [new Date().toLocaleString(en ? 'en-GB' : 'es-ES', { weekday:'long', year:'numeric', month:'long', day:'numeric', hour:'2-digit', minute:'2-digit', second:'2-digit', timeZoneName:'short' })];
+  };
   C.uname = function(args){ var p = flags(args); if(p.f.a) return ['Snake OS snake-os ' + KERNEL + ' v' + VERSION + ' ' + (navigator.platform || 'web') + ' Snake OS']; if(p.f.r) return [KERNEL]; return ['Snake OS']; };
   C.uptime = function(){ return [uptimeStr()]; };
   C.ps = function(){
@@ -452,7 +455,9 @@
   };
   C.cowsay = C.snakesay;
   var FORTUNES = ['La serpiente que no se mueve no encuentra manzanas.', 'Hoy es un buen día para guardar tus archivos.', 'Un bug encontrado es medio bug arreglado.', 'Quien comparte huesitos, multiplica amigos.', 'Primero funciona, luego queda bonito, luego va rápido.', 'Ctrl+S es tu mejor amigo.', 'Las grandes ideas empiezan con un «¿y si…?».', 'Descansa la vista: mira algo lejano 20 segundos.', 'Tu próxima victoria en el ajedrez está a una jugada.', 'Snake OS cree en ti. 🐍'];
-  C.fortune = function(){ return [FORTUNES[Math.floor(Math.random() * FORTUNES.length)]]; };
+  var FORTUNES_EN = ['A snake that stays still finds no apples.', 'Today is a good day to save your files.', 'A bug you find is half a bug fixed.', 'Sharing treats multiplies friends.', 'First make it work, then make it nice, then make it fast.', 'Ctrl+S is your best friend.', 'Big ideas start with a «what if…?».', 'Rest your eyes: look at something far away for 20 seconds.', 'Your next chess win is one move away.', 'Snake OS believes in you. 🐍'];
+  function termEN(){ return !!(window.snakeI18n && window.snakeI18n.lang === 'en'); }
+  C.fortune = function(){ var list = termEN() ? FORTUNES_EN : FORTUNES; return [list[Math.floor(Math.random() * list.length)]]; };
   function calcEval(src){
     var s = String(src).replace(/\s+/g, '').replace(/,/g, '.').replace(/×/g, '*').replace(/÷/g, '/'), i = 0;
     var FN = { sqrt:Math.sqrt, sin:Math.sin, cos:Math.cos, tan:Math.tan, abs:Math.abs, log:Math.log10, ln:Math.log, round:Math.round, floor:Math.floor, ceil:Math.ceil };
@@ -478,16 +483,21 @@
   C.calc = function(args, stdin){ try { var v = calcEval(args.length ? args.join(' ') : (stdin || '')); return [isFinite(v) ? String(Math.round(v * 1e10) / 1e10) : 'No es un número (¿división entre 0?)']; } catch(e){ return err(e.message); } };
   C.cal = function(args){
     var now = new Date(), m = args[0] ? parseInt(args[0], 10) - 1 : now.getMonth(), y = args[1] ? parseInt(args[1], 10) : now.getFullYear();
-    if(!(m >= 0 && m < 12) || !(y > 0 && y < 10000)) return err('cal: uso cal [mes 1-12] [año]');
-    var title = new Date(y, m, 1).toLocaleDateString('es-ES', { month:'long', year:'numeric' });
-    var o = [' '.repeat(Math.max(0, Math.floor((20 - title.length) / 2))) + title, 'lu ma mi ju vi sá do'];
+    var en = termEN();
+    if(!(m >= 0 && m < 12) || !(y > 0 && y < 10000)) return err(en ? 'cal: use cal [month 1-12] [year]' : 'cal: uso cal [mes 1-12] [año]');
+    var title = new Date(y, m, 1).toLocaleDateString(en ? 'en-GB' : 'es-ES', { month:'long', year:'numeric' });
+    var heads = en ? ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'] : ['lu', 'ma', 'mi', 'ju', 'vi', 'sá', 'do'];
+    var head = heads.map(function(h){ return h.padEnd(3, ' '); }).join('');
+    var o = [' '.repeat(Math.max(0, Math.floor((head.length - title.length) / 2))) + title, head];
     var first = (new Date(y, m, 1).getDay() + 6) % 7, days = new Date(y, m + 1, 0).getDate(), line = '   '.repeat(first);
     for(var d = 1; d <= days; d++){
-      var cell = String(d).padStart(2); if(d === now.getDate() && m === now.getMonth() && y === now.getFullYear()) cell = cell.replace(/\d+/, function(x){ return x; }) + '*'; else cell += ' ';
+      var cell = String(d).padStart(2, ' ');
+      var today = d === now.getDate() && m === now.getMonth() && y === now.getFullYear();
+      cell = today ? (cell + '*') : (cell + ' ');
       line += cell; if((first + d) % 7 === 0){ o.push(line.replace(/\s+$/, '')); line = ''; }
     }
     if(line.trim()) o.push(line.replace(/\s+$/, ''));
-    o.push('(* = hoy)'); return o;
+    o.push(en ? '(* = today)' : '(* = hoy)'); return o;
   };
   function todoKey(){ return 'snkTermTodo:' + uname(); }
   function todoGet(){ try { var v = JSON.parse(localStorage.getItem(todoKey()) || '[]'); return Array.isArray(v) ? v : []; } catch(e){ return []; } }
@@ -640,5 +650,5 @@
     try{ C.help().forEach(function(l, i){ ctx.println(l, i === 0 ? "term-ok" : "term-muted"); }); }catch(e){}
     ctx.println("Tab autocompleta, ↑ ↓ para el historial. Escribe help para volver a ver esta lista.", "term-muted");
   }
-  window.SnakeTerminal = { handle: handle, mount: mount, banner: banner, prompt: prompt, setPrompt: setPrompt };
+  window.SnakeTerminal = { handle: handle, mount: mount, banner: banner, prompt: prompt, setPrompt: setPrompt, cal: C.cal };
 })();

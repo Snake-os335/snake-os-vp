@@ -973,6 +973,62 @@ def _blob_path(user_id: int, file_id: int) -> Path:
     return user_files_dir(user_id) / f"{int(file_id)}.b64"
 
 
+def data_url_payload_len(data_url: str) -> int:
+    """Bytes reales del archivo, no la longitud del texto data URL (base64 + prefijo)."""
+    if not isinstance(data_url, str) or not data_url:
+        return 0
+    i = data_url.find("base64,")
+    if i < 0:
+        return len(data_url.encode("utf-8"))
+    b64 = data_url[i + 7 :]
+    pad = 2 if b64.endswith("==") else (1 if b64.endswith("=") else 0)
+    return max(0, (len(b64) * 3) // 4 - pad)
+
+
+def blob_payload_len(path: Path):
+    """Igual que data_url_payload_len, leyendo solo la cabecera y los 2 últimos bytes del .b64."""
+    try:
+        n = path.stat().st_size
+        with path.open("rb") as fh:
+            head = fh.read(180)
+            if n > 2:
+                fh.seek(n - 2)
+                tail = fh.read(2)
+            else:
+                tail = head
+    except OSError:
+        return None
+    text = head.decode("ascii", "ignore")
+    i = text.find("base64,")
+    if i < 0:
+        return n
+    b64_len = n - (i + 7)
+    if b64_len <= 0:
+        return 0
+    pad = 2 if tail.endswith(b"==") else (1 if tail.endswith(b"=") else 0)
+    return max(0, (b64_len * 3) // 4 - pad)
+
+
+def _resolved_size(path: Path, size):
+    """Corrige el tamaño histórico (se guardaba len(dataUrl)) sin tocar el archivo."""
+    real = blob_payload_len(path) if path is not None else None
+    if real is None:
+        return size
+    if size is None:
+        return real
+    try:
+        given = int(size)
+    except (TypeError, ValueError):
+        return real
+    try:
+        disk = path.stat().st_size
+    except OSError:
+        return given
+    if given == disk or given > real or (given == 0 and real > 0):
+        return real
+    return given
+
+
 def _meta_entry(raw: dict, size=None):
     entry = {
         "id": raw.get("id"),
@@ -996,12 +1052,9 @@ def _extract_data_url(user_id: int, item: dict):
             raise ValueError("Archivo demasiado grande (máx %s bytes)" % MAX_FILE_BYTES)
         path = _blob_path(user_id, int(fid))
         path.write_text(data_url, encoding="utf-8")
-        return _meta_entry(item, size=len(data_url))
+        return _meta_entry(item, size=data_url_payload_len(data_url))
     path = _blob_path(user_id, int(fid))
-    size = item.get("size")
-    if path.exists() and size is None:
-        size = path.stat().st_size
-    return _meta_entry(item, size=size)
+    return _meta_entry(item, size=_resolved_size(path, item.get("size")))
 
 
 def migrate_inline_file_list(user_id: int, field: str):
@@ -1021,8 +1074,10 @@ def migrate_inline_file_list(user_id: int, field: str):
         else:
             entry = _meta_entry(item)
             path = _blob_path(user_id, int(item["id"]))
-            if path.exists() and "size" not in entry:
-                entry["size"] = path.stat().st_size
+            resolved = _resolved_size(path, entry.get("size"))
+            if resolved is not None and entry.get("size") != int(resolved):
+                entry["size"] = int(resolved)
+                changed = True
             meta.append(entry)
             if set(item.keys()) - {"id", "name", "type", "size"}:
                 changed = True
@@ -1063,7 +1118,7 @@ def save_uploaded_file(user_id, *, file_id, name, type_, data_url, in_trash=Fals
         raise ValueError("Límite de %s archivos alcanzado" % MAX_FILES_PER_USER)
     path = _blob_path(user_id, file_id)
     path.write_text(data_url, encoding="utf-8")
-    entry = _meta_entry({"id": file_id, "name": name, "type": type_}, size=len(data_url))
+    entry = _meta_entry({"id": file_id, "name": name, "type": type_}, size=data_url_payload_len(data_url))
     replaced = False
     for i, m in enumerate(meta):
         if m.get("id") == file_id:
