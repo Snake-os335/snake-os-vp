@@ -206,6 +206,23 @@
     var rows = [];
     function row(sec, id, ico, title, desc, kind, extra) { rows.push(Object.assign({ sec: sec, id: id, ico: ico, title: title, desc: desc, kind: kind }, extra || {})); }
     row('cuenta', 'locshare', '📡', 'Compartir ubicación con contactos', 'Tus contactos pueden verte en Mapas mientras tienes Snake OS abierto', 'action', { label: function () { var l = window.snkLocShare; return l ? (l.isOn() ? 'Ahora: activado' : 'Ahora: desactivado') : ''; }, btn: (window.snkLocShare && window.snkLocShare.isOn()) ? 'Desactivar' : 'Activar', run: function () { var l = window.snkLocShare; if (!l) return; var want = !l.isOn(); if (want && !window.confirm('¿Compartir tu ubicación con tus contactos? Solo la verán tus contactos, y solo mientras Snake OS esté abierto.')) return; l.set(want).then(function (v) { toast(v ? 'Compartiendo tu ubicación 📡' : 'Ya no compartes tu ubicación'); }).catch(function () { toast('No se pudo cambiar'); }); } });
+    if (email() && window.__snkPrivEmail !== email()) {
+      window.__snkPrivEmail = email();
+      apiCall('/api/me/privacy').then(function (d) {
+        window.__snkHideDir = !!(d && d.hideDirectory);
+        try { var a = document.querySelector('.snk4a-set-nav button.on'); if (a) a.click(); } catch (eP) {}
+      }).catch(function () { window.__snkPrivEmail = ''; });
+    }
+    row('cuenta', 'hidedir', '🙈', 'Ocultar presencia y actividad', 'Si está activo, tus contactos no ven tu nombre en quién está conectado ni en la actividad reciente. Se guarda en la cuenta, no solo en este aparato.', 'toggle', {
+      get: function () { return !!window.__snkHideDir; },
+      set: function (v) {
+        apiCall('/api/me/privacy', { method: 'PUT', body: { hideDirectory: !!v } }).then(function (d) {
+          window.__snkHideDir = !!(d && d.hideDirectory);
+          toast(window.__snkHideDir ? 'Oculto para tus contactos' : 'Visible para tus contactos');
+        }).catch(function () { toast('No se pudo guardar'); });
+      }
+    });
+    row('cuenta', 'sharesin', '📥', 'Compartido conmigo', 'Notas y eventos que un contacto te ha compartido. Si revoca el permiso, desaparecen.', 'action', { btn: 'Ver', run: function () { openSharedInbox(); } });
     row('apariencia', 'theme', '🌗', 'Tema', 'Cambia entre automático, claro y oscuro', 'action', { label: function () { return 'Ahora: ' + themeName(); }, btn: 'Cambiar tema', run: function () { var x = window.__snakeOsDesktopExtras; if (x && x.toggleTheme) x.toggleTheme(); } });
     row('apariencia', 'wallpaper', '🖼️', 'Fondo de pantalla', 'Elige el fondo de tu escritorio', 'action', { btn: 'Elegir fondo', run: function () { var b = $('tbWpBtn'); if (b) b.click(); else toast('Abre el escritorio para cambiar el fondo'); } });
     row('apariencia', 'text', '🔠', 'Tamaño del texto', 'Normal, grande o muy grande', 'action', { label: function () { var t = $('qsTextSize'); return t ? t.textContent.replace(/^\s*🔠\s*/, '').trim() : ''; }, btn: 'Cambiar tamaño', run: function () { if (!clickTile('qsTextSize')) toast('Abre los Ajustes rápidos una vez y vuelve a intentarlo'); } });
@@ -679,6 +696,115 @@
   function EN() { return !!(window.snakeI18n && window.snakeI18n.lang === 'en'); }
   function T(es, en) { return EN() ? en : es; }
 
+  addCss(
+    '.snk-share-pop{position:fixed;left:50%;top:10vh;transform:translateX(-50%);z-index:12040;width:min(440px,94vw);max-height:74vh;overflow:auto;padding:14px 14px 12px;border-radius:16px;background:rgba(8,22,14,.97);color:#eafff1;border:1px solid rgba(157,255,194,.4);box-shadow:0 16px 36px rgba(0,0,0,.5)}' +
+    '.snk-share-pop h4{margin:0 0 4px;font-size:1rem}' +
+    '.snk-share-pop p{margin:0 0 10px;font-size:.78rem;line-height:1.35;opacity:.88}' +
+    '.snk-share-row{display:flex;align-items:center;gap:8px;margin:6px 0}' +
+    '.snk-share-row span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
+    '.snk-share-pop .snk4a-btn{min-height:44px}' +
+    '.snk-share-item{padding:8px 0;border-top:1px solid rgba(255,255,255,.12);font-size:.84rem;white-space:pre-wrap;word-break:break-word}' +
+    '.snk-share-item b{display:block;margin-bottom:2px}'
+  );
+  var sharePop = null;
+  function closeSharePop() { if (sharePop) { try { sharePop.remove(); } catch (e) {} sharePop = null; } }
+  function shareContacts() {
+    return apiCall('/api/chat/users').then(function (d) { return (d && d.users) || []; });
+  }
+  function shareOutgoing() {
+    return apiCall('/api/shares/outgoing').then(function (d) { return (d && d.items) || []; }).catch(function () { return []; });
+  }
+  function shareSame(it, spec, uid) {
+    return it && it.kind === spec.kind && String(it.itemId) === String(spec.itemId) && String(it.day || '') === String(spec.day || '') && +it.recipientId === +uid;
+  }
+  function openSharePicker(spec) {
+    closeSharePop();
+    if (!email()) { toast('Inicia sesión para compartir'); return; }
+    var pop = document.createElement('div');
+    pop.className = 'snk-share-pop';
+    pop.setAttribute('role', 'dialog');
+    pop.setAttribute('aria-modal', 'true');
+    pop.setAttribute('aria-label', 'Compartir con un contacto');
+    var title = document.createElement('h4');
+    title.textContent = spec.kind === 'event' ? 'Compartir este evento' : 'Compartir esta nota';
+    var hint = document.createElement('p');
+    hint.textContent = 'Solo lo ve el contacto que elijas. Revocar lo quita de su lista. No se envía un aviso.';
+    var box = document.createElement('div');
+    box.textContent = 'Cargando contactos…';
+    var shut = document.createElement('button');
+    shut.type = 'button'; shut.className = 'snk4a-btn'; shut.textContent = 'Cerrar';
+    shut.addEventListener('click', closeSharePop);
+    pop.appendChild(title); pop.appendChild(hint); pop.appendChild(box); pop.appendChild(shut);
+    document.body.appendChild(pop);
+    sharePop = pop;
+    Promise.all([shareContacts(), shareOutgoing()]).then(function (pair) {
+      if (sharePop !== pop) return;
+      var users = pair[0], out = pair[1];
+      box.textContent = '';
+      if (!users.length) { box.textContent = 'Primero añade un contacto en Chat.'; return; }
+      users.forEach(function (u) {
+        var row = document.createElement('div');
+        row.className = 'snk-share-row';
+        var name = document.createElement('span');
+        name.textContent = u.name || 'Contacto';
+        var on = out.some(function (it) { return shareSame(it, spec, u.id); });
+        var b = document.createElement('button');
+        b.type = 'button'; b.className = 'snk4a-btn';
+        b.textContent = on ? 'Revocar' : 'Compartir';
+        b.setAttribute('aria-label', (on ? 'Revocar a ' : 'Compartir con ') + (u.name || 'contacto'));
+        b.addEventListener('click', function () {
+          var body = { kind: spec.kind, itemId: String(spec.itemId), day: spec.day || '', recipientId: u.id };
+          var req = on
+            ? apiCall('/api/shares/revoke', { method: 'POST', body: body })
+            : apiCall('/api/shares', { method: 'POST', body: body });
+          req.then(function () { toast(on ? 'Permiso revocado' : 'Compartido solo con ese contacto'); closeSharePop(); })
+            .catch(function (err) { toast((err && err.message) || 'No se pudo cambiar'); });
+        });
+        row.appendChild(name); row.appendChild(b); box.appendChild(row);
+      });
+    }).catch(function () { if (sharePop === pop) box.textContent = 'No se pudieron cargar los contactos.'; });
+  }
+  function openSharedInbox() {
+    closeSharePop();
+    if (!email()) { toast('Inicia sesión para ver lo compartido'); return; }
+    var pop = document.createElement('div');
+    pop.className = 'snk-share-pop';
+    pop.setAttribute('role', 'dialog');
+    pop.setAttribute('aria-label', 'Compartido conmigo');
+    var title = document.createElement('h4');
+    title.textContent = 'Compartido conmigo';
+    var hint = document.createElement('p');
+    hint.textContent = 'Solo notas y eventos que un contacto compartió contigo. Si lo revoca, lo borra o deja de ser contacto, desaparece. El calendario no guarda zona horaria ni repetición, así que aquí no se marcan recordatorios como vencidos.';
+    var box = document.createElement('div');
+    box.textContent = 'Cargando…';
+    var shut = document.createElement('button');
+    shut.type = 'button'; shut.className = 'snk4a-btn'; shut.textContent = 'Cerrar';
+    shut.addEventListener('click', closeSharePop);
+    pop.appendChild(title); pop.appendChild(hint); pop.appendChild(box); pop.appendChild(shut);
+    document.body.appendChild(pop);
+    sharePop = pop;
+    apiCall('/api/shares').then(function (d) {
+      if (sharePop !== pop) return;
+      var items = (d && d.items) || [];
+      box.textContent = '';
+      if (!items.length) { box.textContent = 'Nadie ha compartido una nota o un evento contigo.'; return; }
+      items.forEach(function (it) {
+        var el = document.createElement('div');
+        el.className = 'snk-share-item';
+        var who = document.createElement('b');
+        who.textContent = (it.from && it.from.name) || 'Contacto';
+        el.appendChild(who);
+        var body = document.createElement('div');
+        if (it.kind === 'event') body.textContent = (it.day || '') + (it.time ? ' · ' + it.time : '') + ' · ' + (it.title || '');
+        else body.textContent = it.text || '';
+        el.appendChild(body);
+        box.appendChild(el);
+      });
+    }).catch(function () { if (sharePop === pop) box.textContent = 'No se pudo cargar.'; });
+  }
+  window.snkOpenSharePicker = openSharePicker;
+  window.snkOpenSharedInbox = openSharedInbox;
+
   function renderCalendarApp(body) {
     var now = new Date();
     var view = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -770,6 +896,7 @@
       if (!list.length) html += '<div class="snk4a-empty" style="padding:8px">📭 ' + esc(T('Sin eventos este día', 'No events this day')) + '</div>';
       list.forEach(function (e) {
         html += '<div class="snk4a-cal-ev" style="border-left-color:' + esc(e.c || '#34d17a') + '"><b>' + esc(e.h || T('Todo el día', 'All day')) + '</b><span>' + esc(e.t) + '</span>' +
+          '<button type="button" data-share="' + esc(e.id) + '" aria-label="' + esc(T('Compartir evento', 'Share event')) + '" title="' + esc(T('Compartir con un contacto', 'Share with a contact')) + '">🤝</button>' +
           '<button type="button" data-del="' + esc(e.id) + '" aria-label="' + esc(T('Borrar evento', 'Delete event')) + '" title="' + esc(T('Borrar', 'Delete')) + '">✕</button></div>';
       });
       html += '<div class="snk4a-cal-add"><input type="time" class="snk4a-input" aria-label="' + esc(T('Hora', 'Time')) + '">' +
@@ -819,6 +946,11 @@
           }
           inp.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') commit(true); else if (ev.key === 'Escape') commit(false); });
           inp.addEventListener('blur', function () { commit(true); });
+        });
+      });
+      side.querySelectorAll('[data-share]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          openSharePicker({ kind: 'event', itemId: b.dataset.share, day: sel });
         });
       });
       side.querySelectorAll('[data-del]').forEach(function (b) {
@@ -1244,6 +1376,7 @@
         var name = String(n.text || 'nota').split('\n')[0].replace(/[\\/:*?"<>|]+/g, '').trim().slice(0, 40) || 'nota';
         downloadText(name + '.txt', n.text || '');
       });
+      fb('🤝', 'Compartir con un contacto', function () { openSharePicker({ kind: 'note', itemId: String(n.id) }); });
       fb('🗑️', 'Eliminar', function () { removeNote(n); });
       el.appendChild(foot);
       if (openColors === n.id) {
