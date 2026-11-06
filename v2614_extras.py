@@ -60,9 +60,15 @@ def build_router(require_user: Callable[..., Any]) -> APIRouter:
         if not isinstance(body, dict):
             raise HTTPException(status_code=400, detail="Datos no válidos")
         try:
-            return calendar_extras.put_events(uid, body.get("events"))
+            saved = calendar_extras.put_events(uid, body.get("events"))
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
+        try:
+            import privacy_share
+            privacy_share.retain_events(uid, saved.get("events") if isinstance(saved, dict) else {})
+        except Exception:
+            pass
+        return saved
 
     @r.get("/api/store/ratings")
     def ratings(user=Depends(require_user)):

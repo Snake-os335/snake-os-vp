@@ -119,11 +119,13 @@ var html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 assert.ok(html.indexOf("window.SNAKE_OS_VERSION='2026.16'") >= 0);
 assert.ok(html.indexOf("{v:'2026.16'") >= 0);
 assert.ok(html.indexOf("{v:'2026.16'") < html.indexOf("{v:'2026.15'"));
-['doganiero-chat.js', 'snake-apps-extras.js', 'snake-terminal.js', 'doganiero-phone.js', 'snake-i18n.js', 'snake-2615.js', 'snake-2616.js'].forEach(function (f) {
+['doganiero-chat.js', 'snake-terminal.js', 'doganiero-phone.js', 'snake-i18n.js', 'snake-2615.js', 'snake-2616.js'].forEach(function (f) {
   if (html.indexOf('/static/' + f + '?v=202611052140') < 0) fail('falta ?v= en ' + f);
 });
+if (html.indexOf('/static/snake-apps-extras.js?v=202611060800') < 0) fail('falta cachebust de snake-apps-extras.js');
 assert.ok(html.indexOf('snake-2616.js?v=202611052140') >= 0);
-ok('versión 2026.16 y ?v=202611052140');
+assert.ok(html.indexOf("window.SNAKE_OS_VERSION='2026.16'") >= 0);
+ok('versión 2026.16 y cachebust de extras');
 
 if (process.exitCode) process.exit(process.exitCode);
 console.log('todo bien');

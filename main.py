@@ -491,7 +491,7 @@ def signup(body: SignupBody, response: Response, request: Request, _gate: None =
         pass
     sid = start_session(int(user["id"]))
     set_session_cookie(response, sid)
-    note_activity("cuenta", user["name"])
+    note_activity("cuenta", user["name"], int(user["id"]))
     return db.user_public(user)
 
 
@@ -545,7 +545,7 @@ def login(body: LoginBody, response: Response, request: Request, _gate: None = D
             user = unlocked
         sid = start_session(int(user["id"]))
         set_session_cookie(response, sid)
-        note_activity("inicio", user["name"])
+        note_activity("inicio", user["name"], int(user["id"]))
         return db.user_public(user)
     finally:
         _login_matrix_dots(False)
@@ -1567,6 +1567,11 @@ def get_notes(user=Depends(require_user)):
 def put_notes(payload: list[Any], user=Depends(require_user)):
     payload = _tomb_notes(int(user["id"]), payload)
     db.set_json_field(int(user["id"]), "notes", payload)
+    try:
+        import privacy_share
+        privacy_share.retain_notes(int(user["id"]), payload)
+    except Exception:
+        pass
     return payload
 
 
@@ -1608,7 +1613,7 @@ def upload_file(body: FileUploadBody, user=Depends(require_user)):
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
-    note_activity("archivo", user["name"])
+    note_activity("archivo", user["name"], int(user["id"]))
     return entry
 
 
@@ -6283,34 +6288,66 @@ async def online_count():
 _activity = []
 
 
-def note_activity(kind, who):
-    """Hecho reciente de Snake OS. Solo el tipo y el nombre, nunca el texto privado."""
+def note_activity(kind, who, user_id=None):
+    """Hecho reciente. Sin user_id no se guarda: el nombre suelto no se puede autorizar."""
     name = str(who or "").strip()[:24]
     label = str(kind or "hecho").strip()[:16]
-    if not name:
+    try:
+        uid = int(user_id)
+    except (TypeError, ValueError):
         return
-    _activity.append({"k": label, "w": name, "at": time.time()})
+    if not name or uid <= 0:
+        return
+    _activity.append({"k": label, "uid": uid, "w": name, "at": time.time()})
     del _activity[:-12]
 
 
-@app.get("/api/online/names")
-async def online_names():
-    """Nombres de las cuentas Dogaemail con Snake OS abierto."""
-    names = []
+def _directory_for(viewer_id: int) -> dict[str, Any]:
+    """Nombres en línea y actividad solo de contactos autorizados. Sin correos ni ids."""
+    import privacy_share
+
+    allowed = privacy_share.directory_user_ids(int(viewer_id))
+    names: list[str] = []
+    seen: set[str] = set()
     for uid in list(chat_hub._clients.keys()):
         try:
-            row = db.get_user_by_id(int(uid))
+            uid_i = int(uid)
+        except (TypeError, ValueError):
+            continue
+        if uid_i not in allowed:
+            continue
+        try:
+            row = db.get_user_by_id(uid_i)
         except Exception:
             row = None
         if not row:
             continue
-        name = str(row["name"] or "").strip()
-        email = str(row["email"] or "").strip()
-        if not name and "@" in email:
-            name = email.split("@", 1)[0]
-        if name:
-            names.append(name)
-    return {"names": names}
+        name = str(row["name"] or "").strip()[:24]
+        if not name or name in seen:
+            continue
+        seen.add(name)
+        names.append(name)
+    events: list[dict[str, Any]] = []
+    for ev in list(_activity):
+        try:
+            uid_i = int(ev.get("uid") or 0)
+        except (TypeError, ValueError):
+            continue
+        if uid_i not in allowed:
+            continue
+        label = str(ev.get("k") or "")[:16]
+        who = str(ev.get("w") or "").strip()[:24]
+        if not label or not who:
+            continue
+        events.append({"k": label, "w": who, "at": float(ev.get("at") or 0)})
+    names.sort()
+    return {"names": names, "events": events}
+
+
+@app.get("/api/online/names")
+async def online_names(user=Depends(require_user)):
+    """Nombres de contactos mutuos con Snake OS abierto y sin ocultar el directorio."""
+    return {"names": _directory_for(int(user["id"]))["names"]}
 
 
 _room_climate = {"c": None, "h": None, "err": "", "at": 0.0}
@@ -6669,10 +6706,9 @@ def keypad_poll(after: int = 0):
 
 
 @app.get("/api/activity")
-async def activity_feed():
-    """Resumen para la placa: quien esta dentro y los ultimos hechos, sin mensajes."""
-    live = await online_names()
-    return {"names": live.get("names") or [], "events": list(_activity)}
+async def activity_feed(user=Depends(require_user)):
+    """Quién está dentro y los últimos hechos, solo de contactos autorizados. Sin correos."""
+    return _directory_for(int(user["id"]))
 
 
 @app.get("/api/room/climate")
@@ -7551,7 +7587,7 @@ async def chat_send(body: ChatSendBody, user=Depends(require_user)):
     await chat_hub.send_to_user(peer_id, msg_payload)
     await chat_hub.send_to_user(peer_id, notif_payload)
     _queue_notif_push(peer_id, notif)
-    note_activity("chat", user["name"])
+    note_activity("chat", user["name"], uid)
     return {"message": saved, "notificationId": notif["id"]}
 
 
@@ -7666,7 +7702,7 @@ async def chat_video_finish(upload_id: str, body: ChatVideoFinishBody, user=Depe
     await chat_hub.send_to_user(peer_id, {"type": "chat_message", "message": saved})
     await chat_hub.send_to_user(peer_id, {"type": "notification", "notification": notif, "unread": db.count_unread_notifications(user_id=peer_id)})
     _queue_notif_push(peer_id, notif)
-    note_activity("chat", user["name"])
+    note_activity("chat", user["name"], uid)
     return {"message": saved, "notificationId": notif["id"]}
 
 
@@ -8886,6 +8922,10 @@ async def chat_ws(websocket: WebSocket):
             if mtype == "ping":
                 await websocket.send_text(json.dumps({"type": "pong"}))
                 continue
+            if mtype in ("directory", "online_names", "activity"):
+                snap = _directory_for(uid)
+                await websocket.send_text(json.dumps({"type": "directory", "names": snap["names"], "events": snap["events"]}, ensure_ascii=False))
+                continue
             if mtype == "loc_share":
                 try:
                     await _handle_loc_share(uid, msg, user_row)
@@ -9405,7 +9445,7 @@ def _doga_on_signup(user) -> None:
         dog_phone.ensure_number(int(user["id"]))
     except Exception:
         pass
-    note_activity("cuenta", user["name"])
+    note_activity("cuenta", user["name"], int(user["id"]))
 
 
 hardening.IP_RESOLVER = _visitor_ip  # 2026.14b: misma IP de visitante en límites y bloqueos
@@ -9414,6 +9454,8 @@ app.include_router(doga_hub.build_router(COOKIE_NAME, _visitor_ip))
 app.include_router(pro_extras.build_router(require_user, _visitor_ip, lambda request: doga_auth.site_user(request, "pro")))
 import v2614_extras  # 2026.14: /api/calendar y /api/store/ratings (faltaban)
 app.include_router(v2614_extras.build_router(require_user))
+import privacy_share
+app.include_router(privacy_share.build_router(require_user))
 
 
 # --- Snake OS Kids: entrega del resumen semanal y códigos al Dogaemail del adulto (notificaciones de Snake OS) ---

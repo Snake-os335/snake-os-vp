@@ -1604,6 +1604,18 @@ def delete_user(user_id: int) -> bool:
         )
         _delete_if_table(
             conn,
+            "privacy_shares",
+            "DELETE FROM privacy_shares WHERE owner_id = ? OR recipient_id = ?",
+            (uid, uid),
+        )
+        _delete_if_table(
+            conn,
+            "privacy_flags",
+            "DELETE FROM privacy_flags WHERE user_id = ?",
+            (uid,),
+        )
+        _delete_if_table(
+            conn,
             "calendar_events",
             "DELETE FROM calendar_events WHERE user_id = ?",
             (uid,),

@@ -309,5 +309,10 @@ def remove(owner_id: int, contact_id: int) -> dict[str, Any]:
             "WHERE (from_id = ? AND to_id = ?) OR (from_id = ? AND to_id = ?)",
             (owner_id, contact_id, contact_id, owner_id),
         )
+    try:
+        import privacy_share
+        privacy_share.drop_pair(owner_id, contact_id)
+    except Exception:
+        pass
     return {"status": "removed", "contactId": contact_id}
 
