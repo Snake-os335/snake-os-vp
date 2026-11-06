@@ -9,8 +9,12 @@ Cuando el trabajo de una tarea está **terminado y validado**, hay que:
 
 1. **Commitear** los cambios en `main`.
 2. **Pushear** a `origin` (`git push origin main`).
-3. **Desplegar a producción**: el push ya despliega solo (auto-deploy del VPS, ≤3 min); hay que
-   **verificar** que prod sirve ese commit (`/api/status`) y, si corre prisa, lanzar la update a mano.
+3. **Publicar (deploy) en producción**: se publica **siempre** al terminar, no "para luego", y no se
+   pregunta si se publica. El push ya dispara el auto-deploy del VPS (≤3 min): hay que **verificar** que
+   prod sirve ese commit (`/api/status`) y, si hace falta que sea al instante, lanzar la update a mano.
+
+**Siempre se publica al terminar.** Una tarea no está acabada hasta que el código está en
+producción y verificado, aunque el cambio sea de documentación o de reglas.
 
 No se deja trabajo terminado sin commitear, ni commits sin subir, ni commits sin desplegar y verificar.
 Si la tarea termina en un punto intermedio (a medias, sin validar), se avisa explícitamente de por qué

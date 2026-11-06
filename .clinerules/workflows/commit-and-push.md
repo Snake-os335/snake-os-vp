@@ -3,6 +3,9 @@
 Skill reutilizable: ejecuta el cierre obligatorio de cualquier tarea del proyecto.
 Uso: `/commit-and-push` al finalizar una tarea ya validada.
 
+**Cierre obligatorio y siempre igual: commit → push → publicar (deploy) en producción y verificar.**
+No se deja nada terminado sin publicar y no se pregunta si se publica.
+
 ## Pasos
 
 1. **Revisar estado** (qué está modificado vs. nuevo):
