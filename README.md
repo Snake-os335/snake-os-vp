@@ -22,7 +22,8 @@ Python/Docker; health-check (rollback si falla); mantiene la pantalla al menos `
 `scripts/update-end.sh`. Sin commits nuevos también relanza la update. Log: `/srv/juegos_david/logs/snake-auto-deploy.log`.
 
 - **Versión automática:** `/api/status` → `version` = commit + firma (mtime/tamaño) de los .js/.css/.html servidos.
-  Cambia en cada despliegue, aunque solo cambien archivos estáticos y sin reiniciar.
+  Cambia en cada despliegue, aunque solo cambien archivos estáticos y sin reiniciar. `started` = hora de arranque
+  del proceso: solo cambia cuando el contenedor se reinicia (es lo único que recarga el código Python).
 - **?v= automático:** `/` reescribe cada `src=/href="/static/..."` de `index.html` con el token real del archivo.
   Ya no hace falta subir los `?v=` a mano. `/static` con el token correcto → caché inmutable; sin él → `no-cache`
   (revalida con ETag; antes Cloudflare lo guardaba 4 h).
@@ -34,6 +35,16 @@ fetch anónimo HTTPS de `main`; si hay commits nuevos y es fast-forward → `upd
 health-check (200 + `/api/status`), `update-end.sh`. Si algo falla vuelve al commit anterior y no reintenta ese commit.
 Log: `/srv/juegos_david/logs/snake-auto-deploy.log`. Para desplegar basta con hacer push a `main`.
 Si cambias `scripts/auto-deploy.sh`, vuelve a copiarlo a `/srv/juegos_david/bin/`.
+
+**Comprobado el 6-nov-2026: en el VPS la copia en `/srv/juegos_david/bin/` está desfasada y no reinicia el
+contenedor.** El cron mueve el commit (los `.html`/`.js`/`.css` se sirven al instante) pero el `.py` sigue
+siendo el anterior: se ve porque `/api/status` no devuelve `started`. Para arreglarlo, en el VPS:
+
+```bash
+cp /srv/juegos_david/snake-os-vp/scripts/auto-deploy.sh /srv/juegos_david/bin/snake-auto-deploy.sh
+cd /srv/juegos_david/snake-os-vp && docker compose up -d web   # recarga el código Python nuevo
+curl -s http://127.0.0.1:8988/api/status                       # debe aparecer "started"
+```
 
 ### Qué ven los usuarios al actualizar
 - Pestañas abiertas (comprueban `/api/status` cada 20 s, cada 3 s durante la update y al volver a la pestaña):

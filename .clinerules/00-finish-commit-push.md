@@ -56,6 +56,9 @@ Si la tarea termina en un punto intermedio (a medias, sin validar), se avisa exp
   `scripts/auto-deploy.sh`) despliega cada 3 min sin intervención: pantalla de actualización, backup
   (`git bundle`), `merge --ff-only`, reinicio del contenedor solo si cambian `.py`/Docker/requirements,
   health-check y **rollback automático** si falla (ese commit queda marcado como `bad`).
+  Ojo (comprobado el 6-nov-2026): en el VPS esa copia está **desfasada** y no reinicia el contenedor, así que
+  los estáticos se actualizan pero el código Python no; se detecta porque `/api/status` no trae `started`
+  (ver README, «Auto-deploy en la VM»).
 - **No existe autorización previa de nadie ni ficheros `ROLLBACK.json`/`MANIFEST.json` que respetar.**
   El único control es el health-check con rollback del propio auto-deploy. Por tanto: **no preguntes
   "¿lo despliego?"**; termina, valida, commitea, pushea y verifica el deploy.
