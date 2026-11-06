@@ -1362,15 +1362,16 @@ function handleRealtimePayload(msg) {
           handleRealtimePayload(JSON.parse(ev.data));
         } catch (e) {}
       };
+      ws.onopen = function () {
+        if (notifState.ws !== ws) return;
+        dcClearWsGrace();
+        if (dcCall.phase === 'active') dcResumeCallMedia();
+      };
       ws.onclose = function () {
-        notifState.ws = null;
-        // Socket dropped mid-call: error cue once. Callee still ringing is left so the invite can return.
-        if (dcCall.phase === 'active' || (dcCall.phase === 'ringing' && dcCall.role === 'caller')) {
-          try { dcDropForError('ws'); } catch (eDrop) {}
-        }
-        if (currentUser()) {
-          setTimeout(connectChatWs, 2500);
-        }
+        if (notifState.ws === ws) notifState.ws = null;
+        var inCall = dcCall.phase === 'active' || (dcCall.phase === 'ringing' && dcCall.role === 'caller');
+        if (inCall) dcArmWsGrace();
+        if (currentUser()) setTimeout(connectChatWs, inCall ? 400 : 2500);
       };
       ws.onerror = function () {
         try { ws.close(); } catch (e) {}
@@ -1621,7 +1622,10 @@ function handleRealtimePayload(msg) {
     fallbackImg: null,
     videoTimer: null,
     videoMinimized: false,
-    labelHidden: false
+    labelHidden: false,
+    primed: null,
+    wsGrace: null,
+    pcFailTimer: null
   };
 
   function dcSnapshot() {
@@ -1848,8 +1852,10 @@ function handleRealtimePayload(msg) {
       el.id = 'dcCallDock';
       el.className = 'dc-call-dock';
       el.setAttribute('role', 'status');
-      var clock = document.getElementById('clock');
-      if (clock && clock.parentNode === host) host.insertBefore(el, clock);
+      var items = document.getElementById('taskItems');
+      var start = document.getElementById('startBtn');
+      if (items && items.parentNode === host) host.insertBefore(el, items);
+      else if (start && start.parentNode === host) host.insertBefore(el, start.nextSibling);
       else host.appendChild(el);
     }
     var name = dcPeerName();
@@ -2145,10 +2151,92 @@ function handleRealtimePayload(msg) {
       dcCall.audioCtx = new Ctx();
       dcStopPcmSend();
     }
+    if (!dcCall.audioCtx._dcBound) {
+      dcCall.audioCtx._dcBound = true;
+      dcCall.audioCtx.onstatechange = function () {
+        var ctx = dcCall.audioCtx;
+        if (!ctx || dcCall.phase !== 'active') return;
+        if (ctx.state === 'suspended' || ctx.state === 'interrupted') {
+          ctx.resume().catch(function () {});
+          if (!dcCall.pcmProc) dcStartPcmSend();
+        }
+      };
+    }
     if (dcCall.audioCtx.state === 'suspended' || dcCall.audioCtx.state === 'interrupted') {
       dcCall.audioCtx.resume().catch(function () {});
     }
     return dcCall.audioCtx;
+  }
+  function dcStopStream(stream) {
+    if (!stream || !stream.getTracks) return;
+    stream.getTracks().forEach(function (t) { try { t.stop(); } catch (e) {} });
+  }
+  function dcUnlockAudioNow() {
+    try {
+      var ctx = dcEnsureCtx();
+      if (ctx) {
+        try {
+          var buf = ctx.createBuffer(1, 1, 22050);
+          var src = ctx.createBufferSource();
+          src.buffer = buf;
+          src.connect(ctx.destination);
+          src.start(0);
+        } catch (eBuf) {}
+        if (ctx.state === 'suspended' || ctx.state === 'interrupted') ctx.resume().catch(function () {});
+      }
+    } catch (eCtx) {}
+    try {
+      var audio = dcEnsureAudio();
+      audio.muted = false;
+      try { audio.volume = 1; } catch (eV) {}
+      var pr = audio.play();
+      if (pr && typeof pr.catch === 'function') pr.catch(function () {});
+    } catch (eA) {}
+  }
+  function dcDiscardPrime() {
+    var primed = dcCall.primed;
+    dcCall.primed = null;
+    if (!primed || !primed.promise) return;
+    primed.promise.then(function (stream) {
+      if (dcCall.localStream === stream) return;
+      dcStopStream(stream);
+    }, function () {});
+  }
+  function dcPrimeMic(wantVideo) {
+    dcUnlockAudioNow();
+    var want = !!wantVideo;
+    var prev = dcCall.primed;
+    if (prev && prev.video === want && (Date.now() - prev.at) < 15000) return prev;
+    dcDiscardPrime();
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return null;
+    var audioC = { echoCancellation: true, noiseSuppression: true, autoGainControl: true };
+    var constraints = want
+      ? { audio: audioC, video: { facingMode: { ideal: 'user' }, width: { ideal: 640 }, height: { ideal: 480 } } }
+      : { audio: audioC, video: false };
+    var promise;
+    try { promise = navigator.mediaDevices.getUserMedia(constraints); }
+    catch (eG) { return null; }
+    promise.then(function () {}, function () {});
+    dcCall.primed = { video: want, promise: promise, at: Date.now() };
+    return dcCall.primed;
+  }
+  function dcClearWsGrace() {
+    if (dcCall.wsGrace) { clearTimeout(dcCall.wsGrace); dcCall.wsGrace = null; }
+  }
+  function dcArmWsGrace() {
+    if (dcCall.wsGrace) return;
+    if (!(dcCall.phase === 'active' || (dcCall.phase === 'ringing' && dcCall.role === 'caller'))) return;
+    var gen = dcCall.gen;
+    var id = dcCall.callId;
+    dcCall.wsGrace = setTimeout(function () {
+      dcCall.wsGrace = null;
+      if (dcCall.gen !== gen || dcCall.callId !== id) return;
+      if (notifState.ws && notifState.ws.readyState === 1) return;
+      if (dcCall.phase === 'active' || (dcCall.phase === 'ringing' && dcCall.role === 'caller')) dcDropForError('ws');
+    }, 12000);
+  }
+  function dcClearPcFail() {
+    if (dcCall.pcFailTimer) { clearTimeout(dcCall.pcFailTimer); dcCall.pcFailTimer = null; }
   }
   function dcEnsureGain() {
     var ctx = dcEnsureCtx();
@@ -2195,6 +2283,29 @@ function handleRealtimePayload(msg) {
       }
       try { dcEnsureCtx(); } catch (e2) {}
       dcSyncVideoStage();
+      stream.getTracks().forEach(function (t) {
+        if (!t || t._dcWatch) return;
+        t._dcWatch = true;
+        t.addEventListener('ended', function () {
+          if (dcCall._reacq || dcCall.phase !== 'active' || dcCall.localStream !== stream) return;
+          var kind = t.kind;
+          if (liveTrack(dcCall.localStream, kind)) return;
+          dcCall._reacq = true;
+          dcEnsureMic().then(function () {
+            dcCall._reacq = false;
+            if (dcCall.phase !== 'active') return;
+            var addedNow = dcBindLocalToPc();
+            dcStartPcmSend();
+            if (addedNow && dcCall.role === 'caller' && dcCall.pc && dcCall.pc.signalingState === 'stable' && !dcCall.pc._makingOffer) dcMakeOffer();
+          }, function () { dcCall._reacq = false; });
+        });
+      });
+      if (dcCall.phase === 'active' && dcCall.pc) {
+        var addedTrack = dcBindLocalToPc();
+        if (addedTrack && dcCall.role === 'caller' && dcCall.pc && dcCall.pc.signalingState === 'stable' && !dcCall.pc._makingOffer) {
+          dcMakeOffer();
+        }
+      }
       return stream;
     }
     if (dcCall.localStream) {
@@ -2210,21 +2321,21 @@ function handleRealtimePayload(msg) {
         return navigator.mediaDevices.getUserMedia({ audio: true, video: false }).then(adopt);
       });
     }
-    if (!wantVideo) return audioOnly();
-
     function deniedName(err) {
       var name = (err && err.name) || '';
       return name === 'NotAllowedError' || name === 'PermissionDeniedError';
     }
-    function cameraGranted() {
+    function cameraPermState() {
       try {
-        if (!navigator.permissions || !navigator.permissions.query) return Promise.resolve(false);
+        if (!navigator.permissions || !navigator.permissions.query) return Promise.resolve('unknown');
       } catch (e0) {
-        return Promise.resolve(false);
+        return Promise.resolve('unknown');
       }
       return navigator.permissions.query({ name: 'camera' }).then(function (st) {
-        return !!(st && st.state === 'granted');
-      }, function () { return false; });
+        var s = st && st.state;
+        if (s === 'granted' || s === 'denied' || s === 'prompt') return s;
+        return 'unknown';
+      }, function () { return 'unknown'; });
     }
     function withoutCamera(denial) {
       var note = denial
@@ -2308,8 +2419,8 @@ function handleRealtimePayload(msg) {
         }, function (err) {
           if (err && err.message === 'cancel') throw err;
           if (!deniedName(err)) return withoutCamera(false);
-          return cameraGranted().then(function (ok) {
-            return withoutCamera(!ok);
+          return cameraPermState().then(function (st) {
+            return withoutCamera(st === 'denied');
           });
         });
       }
@@ -2346,15 +2457,39 @@ function handleRealtimePayload(msg) {
           }, function (errV) {
             if (errV && errV.message === 'cancel') throw errV;
             if (!deniedName(errV)) return openVideo(i + 1);
-            return cameraGranted().then(function (ok) {
-              if (ok) return openVideo(i + 1);
+            return cameraPermState().then(function (st) {
+              if (st !== 'denied') return openVideo(i + 1);
               return withoutCamera(true);
             });
           });
         }
-        return withoutCamera(true);
+        return cameraPermState().then(function (st) {
+          if (st !== 'denied') return openVideo(i + 1);
+          return withoutCamera(true);
+        });
       });
     }
+    var primed = dcCall.primed;
+    if (primed && primed.video === wantVideo && (Date.now() - primed.at) < 20000 && primed.promise) {
+      dcCall.primed = null;
+      return primed.promise.then(function (stream) {
+        if (dcCall.gen !== gen || dcCall.phase === 'idle') {
+          dcStopStream(stream);
+          throw new Error('cancel');
+        }
+        if (wantVideo && !liveTrack(stream, 'video')) {
+          if (liveTrack(stream, 'audio') && !liveTrack(dcCall.localStream, 'audio')) dcCall.localStream = stream;
+          else dcStopStream(stream);
+          return openVideo(0);
+        }
+        return adopt(stream);
+      }, function (err) {
+        if (err && err.message === 'cancel') throw err;
+        if (!wantVideo) return audioOnly();
+        return openVideo(0);
+      });
+    }
+    if (!wantVideo) return audioOnly();
     return openVideo(0);
   }
   function dcStartPcmSend() {
@@ -2398,6 +2533,14 @@ function handleRealtimePayload(msg) {
     var a = dcCall.remoteAudio;
     if (!a || !a.srcObject || a.muted || a.paused) return false;
     if (typeof a.volume === 'number' && a.volume <= 0) return false;
+    try {
+      var tracks = a.srcObject.getAudioTracks ? a.srcObject.getAudioTracks() : [];
+      var anyOn = false;
+      for (var i = 0; i < tracks.length; i++) {
+        if (tracks[i] && tracks[i].enabled !== false && tracks[i].readyState === 'live') anyOn = true;
+      }
+      if (tracks.length && !anyOn) return false;
+    } catch (eTr) {}
     return true;
   }
   function dcPlayPcm(b64, rate) {
@@ -2462,16 +2605,58 @@ function handleRealtimePayload(msg) {
     dcCall.pendingIce = [];
     list.forEach(function (cand) { pc.addIceCandidate(cand).catch(function () {}); });
   }
+  function dcBindLocalToPc() {
+    var pc = dcCall.pc;
+    var stream = dcCall.localStream;
+    if (!pc || !stream || !pc.getSenders) return false;
+    var senders = pc.getSenders();
+    var added = false;
+    stream.getTracks().forEach(function (track) {
+      if (!track || track.readyState !== 'live') return;
+      var i;
+      for (i = 0; i < senders.length; i++) {
+        if (senders[i] && senders[i].track === track) return;
+      }
+      for (i = 0; i < senders.length; i++) {
+        var s = senders[i];
+        if (!s || !s.replaceTrack) continue;
+        var kind = (s.track && s.track.kind) || '';
+        if (!kind && pc.getTransceivers) {
+          try {
+            var ts = pc.getTransceivers();
+            for (var j = 0; j < ts.length; j++) {
+              if (ts[j] && ts[j].sender === s && ts[j].receiver && ts[j].receiver.track) kind = ts[j].receiver.track.kind || kind;
+            }
+          } catch (eK) {}
+        }
+        if (kind === track.kind && (!s.track || s.track.readyState !== 'live')) {
+          s.replaceTrack(track).catch(function () {});
+          return;
+        }
+      }
+      try { pc.addTrack(track, stream); added = true; } catch (eAdd) {}
+    });
+    return added;
+  }
   function dcEnsurePc() {
     if (dcCall.pc) return dcCall.pc;
     var pc = new RTCPeerConnection({ iceServers: DC_ICE });
     dcCall.pc = pc;
     dcCall.pendingIce = [];
+    var hasAudio = false;
+    var hasVideo = false;
     if (dcCall.localStream) {
       dcCall.localStream.getTracks().forEach(function (track) {
+        if (!track || track.readyState !== 'live') return;
         try { pc.addTrack(track, dcCall.localStream); } catch (e) {}
+        if (track.kind === 'audio') hasAudio = true;
+        if (track.kind === 'video') hasVideo = true;
       });
     }
+    try {
+      if (!hasAudio && pc.addTransceiver) pc.addTransceiver('audio', { direction: 'recvonly' });
+      if (dcCall.media === 'video' && !hasVideo && pc.addTransceiver) pc.addTransceiver('video', { direction: 'recvonly' });
+    } catch (eT) {}
     pc.onicecandidate = function (ev) {
       if (!ev.candidate || dcCall.phase !== 'active') return;
       dcSend({ type: 'voice_signal', callId: dcCall.callId, signal: { kind: 'ice', candidate: dcIcePlain(ev.candidate) } });
@@ -2503,11 +2688,14 @@ function handleRealtimePayload(msg) {
     };
     pc.onconnectionstatechange = function () {
       if (dcCall.pc !== pc) return;
-      if (pc.connectionState === 'failed') dcOnPcFailed();
+      if (pc.connectionState === 'connected') dcClearPcFail();
+      else if (pc.connectionState === 'failed') dcOnPcFailed();
     };
     pc.oniceconnectionstatechange = function () {
       if (dcCall.pc !== pc) return;
-      if (pc.iceConnectionState === 'failed') dcOnPcFailed();
+      var ice = pc.iceConnectionState;
+      if (ice === 'connected' || ice === 'completed') dcClearPcFail();
+      else if (ice === 'failed') dcOnPcFailed();
     };
     return pc;
   }
@@ -2515,6 +2703,7 @@ function handleRealtimePayload(msg) {
     if (dcCall.phase !== 'active' || dcCall.role !== 'caller' || !dcCall.localStream) return;
     var pc = dcEnsurePc();
     if (!pc || pc._makingOffer) return;
+    if (pc.signalingState && pc.signalingState !== 'stable') return;
     try {
       pc._makingOffer = true;
       var offer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: dcCall.media === 'video' });
@@ -2534,6 +2723,11 @@ function handleRealtimePayload(msg) {
     try {
       if (signal.kind === 'offer' && signal.sdp) {
         if (dcCall.role !== 'callee') return;
+        if (pc.signalingState && pc.signalingState !== 'stable') {
+          try { pc.close(); } catch (eCl) {}
+          if (dcCall.pc === pc) dcCall.pc = null;
+          pc = dcEnsurePc();
+        }
         await pc.setRemoteDescription(signal.sdp);
         dcFlushIce(pc);
         var answer = await pc.createAnswer();
@@ -2561,6 +2755,11 @@ function handleRealtimePayload(msg) {
   }
   function dcReset(reason) {
     dcPushRingStop('');
+    dcClearWsGrace();
+    dcClearPcFail();
+    dcDiscardPrime();
+    dcCall._pcRetried = false;
+    dcCall._reacq = false;
     dcCall.gen += 1;
     dcCall.phase = 'idle';
     var stream = dcCall.localStream;
@@ -2732,12 +2931,16 @@ function handleRealtimePayload(msg) {
   }
   async function dcStartCall(peer, asVideo, via) {
     // peer.email (Chat) o peer.number (Teléfono, número DOG-XXXXXX que resuelve el servidor)
-    if (!peer || (!peer.email && !peer.number)) return;
-    if (dcCall.phase !== 'idle') return;
+    if (!peer || (!peer.email && !peer.number)) { dcDiscardPrime(); return; }
+    if (dcCall.phase !== 'idle') { dcDiscardPrime(); return; }
     dcStopNoAnswerCue();
     var email = String(peer.email || '').trim().toLowerCase();
     var me = currentUser();
-    if (email && me && me.email && String(me.email).toLowerCase() === email) return;
+    if (email && me && me.email && String(me.email).toLowerCase() === email) {
+      dcDiscardPrime();
+      return;
+    }
+    dcPrimeMic(!!asVideo);
     var dcAllowed = false;
     try {
       if (email) {
@@ -2751,6 +2954,7 @@ function handleRealtimePayload(msg) {
       }
     } catch (eAllow) { dcAllowed = false; }
     if (!dcAllowed) {
+      dcDiscardPrime();
       showDcBanner('Solo puedes llamar a cuentas que has añadido', []);
       setTimeout(hideDcBanner, 2600);
       return;
@@ -2808,6 +3012,7 @@ function handleRealtimePayload(msg) {
   async function dcAnswer() {
     if (dcCall.phase !== 'ringing' || dcCall.role !== 'callee' || dcCall.answering) return;
     dcCall.answering = true;
+    dcPrimeMic(dcCall.media === 'video');
     dcStopNoAnswerCue();
     dcSyncRingtone();
     showDcBanner('Conectando con ' + dcPeerName() + '…', [{ label: 'Colgar', cls: 'no', fn: dcHangup }]);
@@ -3214,7 +3419,7 @@ function handleRealtimePayload(msg) {
     var canvas = document.createElement('canvas');
     function tick() {
       if (dcCall.phase !== 'active' || dcCall.callId !== callId || !dcIsVideo()) return;
-      dcCall.videoTimer = setTimeout(tick, 160);
+      dcCall.videoTimer = setTimeout(tick, 420);
       if (dcWebrtcVideoLive()) {
         dcHideFallbackFrame();
         return;
@@ -3242,11 +3447,68 @@ function handleRealtimePayload(msg) {
     tick();
   }
   function dcOnPcFailed() {
+    var pc = dcCall.pc;
+    if (!pc || dcCall.phase !== 'active' || dcCall.pcFailTimer) return;
+    var gen = dcCall.gen;
+    dcCall.pcFailTimer = setTimeout(function () {
+      dcCall.pcFailTimer = null;
+      if (dcCall.gen !== gen || dcCall.pc !== pc || dcCall.phase !== 'active') return;
+      if (pc.connectionState !== 'failed' && pc.iceConnectionState !== 'failed') return;
+      dcCall.pc = null;
+      try {
+        pc.onconnectionstatechange = null;
+        pc.oniceconnectionstatechange = null;
+        pc.onicecandidate = null;
+        pc.ontrack = null;
+        pc.close();
+      } catch (e) {}
+      if (!dcCall.pcmProc) dcStartPcmSend();
+      dcSyncVideoStage();
+      if (dcCall.media === 'video') dcStartVideoFallback();
+      if (!dcCall._pcRetried && dcCall.role === 'caller') {
+        dcCall._pcRetried = true;
+        setTimeout(function () {
+          if (dcCall.gen !== gen || dcCall.phase !== 'active' || dcCall.pc) return;
+          dcMakeOffer();
+        }, 800);
+      }
+    }, 2500);
+  }
+  function dcOnCallVisible() {
+    if (document.visibilityState !== 'visible') return;
+    if (dcCall.phase !== 'active') return;
+    dcResumeCallMedia();
+  }
+  if (typeof document !== 'undefined') document.addEventListener('visibilitychange', dcOnCallVisible);
+  function dcResumeCallMedia() {
+    if (dcCall.phase !== 'active') return;
+    var wsUp = !!(notifState.ws && notifState.ws.readyState === 1);
+    if (wsUp) dcClearWsGrace();
+    try { dcEnsureCtx(); } catch (e) {}
+    if (!dcCall.pcmProc && dcCall.localStream) dcStartPcmSend();
+    var audio = dcCall.remoteAudio;
+    if (audio) {
+      try { audio.muted = false; audio.volume = 1; } catch (eV) {}
+      if (audio.srcObject) {
+        var pr = audio.play();
+        if (pr && typeof pr.catch === 'function') pr.catch(function () {});
+      }
+    }
     if (dcCall.media === 'video') {
       dcSyncVideoStage();
-      return;
+      dcStartVideoFallback();
     }
-    dcDropForError('webrtc');
+    var pc = dcCall.pc;
+    var conn = pc && pc.connectionState;
+    var ice = pc && pc.iceConnectionState;
+    var dead = !pc || conn === 'failed' || conn === 'closed' || ice === 'failed' || ice === 'closed';
+    if (!wsUp || !dead || dcCall.role !== 'caller' || !dcCall.localStream) return;
+    dcCall.pc = null;
+    dcClearPcFail();
+    if (pc) {
+      try { pc.onicecandidate = null; pc.ontrack = null; pc.onconnectionstatechange = null; pc.oniceconnectionstatechange = null; pc.close(); } catch (eC) {}
+    }
+    dcMakeOffer();
   }
   function dcCompressImage(file) {
     return new Promise(function (resolve, reject) {
@@ -3306,6 +3568,7 @@ function handleRealtimePayload(msg) {
     if (t === 'call_invite') {
       if (!msg.callId || !msg.from) return true;
       if (dcCall.phase !== 'idle') {
+        if (String(msg.callId) === String(dcCall.callId)) return true;
         dcSend({ type: 'call_decline', callId: msg.callId });
         return true;
       }
@@ -4688,6 +4951,8 @@ function handleRealtimePayload(msg) {
   global.ensureNativeNotifPermission = ensureNativeNotifPermission;
   // Doganiero Phone usa el mismo sistema de llamadas
   global.startDoganieroCall = function (peer, asVideo) { return dcStartCall(peer, !!asVideo); };
+  global.primeDoganieroCallMedia = function (asVideo) { return dcPrimeMic(!!asVideo); };
+  global.cancelDoganieroCallPrime = function () { dcDiscardPrime(); };
   var boardCallAt = 0;
   var boardCallTo = '';
   function placeBoardCall(peer) {
