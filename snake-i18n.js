@@ -27,7 +27,11 @@
     'Snake VR':'Snake VR','Entrar en Snake VR':'Enter Snake VR','Salir de VR':'Exit VR','Realidad virtual':'Virtual reality',
     'Visor estereoscópico':'Stereoscopic viewer','VR real (WebXR)':'True VR (WebXR)','Qué puedes hacer dentro':'What you can do inside',
     'Gafas (SBS)':'Headset (SBS)','Giroscopio':'Gyroscope','Recentrar':'Recenter','Sonido':'Sound',
-    'Tu escritorio de Snake OS en 3D: pantalla gigante con tus iconos y ventanas, paneles en vivo a los lados y suelo de neón. Funciona con gafas VR de verdad, con gafas de cartón y con ratón y teclado.':'Your Snake OS desktop in 3D: a giant screen with your icons and windows, live side panels and a neon floor. Works with true VR headsets, cardboard goggles, and mouse and keyboard.'
+    'Tu escritorio de Snake OS en 3D: pantalla gigante con tus iconos y ventanas, paneles en vivo a los lados y suelo de neón. Funciona con gafas VR de verdad, con gafas de cartón y con ratón y teclado.':'Your Snake OS desktop in 3D: a giant screen with your icons and windows, live side panels and a neon floor. Works with true VR headsets, cardboard goggles, and mouse and keyboard.',
+    'Una jungla viva en 3D con serpientes por todas partes: tu escritorio se abre en una pantalla gigante solo si muerdes a la serpiente tótem que te sigue. Tus dos mandos de VR también son serpientes.':'A living 3D jungle full of snakes: your desktop opens on a giant screen only when you bite the totem snake that follows you. Your two VR controllers are snakes too.',
+    'Mandos serpiente':'Snake controllers','Abrir el escritorio dentro de VR':'Open the desktop inside VR',
+    'Abrir o cerrar el escritorio en la pantalla gigante':'Open or close the desktop on the giant screen',
+    'Abierto en la pantalla':'Open on the screen','Cerrado: muerde al tótem':'Closed: bite the totem'
   };
   var PARTS = [[/^Navegador de /, 'Browser of '], [/^Notas de /, 'Notes of '], [/^Archivos de /, 'Files of '], [/^Código de /, 'Code of '], [/ está usando tu escritorio$/, ' is using your desktop']];
   var ATTRS = ['title', 'placeholder', 'aria-label'];

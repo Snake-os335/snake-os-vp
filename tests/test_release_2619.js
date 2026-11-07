@@ -10,7 +10,7 @@
  *    arman el desbloqueo.
  *  - El <audio> remoto ya no se crea con display:none (rompe reproducción en móviles).
  *  - main.py: el server i9 ya no cierra los WebSocket (chat/llamadas/metaverso).
- *  - index.html: versión 2026.20, entrada de novedades y ?v= nuevo del chat.
+ *  - index.html: versión 2026.21, entrada de novedades y ?v= nuevo del chat.
  */
 'use strict';
 var fs = require('fs');
@@ -88,11 +88,11 @@ assert.ok(py.slice(sweep, sweep + 400).indexOf('while True') === -1, 'el barrido
 ok('main.py: WebSocket libres del gate del server i9');
 
 // 7) Versión y cache-bust del chat
-assert.ok(html.indexOf("window.SNAKE_OS_VERSION='2026.20'") >= 0, 'versión 2026.20');
-assert.ok(html.indexOf("{v:'2026.20'") >= 0, 'entrada de novedades 2026.20');
-assert.ok(html.indexOf("{v:'2026.20'") < html.indexOf("{v:'2026.19'"), 'la entrada 2026.20 va primera');
+assert.ok(html.indexOf("window.SNAKE_OS_VERSION='2026.21'") >= 0, 'versión 2026.21');
+assert.ok(html.indexOf("{v:'2026.21'") >= 0, 'entrada de novedades 2026.21');
+assert.ok(html.indexOf("{v:'2026.21'") < html.indexOf("{v:'2026.19'"), 'la entrada 2026.21 va primera');
 assert.ok(html.indexOf('doganiero-chat.js?v=202611111830') >= 0, '?v= nuevo de doganiero-chat.js');
-ok('index.html en 2026.20 y chat sin caché vieja');
+ok('index.html en 2026.21 y chat sin caché vieja');
 
 if (process.exitCode) process.exit(process.exitCode);
 console.log('todo bien');

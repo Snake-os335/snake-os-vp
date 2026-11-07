@@ -86,11 +86,25 @@ los ajustes rápidos) y un acceso en Ajustes rápidos. Reglas:
   `requireOnline(nombre)`, `isOnlineRequest(url)`, `profile()`, `syncProfile()`, `on(fn)`).
   Pruebas: `node tests/test_release_2617.js`, `node tests/test_release_2618.js` y `node tests/test_release_2619.js`.
 
-## Snake VR (2026.20)
+## Snake VR (2026.21)
 
 `snake-vr.js` añade la app **🥽 Snake VR** (escritorio y buscador de apps): tu escritorio de Snake OS
-dentro de un mundo 3D con suelo de neón y estrellas, una **pantalla gigante** con el escritorio real y
-dos paneles laterales en vivo (hora, versión, apps abiertas, novedades y controles).
+dentro de una **jungla viva en 3D** — árboles, helechos, lianas meciéndose, luciérnagas y serpientes que
+se arrastran por todas partes — con una **pantalla gigante** que abre tu escritorio real y dos paneles
+laterales en vivo (hora, versión, estado del escritorio, apps abiertas, novedades y controles).
+
+- **Jungla animada (2026.21):** suelo de musgo procedural, 34 árboles con copas (instanciados), 46
+  helechos con hoja recortada, 9 lianas que se mecen, 220 luciérnagas flotando y **10 serpientes
+  ambientales** (cuerpo instanciado de 14 segmentos siguiendo curvas `CatmullRomCurve3`) con cabeza, ojos
+  y lengua bífida. Niebla verde y luces ámbar/verde en vez del antiguo suelo de neón y las estrellas.
+- **Mandos-serpiente (2026.21):** en WebXR los **dos** mandos son serpientes (lima la izquierda, cian la
+  derecha): cuerpo enrollado en hélice, cabeza con dos ojos y lengua bífida animada. El rayo sale de su
+  boca y se acorta/colorea según lo que apuntas (ámbar = tótem, verde = pantalla). El gatillo «muerde»
+  (animación + vibración háptica) y hace `click` real en lo apuntado; morder el suelo teletransporta.
+- **Serpiente tótem que te sigue (2026.21):** una serpiente enrollada en espiral con halo y anillo flota
+  delante de ti (te sigue la cabeza, en XR o con ratón). La pantalla del escritorio **empieza cerrada**:
+  al pulsar/morder al tótem se abre con animación de escala, y al volver a pulsarlo se cierra. También
+  desde el HUD (🗔 Escritorio) y desde la app (🔮 Abrir el escritorio dentro de VR).
 
 - **Pantalla espejo del escritorio de verdad:** un canvas 2D lee el DOM real (`.desktop-icon` con sus
   iconos/imágenes y etiquetas, `.app-window` con su título, reloj y fondo de pantalla) y se sube como
@@ -111,7 +125,8 @@ dos paneles laterales en vivo (hora, versión, apps abiertas, novedades y contro
 - Límites conocidos: no hay audio posicional propio; la pantalla es un reflejo (las apps se siguen usando
   desde el escritorio normal, aquí se ven y se pulsan). En WebXR la cámara y el movimiento los lleva el visor;
   fuera de WebXR la posición inicial se puede mover con WASD/rueda.
-- API: `window.SnakeVR` (`open({sbs, xr})`, `close()`, `recenter()`, `supported()`, `isOpen`, `mode`) y
+- API: `window.SnakeVR` (`open({sbs, xr, screen})`, `close()`, `recenter()`, `supported()`,
+  `toggleScreen()`, `setScreenOpen(bool)`, `isScreenOpen`, `isOpen`, `mode`) y
   `window.renderSnakeVrApp(body)`.
-- Pruebas: `node tests/test_release_2620.js` (y `node tests/test_release_2616.js` … `2619`, que siguen la versión actual).
+- Pruebas: `node tests/test_release_2621.js` (y `node tests/test_release_2616.js` … `2620`, que siguen la versión actual).
 

@@ -1,21 +1,27 @@
-/* Snake OS · Snake VR — realidad virtual para gafas VR (2026.20).
+/* Snake OS · Snake VR — realidad virtual para gafas VR (2026.21).
  *
  * Qué hace:
- *  - Mundo 3D real con three.js (local, /static/assets/three-r160.min.js): sala neón,
- *    suelo de rejilla, estrellas y una pantalla gigante «espejo» de tu escritorio.
+ *  - Jungla viva en 3D con three.js (local, /static/assets/three-r160.min.js): suelo de
+ *    musgo, árboles, helechos, lianas y serpientes que se arrastran por todas partes,
+ *    más una pantalla gigante «espejo» de tu escritorio.
  *  - La pantalla espejo se pinta en un canvas 2D leyendo el DOM REAL (iconos, ventanas,
  *    reloj) y los clics sobre ella abren apps de verdad (raycast → elementFromPoint).
+ *  - Una serpiente tótem te sigue flotando: al pulsarla (o morderla con el mando) se
+ *    abre el escritorio en la pantalla gigante y al volver a pulsarla se cierra.
+ *  - En WebXR los DOS mandos son serpientes con ojos y lengua bífida: el rayo sale de su
+ *    boca, el gatillo «muerde» (clic real en el DOM) y apuntar al suelo teletransporta.
  *  - Tres modos: ratón/teclado (mono), estereoscópico para gafas de cartón (SBS) y
- *    WebXR immersive-vr real (Meta Quest / PCVR) con mandos y teletransporte.
+ *    WebXR immersive-vr real (Meta Quest / PCVR).
  *  - Giroscopio del móvil (deviceorientation) para mirar moviendo la cabeza.
  *
  * Sin dependencias nuevas: usa el three.js que ya sirve Snake OS y el DOM existente.
- * API: window.SnakeVR.open(), .close(), .supported(), window.renderSnakeVrApp(body).
+ * API: window.SnakeVR.open({sbs,xr}), .close(), .supported(), .toggleScreen(),
+ *      .setScreenOpen(bool), .isScreenOpen, window.renderSnakeVrApp(body).
  */
 (function (global) {
   'use strict';
 
-  var VR_VERSION = '2026.20';
+  var VR_VERSION = '2026.21';
   var THREE_URL = '/static/assets/three-r160.min.js?v=r160';
   var LS_KEY = 'snkVRprefs';
   var MIRROR_W = 1600, MIRROR_H = 1000;
@@ -50,6 +56,18 @@
     floorMesh: null,
     starField: null,
     frameMesh: null,
+    screenGroup: null,       // pantalla + marco + halo (se abre/cierra con el tótem)
+    screenOpen: false,       // el escritorio empieza CERRADO: hay que morder al tótem
+    screenAnim: 0,           // 0..1 animación de apertura/cierre
+    jungle: null,            // árboles, helechos y lianas de la jungla
+    lianas: [],              // lianas que se mecen
+    ambient: [],             // serpientes que se arrastran por la jungla
+    fireflies: null,         // luciérnagas
+    spirit: null,            // serpiente tótem que te sigue (abre/cierra)
+    handSnakes: [],          // las dos serpientes de los mandos XR
+    rc: null,                // raycaster reutilizado para los punteros XR
+    tmpV: null, tmpV2: null, tmpQ: null, tmpM: null,
+    tickN: 0,
     mode: 'mono',            // mono | sbs | xr
     yaw: 0, pitch: -0.05,
     zoom: 3.4,               // z del rig (distancia al panel)
@@ -188,6 +206,7 @@
       '<div class="snk-vr-hud">' +
         '<div class="snk-vr-brand">🥽 <b>Snake VR</b><span class="snk-vr-badge">' + vrT('EN DIRECTO', 'LIVE') + '</span></div>' +
         '<div class="snk-vr-actions">' +
+          '<button type="button" data-vr="screen" aria-pressed="false" title="' + vrT('Abrir o cerrar el escritorio en la pantalla gigante', 'Open or close the desktop on the giant screen') + '">🗔 ' + vrT('Escritorio', 'Desktop') + '</button>' +
           '<button type="button" data-vr="gyro" aria-pressed="false" title="' + vrT('Mira moviendo la cabeza (móvil)', 'Look by moving your head (phone)') + '">🧭 ' + vrT('Giroscopio', 'Gyroscope') + '</button>' +
           '<button type="button" data-vr="sbs" aria-pressed="false" title="' + vrT('Dos ojos para gafas de cartón (Cardboard)', 'Two eyes for cardboard headsets') + '">👓 ' + vrT('Gafas (SBS)', 'Headset (SBS)') + '</button>' +
           '<button type="button" data-vr="xr" aria-pressed="false" title="' + vrT('Realidad virtual real con WebXR', 'True VR with WebXR') + '">🥽 ' + vrT('VR real', 'True VR') + '</button>' +
@@ -202,8 +221,8 @@
         '<button type="button" class="right" data-move="right" aria-label="' + vrT('Derecha', 'Right') + '">▶</button>' +
       '</div>' +
       '<div class="snk-vr-help">' + vrT(
-        'Arrastra para mirar · rueda o pellizco = acercarte · WASD/flechas = moverte · clic sobre la pantalla = usar Snake OS · doble clic = recentrar',
-        'Drag to look · wheel or pinch = zoom · WASD/arrows = move · click the screen = use Snake OS · double click = recenter'
+        'Arrastra para mirar · rueda o pellizco = acercarte · WASD/flechas = moverte · la serpiente tótem que te sigue abre y cierra el escritorio (púlsala) · dentro, clic = usar Snake OS · doble clic = recentrar',
+        'Drag to look · wheel or pinch = zoom · WASD/arrows = move · the totem snake that follows you opens and closes the desktop (press it) · inside, click = use Snake OS · double click = recenter'
       ) + '</div>';
     document.body.appendChild(root);
     return root;
@@ -223,32 +242,16 @@
     if (ok) ok.onclick = function () { n.style.display = 'none'; };
   }
 
-  /* ---------------- Escena 3D ---------------- */
-  function makeStarField(THREE) {
-    var n = 1400, pos = new Float32Array(n * 3);
-    for (var i = 0; i < n; i++) {
-      var r = 34 + Math.random() * 52;
-      var th = Math.random() * Math.PI * 2;
-      var ph = Math.random() * Math.PI * 0.62;
-      pos[i * 3] = Math.cos(th) * Math.sin(ph + 0.16) * r;
-      pos[i * 3 + 1] = Math.abs(Math.cos(ph)) * r * 0.62 + 2;
-      pos[i * 3 + 2] = Math.sin(th) * Math.sin(ph + 0.16) * r;
-    }
-    var g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-    var m = new THREE.PointsMaterial({ color: 0xbfe9ff, size: 0.16, sizeAttenuation: true, transparent: true, opacity: 0.9, depthWrite: false });
-    return new THREE.Points(g, m);
-  }
-
-  function makeSkyTexture(THREE) {
+  /* ---------------- Escena 3D: jungla con serpientes ---------------- */
+  function makeJungleSky(THREE) {
     var c = document.createElement('canvas');
     c.width = 8; c.height = 256;
     var cx = c.getContext('2d');
     var grad = cx.createLinearGradient(0, 0, 0, 256);
-    grad.addColorStop(0, '#050b1a');
-    grad.addColorStop(0.45, '#071726');
-    grad.addColorStop(0.72, '#0a2330');
-    grad.addColorStop(1, '#02060c');
+    grad.addColorStop(0, '#03120b');
+    grad.addColorStop(0.42, '#062a18');
+    grad.addColorStop(0.7, '#0a3a22');
+    grad.addColorStop(1, '#02090a');
     cx.fillStyle = grad;
     cx.fillRect(0, 0, 8, 256);
     var t = new THREE.CanvasTexture(c);
@@ -256,10 +259,510 @@
     return t;
   }
 
+  function makeGroundTexture(THREE) {
+    var S = 256, c = document.createElement('canvas');
+    c.width = S; c.height = S;
+    var cx = c.getContext('2d');
+    cx.fillStyle = '#0d2a15';
+    cx.fillRect(0, 0, S, S);
+    var i, x, y, r;
+    for (i = 0; i < 380; i++) {
+      x = Math.random() * S; y = Math.random() * S;
+      r = 3 + Math.random() * 16;
+      cx.fillStyle = 'rgba(' + ((10 + Math.random() * 26) | 0) + ',' + ((44 + Math.random() * 60) | 0) + ',' + ((18 + Math.random() * 26) | 0) + ',' + (0.25 + Math.random() * 0.5).toFixed(2) + ')';
+      cx.beginPath(); cx.arc(x, y, r, 0, Math.PI * 2); cx.fill();
+    }
+    for (i = 0; i < 60; i++) {   /* motas bioluminiscentes del musgo */
+      x = Math.random() * S; y = Math.random() * S;
+      cx.fillStyle = 'rgba(120,255,190,' + (0.05 + Math.random() * 0.16).toFixed(2) + ')';
+      cx.beginPath(); cx.arc(x, y, 1 + Math.random() * 3, 0, Math.PI * 2); cx.fill();
+    }
+    var t = new THREE.CanvasTexture(c);
+    t.colorSpace = THREE.SRGBColorSpace;
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.repeat.set(22, 22);
+    return t;
+  }
+
+  function makeLeafTexture(THREE) {
+    var S = 128, c = document.createElement('canvas');
+    c.width = S; c.height = S;
+    var cx = c.getContext('2d');
+    cx.clearRect(0, 0, S, S);
+    cx.save();
+    cx.translate(S / 2, S - 6);
+    var g = cx.createLinearGradient(0, 0, 0, -S);
+    g.addColorStop(0, 'rgba(22,86,44,.96)');
+    g.addColorStop(1, 'rgba(88,220,120,.9)');
+    cx.fillStyle = g;
+    for (var f = 0; f < 5; f++) {
+      cx.save();
+      cx.rotate((f - 2) * 0.42);
+      cx.beginPath();
+      cx.moveTo(0, 0);
+      cx.quadraticCurveTo(16, -S * 0.42, 0, -S * 0.86);
+      cx.quadraticCurveTo(-16, -S * 0.42, 0, 0);
+      cx.fill();
+      cx.restore();
+    }
+    cx.restore();
+    var t = new THREE.CanvasTexture(c);
+    t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+  }
+
+  function makeFireflies(THREE) {
+    var n = 220, pos = new Float32Array(n * 3), base = [];
+    for (var i = 0; i < n; i++) {
+      var r = 2.5 + Math.random() * 22;
+      var th = Math.random() * Math.PI * 2;
+      var y = 0.3 + Math.random() * 6;
+      pos[i * 3] = Math.cos(th) * r;
+      pos[i * 3 + 1] = y;
+      pos[i * 3 + 2] = Math.sin(th) * r - 3;
+      base.push({ x: pos[i * 3], y: y, z: pos[i * 3 + 2], ph: Math.random() * Math.PI * 2, sp: 0.3 + Math.random() * 0.6 });
+    }
+    var g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    var m = new THREE.PointsMaterial({ color: 0xc8ffb0, size: 0.09, sizeAttenuation: true, transparent: true, opacity: 0.95, depthWrite: false });
+    var pts = new THREE.Points(g, m);
+    pts.userData.base = base;
+    return pts;
+  }
+
+  /* Árboles, helechos y lianas: la selva que rodea la pantalla. */
+  function makeJungle(THREE) {
+    var group = new THREE.Group();
+    var trunkGeo = new THREE.CylinderGeometry(0.16, 0.26, 1, 6);
+    trunkGeo.translate(0, 0.5, 0);       /* base en y=0 */
+    var trunkMat = new THREE.MeshStandardMaterial({ color: 0x2b1c12, roughness: 0.95, metalness: 0.05 });
+    var capGeo = new THREE.IcosahedronGeometry(1, 1);
+    var capMat = new THREE.MeshStandardMaterial({ color: 0x0f4a26, roughness: 0.9, metalness: 0.05, flatShading: true });
+    var N = 34;
+    var trunks = new THREE.InstancedMesh(trunkGeo, trunkMat, N);
+    var caps = new THREE.InstancedMesh(capGeo, capMat, N * 2);
+    var m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), v = new THREE.Vector3(), s = new THREE.Vector3();
+    var axisY = new THREE.Vector3(0, 1, 0);
+    var capI = 0, i, k;
+    for (i = 0; i < N; i++) {
+      var ang = (i / N) * Math.PI * 2 + Math.random() * 0.5;
+      var rad = 9 + Math.random() * 15;
+      var x = Math.cos(ang) * rad, z = Math.sin(ang) * rad - 4;
+      var h = 3.4 + Math.random() * 6.5;
+      v.set(x, 0, z);
+      s.set(1, h, 1);
+      q.setFromAxisAngle(axisY, Math.random() * Math.PI);
+      m4.compose(v, q, s);
+      trunks.setMatrixAt(i, m4);
+      for (k = 0; k < 2; k++) {
+        v.set(x + (Math.random() - 0.5) * 1.6, h * (0.72 + k * 0.2), z + (Math.random() - 0.5) * 1.6);
+        s.set(1.1 + Math.random() * 1.1, 0.9 + Math.random() * 0.8, 1.1 + Math.random() * 1.1);
+        q.setFromAxisAngle(axisY, Math.random() * Math.PI);
+        m4.compose(v, q, s);
+        caps.setMatrixAt(capI++, m4);
+      }
+    }
+    trunks.instanceMatrix.needsUpdate = true;
+    caps.instanceMatrix.needsUpdate = true;
+    group.add(trunks); group.add(caps);
+
+    /* Helechos: planos con hoja recortada en círculos alrededor de la pantalla. */
+    var leafMat = new THREE.MeshBasicMaterial({
+      map: makeLeafTexture(THREE), transparent: true, alphaTest: 0.25,
+      side: THREE.DoubleSide, depthWrite: false
+    });
+    var F = 46, ferns = new THREE.InstancedMesh(new THREE.PlaneGeometry(1.5, 1.5), leafMat, F);
+    for (i = 0; i < F; i++) {
+      var fa = Math.random() * Math.PI * 2;
+      var fr = 2.4 + Math.random() * 13;
+      v.set(Math.cos(fa) * fr, 0.72, Math.sin(fa) * fr - 3);
+      q.setFromAxisAngle(axisY, Math.random() * Math.PI * 2);
+      var fs = 0.7 + Math.random() * 1.5;
+      s.set(fs, fs, fs);
+      m4.compose(v, q, s);
+      ferns.setMatrixAt(i, m4);
+    }
+    ferns.instanceMatrix.needsUpdate = true;
+    group.add(ferns);
+
+    /* Lianas colgantes que se mecen (updateJungle). */
+    var lianas = [];
+    for (var L = 0; L < 9; L++) {
+      var la = Math.random() * Math.PI * 2;
+      var lr = 6 + Math.random() * 10;
+      var lx = Math.cos(la) * lr, lz = Math.sin(la) * lr - 4;
+      var top = 6 + Math.random() * 4;
+      var len = 2.5 + Math.random() * 4;
+      var pts = [];
+      for (var p = 0; p <= 8; p++) {
+        var t01 = p / 8;
+        pts.push(new THREE.Vector3(Math.sin(t01 * 3.1) * 0.25, -t01 * len, Math.cos(t01 * 2.1) * 0.2));
+      }
+      var vine = new THREE.Mesh(
+        new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 16, 0.035, 5, false),
+        new THREE.MeshStandardMaterial({ color: 0x1c6b3a, roughness: 0.8, emissive: 0x0a3a1e, emissiveIntensity: 0.4 })
+      );
+      vine.position.set(lx, top, lz);
+      vine.userData.phase = Math.random() * Math.PI * 2;
+      vine.userData.sway = 0.06 + Math.random() * 0.08;
+      group.add(vine);
+      lianas.push(vine);
+    }
+    group.userData.lianas = lianas;
+    return group;
+  }
+
+  function updateJungle(dt, now) {
+    var lianas = (st.jungle && st.jungle.userData && st.jungle.userData.lianas) || [];
+    for (var i = 0; i < lianas.length; i++) {
+      var L = lianas[i];
+      L.rotation.z = Math.sin(now * 0.8 + L.userData.phase) * L.userData.sway;
+      L.rotation.x = Math.cos(now * 0.6 + L.userData.phase) * L.userData.sway * 0.6;
+    }
+  }
+
+  function updateFireflies(dt, now) {
+    var ff = st.fireflies;
+    if (!ff || !ff.userData || !ff.userData.base) return;
+    var arr = ff.geometry.attributes.position.array;
+    var base = ff.userData.base;
+    for (var i = 0; i < base.length; i++) {
+      var b = base[i];
+      arr[i * 3] = b.x + Math.sin(now * b.sp + b.ph) * 1.6;
+      arr[i * 3 + 1] = b.y + Math.sin(now * b.sp * 1.7 + b.ph) * 0.5;
+      arr[i * 3 + 2] = b.z + Math.cos(now * b.sp * 0.8 + b.ph) * 1.6;
+    }
+    ff.geometry.attributes.position.needsUpdate = true;
+  }
+
+  /* Cabeza de serpiente reutilizable (hocico hacia +Z local): la usan la jungla,
+     el tótem que te sigue y los dos mandos. */
+  function makeSnakeHead(THREE, color, size) {
+    var group = new THREE.Group();
+    var mat = new THREE.MeshStandardMaterial({ color: color, roughness: 0.42, metalness: 0.12, emissive: color, emissiveIntensity: 0.35 });
+    var skull = new THREE.Mesh(new THREE.SphereGeometry(0.1, 12, 10), mat);
+    skull.scale.set(1, 0.82, 1.3);
+    group.add(skull);
+    var jaw = new THREE.Mesh(new THREE.SphereGeometry(0.062, 10, 8), mat);
+    jaw.scale.set(0.92, 0.5, 1.4);
+    jaw.position.set(0, -0.045, 0.075);
+    group.add(jaw);
+    var eyeMat = new THREE.MeshBasicMaterial({ color: 0xfff27a, toneMapped: false });
+    var pupMat = new THREE.MeshBasicMaterial({ color: 0x120800, toneMapped: false });
+    var eyes = [];
+    for (var e = -1; e <= 1; e += 2) {
+      var eye = new THREE.Mesh(new THREE.SphereGeometry(0.03, 8, 8), eyeMat);
+      eye.position.set(0.052 * e, 0.028, 0.055);
+      group.add(eye);
+      var pup = new THREE.Mesh(new THREE.SphereGeometry(0.014, 6, 6), pupMat);
+      pup.position.set(0.052 * e, 0.03, 0.078);
+      group.add(pup);
+      eyes.push(eye);
+    }
+    var tongue = new THREE.Group();
+    var tMat = new THREE.MeshBasicMaterial({ color: 0xff4d6d, toneMapped: false });
+    for (var b = -1; b <= 1; b += 2) {
+      var fork = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.008, 0.1, 4), tMat);
+      fork.position.set(0.018 * b, -0.005, 0.05);
+      fork.rotation.x = Math.PI / 2;
+      fork.rotation.z = -0.32 * b;
+      tongue.add(fork);
+    }
+    tongue.position.set(0, -0.02, 0.12);
+    group.add(tongue);
+    group.scale.setScalar(size || 1);
+    return { group: group, mat: mat, eyeMat: eyeMat, tongue: tongue, eyes: eyes };
+  }
+
+  var SNAKE_COLORS = [0x6dff8a, 0x35ffd6, 0x9dff3c, 0x35b6ff, 0xffd24a, 0xff7a3c, 0xff5fa2, 0xa0ff6a];
+
+  /* Serpiente que se arrastra sola por la jungla: cuerpo instanciado siguiendo una
+     curva cerrada (unas a ras de suelo, otras entre las ramas). */
+  function makeAmbientSnake(THREE, i) {
+    var grp = new THREE.Group();
+    var color = SNAKE_COLORS[i % SNAKE_COLORS.length];
+    var segs = 14;
+    var rad = 3.5 + Math.random() * 14;
+    var baseY = Math.random() < 0.5 ? 0.22 : (1 + Math.random() * 4.5);
+    var cx = (Math.random() - 0.5) * 8, cz = (Math.random() - 0.5) * 8 - 3;
+    var pts = [], k;
+    for (k = 0; k < 8; k++) {
+      var a = (k / 8) * Math.PI * 2;
+      var rr = rad * (0.55 + Math.random() * 0.55);
+      pts.push(new THREE.Vector3(
+        cx + Math.cos(a) * rr,
+        baseY + Math.sin(a * 2 + i) * (baseY < 1 ? 0.12 : 0.9),
+        cz + Math.sin(a) * rr
+      ));
+    }
+    var curve = new THREE.CatmullRomCurve3(pts, true);
+    var bodyGeo = new THREE.SphereGeometry(0.085, 8, 6);
+    bodyGeo.scale(1, 0.72, 1);
+    var bodyMat = new THREE.MeshStandardMaterial({
+      color: color, roughness: 0.45, metalness: 0.18,
+      emissive: color, emissiveIntensity: 0.32
+    });
+    var body = new THREE.InstancedMesh(bodyGeo, bodyMat, segs);
+    try { body.instanceMatrix.setUsage(THREE.DynamicDrawUsage); } catch (eDU) {}
+    grp.add(body);
+    var head = makeSnakeHead(THREE, color, 1);
+    grp.add(head.group);
+    return {
+      group: grp, body: body, head: head, curve: curve,
+      u: Math.random(), speed: (0.02 + Math.random() * 0.05) * (Math.random() < 0.5 ? 1 : -1),
+      segs: segs, span: 0.055 + Math.random() * 0.05, phase: Math.random() * 6.28
+    };
+  }
+
+  function updateAmbientSnakes(dt, now) {
+    var THREE = st.three;
+    if (!THREE) return;
+    var m4 = st.tmpM || (st.tmpM = new THREE.Matrix4());
+    var q = st.tmpQ || (st.tmpQ = new THREE.Quaternion());
+    var v = st.tmpV || (st.tmpV = new THREE.Vector3());
+    var v2 = st.tmpV2 || (st.tmpV2 = new THREE.Vector3());
+    var up = new THREE.Vector3(0, 1, 0), s = new THREE.Vector3();
+    for (var i = 0; i < st.ambient.length; i++) {
+      var sn = st.ambient[i];
+      sn.u = (sn.u + sn.speed * dt + 1) % 1;
+      for (var j = 0; j < sn.segs; j++) {
+        var t = (sn.u - j * sn.span + 1) % 1;
+        sn.curve.getPoint(t, v);
+        var sc = (1 - (j / sn.segs) * 0.62) * (0.9 + Math.sin(now * 6 + sn.phase + j * 0.7) * 0.06);
+        s.set(sc, sc, sc);
+        q.setFromAxisAngle(up, now * 0.3 + i);
+        m4.compose(v, q, s);
+        sn.body.setMatrixAt(j, m4);
+      }
+      sn.body.instanceMatrix.needsUpdate = true;
+      sn.curve.getPoint(sn.u, v);
+      sn.curve.getPoint((sn.u + 0.012) % 1, v2);
+      sn.head.group.position.copy(v);
+      sn.head.group.lookAt(v2);
+      sn.head.tongue.scale.z = 0.4 + Math.max(0, Math.sin(now * (5 + i) + sn.phase)) * 1.5;
+    }
+  }
+
+
+  /* Serpiente tótem que flota delante de ti: se enrolla en espiral, tiene halo y
+     anillo, y al pulsarla (ratón o mandos) abre/cierra el escritorio. */
+  function makeSpiritSnake(THREE) {
+    var group = new THREE.Group();
+    var color = 0x9dff5a;
+    var mat = new THREE.MeshStandardMaterial({ color: color, roughness: 0.35, metalness: 0.25, emissive: color, emissiveIntensity: 0.5 });
+    var pts = [], k;
+    for (k = 0; k <= 44; k++) {
+      var f = k / 44;
+      var ang = f * Math.PI * 2 * 2.4;
+      var rr = 0.105 * (1 - f * 0.35);
+      pts.push(new THREE.Vector3(Math.cos(ang) * rr, f * 0.3 - 0.15, Math.sin(ang) * rr));
+    }
+    var spiral = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 96, 0.024, 8, false), mat);
+    group.add(spiral);
+    var head = makeSnakeHead(THREE, color, 1.35);
+    head.group.position.set(0, 0.18, 0);
+    group.add(head.group);
+
+    /* Halo suave (sprite radial) */
+    var haloTex = (function () {
+      var S = 128, c = document.createElement('canvas');
+      c.width = S; c.height = S;
+      var cx = c.getContext('2d');
+      var g = cx.createRadialGradient(S / 2, S / 2, 4, S / 2, S / 2, S / 2);
+      g.addColorStop(0, 'rgba(157,255,90,.85)');
+      g.addColorStop(0.45, 'rgba(70,200,110,.35)');
+      g.addColorStop(1, 'rgba(30,80,50,0)');
+      cx.fillStyle = g;
+      cx.fillRect(0, 0, S, S);
+      var t = new THREE.CanvasTexture(c);
+      t.colorSpace = THREE.SRGBColorSpace;
+      return t;
+    })();
+    var halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: haloTex, transparent: true, depthWrite: false, opacity: 0.85 }));
+    halo.scale.set(0.85, 0.85, 1);
+    halo.position.set(0, 0, -0.06);
+    group.add(halo);
+
+    var ring = new THREE.Mesh(
+      new THREE.TorusGeometry(0.19, 0.008, 6, 40),
+      new THREE.MeshBasicMaterial({ color: 0x9dff5a, transparent: true, opacity: 0.9, toneMapped: false })
+    );
+    ring.rotation.x = Math.PI / 2;
+    ring.position.y = -0.16;
+    group.add(ring);
+
+    /* Zona clicable (invisible pero el raycaster sí la ve) */
+    var pick = new THREE.Mesh(
+      new THREE.SphereGeometry(0.26, 10, 8),
+      new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false })
+    );
+    group.add(pick);
+
+    return { group: group, spiral: spiral, head: head, halo: halo, ring: ring, pickMesh: pick, mat: mat, bite: 0 };
+  }
+
+  /* Posición/dirección reales de los ojos del que mira (vale en XR y fuera de XR). */
+  function viewerWorldPos(out) {
+    var r = st.renderer;
+    if (r && r.xr && r.xr.isPresenting) {
+      try {
+        var xc = r.xr.getCamera();
+        if (xc) return xc.getWorldPosition(out);
+      } catch (eXv1) {}
+    }
+    return st.camera.getWorldPosition(out);
+  }
+  function viewerWorldDir(out) {
+    var r = st.renderer;
+    if (r && r.xr && r.xr.isPresenting) {
+      try {
+        var xc = r.xr.getCamera();
+        if (xc) return xc.getWorldDirection(out);
+      } catch (eXv2) {}
+    }
+    return st.camera.getWorldDirection(out);
+  }
+
+  function updateSpirit(dt, now) {
+    var sp = st.spirit;
+    if (!sp || !st.three) return;
+    var THREE = st.three;
+    var pos = new THREE.Vector3(), dir = new THREE.Vector3(), look = new THREE.Vector3();
+    viewerWorldPos(pos);
+    viewerWorldDir(dir);
+    dir.y = 0;
+    if (dir.lengthSq() < 0.0001) dir.set(0, 0, -1);
+    dir.normalize();
+    look.copy(pos).addScaledVector(dir, 0.95);
+    look.y = clampN(pos.y - 0.18, 0.85, 1.55);
+    look.y += Math.sin(now * 1.4) * 0.015;
+    sp.group.position.lerp(look, Math.min(1, dt * 4.5));
+    /* La cabeza te mira siempre a ti */
+    sp.head.group.lookAt(pos.x, pos.y, pos.z);
+    sp.spiral.rotation.y = now * 0.9;
+    sp.ring.rotation.z = now * (st.screenOpen ? 2.4 : 0.7);
+    sp.halo.material.opacity = (st.screenOpen ? 0.95 : 0.6) + Math.sin(now * 5) * 0.08;
+    sp.group.scale.setScalar(1 + Math.sin(now * 3.2) * 0.045 + sp.bite * 0.3);
+    sp.head.tongue.scale.z = 0.5 + Math.max(0, Math.sin(now * 6.5)) * 1.4;
+    if (sp.bite > 0) sp.bite = Math.max(0, sp.bite - dt * 3);
+    var col = st.screenOpen ? 0x9dff5a : 0xffc861;
+    try {
+      sp.ring.material.color.setHex(col);
+      sp.mat.emissive.setHex(col);
+    } catch (eCol) {}
+  }
+
+  /* ---------------- Abrir / cerrar el escritorio desde el tótem ---------------- */
+  function updateScreenAnim(dt) {
+    var g = st.screenGroup;
+    if (!g) return;
+    var target = st.screenOpen ? 1 : 0;
+    st.screenAnim += (target - st.screenAnim) * Math.min(1, dt * 5.5);
+    if (Math.abs(target - st.screenAnim) < 0.012) st.screenAnim = target;
+    var k = st.screenAnim;
+    g.visible = k > 0.01;
+    g.scale.setScalar(Math.max(0.001, k));
+  }
+
+  function setScreenOpen(on) {
+    var want = !!on;
+    if (st.screenOpen === want) return st.screenOpen;
+    st.screenOpen = want;
+    if (st.spirit) st.spirit.bite = 1;
+    try { paintInfo(); } catch (eSi) {}
+    syncHud();
+    return st.screenOpen;
+  }
+
+  function toggleScreen() { return setScreenOpen(!st.screenOpen); }
+
+  /* ---------------- Mandos-serpiente de WebXR ---------------- */
+  function makeControllerSnake(THREE, hand) {
+    var group = new THREE.Group();
+    /* Mano izquierda lima, derecha cian */
+    var color = hand === 0 ? 0x9dff3c : 0x35ffd6;
+    var mat = new THREE.MeshStandardMaterial({ color: color, roughness: 0.4, metalness: 0.2, emissive: color, emissiveIntensity: 0.4 });
+    var pts = [], k;
+    for (k = 0; k <= 48; k++) {
+      var f = k / 48;
+      var ang = f * Math.PI * 2 * 2.4;
+      pts.push(new THREE.Vector3(Math.cos(ang) * 0.027, Math.sin(ang) * 0.027, 0.08 - f * 0.24));
+    }
+    var coil = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 96, 0.0115, 6, false), mat);
+    group.add(coil);
+    var tail = new THREE.Mesh(new THREE.ConeGeometry(0.013, 0.05, 8), mat);
+    tail.position.set(0, 0.027, 0.1);
+    tail.rotation.x = -Math.PI / 2;
+    group.add(tail);
+    var head = makeSnakeHead(THREE, color, 0.85);
+    head.group.position.set(0, 0.024, -0.185);
+    head.group.rotation.y = Math.PI;      /* el hocico mira al frente del mando (-Z) */
+    group.add(head.group);
+    return { group: group, coil: coil, head: head, color: color, mat: mat, bite: 0, phase: Math.random() * 6.28 };
+  }
+
+  function updateHandSnakes(dt, now) {
+    for (var i = 0; i < st.handSnakes.length; i++) {
+      var sn = st.handSnakes[i];
+      if (!sn) continue;
+      sn.coil.rotation.z = now * 1.1 + i;
+      sn.head.group.rotation.x = Math.sin(now * 2 + sn.phase) * 0.06;
+      sn.head.group.rotation.y = Math.PI + Math.sin(now * 0.9 + sn.phase) * 0.12;
+      sn.head.tongue.scale.z = 0.35 + Math.max(0, Math.sin(now * 8 + sn.phase)) * 1.6;
+      if (sn.bite > 0) {
+        sn.bite = Math.max(0, sn.bite - dt * 2.6);
+        sn.head.group.position.z = -0.185 - sn.bite * 0.06;
+        sn.head.group.rotation.x += sn.bite * 0.35;
+      } else {
+        sn.head.group.position.z = -0.185;
+      }
+    }
+  }
+
+  function biteNow(c) {
+    if (c && c.userData && c.userData.snake) c.userData.snake.bite = 1;
+    hapticPulse(c, 0.55);
+  }
+
+  function hapticPulse(c, amp) {
+    try {
+      var gp = c && c.userData && c.userData.gamepad;
+      var acts = gp && gp.hapticActuators;
+      if (acts && acts.length && acts[0].pulse) acts[0].pulse(amp, 60);
+    } catch (eH) {}
+  }
+
+  /* Punteros del mando: el rayo sale de la boca y se acorta/colorea según lo que
+     tengas delante (tótem = ámbar, pantalla = verde). */
+  function updateXRPointers() {
+    if (st.mode !== 'xr' || !st.three) return;
+    var THREE = st.three;
+    var rc = st.rc || (st.rc = new THREE.Raycaster());
+    for (var i = 0; i < st.xrControllers.length; i++) {
+      var c = st.xrControllers[i];
+      if (!c.userData.ray || !c.userData.snake) continue;
+      var m = new THREE.Matrix4().extractRotation(c.matrixWorld);
+      var o = new THREE.Vector3().setFromMatrixPosition(c.matrixWorld);
+      var d = new THREE.Vector3(0, 0, -1).applyMatrix4(m).normalize();
+      rc.set(o, d);
+      var len = 7, col = c.userData.snake.color, op = 0.55;
+      var hitS = st.spirit ? rc.intersectObject(st.spirit.pickMesh, false) : [];
+      var hitM = (st.screenOpen && st.mirrorMesh) ? rc.intersectObject(st.mirrorMesh, false) : [];
+      if (hitS.length && (!hitM.length || hitS[0].distance < hitM[0].distance)) {
+        len = Math.max(0.12, hitS[0].distance); col = 0xffd24a; op = 0.95;
+      } else if (hitM.length) {
+        len = Math.max(0.12, hitM[0].distance); col = 0x35ffb2; op = 0.9;
+      }
+      var ray = c.userData.ray;
+      ray.scale.z = len;
+      try { ray.material.color.setHex(col); ray.material.opacity = op; } catch (eRay) {}
+    }
+  }
+
   function buildScene(THREE, renderer) {
     var scene = new THREE.Scene();
-    scene.background = makeSkyTexture(THREE);
-    scene.fog = new THREE.Fog(0x02060c, 7, 46);
+    scene.background = makeJungleSky(THREE);
+    scene.fog = new THREE.Fog(0x04140d, 6.5, 40);
 
     var camera = new THREE.PerspectiveCamera(72, 1, 0.05, 240);
     var rig = new THREE.Group();
@@ -270,24 +773,41 @@
     var camL = camera.clone(); camL.position.x = -0.031; rig.add(camL);
     var camR = camera.clone(); camR.position.x = 0.031; rig.add(camR);
 
-    scene.add(new THREE.AmbientLight(0x9fb8ff, 0.55));
-    var p1 = new THREE.PointLight(0x35ffb2, 1.35, 34); p1.position.set(0.4, 3.1, 2.4); scene.add(p1);
-    var p2 = new THREE.PointLight(0x2f7cff, 0.95, 34); p2.position.set(-4.2, 2.1, 3.4); scene.add(p2);
-    var p3 = new THREE.PointLight(0xff5fa2, 0.55, 30); p3.position.set(4.4, 1.6, 1.2); scene.add(p3);
+    scene.add(new THREE.AmbientLight(0xa8ffce, 0.62));
+    var p1 = new THREE.PointLight(0x8dff9a, 1.05, 30); p1.position.set(0.4, 3.4, 2.4); scene.add(p1);
+    var p2 = new THREE.PointLight(0xffc46b, 0.7, 30); p2.position.set(-4.2, 2.2, 3.4); scene.add(p2);
+    var p3 = new THREE.PointLight(0x35ffd6, 0.6, 28); p3.position.set(4.4, 2.4, 1.2); scene.add(p3);
 
+    /* Suelo de musgo de la jungla */
     var floor = new THREE.Mesh(
-      new THREE.PlaneGeometry(120, 120),
-      new THREE.MeshStandardMaterial({ color: 0x061018, roughness: 0.92, metalness: 0.28 })
+      new THREE.PlaneGeometry(160, 160),
+      new THREE.MeshStandardMaterial({ map: makeGroundTexture(THREE), roughness: 0.98, metalness: 0.04 })
     );
     floor.rotation.x = -Math.PI / 2;
     scene.add(floor);
-    var grid = new THREE.GridHelper(120, 120, 0x1f6f5a, 0x0d2530);
-    grid.position.y = 0.02;
-    grid.material.transparent = true;
-    grid.material.opacity = 0.5;
-    scene.add(grid);
 
-    scene.add(makeStarField(THREE));
+    /* Selva: árboles, helechos y lianas */
+    var jungle = makeJungle(THREE);
+    scene.add(jungle);
+    st.jungle = jungle;
+
+    /* Luciérnagas flotando */
+    st.fireflies = makeFireflies(THREE);
+    scene.add(st.fireflies);
+
+    /* Serpientes que se arrastran por todas partes */
+    st.ambient = [];
+    for (var sI = 0; sI < 10; sI++) {
+      var asn = makeAmbientSnake(THREE, sI);
+      scene.add(asn.group);
+      st.ambient.push(asn);
+    }
+
+    /* Serpiente tótem que te sigue: abre y cierra el escritorio */
+    st.spirit = makeSpiritSnake(THREE);
+    st.spirit.bite = 0;
+    st.spirit.group.position.set(0, 1.35, 2.45);
+    scene.add(st.spirit.group);
 
     /* Pantalla central: espejo del escritorio (pulsable) */
     var mirrorCanvas = document.createElement('canvas');
@@ -299,23 +819,30 @@
       new THREE.PlaneGeometry(3.2, 2.0),
       new THREE.MeshBasicMaterial({ map: mirrorTex, toneMapped: false })
     );
-    screen.position.set(0, 1.55, 0);
+    screen.position.set(0, 0, 0);
     screen.name = 'snk-vr-screen';
-    scene.add(screen);
 
     var frame = new THREE.LineSegments(
       new THREE.EdgesGeometry(new THREE.BoxGeometry(3.34, 2.14, 0.07)),
-      new THREE.LineBasicMaterial({ color: 0x35ffb2, transparent: true, opacity: 0.9 })
+      new THREE.LineBasicMaterial({ color: 0x9dff5a, transparent: true, opacity: 0.9 })
     );
-    frame.position.set(0, 1.55, -0.01);
-    scene.add(frame);
+    frame.position.set(0, 0, -0.01);
 
     var glow = new THREE.Mesh(
       new THREE.PlaneGeometry(3.9, 2.7),
       new THREE.MeshBasicMaterial({ color: 0x0a3a2c, transparent: true, opacity: 0.24, depthWrite: false })
     );
-    glow.position.set(0, 1.55, -0.06);
-    scene.add(glow);
+    glow.position.set(0, 0, -0.06);
+
+    /* Grupo de la pantalla: el tótem lo abre (escala 0→1) y lo cierra. */
+    var screenGroup = new THREE.Group();
+    screenGroup.position.set(0, 1.55, 0);
+    screenGroup.scale.setScalar(0.001);
+    screenGroup.visible = false;
+    screenGroup.add(screen);
+    screenGroup.add(frame);
+    screenGroup.add(glow);
+    scene.add(screenGroup);
 
     function sidePanel(x, ry) {
       var c = document.createElement('canvas');
@@ -350,6 +877,9 @@
     st.mirrorMesh = screen;
     st.floorMesh = floor;
     st.frameMesh = frame;
+    st.screenGroup = screenGroup;
+    st.screenOpen = false;
+    st.screenAnim = 0;
     st.mirrorCanvas = mirrorCanvas;
     st.mirrorCtx = mirrorCanvas.getContext('2d');
     st.mirrorTex = mirrorTex;
@@ -615,17 +1145,30 @@
     L.fillStyle = '#eafff4';
     L.fillText(String(global.SNAKE_OS_VERSION || VR_VERSION), 34, 358);
 
+    L.strokeStyle = 'rgba(120,200,180,.32)';
+    L.lineWidth = 2;
+    L.beginPath(); L.moveTo(34, 378); L.lineTo(W - 34, 378); L.stroke();
+
     L.font = vrFont(15, 700);
     L.fillStyle = 'rgba(141,255,207,.85)';
-    L.fillText(vrT('APPS ABIERTAS', 'OPEN APPS') + ' · ' + openTitles.length, 34, 408);
+    L.fillText(vrT('ESCRITORIO', 'DESKTOP'), 34, 408);
+    L.font = vrFont(19, 700);
+    L.fillStyle = st.screenOpen ? '#8dffcf' : '#ffd28a';
+    L.fillText(st.screenOpen
+      ? vrT('Abierto en la pantalla', 'Open on the screen')
+      : vrT('Cerrado: muerde al tótem', 'Closed: bite the totem'), 34, 438);
+
+    L.font = vrFont(15, 700);
+    L.fillStyle = 'rgba(141,255,207,.85)';
+    L.fillText(vrT('APPS ABIERTAS', 'OPEN APPS') + ' · ' + openTitles.length, 34, 480);
     L.font = vrFont(17, 600);
-    var y = 442;
+    var y = 512;
     if (!openTitles.length) {
       L.fillStyle = 'rgba(234,255,244,.55)';
       wrapText(L, vrT('Ninguna: toca un icono en la pantalla', 'None: tap an icon on the screen'), 34, y, W - 68, 26, 2);
       y += 30;
     }
-    for (var k = 0; k < Math.min(6, openTitles.length); k++) {
+    for (var k = 0; k < Math.min(4, openTitles.length); k++) {
       var name = openTitles[k];
       if (name.length > 24) name = name.slice(0, 23) + '…';
       L.fillStyle = 'rgba(234,255,244,.9)';
@@ -677,8 +1220,8 @@
     R.font = vrFont(16, 600);
     R.fillStyle = 'rgba(234,255,244,.86)';
     var lines = vrT(
-      'Arrastra: mirar|Rueda: acercarte|WASD: moverte|Clic: abrir apps|Doble clic: recentrar|🧭 Giroscopio: con la cabeza|👓 SBS: gafas de cartón',
-      'Drag: look|Wheel: zoom|WASD: move|Click: open apps|Double click: recenter|🧭 Gyro: with your head|👓 SBS: cardboard'
+      '🐍 Mandos: serpientes que apuntan y muerden|🎮 Gatillo/morder: pulsar la pantalla|🔮 Tótem delante: muerde para abrir/cerrar el escritorio|🖐 Muerde el suelo: moverte|🌿 Jungla viva con serpientes|Arrastra: mirar · rueda: acercarte · WASD: moverte|🧭 Giroscopio · 👓 SBS · doble clic: recentrar',
+      '🐍 Controllers: snakes that aim and bite|🎮 Trigger/bite: click the screen|🔮 Totem in front: bite it to open/close the desktop|🖐 Bite the floor: move|🌿 Living jungle full of snakes|Drag: look · wheel: zoom · WASD: move|🧭 Gyro · 👓 SBS · double click: recenter'
     ).split('|');
     var ly = 576;
     for (var l = 0; l < lines.length; l++) {
@@ -752,18 +1295,27 @@
   }
 
   function tapAt(cx, cy) {
-    if (!st.three || !st.camera || !st.mirrorMesh) return;
+    if (!st.three || !st.camera) return;
     var now = Date.now();
     var w = global.innerWidth || 1280, h = global.innerHeight || 800;
     var ndc = new st.three.Vector2((cx / w) * 2 - 1, -(cy / h) * 2 + 1);
     var rc = new st.three.Raycaster();
     rc.setFromCamera(ndc, st.camera);
-    var hits = rc.intersectObject(st.mirrorMesh, false);
-    if (hits && hits.length && hits[0].uv) {
-      flashAtPoint(hits[0].point);
-      var didClick = clickDomFromUv(hits[0].uv);
-      st.lastTap = didClick ? 0 : now;
+    /* 1) La serpiente tótem que te sigue: abre o cierra el escritorio. */
+    if (st.spirit && rc.intersectObject(st.spirit.pickMesh, false).length) {
+      toggleScreen();
+      st.lastTap = 0;
       return;
+    }
+    /* 2) La pantalla gigante (solo si el tótem ya la ha abierto). */
+    if (st.screenOpen && st.mirrorMesh) {
+      var hits = rc.intersectObject(st.mirrorMesh, false);
+      if (hits && hits.length && hits[0].uv) {
+        flashAtPoint(hits[0].point);
+        var didClick = clickDomFromUv(hits[0].uv);
+        st.lastTap = didClick ? 0 : now;
+        return;
+      }
     }
     /* Fuera de la pantalla: doble toque = recentrar. */
     if (now - st.lastTap < 340) { st.lastTap = 0; recenter(); }
@@ -798,9 +1350,11 @@
     var gyro = root.querySelector('[data-vr="gyro"]');
     var sbs = root.querySelector('[data-vr="sbs"]');
     var xr = root.querySelector('[data-vr="xr"]');
+    var scr = root.querySelector('[data-vr="screen"]');
     if (gyro) gyro.setAttribute('aria-pressed', st.gyro ? 'true' : 'false');
     if (sbs) sbs.setAttribute('aria-pressed', st.mode === 'sbs' ? 'true' : 'false');
     if (xr) xr.setAttribute('aria-pressed', st.mode === 'xr' ? 'true' : 'false');
+    if (scr) scr.setAttribute('aria-pressed', st.screenOpen ? 'true' : 'false');
   }
 
   function disableGyro() {
@@ -1005,16 +1559,39 @@
     st.xrMoveTo = new st.three.Vector3(p.x, 0, p.z);
   }
 
+  function onCtrlConnected(c) {
+    return function (ev) {
+      c.userData.gamepad = ev.data.gamepad;
+      /* Si las gafas dan el espacio de la empuñadura, la serpiente se
+         enrolla ahí (mejor alineada con la mano). */
+      try {
+        if (ev.data.gripSpace && c.userData.snakeNest === undefined) {
+          c.userData.snakeNest = true;
+        }
+      } catch (eGrip) {}
+    };
+  }
+
   function setupXRControllers() {
     if (st.xrControllers.length) return;
     var THREE = st.three, r = st.renderer;
     var rc = new THREE.Raycaster();
     var rayGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, -1)]);
+    st.handSnakes = [];
     for (var i = 0; i < 2; i++) {
       var c = r.xr.getController(i);
-      var line = new THREE.Line(rayGeo, new THREE.LineBasicMaterial({ color: 0x35ffb2, transparent: true, opacity: 0.85 }));
+      /* Mando-serpiente: cuerpo enrollado, cabeza con ojos y lengua al frente */
+      var snake = makeControllerSnake(THREE, i);
+      c.add(snake.group);
+      st.handSnakes.push(snake);
+      /* El rayo sale de la boca de la serpiente */
+      var line = new THREE.Line(rayGeo, new THREE.LineBasicMaterial({ color: snake.color, transparent: true, opacity: 0.6 }));
+      line.position.set(0, 0.005, -0.2);
       line.scale.z = 7;
       c.add(line);
+      c.userData.ray = line;
+      c.userData.snake = snake;
+      c.addEventListener('connected', onCtrlConnected(c));
       c.addEventListener('selectstart', onXRSelect.bind(null, c, rc));
       if (i === 0) {
         c.addEventListener('squeezestart', function () {
@@ -1026,21 +1603,39 @@
     }
   }
 
-  function onXRSelect(c, rc) {
-    if (!st.mirrorMesh || !st.floorMesh) return;
+  function castFromController(c, rc) {
     var THREE = st.three;
     var m = new THREE.Matrix4().extractRotation(c.matrixWorld);
     var o = new THREE.Vector3().setFromMatrixPosition(c.matrixWorld);
     var d = new THREE.Vector3(0, 0, -1).applyMatrix4(m).normalize();
     rc.set(o, d);
-    var hits = rc.intersectObject(st.mirrorMesh, false);
-    if (hits.length && hits[0].uv) {
-      flashAtPoint(hits[0].point);
-      clickDomFromUv(hits[0].uv);
+    return rc;
+  }
+
+  function onXRSelect(c, rc) {
+    if (!st.spirit) return;
+    castFromController(c, rc);
+    /* 1) El tótem serpiente que te sigue: abre o cierra el escritorio. */
+    if (rc.intersectObject(st.spirit.pickMesh, false).length) {
+      biteNow(c);
+      toggleScreen();
       return;
     }
-    var fh = rc.intersectObject(st.floorMesh, false);
-    if (fh.length) teleportTo(fh[0].point);
+    /* 2) La pantalla del escritorio, si ya está abierta: clic real en el DOM. */
+    if (st.screenOpen && st.mirrorMesh) {
+      var hits = rc.intersectObject(st.mirrorMesh, false);
+      if (hits.length && hits[0].uv) {
+        biteNow(c);
+        flashAtPoint(hits[0].point);
+        clickDomFromUv(hits[0].uv);
+        return;
+      }
+    }
+    /* 3) El suelo de la jungla: muerde para teletransportarte. */
+    if (st.floorMesh) {
+      var fh = rc.intersectObject(st.floorMesh, false);
+      if (fh.length) { biteNow(c); teleportTo(fh[0].point); }
+    }
   }
 
   /* ---------------- Bucle de render ---------------- */
@@ -1076,7 +1671,21 @@
       }
     }
 
-    if (now - st.mirrorLast > 1.2) { st.mirrorLast = now; try { paintMirror(); } catch (ePm) {} }
+    /* Animación viva de la jungla, las serpientes, el tótem y la pantalla. */
+    st.tickN = (st.tickN + 1) % 100000;
+    try {
+      updateScreenAnim(dt);
+      if (st.ambient && st.ambient.length) updateAmbientSnakes(dt, now);
+      if (st.jungle) updateJungle(dt, now);
+      if (st.fireflies) updateFireflies(dt, now);
+      if (st.spirit) updateSpirit(dt, now);
+      if (st.mode === 'xr') {
+        updateHandSnakes(dt, now);
+        if (st.tickN % 2 === 0) updateXRPointers();
+      }
+    } catch (eAnim) {}
+
+    if (st.screenOpen && now - st.mirrorLast > 1.2) { st.mirrorLast = now; try { paintMirror(); } catch (ePm) {} }
     if (now - st.infoLast > 2) { st.infoLast = now; try { paintInfo(); } catch (ePi) {} }
 
     renderFrame();
@@ -1122,6 +1731,7 @@
     else if (a === 'gyro') enableGyro();
     else if (a === 'sbs') toggleSbs(st.mode !== 'sbs');
     else if (a === 'xr') enterXR();
+    else if (a === 'screen') toggleScreen();
   }
 
   function open(opts) {
@@ -1143,6 +1753,18 @@
     st.lastT = 0;
     st.mirrorLast = 0;
     st.infoLast = 0;
+    st.screenOpen = false;
+    st.screenAnim = 0;
+    st.screenGroup = null;
+    st.jungle = null;
+    st.lianas = [];
+    st.ambient = [];
+    st.fireflies = null;
+    st.spirit = null;
+    st.handSnakes = [];
+    st.rc = null;
+    st.tickN = 0;
+    st.tmpV = null; st.tmpV2 = null; st.tmpQ = null; st.tmpM = null;
     st.open = true;
     document.body.classList.add('snk-vr-on');
     st.root.addEventListener('click', onHudClick);
@@ -1168,6 +1790,7 @@
       bindInput();
       bindKeys();
       syncHud();
+      if (opts.screen) setScreenOpen(true);
       try {
         var nav = global.navigator;
         if (nav && nav.xr && nav.xr.isSessionSupported) {
@@ -1214,6 +1837,17 @@
     st.floorMesh = null;
     st.frameMesh = null;
     st.starField = null;
+    st.screenGroup = null;
+    st.screenOpen = false;
+    st.screenAnim = 0;
+    st.jungle = null;
+    st.lianas = [];
+    st.ambient = [];
+    st.fireflies = null;
+    st.spirit = null;
+    st.handSnakes = [];
+    st.rc = null;
+    st.tmpV = null; st.tmpV2 = null; st.tmpQ = null; st.tmpM = null;
     st.leftCtx = null; st.rightCtx = null;
     st.leftTex = null; st.rightTex = null;
     st.leftCanvas = null; st.rightCanvas = null;
@@ -1237,11 +1871,12 @@
       '<div class="snkvr-app">' +
         '<h1>🥽 Snake VR</h1>' +
         '<p class="snkvr-sub">' + vrT(
-          'Tu escritorio de Snake OS en 3D: pantalla gigante con tus iconos y ventanas, paneles en vivo a los lados y suelo de neón. Funciona con gafas VR de verdad, con gafas de cartón y con ratón y teclado.',
-          'Your Snake OS desktop in 3D: a giant screen with your icons and windows, live side panels and a neon floor. Works with true VR headsets, cardboard goggles, and mouse and keyboard.'
+          'Una jungla viva en 3D con serpientes por todas partes: tu escritorio se abre en una pantalla gigante solo si muerdes a la serpiente tótem que te sigue. Tus dos mandos de VR también son serpientes.',
+          'A living 3D jungle full of snakes: your desktop opens on a giant screen only when you bite the totem snake that follows you. Your two VR controllers are snakes too.'
         ) + '</p>' +
         '<div class="snkvr-chips">' +
           '<span class="snkvr-chip" id="snkvr-compat">WebXR…</span>' +
+          '<span class="snkvr-chip on">🐍 ' + vrT('Mandos serpiente', 'Snake controllers') + '</span>' +
           '<span class="snkvr-chip on">👓 ' + vrT('Cardboard (SBS)', 'Cardboard (SBS)') + '</span>' +
           '<span class="snkvr-chip on">🧭 ' + vrT('Giroscopio', 'Gyroscope') + '</span>' +
         '</div>' +
@@ -1249,20 +1884,21 @@
         '<div class="snkvr-row">' +
           '<button type="button" class="snkvr-btn2" id="snkvr-sbs">👓 ' + vrT('Visor estereoscópico', 'Stereoscopic viewer') + '</button>' +
           '<button type="button" class="snkvr-btn2" id="snkvr-xr">🥽 ' + vrT('VR real (WebXR)', 'True VR (WebXR)') + '</button>' +
+          '<button type="button" class="snkvr-btn2" id="snkvr-screen">🔮 ' + vrT('Abrir el escritorio dentro de VR', 'Open the desktop inside VR') + '</button>' +
           '<button type="button" class="snkvr-btn2" id="snkvr-close">✖ ' + vrT('Salir de VR', 'Exit VR') + '</button>' +
         '</div>' +
         '<div>' +
           '<p style="margin:0 0 6px;font-weight:700">' + vrT('Qué puedes hacer dentro', 'What you can do inside') + '</p>' +
           '<ul>' +
-            '<li>' + vrT('Ver tu escritorio real en una pantalla gigante: iconos, apps abiertas y reloj se actualizan solos.', 'See your real desktop on a giant screen: icons, open apps and the clock update by themselves.') + '</li>' +
-            '<li>' + vrT('Abrir apps sin salir: apunta con el ratón o el mando y pulsa un icono de la pantalla.', 'Open apps without leaving: aim with the mouse or controller and click an icon on the screen.') + '</li>' +
-            '<li>' + vrT('Paneles laterales con hora, versión de Snake OS, apps abiertas y novedades.', 'Side panels with the time, Snake OS version, open apps and what’s new.') + '</li>' +
-            '<li>' + vrT('En gafas: modo WebXR con mandos y teletransporte, o modo Cardboard para el móvil.', 'On headsets: WebXR mode with controllers and teleport, or Cardboard mode for your phone.') + '</li>' +
+            '<li>' + vrT('La pantalla gigante empieza cerrada: muerde a la serpiente tótem que te sigue (o púlsala con el ratón) para abrir tu escritorio, y muerde otra vez para cerrarlo.', 'The giant screen starts closed: bite the totem snake that follows you (or press it with the mouse) to open your desktop, and bite again to close it.') + '</li>' +
+            '<li>' + vrT('Con las dos manos: cada mando es una serpiente con ojos y lengua. El rayo sale de su boca y el gatillo la hace morder lo que apunta (iconos, apps, ventanas).', 'Both hands: each controller is a snake with eyes and tongue. Its ray comes out of its mouth and the trigger makes it bite whatever it points at (icons, apps, windows).') + '</li>' +
+            '<li>' + vrT('Jungla animada alrededor: árboles, helechos, lianas meciéndose, luciérnagas y serpientes que se arrastran por todas partes.', 'Animated jungle all around: trees, ferns, swaying vines, fireflies and snakes crawling everywhere.') + '</li>' +
+            '<li>' + vrT('Paneles laterales con hora, versión de Snake OS, estado del escritorio, apps abiertas y novedades.', 'Side panels with the time, Snake OS version, desktop state, open apps and what’s new.') + '</li>' +
           '</ul>' +
         '</div>' +
         '<p class="snkvr-note">' + vrT(
-          'Consejo: en el móvil, abre Snake VR, pulsa 🧭 Giroscopio y 👓 Gafas (SBS) y mete el teléfono en las gafas de cartón. En Meta Quest usa directamente 🥽 VR real.',
-          'Tip: on your phone, open Snake VR, press 🧭 Gyroscope and 👓 Headset (SBS) and put the phone into your cardboard goggles. On Meta Quest just use 🥽 True VR.'
+          'Consejo: en el móvil, abre Snake VR, pulsa 🧭 Giroscopio y 👓 Gafas (SBS) y mete el teléfono en las gafas de cartón. En Meta Quest usa directamente 🥽 VR real y busca al tótem delante de ti.',
+          'Tip: on your phone, open Snake VR, press 🧭 Gyroscope and 👓 Headset (SBS) and put the phone into your cardboard goggles. On Meta Quest just use 🥽 True VR and look for the totem in front of you.'
         ) + '</p>' +
       '</div>';
 
@@ -1289,6 +1925,11 @@
     if (btnSbs) btnSbs.addEventListener('click', function () { open({ sbs: true }); });
     var btnXr = body.querySelector('#snkvr-xr');
     if (btnXr) btnXr.addEventListener('click', function () { open({ xr: true }); });
+    var btnScreen = body.querySelector('#snkvr-screen');
+    if (btnScreen) btnScreen.addEventListener('click', function () {
+      if (st.open) { setScreenOpen(true); return; }
+      open({ screen: true });
+    });
     var btnClose = body.querySelector('#snkvr-close');
     if (btnClose) btnClose.addEventListener('click', function () { close(); });
 
@@ -1306,6 +1947,9 @@
     close: close,
     recenter: recenter,
     supported: xrSupported,
+    toggleScreen: toggleScreen,
+    setScreenOpen: setScreenOpen,
+    get isScreenOpen() { return !!st.screenOpen; },
     get mode() { return st.mode; },
     get isOpen() { return !!st.open; }
   };

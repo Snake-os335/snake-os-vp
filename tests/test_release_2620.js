@@ -1,4 +1,4 @@
-/* Snake OS 2026.20: Snake VR — realidad virtual para gafas VR.
+/* Snake OS 2026.21: Snake VR — realidad virtual para gafas VR.
  *
  * Qué se comprueba (estático, sobre los ficheros reales):
  *  - snake-vr.js existe y expone window.SnakeVR + window.renderSnakeVrApp.
@@ -9,7 +9,7 @@
  *    immersive-vr con mandos (selectstart) y teletransporte.
  *  - Giroscopio del móvil (deviceorientation + requestPermission en iOS).
  *  - Limpieza: al salir se para el render, se hace dispose y se quita el overlay.
- *  - index.html: versión 2026.20, entrada de novedades, script y app «Snake VR».
+ *  - index.html: versión 2026.21, entrada de novedades, script y app «Snake VR».
  */
 'use strict';
 var fs = require('fs');
@@ -27,7 +27,7 @@ var readme = fs.readFileSync(path.join(root, 'README.md'), 'utf8');
 // 1) Módulo y API pública
 assert.ok(vr.indexOf("global.SnakeVR") >= 0, 'expone window.SnakeVR');
 assert.ok(vr.indexOf('global.renderSnakeVrApp = renderSnakeVrApp') >= 0, 'expone renderSnakeVrApp');
-assert.ok(vr.indexOf("VR_VERSION = '2026.20'") >= 0, 'versión del módulo 2026.20');
+assert.ok(vr.indexOf("VR_VERSION = '2026.21'") >= 0, 'versión del módulo 2026.21');
 assert.ok(vr.indexOf("'/static/assets/three-r160.min.js?v=r160'") >= 0, 'usa el three.js local de Snake OS');
 assert.ok(vr.indexOf('__snakeBootBroken') === -1, 'no toca el arranque del OS');
 ok('snake-vr.js: módulo cargado con API pública y three.js local');
@@ -74,18 +74,18 @@ assert.strictEqual(/TODO|FIXME/.test(vr), false, 'sin TODOs pendientes');
 ok('salida limpia sin fugas de render ni overlay');
 
 // 7) index.html: versión, novedades, script y app
-assert.ok(html.indexOf("window.SNAKE_OS_VERSION='2026.20'") >= 0, 'versión 2026.20');
-assert.ok(html.indexOf("{v:'2026.20'") >= 0, 'entrada de novedades 2026.20');
-assert.ok(html.indexOf("{v:'2026.20'") < html.indexOf("{v:'2026.19'"), 'la entrada 2026.20 va primera');
+assert.ok(html.indexOf("window.SNAKE_OS_VERSION='2026.21'") >= 0, 'versión 2026.21');
+assert.ok(html.indexOf("{v:'2026.21'") >= 0, 'entrada de novedades 2026.21');
+assert.ok(html.indexOf("{v:'2026.21'") < html.indexOf("{v:'2026.19'"), 'la entrada 2026.21 va primera');
 assert.ok(html.indexOf('/static/snake-vr.js?v=') >= 0, 'index.html carga snake-vr.js');
 assert.ok(html.indexOf("'snake-vr': { title:'Snake VR'") >= 0, 'app Snake VR registrada en APPS');
 assert.ok(html.indexOf('window.renderSnakeVrApp(body)') >= 0, 'la app delega en renderSnakeVrApp');
-ok('index.html en 2026.20 con la app Snake VR');
+ok('index.html en 2026.21 con la app Snake VR');
 
 // 8) README
 assert.ok(readme.indexOf('Snake VR') >= 0, 'README documenta Snake VR');
-assert.ok(readme.indexOf('2026.20') >= 0, 'README cita la versión 2026.20');
-assert.ok(readme.indexOf('tests/test_release_2620.js') >= 0, 'README lista la prueba 2620');
+assert.ok(readme.indexOf('2026.21') >= 0, 'README cita la versión 2026.21');
+assert.ok(readme.indexOf('tests/test_release_2621.js') >= 0, 'README lista la prueba vigente de Snake VR');
 ok('README actualizado');
 
 if (process.exitCode) process.exit(process.exitCode);
