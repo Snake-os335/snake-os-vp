@@ -1626,7 +1626,10 @@ function handleRealtimePayload(msg) {
     fallbackImg: null,
     videoTimer: null,
     videoMinimized: false,
-    labelHidden: false
+    labelHidden: false,
+    audioUnlock: null,
+    _audioProbeTimer: null,
+    _rtpAudioOk: null
   };
 
   function dcSnapshot() {
@@ -2390,6 +2393,9 @@ function handleRealtimePayload(msg) {
     try {
       var ctx = dcEnsureCtx();
       if (!ctx) return;
+      // Sin gesto el contexto puede quedar suspendido: los nodos no procesarían
+      // y el otro lado no recibiría voz. Armamos el desbloqueo por si acaso.
+      if (ctx.state !== 'running') dcArmAudioUnlock();
       var callId = dcCall.callId;
       dcCall.pcmSrc = ctx.createMediaStreamSource(dcCall.localStream);
       dcCall.pcmProc = ctx.createScriptProcessor(2048, 1, 1);
@@ -2418,6 +2424,7 @@ function handleRealtimePayload(msg) {
     } catch (e) {}
   }
   function dcWebrtcHears() {
+    if (dcCall._webrtcDead) return false;
     var pc = dcCall.pc;
     if (!pc) return false;
     var live = pc.connectionState === 'connected' || pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed';
@@ -2425,13 +2432,102 @@ function handleRealtimePayload(msg) {
     var a = dcCall.remoteAudio;
     if (!a || !a.srcObject || a.muted || a.paused) return false;
     if (typeof a.volume === 'number' && a.volume <= 0) return false;
+    // «connected» no siempre significa que llegue voz (NAT/negociación a medias).
+    // El sondeo de getStats() marca false si no entran bytes de audio: entonces
+    // dejamos pasar el PCM del chat para que la llamada se oiga igualmente.
+    if (dcCall._rtpAudioOk === false) return false;
     return true;
+  }
+  // Sondeo real de audio entrante por WebRTC: ¿suben los bytesReceived del inbound-rtp audio?
+  function dcStartAudioProbe() {
+    dcStopAudioProbe();
+    if (dcCall.phase !== 'active') return;
+    var last = -1;
+    dcCall._audioProbeTimer = setInterval(function () {
+      if (dcCall.phase !== 'active') { dcStopAudioProbe(); return; }
+      var pc = dcCall.pc;
+      if (!pc || typeof pc.getStats !== 'function') return;
+      var pr = pc.getStats();
+      if (!pr || typeof pr.then !== 'function') return;
+      pr.then(function (report) {
+        var bytes = null;
+        try {
+          report.forEach(function (s) {
+            if (!s) return;
+            if (s.type !== 'inbound-rtp') return;
+            if (s.kind !== 'audio' && s.mediaType !== 'audio') return;
+            var b = typeof s.bytesReceived === 'number' ? s.bytesReceived : 0;
+            if (bytes === null || b > bytes) bytes = b;
+          });
+        } catch (eRep) {}
+        if (bytes === null) { dcCall._rtpAudioOk = false; return; }
+        if (last < 0) { last = bytes; dcCall._rtpAudioOk = bytes > 0; return; }
+        dcCall._rtpAudioOk = bytes > last;
+        last = bytes;
+      }).catch(function () {});
+    }, 1500);
+  }
+  function dcStopAudioProbe() {
+    if (dcCall._audioProbeTimer) {
+      try { clearInterval(dcCall._audioProbeTimer); } catch (e0) {}
+      dcCall._audioProbeTimer = null;
+    }
+    dcCall._rtpAudioOk = null;
+  }
+  // Reproducir el audio remoto sin morir en silencio: si el navegador lo bloquea
+  // (autoplay en móvil) se arma un desbloqueo con el próximo toque del usuario.
+  function dcRawPlay(el) {
+    if (!el) return;
+    try { el.muted = false; el.volume = 1; } catch (e0) {}
+    var pr = null;
+    try { pr = el.play(); } catch (e1) { dcArmAudioUnlock(); return; }
+    if (pr && typeof pr.catch === 'function') {
+      pr.catch(function () { dcArmAudioUnlock(); });
+    }
+  }
+  function dcArmAudioUnlock() {
+    if (dcCall.audioUnlock) return;
+    function once() {
+      try { document.removeEventListener('pointerdown', once, true); } catch (e0) {}
+      try { document.removeEventListener('keydown', once, true); } catch (e1) {}
+      try { document.removeEventListener('touchend', once, true); } catch (e2) {}
+      if (dcCall.audioUnlock === once) dcCall.audioUnlock = null;
+      dcKickAudioAll();
+    }
+    dcCall.audioUnlock = once;
+    try { document.addEventListener('pointerdown', once, true); } catch (e3) {}
+    try { document.addEventListener('keydown', once, true); } catch (e4) {}
+    try { document.addEventListener('touchend', once, true); } catch (e5) {}
+  }
+  function dcClearAudioUnlock() {
+    var fn = dcCall.audioUnlock;
+    if (!fn) return;
+    dcCall.audioUnlock = null;
+    try { document.removeEventListener('pointerdown', fn, true); } catch (e0) {}
+    try { document.removeEventListener('keydown', fn, true); } catch (e1) {}
+    try { document.removeEventListener('touchend', fn, true); } catch (e2) {}
+  }
+  // Todos los desbloqueos de una vez: contexto de audio, audio remoto y envío PCM.
+  function dcKickAudioAll() {
+    var ctx = null;
+    if (dcCall.phase === 'active') {
+      try { ctx = dcEnsureCtx(); } catch (e0) {}
+      try { dcStartPcmSend(); } catch (e1) {}
+    }
+    if (ctx && ctx.state === 'suspended' && typeof ctx.resume === 'function') {
+      try { ctx.resume().catch(function () {}); } catch (e2) {}
+    }
+    var a = dcCall.remoteAudio;
+    if (a && a.srcObject) dcRawPlay(a);
+    return !!(a && a.srcObject && !a.paused && !a.muted);
   }
   function dcPlayPcm(b64, rate) {
     if (dcCall.phase !== 'active' || !b64 || dcWebrtcHears()) return;
     try {
       var ctx = dcEnsureCtx();
       if (!ctx) return;
+      // Contexto suspendido (política de autoplay): no encolar buffers que no se oirían.
+      if (ctx.state !== 'running') { dcArmAudioUnlock(); return; }
       var bytes = dcBytesFromB64(b64);
       var n = Math.floor(bytes.length / 2);
       if (n < 8) return;
@@ -2469,9 +2565,12 @@ function handleRealtimePayload(msg) {
     a.playsInline = true;
     a.setAttribute('playsinline', '');
     a.setAttribute('data-dc-voice', '1');
+    a.setAttribute('aria-hidden', 'true');
     a.volume = 1;
     a.muted = false;
-    a.style.display = 'none';
+    // display:none rompe la reproducción en algunos navegadores móviles;
+    // mejor un elemento de 1px invisible.
+    a.style.cssText = 'position:fixed;left:-2px;bottom:0;width:1px;height:1px;opacity:0.01;pointer-events:none;';
     document.body.appendChild(a);
     dcCall.remoteAudio = a;
     return a;
@@ -2524,10 +2623,7 @@ function handleRealtimePayload(msg) {
           var audioV = dcEnsureAudio();
           var aStreamV = new MediaStream(mixedAudio);
           if (audioV.srcObject !== aStreamV) audioV.srcObject = aStreamV;
-          audioV.muted = false;
-          try { audioV.volume = 1; } catch (eVA) {}
-          var prV = audioV.play();
-          if (prV && typeof prV.catch === 'function') prV.catch(function () {});
+          dcRawPlay(audioV);
         }
         return;
       }
@@ -2535,10 +2631,7 @@ function handleRealtimePayload(msg) {
       var audioStream = audioTracks.length ? new MediaStream(audioTracks) : stream;
       var audio = dcEnsureAudio();
       if (audio.srcObject !== audioStream) audio.srcObject = audioStream;
-      audio.muted = false;
-      try { audio.volume = 1; } catch (eV) {}
-      var pr = audio.play();
-      if (pr && typeof pr.catch === 'function') pr.catch(function () {});
+      dcRawPlay(audio);
     };
     pc.onconnectionstatechange = function () {
       if (dcCall.pc !== pc) return;
@@ -2655,9 +2748,12 @@ function handleRealtimePayload(msg) {
   function dcBeginMedia() {
     if (dcCall.phase !== 'active') return;
     try { dcEnsureCtx(); } catch (e) {}
+    var ctx0 = dcCall.audioCtx;
+    if (!ctx0 || ctx0.state !== 'running') dcArmAudioUnlock();
     dcStartPcmSend();
     dcSyncVideoStage();
     dcStartVideoFallback();
+    dcStartAudioProbe();
     if (dcCall.role === 'caller') dcMakeOffer();
   }
   function dcReset(reason) {
@@ -2675,6 +2771,8 @@ function handleRealtimePayload(msg) {
     dcCleanupVideoExtras();
     dcStopPcmSend();
     dcDropPcmPlay();
+    dcStopAudioProbe();
+    dcClearAudioUnlock();
     dcCall.media = 'audio';
     dcCall.cameraNote = '';
     dcCall.role = '';
@@ -2997,7 +3095,19 @@ function handleRealtimePayload(msg) {
     } catch (eOpen) {}
   }
   function dcActiveBanner() {
-    showDcBanner(dcActiveText(), [{ label: 'Colgar', cls: 'no', fn: dcHangup }]);
+    showDcBanner(dcActiveText(), [
+      { label: '🔊 Sonido', fn: dcEnableSound },
+      { label: 'Colgar', cls: 'no', fn: dcHangup }
+    ]);
+  }
+  // Botón «Sonido»: un toque real que desbloquea el audio en móviles y fuerza
+  // la reproducción del audio remoto cuando el navegador la bloqueó.
+  function dcEnableSound() {
+    var ok = dcKickAudioAll();
+    showDcBanner(ok ? 'Sonido activado' : 'Activando sonido…', []);
+    setTimeout(function () {
+      if (dcCall.phase === 'active') dcActiveBanner();
+    }, 1600);
   }
   function dcQueueNotifCallAction(action, callId) {
     if (action !== 'answer' && action !== 'decline') return;
@@ -3448,6 +3558,7 @@ function handleRealtimePayload(msg) {
     try { dcEnsureCtx(); } catch (e0) {}
     dcStartPcmSend();
     dcSyncVideoStage();
+    dcStartAudioProbe();
     var pc = dcCall.pc;
     var dead = !pc
       || pc.connectionState === 'failed'
@@ -3476,6 +3587,7 @@ function handleRealtimePayload(msg) {
     // WebRTC may stay broken behind hard NAT; keep the call on PCM (+ JPEG for video).
     // Never hang up here — that is what made voice/video calls "drop" for users.
     dcCall._webrtcDead = true;
+    dcStopAudioProbe();
     try { dcStartPcmSend(); } catch (ePcm) {}
     try { dcSyncVideoStage(); } catch (eVid) {}
     try {

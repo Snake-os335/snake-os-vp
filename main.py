@@ -9617,31 +9617,17 @@ def _i9_untrack(ws: WebSocket) -> None:
 
 
 async def _i9_ws_enter(ws: WebSocket) -> bool:
-    if not _server_i9_alive():
-        try:
-            await ws.close(code=4403)
-        except Exception:
-            pass
-        return False
+    # 2026.19: el server i9 ya no bloquea ningún WebSocket (chat, llamadas,
+    # metaverso). Antes, sin placa/presencia, se cerraba con 4403 y la
+    # señalización de voz de las llamadas se quedaba sin canal → «no se oye».
     _i9_sockets.add(ws)
     return True
 
 
 async def _i9_socket_sweep() -> None:
-    while True:
-        await asyncio.sleep(3)
-        down = not _server_i9_alive()
-        for ws in list(_i9_sockets):
-            state = getattr(ws, "client_state", None)
-            state_name = getattr(state, "name", "")
-            if not down and state_name == "CONNECTED":
-                continue
-            _i9_sockets.discard(ws)
-            if down:
-                try:
-                    await ws.close(code=4403)
-                except Exception:
-                    pass
+    # 2026.19: ya no se cierran sockets abiertos cuando el server i9 no está
+    # conectado. Este barrido era el que cortaba las llamadas cada 3 s.
+    return
 
 
 @app.middleware("http")

@@ -76,7 +76,13 @@ los ajustes rápidos) y un acceso en Ajustes rápidos. Reglas:
 - **Con la conexión real del dispositivo:** no crea ni modifica ninguna wifi; solo refleja si hay internet.
 - **Sin la pantalla «server i9 no está conectada» (2026.18):** el OS arranca siempre, haya o no server i9, y la
   API ya no devuelve 503 por su causa.
+- **Llamadas que se oyen (2026.19):** el audio del otro lado se reproduce con reintento y, si el navegador
+  bloquea el autoplay (típico en móvil), se desbloquea con el próximo toque o con el botón «🔊 Sonido» de la
+  barra de la llamada. Si WebRTC dice «conectado» pero no entran bytes de audio (sondeo `getStats`
+  `inbound-rtp`), la voz sigue por el canal del chat (PCM) y un `AudioContext` suspendido ya no se da por
+  bueno. Además, el server i9 ya no cierra los WebSocket (`/api/chat/ws`, metaverso, TV) cuando no está
+  conectado: la señalización de las llamadas no puede quedarse sin canal.
 - API: `window.DogaNet` (`isOn()`, `isConnected()`, `hasInternet()`, `set(bool)`, `toggle()`, `check()`,
   `requireOnline(nombre)`, `isOnlineRequest(url)`, `profile()`, `syncProfile()`, `on(fn)`).
-  Pruebas: `node tests/test_release_2617.js` y `node tests/test_release_2618.js`.
+  Pruebas: `node tests/test_release_2617.js`, `node tests/test_release_2618.js` y `node tests/test_release_2619.js`.
 
