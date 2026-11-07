@@ -53,3 +53,24 @@ curl -s http://127.0.0.1:8988/api/status                       # debe aparecer "
   cuenta atrás de 10 s con «Actualizar ahora» / «Ahora no» (aviso con botón; se vuelve a lanzar a los 10 min).
 - Cargas nuevas durante el despliegue: `maintenance.html` (503) y se recargan solas al terminar.
 - Al abrir Snake OS con una versión nueva se muestra 10,5 s la pantalla mientras se refrescan cachés.
+
+## Doganiero_Network (red wifi simulada)
+
+`snake-network.js` añade una red wifi **de mentira** con interruptor en la barra de tareas (icono wifi junto a
+los ajustes rápidos) y un acceso en Ajustes rápidos. Reglas:
+
+- **Nunca miente:** «internet disponible» = el ping a `/api/status` responde. Si el interruptor está encendido
+  pero el ping falla, el estado dice «Sin internet real» y las funciones online siguen bloqueadas.
+- **Bloqueo común, no botón a botón:** intercepta `fetch`, `XMLHttpRequest`, `WebSocket`, `EventSource` y
+  `navigator.sendBeacon`. Necesitan internet otro origen y `/api/*`, salvo las rutas de arranque y sesión
+  (`/api/status`, `/api/os-gate`, `/api/login`, `/api/signup`, `/api/logout`, `/api/me`, `/api/bootstrap`,
+  `/api/avatars/`, `/api/tutorial/done`, `/api/setup/done`), que pasan siempre para no bloquear el arranque.
+  Estáticos, páginas y descargas del propio servidor son locales y no se tocan.
+- **Como sin cobertura:** fetch rechaza con `TypeError` (`code: doga_net_offline`), XHR acaba en `error` con
+  `status 0`, WebSocket cierra con `1006`, EventSource no abre y `sendBeacon` devuelve `false`.
+- **Por defecto va encendida** (`localStorage.dogaNetOn`): al entrar no cambia nada. Al encenderla se ve el
+  planeta girando con «Conectando…» (mínimo 2,4 s) mientras se comprueba la conexión real.
+- **Solo visual:** no crea ninguna wifi real ni da internet gratis.
+- API: `window.DogaNet` (`isOn()`, `isConnected()`, `hasInternet()`, `set(bool)`, `toggle()`, `check()`,
+  `requireOnline(nombre)`, `isOnlineRequest(url)`, `on(fn)`). Pruebas: `node tests/test_release_2617.js`.
+

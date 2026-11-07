@@ -44,6 +44,7 @@ window.addEventListener('error', function(e){
   if(typeof window.revealSnakeBootError === 'function') window.revealSnakeBootError();
 }, true);
 </script>
+<script src="/static/snake-network.js?v=202611070000"></script>
 <script src="/static/snake-safe.js?v=202610220400"></script>
 <script src="/static/snake-voice.js?v=202610161905"></script>
 <script src="/static/snake-pro-badge.js?v=202610212130"></script>
@@ -52,9 +53,20 @@ window.addEventListener('error', function(e){
 <script src="/static/doganiero-chat.js?v=202611062200" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/doganiero-desk.js?v=202610180120" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/desktop-extras.js?v=202610212130" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
-<script>window.SNAKE_OS_VERSION='2026.16';/* versión de Snake OS: cambiar SOLO aquí */</script>
+<script>window.SNAKE_OS_VERSION='2026.17';/* versión de Snake OS: cambiar SOLO aquí */</script>
 <script>/* Novedades por versión (Ajustes › Acerca de). En cada actualización: cambia SNAKE_OS_VERSION y AÑADE una entrada al principio. */
 window.SNAKE_OS_CHANGES=[
+ {v:'2026.17',es:[
+  'Doganiero_Network: red wifi simulada de Snake OS, con interruptor en la barra de tareas y en Ajustes rápidos. Enseña si hay internet real y avisa («Conéctate a Doganiero_Network para usar esta función») cuando una función online está bloqueada',
+  'Al encenderla, el planeta gira con «Conectando…» mientras Snake OS comprueba la conexión real del dispositivo. Si no hay internet de verdad, lo dice: «Sin internet real»',
+  'Con la red apagada (o sin internet real) las funciones online se comportan como en un móvil sin wifi, y las apps locales (escritorio, notas, calculadora, archivos, editor) siguen funcionando',
+  'La red es simulada: no crea wifi ni da internet. Nunca se dice que hay internet cuando no lo hay'
+ ],en:[
+  'Doganiero_Network: Snake OS’s simulated Wi-Fi network, with a switch in the taskbar and in Quick settings. It shows whether real internet is available and warns (“Connect to Doganiero_Network to use this feature”) when an online feature is blocked',
+  'When you turn it on, the globe spins with “Connecting…” while Snake OS checks the device’s real connection. If there is no real internet, it says so: “No real internet”',
+  'With the network off (or no real internet) online features behave like a phone without Wi-Fi, and local apps (desktop, notes, calculator, files, editor) keep working',
+  'The network is simulated: it creates no Wi-Fi and gives no internet. It never claims there is internet when there is not'
+ ]},
  {v:'2026.16',es:[
   'Doganiero Chat: el texto que estás escribiendo se queda en esa conversación. Si cambias de contacto no se envía ni aparece en el chat de otra persona, y un ✎ marca el borrador',
   'Doganiero Chat: abrir el chat otra vez ya no acumula la misma hoja de estilos',
