@@ -1,4 +1,4 @@
-/* Snake OS 2026.17: pruebas de Doganiero_Network (red wifi simulada, snake-network.js).
+/* Snake OS 2026.17: pruebas de Doganiero_Network (red wifi, snake-network.js).
  *
  * Qué se comprueba:
  *  - /api/* (salvo excepciones de arranque y sesión) y otros dominios = necesitan internet;

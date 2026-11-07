@@ -54,9 +54,9 @@ curl -s http://127.0.0.1:8988/api/status                       # debe aparecer "
 - Cargas nuevas durante el despliegue: `maintenance.html` (503) y se recargan solas al terminar.
 - Al abrir Snake OS con una versión nueva se muestra 10,5 s la pantalla mientras se refrescan cachés.
 
-## Doganiero_Network (red wifi simulada)
+## Doganiero_Network (red wifi)
 
-`snake-network.js` añade una red wifi **de mentira** con interruptor en la barra de tareas (icono wifi junto a
+`snake-network.js` añade una red wifi con interruptor en la barra de tareas (icono wifi junto a
 los ajustes rápidos) y un acceso en Ajustes rápidos. Reglas:
 
 - **Nunca miente:** «internet disponible» = el ping a `/api/status` responde. Si el interruptor está encendido
@@ -70,7 +70,7 @@ los ajustes rápidos) y un acceso en Ajustes rápidos. Reglas:
   `status 0`, WebSocket cierra con `1006`, EventSource no abre y `sendBeacon` devuelve `false`.
 - **Por defecto va encendida** (`localStorage.dogaNetOn`): al entrar no cambia nada. Al encenderla se ve el
   planeta girando con «Conectando…» (mínimo 2,4 s) mientras se comprueba la conexión real.
-- **Solo visual:** no crea ninguna wifi real ni da internet gratis.
+- **Con la conexión real del dispositivo:** no crea ni modifica ninguna wifi; solo refleja si hay internet.
 - API: `window.DogaNet` (`isOn()`, `isConnected()`, `hasInternet()`, `set(bool)`, `toggle()`, `check()`,
   `requireOnline(nombre)`, `isOnlineRequest(url)`, `on(fn)`). Pruebas: `node tests/test_release_2617.js`.
 

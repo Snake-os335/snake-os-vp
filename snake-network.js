@@ -1,14 +1,14 @@
-/* Snake OS · Doganiero_Network (red wifi SIMULADA).
+/* Snake OS · Doganiero_Network (red wifi).
  *
- * Qué es: una red wifi de mentira dentro de Snake OS, con interruptor y estado visible.
- *  - No crea ninguna wifi real, no toca la conexión del dispositivo y no da internet gratis.
+ * Qué es: la red wifi Doganiero_Network de Snake OS, con interruptor y estado visible.
+ *  - No crea ni cambia ninguna wifi: trabaja con la conexión real del dispositivo.
  *  - «Internet disponible» = hay conexión REAL: se comprueba con un ping a /api/status.
  *    Si el interruptor está encendido pero el ping falla, el estado dice «Sin internet real»
  *    y las funciones online siguen bloqueadas (nunca se miente sobre el acceso a internet).
  *
  * Cómo controla las funciones online (de forma común, no botón a botón):
  *  intercepta fetch / XMLHttpRequest / WebSocket / EventSource / sendBeacon. Cuando la red
- *  simulada está desconectada (o no hay internet real), las peticiones que necesitan internet
+ *  está desconectada (interruptor apagado) o no hay internet real, las peticiones que necesitan internet
  *  se rechazan como si el dispositivo estuviese sin conexión y se muestra el aviso
  *  «Conéctate a Doganiero_Network para usar esta función». Las funciones locales (escritorio,
  *  notas, calculadora, archivos, editor...) no usan red y siguen funcionando.
@@ -624,10 +624,10 @@ body.theme-light #dogaNetPanel .dn-legal, body.light #dogaNetPanel .dn-legal{ co
     reconnect: 'Reconectar',
     qs: 'Ajustes rápidos',
     toastBtn: 'Conectar',
-    panelAria: 'Doganiero_Network: red wifi simulada de Snake OS',
+    panelAria: 'Doganiero_Network: red wifi de Snake OS',
     switchAria: 'Encender o apagar Doganiero_Network',
-    btnTitle: 'Doganiero_Network (red simulada de Snake OS)',
-    legal: 'Red simulada de Snake OS: no crea wifi ni da internet. Solo representa la conexión real del dispositivo.',
+    btnTitle: 'Doganiero_Network: red wifi de Snake OS',
+    legal: 'Red wifi de Snake OS: refleja la conexión real del dispositivo. Nunca se dice que hay internet cuando no lo hay.',
     ovSub: 'Doganiero_Network',
     ovNoteOn: 'Snake OS comprueba la conexión real del dispositivo mientras el planeta gira…',
     ovOk: 'Conectado',
