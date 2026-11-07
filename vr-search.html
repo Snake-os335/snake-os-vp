@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Doganiero VR · Buscar gafas</title>
+<meta name="description" content="Busca tus gafas VR por Bluetooth y recibe en el ordenador lo que estás viendo dentro de ellas." />
+<style>
+  :root {
+    --bg0: #04120b; --bg1: #0a2317; --panel: #10281c; --panel2: #0c2015;
+    --line: rgba(52, 209, 122, 0.26); --text: #eafff0; --muted: #9dffc2;
+    --accent: #34d17a; --accent2: #1fa85a; --warn: #ffb454; --danger: #ff6b6b;
+    --cyan: #57e6ff;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; min-height: 100%; color: var(--text);
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+    background:
+      radial-gradient(ellipse 90% 55% at 50% -12%, rgba(52,209,122,0.20), transparent 58%),
+      radial-gradient(ellipse 60% 40% at 100% 10%, rgba(87,230,255,0.10), transparent 60%),
+      linear-gradient(165deg, var(--bg0), var(--bg1) 58%, #0d2a1c);
+  }
+  body { padding: 18px 16px 48px; max-width: 980px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+  header { text-align: center; padding: 10px 4px 2px; }
+  .logo { font-size: .72rem; letter-spacing: .22em; text-transform: uppercase; color: var(--muted); font-weight: 700; }
+  h1 { margin: 6px 0 0; font-size: clamp(1.35rem, 3vw, 1.9rem); font-weight: 800; letter-spacing: -.02em; }
+  .sub { margin: 8px auto 0; max-width: 640px; font-size: .86rem; line-height: 1.45; color: var(--muted); opacity: .92; }
+  .sub b { color: var(--cyan); font-weight: 700; }
+  .status {
+    display: inline-flex; align-items: center; gap: 8px; margin-top: 10px;
+    padding: 7px 14px; border-radius: 999px; border: 1px solid var(--line);
+    background: rgba(0,0,0,.30); font-size: .78rem; font-weight: 700;
+  }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--danger); box-shadow: 0 0 0 3px rgba(255,107,107,.18); }
+  .status.on .dot { background: var(--accent); box-shadow: 0 0 0 3px rgba(52,209,122,.22); }
+  .card {
+    border: 1px solid var(--line); border-radius: 20px; padding: 16px;
+    background: linear-gradient(180deg, rgba(22,53,38,.92), var(--panel) 60%);
+    box-shadow: 0 18px 40px rgba(0,0,0,.28);
+  }
+  .card h2 { margin: 0 0 10px; font-size: .95rem; font-weight: 800; letter-spacing: .02em; display: flex; align-items: center; gap: 8px; }
+  .card h2 .n {
+    width: 22px; height: 22px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
+    background: rgba(52,209,122,.16); border: 1px solid var(--line); font-size: .72rem; color: var(--muted);
+  }
+  .hint { margin: 8px 0 0; font-size: .78rem; line-height: 1.45; color: rgba(234,255,240,.62); }
+  .hint b { color: var(--muted); }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  button {
+    appearance: none; border: 1px solid var(--line); border-radius: 12px; cursor: pointer;
+    background: rgba(52,209,122,.16); color: var(--text); font: 700 .84rem/1 "Segoe UI", system-ui, sans-serif;
+    padding: 12px 14px; transition: transform .08s ease, background .15s ease;
+  }
+  button:hover { background: rgba(52,209,122,.26); }
+  button:active { transform: scale(.98); }
+  button[disabled] { opacity: .45; cursor: not-allowed; }
+  button.primary { background: linear-gradient(180deg, var(--accent), var(--accent2)); border-color: transparent; color: #03130a; }
+  button.primary:hover { filter: brightness(1.06); }
+  button.big { font-size: .95rem; padding: 14px 18px; }
+  button.ghost { background: rgba(255,255,255,.05); }
+  button.danger { background: rgba(255,107,107,.14); border-color: rgba(255,107,107,.4); color: #ffd9d9; }
+  label.f { display: block; font-size: .72rem; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 10px 0 4px; font-weight: 700; }
+  input[type=email], input[type=password], input[type=text] {
+    width: 100%; border-radius: 12px; border: 1px solid var(--line); background: rgba(0,0,0,.35);
+    color: var(--text); padding: 12px 13px; font-size: .95rem; outline: none;
+  }
+  input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(52,209,122,.16); }
+  .account { display: flex; align-items: center; gap: 12px; }
+  .account .av { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; font-size: 1.4rem; background: rgba(52,209,122,.14); border: 1px solid var(--line); }
+  .account .who { flex: 1; min-width: 0; }
+  .account .who b { display: block; font-size: .95rem; }
+  .account .who span { font-size: .78rem; color: rgba(234,255,240,.6); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
+  .devlist { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+  .devlist li {
+    display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 14px;
+    border: 1px solid var(--line); background: rgba(0,0,0,.28); font-size: .86rem;
+  }
+  .devlist .ico { font-size: 1.25rem; }
+  .devlist .meta { flex: 1; min-width: 0; }
+  .devlist .meta b { display: block; font-size: .9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .devlist .meta span { font-size: .72rem; color: rgba(234,255,240,.58); }
+  .tag { font-size: .68rem; font-weight: 800; letter-spacing: .05em; padding: 4px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
+  .pairbox { display: flex; flex-wrap: wrap; gap: 12px; align-items: stretch; margin-top: 4px; }
+  .codebox {
+    min-width: 190px; flex: 0 0 auto; border-radius: 16px; border: 1px dashed rgba(52,209,122,.5);
+    background: rgba(0,0,0,.3); padding: 12px 16px; text-align: center;
+  }
+  .codebox small { display: block; font-size: .66rem; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  .codebox b { display: block; font-size: 1.7rem; letter-spacing: .22em; margin-top: 4px; font-family: ui-monospace, Menlo, monospace; }
+  .urls { flex: 1; min-width: 220px; display: flex; flex-direction: column; gap: 6px; justify-content: center; }
+  .urls a {
+    display: block; font-size: .78rem; color: var(--cyan); text-decoration: none; word-break: break-all;
+    border: 1px solid rgba(87,230,255,.22); background: rgba(87,230,255,.07); border-radius: 10px; padding: 8px 10px;
+  }
+  .urls a:hover { background: rgba(87,230,255,.14); }
+  .videowrap { position: relative; border-radius: 16px; overflow: hidden; border: 1px solid var(--line); background: #020a06; aspect-ratio: 16 / 9; margin-top: 6px; }
+  .videowrap video { width: 100%; height: 100%; object-fit: contain; background: #020a06; display: block; }
+  .videowrap .ph {
+    position: absolute; inset: 0; display: grid; place-items: center; text-align: center;
+    font-size: .84rem; color: rgba(234,255,240,.5); padding: 16px;
+  }
+  .videowrap.has-video .ph { display: none; }
+  .statrow { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  .statrow span { font: 700 .72rem/1 ui-monospace, Menlo, monospace; padding: 6px 9px; border-radius: 8px; background: rgba(0,0,0,.3); border: 1px solid var(--line); color: var(--muted); }
+  .bars { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
+  .bars label { font-size: .74rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); display: flex; align-items: center; gap: 10px; }
+  .bars .bar { flex: 1; height: 10px; border-radius: 999px; background: rgba(0,0,0,.4); border: 1px solid var(--line); overflow: hidden; }
+  .bars .bar i { display: block; height: 100%; width: 0%; background: linear-gradient(90deg, var(--accent2), var(--accent)); transition: width .4s ease; }
+  .bars .bar.happy i { background: linear-gradient(90deg, #ffb454, #ffd98a); }
+  .bars .bar.clean i { background: linear-gradient(90deg, #3aa7ff, #8fd8ff); }
+  .shotimg { max-width: 100%; border-radius: 14px; border: 1px solid var(--line); margin-top: 10px; display: none; }
+  pre#log {
+    margin: 0; max-height: 220px; overflow: auto; font: .72rem/1.5 ui-monospace, Menlo, monospace;
+    color: rgba(234,255,240,.72); white-space: pre-wrap; word-break: break-word;
+  }
+  .foot { text-align: center; font-size: .72rem; color: rgba(234,255,240,.4); margin-top: 4px; }
+  @media (max-width: 560px) { body { padding: 12px 10px 40px; } .card { padding: 13px; } }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">Doganiero VR · softportweb</div>
+  <h1>Buscar gafas VR y ver lo que ves</h1>
+  <p class="sub">
+    Esta página busca tus gafas por <b>Bluetooth</b> y recibe en el ordenador la imagen de lo que estás
+    viendo dentro de ellas. En las gafas hay que abrir <b>Doganiero-vr-send.softportweb.com</b> con tu
+    cuenta <b>dogaemail</b> y aceptar la solicitud.
+  </p>
+  <div class="status" id="status"><span class="dot"></span><span id="statusText">Sin conexión</span></div>
+</header>
+
+<section class="card" id="loginCard">
+  <h2><span class="n">1</span> Tu cuenta dogaemail</h2>
+  <form id="loginForm">
+    <label class="f" for="email">Correo dogaemail</label>
+    <input id="email" type="email" autocomplete="username" placeholder="tu@dogaemail.com" required />
+    <label class="f" for="password">Contraseña</label>
+    <input id="password" type="password" autocomplete="current-password" placeholder="••••••••" required />
+    <div class="row"><button class="primary" type="submit" id="loginBtn">Entrar</button></div>
+  </form>
+  <div class="account" id="account" hidden>
+    <div class="av" id="accAvatar">🐍</div>
+    <div class="who"><b id="accName">—</b><span id="accEmail">—</span></div>
+    <button class="ghost" id="logoutBtn" type="button">Salir</button>
+  </div>
+  <p class="hint" id="loginHint">La misma cuenta que usas en las gafas: así la solicitud de conexión llega a tu Doganiero-vr-send.</p>
+</section>
+
+<section class="card">
+  <h2><span class="n">2</span> Buscar gafas por Bluetooth</h2>
+  <p class="hint">El navegador pide permiso y enseña las gafas y dispositivos VR que tenga cerca. Al elegir una se
+    guarda en tu cuenta con su batería y modelo, y las gafas la ven al conectarse.</p>
+  <div class="row">
+    <button class="primary" id="btSearch" type="button">🔍 Buscar gafas VR</button>
+    <button class="ghost" id="btKnown" type="button">Ver ya emparejadas</button>
+  </div>
+  <ul class="devlist" id="btList"></ul>
+  <p class="hint" id="btHint"></p>
+</section>
+
+<section class="card">
+  <h2><span class="n">3</span> Pedir conexión a las gafas</h2>
+  <div class="pairbox">
+    <div class="codebox"><small>Código para las gafas</small><b id="pairCode">····</b></div>
+    <div class="urls" id="pairUrls"><span class="hint">Crea el código al entrar con tu cuenta.</span></div>
+  </div>
+  <div class="row">
+    <button class="primary big" id="reqBtn" type="button" disabled>📡 Pedir conexión</button>
+    <button class="ghost" id="newCodeBtn" type="button">↻ Nuevo código</button>
+  </div>
+  <p class="hint" id="linkHint">Cuando las gafas acepten, el vídeo empieza solo.</p>
+</section>
+
+<section class="card">
+  <h2><span class="n">4</span> Lo que ves en las gafas</h2>
+  <div class="videowrap" id="videoWrap">
+    <video id="remote" autoplay playsinline muted></video>
+    <div class="ph" id="videoPh">Sin vídeo todavía · pide la conexión (paso 3) y acepta en las gafas</div>
+  </div>
+  <div class="statrow"><span id="statRes">—</span><span id="statRate">—</span><span id="statState">—</span></div>
+  <div class="row">
+    <button class="ghost" id="fsBtn" type="button">⛶ Pantalla completa</button>
+    <button class="ghost" id="shotBtn" type="button">📸 Foto de las gafas</button>
+    <button class="danger" id="stopBtn" type="button">⏹ Cortar</button>
+  </div>
+</section>
+
+<section class="card">
+  <h2><span class="n">5</span> Juego de realidad mixta</h2>
+  <p class="hint">En las gafas: escanear la habitación y cuidar a la serpiente con los mandos. Aquí ves cómo va.</p>
+  <div class="bars">
+    <label>Comida <div class="bar"><i id="barHunger"></i></div></label>
+    <label>Cariño <div class="bar happy"><i id="barHappy"></i></div></label>
+    <label>Limpieza <div class="bar clean"><i id="barClean"></i></div></label>
+  </div>
+  <p class="hint" id="gameInfo">Todavía no hay partida en marcha.</p>
+  <img class="shotimg" id="gameShotImg" alt="Vista de la habitación desde las gafas" />
+  <div class="row"><button class="ghost" id="gameShotBtn" type="button">📸 Ver la habitación</button></div>
+</section>
+
+<section class="card">
+  <h2>Registro</h2>
+  <pre id="log"></pre>
+</section>
+
+<p class="foot">Doganiero VR · Snake OS 2026.23 · doganiero-vr-search.softportweb.com</p>
+<script src="/static/vr-search.js"></script>
+</body>
+</html>
+

@@ -116,7 +116,7 @@ assert.ok(en[1].indexOf('sá') < 0);
 ok('cal alinea y se traduce');
 
 var html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
-assert.ok(html.indexOf("window.SNAKE_OS_VERSION='2026.22'") >= 0);
+assert.ok(html.indexOf("window.SNAKE_OS_VERSION='2026.23'") >= 0);
 assert.ok(html.indexOf("{v:'2026.22'") >= 0);
 assert.ok(html.indexOf("{v:'2026.22'") < html.indexOf("{v:'2026.19'"));
 ['snake-apps-extras.js', 'snake-terminal.js', 'doganiero-phone.js', 'snake-i18n.js', 'snake-2615.js', 'snake-2616.js'].forEach(function (f) {

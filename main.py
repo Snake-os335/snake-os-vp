@@ -9798,6 +9798,10 @@ import v2614_extras  # 2026.14: /api/calendar y /api/store/ratings (faltaban)
 app.include_router(v2614_extras.build_router(require_user))
 import privacy_share
 app.include_router(privacy_share.build_router(require_user))
+# Doganiero VR Link (2026.23): /vr-search (ordenador) + /vr-send (gafas VR) y su WebSocket
+import vr_link
+app.include_router(vr_link.build_router(doga_auth.site_user))
+vr_link.install_hosts(app)
 
 
 # --- Snake OS Kids: entrega del resumen semanal y códigos al Dogaemail del adulto (notificaciones de Snake OS) ---

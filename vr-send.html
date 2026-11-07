@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no" />
+<title>Doganiero VR · Enviar (gafas)</title>
+<meta name="description" content="Página para las gafas VR: acepta la solicitud del ordenador, transmite lo que ves y juega a cuidar a la serpiente en realidad mixta." />
+<style>
+  :root {
+    --bg0: #07140f; --bg1: #0d2418; --panel: #12281c;
+    --line: rgba(52, 209, 122, 0.28); --text: #eafff0; --muted: #9dffc2;
+    --accent: #34d17a; --accent2: #1fa85a; --warn: #ffb454; --danger: #ff6b6b;
+    --cyan: #57e6ff;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; min-height: 100%; color: var(--text);
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+    background:
+      radial-gradient(ellipse 80% 50% at 50% -10%, rgba(52,209,122,0.20), transparent 55%),
+      radial-gradient(ellipse 55% 40% at 100% 15%, rgba(87,230,255,0.10), transparent 60%),
+      linear-gradient(165deg, var(--bg0), var(--bg1) 55%, #10281c);
+  }
+  body { padding: max(12px, env(safe-area-inset-top)) 12px max(18px, env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 12px; max-width: 620px; margin: 0 auto; }
+  header { text-align: center; padding: 8px 4px 2px; }
+  .logo { font-size: .7rem; letter-spacing: .2em; text-transform: uppercase; color: var(--muted); font-weight: 700; }
+  h1 { margin: 4px 0 0; font-size: clamp(1.3rem, 5vw, 1.7rem); font-weight: 800; letter-spacing: -.02em; }
+  .sub { margin: 6px auto 0; max-width: 520px; font-size: .82rem; line-height: 1.45; color: var(--muted); opacity: .92; }
+  .sub b { color: var(--cyan); }
+  .status { display: inline-flex; align-items: center; gap: 8px; margin-top: 8px; padding: 7px 14px; border-radius: 999px; border: 1px solid var(--line); background: rgba(0,0,0,.3); font-size: .78rem; font-weight: 700; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--danger); box-shadow: 0 0 0 3px rgba(255,107,107,.18); }
+  .status.on .dot { background: var(--accent); box-shadow: 0 0 0 3px rgba(52,209,122,.22); }
+  .card { border: 1px solid var(--line); border-radius: 22px; padding: 15px; background: linear-gradient(180deg, #163526, var(--panel) 65%); box-shadow: 0 16px 36px rgba(0,0,0,.3); }
+  .card h2 { margin: 0 0 8px; font-size: .95rem; font-weight: 800; display: flex; align-items: center; gap: 8px; }
+  .card h2 .n { width: 22px; height: 22px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: rgba(52,209,122,.16); border: 1px solid var(--line); font-size: .72rem; color: var(--muted); }
+  .hint { margin: 8px 0 0; font-size: .78rem; line-height: 1.5; color: rgba(234,255,240,.62); }
+  .hint b { color: var(--muted); }
+  ol.steps { margin: 8px 0 0; padding-left: 20px; font-size: .8rem; line-height: 1.55; color: rgba(234,255,240,.72); }
+  ol.steps b { color: var(--muted); }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  .row.tight { gap: 6px; }
+  button {
+    appearance: none; border: 1px solid var(--line); border-radius: 14px; cursor: pointer;
+    background: rgba(52,209,122,.16); color: var(--text);
+    font: 800 .88rem/1.1 "Segoe UI", system-ui, sans-serif; padding: 13px 15px; flex: 1 1 auto;
+    transition: transform .08s ease, background .15s ease;
+  }
+  button:hover { background: rgba(52,209,122,.26); }
+  button:active { transform: scale(.98); }
+  button[disabled] { opacity: .45; cursor: not-allowed; }
+  button.primary { background: linear-gradient(180deg, var(--accent), var(--accent2)); border-color: transparent; color: #03130a; }
+  button.big { font-size: 1rem; padding: 16px 18px; }
+  button.ghost { background: rgba(255,255,255,.05); }
+  button.danger { background: rgba(255,107,107,.15); border-color: rgba(255,107,107,.42); color: #ffd9d9; }
+  label.f { display: block; font-size: .7rem; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 10px 0 4px; font-weight: 700; }
+  input[type=email], input[type=password], input[type=text] {
+    width: 100%; border-radius: 13px; border: 1px solid var(--line); background: rgba(0,0,0,.36);
+    color: var(--text); padding: 13px; font-size: 1rem; outline: none;
+  }
+  input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(52,209,122,.16); }
+  #codeInput { text-align: center; letter-spacing: .3em; text-transform: uppercase; font-weight: 800; }
+  .account { display: flex; align-items: center; gap: 10px; }
+  .account .av { width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center; font-size: 1.3rem; background: rgba(52,209,122,.14); border: 1px solid var(--line); }
+  .account .who { flex: 1; min-width: 0; }
+  .account .who b { display: block; font-size: .92rem; }
+  .account .who span { font-size: .74rem; color: rgba(234,255,240,.58); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
+  .request { border-color: rgba(255,180,84,.55); background: linear-gradient(180deg, rgba(90,64,20,.55), rgba(48,36,16,.6)); }
+  .request .from { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
+  .request .from .av { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; font-size: 1.25rem; background: rgba(255,180,84,.16); border: 1px solid rgba(255,180,84,.5); }
+  .request .from b { font-size: .95rem; display: block; }
+  .request .from span { font-size: .74rem; color: rgba(234,255,240,.6); }
+  .devlist { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+  .devlist li { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 12px; border: 1px solid var(--line); background: rgba(0,0,0,.26); font-size: .8rem; }
+  .devlist .tag { margin-left: auto; font-size: .68rem; font-weight: 800; padding: 3px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
+  .bars { display: flex; flex-direction: column; gap: 7px; margin-top: 8px; }
+  .bars label { font-size: .72rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); display: flex; align-items: center; gap: 10px; }
+  .bars .bar { flex: 1; height: 10px; border-radius: 999px; background: rgba(0,0,0,.4); border: 1px solid var(--line); overflow: hidden; }
+  .bars .bar i { display: block; height: 100%; width: 0%; background: linear-gradient(90deg, var(--accent2), var(--accent)); transition: width .4s ease; }
+  .bars .bar.happy i { background: linear-gradient(90deg, #ffb454, #ffd98a); }
+  .bars .bar.clean i { background: linear-gradient(90deg, #3aa7ff, #8fd8ff); }
+  pre#log { margin: 0; max-height: 180px; overflow: auto; font: .7rem/1.5 ui-monospace, Menlo, monospace; color: rgba(234,255,240,.7); white-space: pre-wrap; word-break: break-word; }
+  .foot { text-align: center; font-size: .7rem; color: rgba(234,255,240,.4); margin-top: 2px; }
+  .pill { display: inline-block; font-size: .68rem; font-weight: 800; letter-spacing: .05em; padding: 4px 9px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
+  .pill.on { border-color: rgba(52,209,122,.6); color: #b9ffd6; background: rgba(52,209,122,.14); }
+  .pill.off { border-color: rgba(255,107,107,.45); color: #ffc9c9; background: rgba(255,107,107,.1); }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">Doganiero VR · Send</div>
+  <h1>Enviar lo que ves</h1>
+  <p class="sub">
+    Abre esta página en las gafas VR. Detecta la solicitud del ordenador
+    (<b>Doganiero-vr-search.softportweb.com</b>) y, si la aceptas, empieza a transmitir lo que ves.
+    Desde aquí también puedes <b>escanear tu habitación</b> y jugar a cuidar a la serpiente en
+    realidad mixta.
+  </p>
+  <div class="status" id="status"><span class="dot"></span><span id="statusText">Sin conexión</span></div>
+</header>
+
+<section class="card" id="authCard">
+  <h2><span class="n">1</span> Tu cuenta (o el código del ordenador)</h2>
+  <div id="codeFormBox">
+    <label class="f" for="codeInput">Código de 6 caracteres que muestra el ordenador</label>
+    <input id="codeInput" type="text" maxlength="6" autocomplete="one-time-code" placeholder="ABC123" />
+    <div class="row"><button class="primary big" id="codeBtn" type="button">Entrar con el código</button></div>
+  </div>
+  <p class="hint">O entra con tu cuenta <b>dogaemail</b> (la misma que en el ordenador):</p>
+  <form id="loginForm">
+    <label class="f" for="email">Correo dogaemail</label>
+    <input id="email" type="email" autocomplete="username" placeholder="tu@dogaemail.com" />
+    <label class="f" for="password">Contraseña</label>
+    <input id="password" type="password" autocomplete="current-password" placeholder="••••••••" />
+    <div class="row"><button type="submit" id="loginBtn">Entrar con mi cuenta</button></div>
+  </form>
+  <div class="account" id="account" hidden>
+    <div class="av" id="accAvatar">🥽</div>
+    <div class="who"><b id="accName">—</b><span id="accEmail">—</span></div>
+    <button class="ghost" id="logoutBtn" type="button" style="flex:0 0 auto">Salir</button>
+  </div>
+</section>
+
+<section class="card request" id="requestCard" hidden>
+  <h2><span class="n">!</span> El ordenador quiere ver lo que ves</h2>
+  <div class="from">
+    <div class="av" id="reqAvatar">🐶</div>
+    <div><b id="reqFrom">Ordenador</b><span id="reqDevices">Sin gafas de Bluetooth apuntadas</span></div>
+  </div>
+  <div class="row">
+    <button class="primary big" id="acceptBtn" type="button">✅ Aceptar y transmitir</button>
+    <button class="danger" id="rejectBtn" type="button">✖ Rechazar</button>
+  </div>
+  <p class="hint">Al aceptar empieza a transmitirse lo que ves en las gafas (o el juego, si está abierto).</p>
+</section>
+
+<section class="card">
+  <h2><span class="n">2</span> Transmitir al ordenador</h2>
+  <div class="row tight">
+    <button id="shareScreen" type="button">🖥️ Pantalla del visor</button>
+    <button id="shareGame" type="button">🧩 Juego MR</button>
+    <button id="shareCam" type="button">📷 Cámara</button>
+  </div>
+  <div class="row">
+    <button class="danger" id="stopShare" type="button">⏹ Dejar de transmitir</button>
+  </div>
+  <p class="hint" id="shareHint">
+    «Pantalla del visor» solo aparece si el navegador de las gafas permite capturar la pantalla.
+    Si no, usa el <b>Juego MR</b>: su espejo se transmite igual (habitación + serpiente).
+  </p>
+  <p class="hint" id="shareState">Ahora mismo no estás transmitiendo.</p>
+</section>
+
+<section class="card">
+  <h2><span class="n">3</span> Juego de realidad mixta · la serpiente</h2>
+  <p class="hint">
+    <span class="pill" id="xrPill">Comprobando WebXR…</span>
+  </p>
+  <ol class="steps">
+    <li><b>Escanea la habitación</b>: apunta al suelo y mueve la cabeza despacio por la zona donde jugarás.</li>
+    <li>Cuando tengas suficiente suelo, pulsa <b>Terminar escaneo</b> (o el gatillo) y la serpiente se adapta.</li>
+    <li><b>Gatillo</b>: dejar comida o acariciar. <b>Squeeze</b> (apretar el mando): limpiar. Los botones A/B: jugar y ayuda.</li>
+    <li>Cuídala: come, cariño y limpieza bajan con el tiempo. El ordenador lo ve todo en directo.</li>
+  </ol>
+  <div class="bars">
+    <label>Comida <div class="bar"><i id="barHunger"></i></div></label>
+    <label>Cariño <div class="bar happy"><i id="barHappy"></i></div></label>
+    <label>Limpieza <div class="bar clean"><i id="barClean"></i></div></label>
+  </div>
+  <div class="row">
+    <button class="primary big" id="gameBtn" type="button">🧭 Escanear habitación y jugar</button>
+    <button class="danger" id="gameStop" type="button" hidden>⏹ Salir del juego</button>
+  </div>
+  <p class="hint" id="gameState">Con el juego abierto y transmitiendo, en el ordenador se ve tu habitación con la serpiente.</p>
+</section>
+
+<section class="card">
+  <h2>Registro</h2>
+  <pre id="log"></pre>
+</section>
+
+<p class="foot">Doganiero VR · Snake OS 2026.23 · doganiero-vr-send.softportweb.com</p>
+<script src="/static/vr-room-snake.js"></script>
+<script src="/static/vr-send.js"></script>
+</body>
+</html>
+

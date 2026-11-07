@@ -88,7 +88,7 @@ assert.ok(py.slice(sweep, sweep + 400).indexOf('while True') === -1, 'el barrido
 ok('main.py: WebSocket libres del gate del server i9');
 
 // 7) Versión y cache-bust del chat
-assert.ok(html.indexOf("window.SNAKE_OS_VERSION='2026.22'") >= 0, 'versión 2026.22');
+assert.ok(html.indexOf("window.SNAKE_OS_VERSION='2026.23'") >= 0, 'versión 2026.22');
 assert.ok(html.indexOf("{v:'2026.22'") >= 0, 'entrada de novedades 2026.22');
 assert.ok(html.indexOf("{v:'2026.22'") < html.indexOf("{v:'2026.19'"), 'la entrada 2026.22 va primera');
 assert.ok(html.indexOf('doganiero-chat.js?v=202611111830') >= 0, '?v= nuevo de doganiero-chat.js');

@@ -139,3 +139,51 @@ laterales en vivo (hora, versión, estado del escritorio, apps abiertas, novedad
   `window.renderSnakeVrApp(body)`.
 - Pruebas: `node tests/test_release_2622.js`, `node tests/test_release_2621.js` (y `tests/test_release_2616.js` … `tests/test_release_2620.js`, que siguen la versión actual).
 
+## Doganiero VR (2026.23): buscar gafas + ver lo que ves + juego de realidad mixta
+
+Dos páginas nuevas en este mismo servidor (no hace falta otro despliegue):
+
+| Página | Dónde se abre | Para qué |
+| --- | --- | --- |
+| <https://Doganiero-vr-search.softportweb.com> (`/vr-search`) | ordenador | Busca las gafas por **Bluetooth**, pide la conexión a tu cuenta dogaemail y **muestra en directo lo que estás viendo dentro de las gafas** |
+| <https://Doganiero-vr-send.softportweb.com> (`/vr-send`) | gafas VR | Detecta la **solicitud del ordenador**, acepta y **transmite lo que ves**; desde aquí se lanza el **juego MR** (escanear la habitación y cuidar a una serpiente) |
+
+- **Cuenta:** las dos usan las cuentas **dogaemail** de siempre (`doga_auth`, sitios `vrsearch` y
+  `vrsend`). En las gafas también se puede entrar con un **código de 6 caracteres** que muestra el
+  ordenador (sin escribir la contraseña con los mandos); vale 6 h.
+- **Bluetooth:** la página del ordenador usa **Web Bluetooth** (Chrome/Edge): pide permiso, lista las
+  gafas/dispositivos VR cercanos y guarda nombre, modelo y batería en la cuenta (`battery_service` y
+  `device_information` cuando el dispositivo los expone). Es el canal de descubrimiento; la conexión
+  de vídeo va por el servidor (WebSocket) + **WebRTC** directo entre los dos dispositivos.
+- **Solicitud:** el ordenador pulsa «Pedir conexión»; a las gafas les llega `request` con el nombre y
+  las gafas vistas por Bluetooth. Al **aceptar**, las gafas mandan la oferta WebRTC (`offer`) con el
+  vídeo y el ordenador responde (`answer`); los ICE se reenvían por `/api/vrlink/ws` (misma cuenta).
+- **Fuentes de vídeo en las gafas:** «pantalla del visor» (`getDisplayMedia`, solo si el navegador de
+  las gafas lo permite), **cámara** (`getUserMedia`) y, la que siempre funciona, el **espejo del juego
+  MR**: `vr-room-snake.js` renderiza la escena a un canvas aparte (`captureStream(15)`) y ese es el
+  vídeo que ve el ordenador (habitación + serpiente en primera persona).
+- **Juego de realidad mixta:** con WebXR `immersive-ar` (Meta Quest 3/3S, Pico 4 Ultra…) la página
+  abre passthrough + `hit-test`: se **escanea la habitación** apuntando al suelo (marcas azules) y las
+  superficies verticales detectadas se convierten en **obstáculos** de un mapa de celdas de 0,25 m.
+  Al terminar (70 puntos o gatillo) aparece la **serpiente** en la zona libre: **gatillo** = dejar
+  comida o acariciarla, **squeeze** = limpiar sus desastres, **A** = jugar, **B** = ocultar el panel.
+  Comida/cariño/limpieza bajan con el tiempo; hay puntos y niveles (se guardan en `localStorage`).
+  Sin AR el juego cae a `immersive-vr` y, sin WebXR, a un **modo prueba** con ratón (útil para revisar
+  en el PC). El ordenador ve el estado (barras + nivel) y puede pedir una **foto** (`toDataURL`).
+- **DNS / túnel (solo la primera vez):** en Cloudflare (túnel `snake-os-vp-cloudflared`) hay que
+  añadir dos *public hostnames* → `http://web:8000`: `doganiero-vr-search.softportweb.com` y
+  `doganiero-vr-send.softportweb.com`. Mientras no estén, todo funciona igual en
+  `https://snake-os-vp.softportweb.com/vr-search` y `/vr-send` (el código del ordenador muestra
+  también esa URL de reserva).
+- **Opcional:** `SNAKEOS_TURN_URL` (p. ej. `turn:mi-turn:3478`), `SNAKEOS_TURN_USER` y
+  `SNAKEOS_TURN_PASS` añaden un servidor TURN para cuando las gafas y el ordenador están en redes
+  distintas con NAT simétrico (sin TURN basta STUN público si están en la misma wifi).
+- **Límites conocidos:** el navegador de las gafas (Meta Quest Browser/Wolvic) no suele dejar
+  capturar la pantalla del sistema (`getDisplayMedia`), por eso el espejo del juego es la fuente
+  principal; el escaneo es un muestreo de `hit-test` (no hay malla de la habitación), así que con
+  poca luz o poca superficie vista la zona de juego se reduce a lo escaneado; y Web Bluetooth no
+  existe en las gafas: la búsqueda se hace siempre desde el ordenador.
+- **API:** `window.DoganieroRoomSnake` (`start({onState,onLog,onEnd})`, `stop()`, `snapshot()`,
+  `mirrorStream()`, `state()`, `supported()`).
+- **Pruebas:** `node tests/test_release_2623.js` (y `tests/test_release_2616.js` … `tests/test_release_2622.js`).
+
