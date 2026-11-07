@@ -1,5 +1,7 @@
 FROM python:3.11-slim
 
+# 2026.23: Doganiero VR (vr_link.py + vr-search/vr-send). Este comentario solo fuerza
+# la reconstrucción/reinicio del contenedor para que el Python nuevo entre en producción.
 WORKDIR /app
 
 RUN apt-get update \
