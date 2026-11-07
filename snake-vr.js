@@ -1,11 +1,17 @@
-/* Snake OS · Snake VR — realidad virtual para gafas VR (2026.21).
+/* Snake OS · Snake VR — realidad virtual para gafas VR (2026.22).
  *
  * Qué hace:
  *  - Jungla viva en 3D con three.js (local, /static/assets/three-r160.min.js): suelo de
  *    musgo, árboles, helechos, lianas y serpientes que se arrastran por todas partes,
  *    más una pantalla gigante «espejo» de tu escritorio.
- *  - La pantalla espejo se pinta en un canvas 2D leyendo el DOM REAL (iconos, ventanas,
- *    reloj) y los clics sobre ella abren apps de verdad (raycast → elementFromPoint).
+ *  - La pantalla espejo pinta el escritorio REAL completo (cada fondo, borde, texto,
+ *    icono, imagen y canvas de las apps tal y como están en el ordenador) y refresca
+ *    ~14 veces por segundo, no una foto vieja.
+ *  - Dentro de la pantalla todo funciona igual que con el ratón del PC: clic, doble
+ *    clic (abrir), clic derecho (menú contextual), arrastrar ventanas e iconos,
+ *    rueda/stick para desplazar listas y foco en los campos de texto. Los eventos se
+ *    inyectan como PointerEvent/MouseEvent/WheelEvent reales (raycast → uv → píxel →
+ *    elementFromPoint).
  *  - Una serpiente tótem te sigue flotando: al pulsarla (o morderla con el mando) se
  *    abre el escritorio en la pantalla gigante y al volver a pulsarla se cierra.
  *  - En WebXR los DOS mandos son serpientes con ojos y lengua bífida: el rayo sale de su
@@ -21,7 +27,7 @@
 (function (global) {
   'use strict';
 
-  var VR_VERSION = '2026.21';
+  var VR_VERSION = '2026.22';
   var THREE_URL = '/static/assets/three-r160.min.js?v=r160';
   var LS_KEY = 'snkVRprefs';
   var MIRROR_W = 1600, MIRROR_H = 1000;
@@ -75,6 +81,12 @@
     pointer: null,
     dragMoved: 0,
     lastTap: 0,
+    deskDrag: null,          // pulsación activa sobre la pantalla (arrastre real del DOM)
+    deskLastTap: null,       // último clic en la pantalla (para el doble clic)
+    domStyles: null,         // caché de getComputedStyle para el espejo (Map)
+    domBudget: 3200,         // nodos máximos que se pintan por fotograma del espejo
+    paintEvery: 0.09,        // segundos entre repintados del espejo (adaptativo)
+    paintCost: 0,            // duración del último repintado
     gyro: false,
     gyroBase: null,
     gyroHandler: null,
@@ -221,8 +233,8 @@
         '<button type="button" class="right" data-move="right" aria-label="' + vrT('Derecha', 'Right') + '">▶</button>' +
       '</div>' +
       '<div class="snk-vr-help">' + vrT(
-        'Arrastra para mirar · rueda o pellizco = acercarte · WASD/flechas = moverte · la serpiente tótem, abajo a la derecha sin estorbar, abre y cierra el escritorio (púlsala) · dentro, clic = usar Snake OS · doble clic = recentrar',
-        'Drag to look · wheel or pinch = zoom · WASD/arrows = move · the totem snake, bottom-right out of the way, opens and closes the desktop (press it) · inside, click = use Snake OS · double click = recenter'
+        'Arrastra para mirar · rueda o pellizco = acercarte · WASD/flechas = moverte · la serpiente tótem, abajo a la derecha, abre y cierra el escritorio (púlsala) · dentro todo va igual que en el ordenador: clic, mantener y arrastrar ventanas, doble clic, clic derecho, rueda o stick para desplazar · doble clic fuera = recentrar',
+        'Drag to look · wheel or pinch = zoom · WASD/arrows = move · the totem snake, bottom-right, opens and closes the desktop (press it) · inside everything works like on the computer: click, hold and drag windows, double click, right click, wheel or stick to scroll · double click outside = recenter'
       ) + '</div>';
     document.body.appendChild(root);
     return root;
@@ -762,6 +774,19 @@
         len = Math.max(0.12, hitS[0].distance); col = 0xffd24a; op = 0.95;
       } else if (hitM.length) {
         len = Math.max(0.12, hitM[0].distance); col = 0x35ffb2; op = 0.9;
+        c.userData.lastUv = hitM[0].uv;
+        /* Gatillo mantenido: mover el mando arrastra ventanas e iconos. */
+        if (c.userData.press) domMoveUv(hitM[0].uv, c.userData.press);
+        /* Stick arriba/abajo: rueda del ratón en la app (scroll de listas). */
+        var pad = c.userData.gamepad;
+        if (pad && pad.axes && Math.abs(pad.axes[1] || 0) > 0.45) {
+          var tW = (global.performance && global.performance.now ? global.performance.now() : Date.now()) / 1000;
+          if (!c.userData.wheelT || tW - c.userData.wheelT > 0.12) {
+            c.userData.wheelT = tW;
+            domWheelUv(hitM[0].uv, (pad.axes[2] || 0) * 90, (pad.axes[1] || 0) * 160);
+            try { paintMirror(); } catch (eWp) {}
+          }
+        }
       }
       var ray = c.userData.ray;
       ray.scale.z = len;
@@ -921,87 +946,165 @@
     return (weight || 600) + ' ' + size + 'px ' + (fam || 'Inter, system-ui, -apple-system, sans-serif');
   }
 
-  function drawIcon(ctx, el, kx, ky) {
-    var r = el.getBoundingClientRect();
-    if (!r.width || !r.height) return;
-    var cx = (r.left + r.width / 2) * kx;
-    var top = r.top * ky;
-    var ic = el.querySelector('.ic');
-    var img = ic ? ic.querySelector('img') : null;
-    var size = Math.min(r.width, r.height) * 0.56 * kx;
-    var iy = top + r.height * 0.09 * ky;
-    var drew = false;
-    if (img && img.complete && img.naturalWidth) {
-      try { ctx.drawImage(img, cx - size / 2, iy, size, size); drew = true; } catch (eImg) {}
+  var DOM_SKIP_TAGS = { SCRIPT: 1, STYLE: 1, LINK: 1, META: 1, HEAD: 1, TITLE: 1, NOSCRIPT: 1, TEMPLATE: 1, BASE: 1 };
+
+  function cssAlpha(c) {
+    if (!c) return 0;
+    c = String(c).trim();
+    if (c === 'transparent' || c === 'rgba(0, 0, 0, 0)') return 0;
+    if (c.charAt(0) === '#') return 1;
+    var m = c.match(/rgba?\(([^)]+)\)/);
+    if (!m) return 1;
+    var p = m[1].split(',');
+    return p.length > 3 ? parseFloat(p[3]) : 1;
+  }
+
+  /* Primer color de un degradado CSS: sirve de relleno sólido aproximado,
+     porque el canvas 2D no puede pintar el degradado tal cual. */
+  function firstColor(s) {
+    if (!s || s === 'none') return '';
+    var m = String(s).match(/rgba?\([^)]+\)|#[0-9a-fA-F]{3,8}/g);
+    return m && m.length ? m[0] : '';
+  }
+
+  /* Estilos calculados con caché corta: getComputedStyle es caro y el DOM real
+     se repinta ~14 veces por segundo en la pantalla. */
+  function styleOf(el, now) {
+    var cache = st.domStyles || (st.domStyles = new Map());
+    var rec = cache.get(el);
+    if (rec && (now - rec.t) < 0.7) return rec;
+    var cs;
+    try { cs = global.getComputedStyle(el); } catch (eG) { cs = null; }
+    if (!cs) return { t: now, bg: '', bA: 0, bgi: '', bdW: 0, bdC: '', bdS: 'none', rad: 0, vis: 'visible', disp: 'block', op: 1, of: 'visible', ofx: 'visible', ofy: 'visible', fs: 13, fw: 400, ff: 'sans-serif', color: '#fff', align: 'left', filter: 'none' };
+    rec = {
+      t: now,
+      bg: cs.backgroundColor,
+      bA: cssAlpha(cs.backgroundColor),
+      bgi: (cs.backgroundImage && cs.backgroundImage.indexOf('gradient') >= 0) ? firstColor(cs.backgroundImage) : '',
+      bdW: parseFloat(cs.borderTopWidth) || 0,
+      bdC: cs.borderTopColor,
+      bdS: cs.borderTopStyle,
+      rad: Math.min(28, parseFloat(cs.borderTopLeftRadius) || 0),
+      vis: cs.visibility,
+      disp: cs.display,
+      op: cs.opacity === '' ? 1 : parseFloat(cs.opacity),
+      of: cs.overflow, ofx: cs.overflowX, ofy: cs.overflowY,
+      fs: parseFloat(cs.fontSize) || 13,
+      fw: parseInt(cs.fontWeight, 10) || 400,
+      ff: cs.fontFamily || 'sans-serif',
+      color: cs.color,
+      align: cs.textAlign,
+      filter: cs.filter || 'none'
+    };
+    if (cache.size > 6000) cache.clear();
+    cache.set(el, rec);
+    return rec;
+  }
+
+  /* Texto de un nodo con sus rectángulos reales (cada línea va a su sitio). */
+  function drawMirrorText(ctx, node, s, kx, ky) {
+    if (!node || !node.nodeValue || !/\S/.test(node.nodeValue)) return;
+    var range, rects;
+    try {
+      range = document.createRange();
+      range.selectNodeContents(node);
+      rects = range.getClientRects ? range.getClientRects() : null;
+    } catch (eR) { return; }
+    if (!rects || !rects.length) return;
+    var str = String(node.nodeValue).replace(/\s+/g, ' ').trim();
+    if (!str) return;
+    ctx.font = s.fw + ' ' + Math.max(5, Math.round(s.fs * ky * 10) / 10) + 'px ' + s.ff;
+    ctx.fillStyle = s.color;
+    ctx.textBaseline = 'middle';
+    function put(text, r) {
+      if (!text || r.width < 1 || r.height < 1) return;
+      var x = r.left * kx, maxW = Math.max(6, r.width * kx + 2);
+      if (s.align === 'center') { ctx.textAlign = 'center'; x += (r.width * kx) / 2; }
+      else if (s.align === 'right' || s.align === 'end') { ctx.textAlign = 'right'; x += r.width * kx; }
+      else ctx.textAlign = 'left';
+      ctx.fillText(text, x, (r.top + r.height / 2) * ky, maxW);
     }
-    if (!drew) {
-      var txt = ic ? String(ic.textContent || '').trim() : '';
-      if (txt) {
-        ctx.font = Math.round(size * 0.92) + 'px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'top';
-        ctx.fillText(txt, cx, iy);
-      }
-    }
-    var lb = el.querySelector('.lb');
-    var label = lb ? String(lb.textContent || '').trim() : '';
-    if (label) {
-      ctx.font = vrFont(Math.max(11, Math.round(13 * kx)), 600);
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'alphabetic';
-      ctx.fillStyle = 'rgba(2,8,14,.65)';
-      var tw = ctx.measureText(label).width;
-      var lby = top + r.height * 0.72 * ky;
-      rrect(ctx, cx - tw / 2 - 6, lby - 13, tw + 12, 18, 6);
-      ctx.fill();
-      ctx.fillStyle = '#eafff4';
-      ctx.fillText(label, cx, lby);
+    if (rects.length === 1) { put(str, rects[0]); return; }
+    /* Varias líneas: reparto aproximado de palabras por rectángulo de línea. */
+    var words = str.split(' ');
+    var per = Math.ceil(words.length / rects.length);
+    for (var i = 0; i < rects.length; i++) {
+      if (i * per >= words.length) break;
+      put(words.slice(i * per, (i + 1) * per).join(' '), rects[i]);
     }
   }
 
-  function drawWindow(ctx, el, kx, ky) {
-    if (el.classList.contains('minimized')) return;
-    var r = el.getBoundingClientRect();
-    if (r.width < 30 || r.height < 30) return;
+  /* Pinta un elemento real del DOM (y sus hijos) dentro del canvas del espejo:
+     fondo, borde, texto, imágenes, canvas de apps y recorte por overflow. */
+  function paintDomNode(ctx, el, kx, ky, depth, alpha, vw, vh, now) {
+    if (!el || depth > 16 || st.domBudget <= 0) return;
+    var tag = el.tagName;
+    if (!tag || DOM_SKIP_TAGS[tag]) return;
+    if (el.id === 'snk-vr-root' || el.id === 'snk-vr-note' || el.id === 'wpCustomImg') return;
+    if (el.classList && (el.classList.contains('snk-vr-canvas') || el.classList.contains('snk-vr-hud'))) return;
+    st.domBudget--;
+    var r;
+    try { r = el.getBoundingClientRect(); } catch (eR2) { return; }
+    if (!r || r.width < 1 || r.height < 1) return;
+    if (r.right < 0 || r.bottom < 0 || r.left > vw || r.top > vh) return;
+    var s = styleOf(el, now);
+    if (s.disp === 'none' || s.vis === 'hidden' || s.vis === 'collapse') return;
+    if (s.filter && s.filter.indexOf('blur') >= 0) return;
+    var op = clampN(alpha * (isFinite(s.op) ? s.op : 1), 0, 1);
+    if (op < 0.03) return;
+    ctx.globalAlpha = op;
     var x = r.left * kx, y = r.top * ky, w = r.width * kx, h = r.height * ky;
-    ctx.save();
-    ctx.shadowColor = 'rgba(53,255,178,.25)';
-    ctx.shadowBlur = 18;
-    ctx.fillStyle = 'rgba(8,17,26,.92)';
-    rrect(ctx, x, y, w, h, 10);
-    ctx.fill();
-    ctx.restore();
-    var barH = Math.max(22, 30 * ky);
-    ctx.save();
-    rrect(ctx, x, y, w, barH, 10);
-    ctx.clip();
-    ctx.fillStyle = 'rgba(24,44,58,.96)';
-    ctx.fillRect(x, y, w, barH);
-    ctx.restore();
-    ctx.strokeStyle = 'rgba(53,255,178,.5)';
-    ctx.lineWidth = 1.4;
-    rrect(ctx, x + 0.5, y + 0.5, w - 1, h - 1, 10);
-    ctx.stroke();
-    var t = el.querySelector('.win-title');
-    var title = t ? String(t.textContent || '').trim() : '';
-    if (title) {
-      ctx.font = vrFont(Math.max(10, Math.round(13 * ky)), 700);
-      ctx.textAlign = 'left';
-      ctx.textBaseline = 'middle';
-      ctx.fillStyle = '#d8fff0';
-      ctx.fillText(title.length > 42 ? title.slice(0, 41) + '…' : title, x + 10, y + barH / 2);
+    var bgFill = (s.bA > 0.03) ? s.bg : (s.bgi || '');
+    if (bgFill) {
+      ctx.fillStyle = bgFill;
+      if (s.rad > 0) {
+        rrect(ctx, x, y, w, h, Math.min(s.rad * Math.min(kx, ky), w / 2, h / 2));
+        ctx.fill();
+      } else ctx.fillRect(x, y, w, h);
     }
-    /* Esqueleto del cuerpo: da volumen sin copiar el DOM interno. */
-    ctx.globalAlpha = 0.5;
-    ctx.fillStyle = 'rgba(120,200,180,.16)';
-    var rows = Math.min(8, Math.max(2, Math.floor((h - barH) / (24 * ky))));
-    for (var i = 0; i < rows; i++) {
-      var ry = y + barH + 12 + i * 24 * ky;
-      var rw = w * (0.5 + ((i * 37) % 40) / 100);
-      rrect(ctx, x + 12, ry, Math.max(20, rw - 24), Math.max(6, 10 * ky), 4);
-      ctx.fill();
+    if (s.bdW > 0 && s.bdS !== 'none' && cssAlpha(s.bdC) > 0.05) {
+      ctx.strokeStyle = s.bdC;
+      ctx.lineWidth = Math.max(1, s.bdW * Math.min(kx, ky));
+      if (s.rad > 0) {
+        rrect(ctx, x + 0.5, y + 0.5, Math.max(1, w - 1), Math.max(1, h - 1), Math.max(0, Math.min(s.rad * Math.min(kx, ky), w / 2, h / 2) - 1));
+        ctx.stroke();
+      } else ctx.strokeRect(x + 0.5, y + 0.5, Math.max(1, w - 1), Math.max(1, h - 1));
     }
-    ctx.globalAlpha = 1;
+    /* Contenido propio: canvas de las apps, imágenes y campos de texto. */
+    if (tag === 'CANVAS' || tag === 'VIDEO') {
+      try { ctx.drawImage(el, x, y, w, h); } catch (eCv) {}
+    } else if (tag === 'IMG') {
+      try { if (el.complete !== false && el.naturalWidth !== 0) ctx.drawImage(el, x, y, w, h); } catch (eIm) {}
+    } else if (tag === 'INPUT' || tag === 'TEXTAREA') {
+      var val = String(el.value || '');
+      var show = val || String(el.getAttribute('placeholder') || '');
+      if (show) {
+        ctx.font = s.fw + ' ' + Math.max(5, Math.round(s.fs * ky * 10) / 10) + 'px ' + s.ff;
+        ctx.fillStyle = val ? s.color : 'rgba(190,210,200,.55)';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(show.slice(0, 90), x + 4 * kx, y + h / 2, Math.max(6, w - 8));
+      }
+    }
+    var clip = (s.of !== 'visible' || s.ofx !== 'visible' || s.ofy !== 'visible');
+    if (clip) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(x, y, w, h);
+      ctx.clip();
+    }
+    var kids = el.childNodes;
+    for (var i = 0; i < kids.length; i++) {
+      var k = kids[i];
+      if (k.nodeType === 3) {
+        drawMirrorText(ctx, k, s, kx, ky);
+        ctx.globalAlpha = op;
+      } else if (k.nodeType === 1) {
+        paintDomNode(ctx, k, kx, ky, depth + 1, op, vw, vh, now);
+        ctx.globalAlpha = op;
+      }
+    }
+    if (clip) ctx.restore();
   }
 
   function paintMirror() {
@@ -1010,9 +1113,12 @@
     var W = MIRROR_W, H = MIRROR_H;
     var vw = Math.max(320, global.innerWidth || 1280), vh = Math.max(240, global.innerHeight || 800);
     var kx = W / vw, ky = H / vh;
+    var now = (global.performance && global.performance.now ? global.performance.now() : Date.now()) / 1000;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalAlpha = 1;
     ctx.clearRect(0, 0, W, H);
 
+    /* 1) Fondo del escritorio (papel pintado propio o degradados del tema). */
     var wp = document.getElementById('wpCustomImg'), okBg = false;
     if (wp && wp.complete && wp.naturalWidth) {
       try { okBg = wp.getBoundingClientRect().width > 0 && drawCover(ctx, wp, W, H); } catch (e0) {}
@@ -1029,30 +1135,20 @@
       rg2.addColorStop(0, 'rgba(47,124,255,.22)'); rg2.addColorStop(1, 'rgba(47,124,255,0)');
       ctx.fillStyle = rg2; ctx.fillRect(0, 0, W, H);
     }
-    ctx.fillStyle = 'rgba(3,8,14,.26)';
-    ctx.fillRect(0, 0, W, H);
 
-    var wins = document.querySelectorAll('#windows .app-window');
-    for (var i = 0; i < wins.length; i++) drawWindow(ctx, wins[i], kx, ky);
-    var icons = document.querySelectorAll('#iconLayer .desktop-icon');
-    for (var j = 0; j < icons.length; j++) drawIcon(ctx, icons[j], kx, ky);
+    /* 2) El escritorio REAL, tal cual está en el ordenador: iconos, ventanas con
+     *    el contenido de sus apps, barra de tareas, menú Inicio, menús y avisos.
+     *    Se recorren los hijos del body salvo el propio visor VR. */
+    st.domBudget = 3200;
+    var body = document.body;
+    if (body && body.children) {
+      for (var bi = 0; bi < body.children.length; bi++) {
+        try { paintDomNode(ctx, body.children[bi], kx, ky, 0, 1, vw, vh, now); } catch (eNode) {}
+        ctx.globalAlpha = 1;
+      }
+    }
 
-    /* Barra de tareas espejo */
-    var bh = Math.max(34, 64 * ky);
-    ctx.fillStyle = 'rgba(4,10,16,.88)';
-    ctx.fillRect(0, H - bh, W, bh);
-    ctx.fillStyle = 'rgba(53,255,178,.5)';
-    ctx.fillRect(0, H - bh, W, 1.5);
-    ctx.font = vrFont(Math.max(12, Math.round(17 * ky)), 800);
-    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-    ctx.fillStyle = '#8dffcf';
-    ctx.fillText('🐍 Snake OS', 18, H - bh / 2);
-    ctx.font = vrFont(Math.max(11, Math.round(14 * ky)), 600);
-    ctx.fillStyle = 'rgba(223,251,234,.85)';
-    ctx.textAlign = 'right';
-    ctx.fillText(clockText(), W - 18, H - bh / 2);
-
-    /* HUD: esquinas y etiqueta */
+    /* 3) Marco del visor: esquinas, etiqueta y viñeta (identidad del VR). */
     var m = 16, l = 46;
     ctx.strokeStyle = 'rgba(53,255,178,.6)';
     ctx.lineWidth = 3;
@@ -1073,6 +1169,8 @@
     ctx.fillRect(0, 0, W, H);
 
     if (st.mirrorTex) st.mirrorTex.needsUpdate = true;
+    /* Coste del pintado: el bucle lo usa para bajar o subir los repintados. */
+    st.paintCost = ((global.performance && global.performance.now ? global.performance.now() : Date.now()) / 1000) - now;
   }
 
   /* ---------------- Paneles laterales (estado y ayuda) ---------------- */
@@ -1230,8 +1328,8 @@
     R.font = vrFont(16, 600);
     R.fillStyle = 'rgba(234,255,244,.86)';
     var lines = vrT(
-      '🐍 Mandos: serpientes que apuntan y muerden|🎮 Gatillo/morder: pulsar la pantalla|🔮 Tótem abajo a la derecha: muerde para abrir/cerrar|🖐 Muerde el suelo: moverte|🌿 Jungla viva con serpientes|Arrastra: mirar · rueda: acercarte · WASD: moverte|🧭 Giroscopio · 👓 SBS · doble clic: recentrar',
-      '🐍 Controllers: snakes that aim and bite|🎮 Trigger/bite: click the screen|🔮 Totem bottom-right: bite to open/close|🖐 Bite the floor: move|🌿 Living jungle full of snakes|Drag: look · wheel: zoom · WASD: move|🧭 Gyro · 👓 SBS · double click: recenter'
+      '🐍 Mandos: serpientes que apuntan y muerden|🎮 Gatillo: clic · mantener y mover: arrastrar|▣ Mando apretado sobre la pantalla: clic derecho|🕹 Stick: desplazar la app (rueda)|🔮 Tótem abajo a la derecha: abre/cierra el escritorio|🖐 Muerde el suelo: moverte|🌿 Jungla viva con serpientes|🧭 Giroscopio · 👓 SBS · doble clic: recentrar',
+      '🐍 Controllers: snakes that aim and bite|🎮 Trigger: click · hold and move: drag|▣ Squeeze on the screen: right click|🕹 Stick: scroll the app (wheel)|🔮 Totem bottom-right: open/close the desktop|🖐 Bite the floor: move|🌿 Living jungle full of snakes|🧭 Gyro · 👓 SBS · double click: recenter'
     ).split('|');
     var ly = 576;
     for (var l = 0; l < lines.length; l++) {
@@ -1290,18 +1388,148 @@
     return null;
   }
 
+  /* ---------------- Ratón REAL del escritorio (igual que en el ordenador) ----------------
+   * La pantalla del VR se comporta como el escritorio del PC: los eventos se inyectan
+   * como PointerEvent/MouseEvent/WheelEvent de verdad en el elemento que hay debajo
+   * del rayo, así funcionan los arrastres de ventanas e iconos, el doble clic, los
+   * menús contextuales (clic derecho) y la rueda dentro de las apps. */
+  var DOM_PID = 1;
+
+  function fireDom(el, type, x, y, extra) {
+    if (!el || !el.dispatchEvent) return;
+    extra = extra || {};
+    var isUp = (type === 'pointerup' || type === 'mouseup');
+    var common = {
+      bubbles: true, cancelable: true, composed: true, view: global,
+      clientX: x, clientY: y, screenX: x, screenY: y,
+      button: extra.button || 0,
+      buttons: extra.buttons != null ? extra.buttons : (isUp ? 0 : (extra.button === 2 ? 2 : 1)),
+      pointerId: DOM_PID, pointerType: 'mouse', isPrimary: true,
+      width: 1, height: 1,
+      pressure: isUp ? 0 : 0.5
+    };
+    try {
+      if (typeof PointerEvent === 'function' && type.indexOf('pointer') === 0) {
+        el.dispatchEvent(new PointerEvent(type, common));
+      }
+    } catch (eP) {}
+    try {
+      var mt = type.indexOf('pointer') === 0 ? type.replace('pointer', 'mouse') : type;
+      if (mt === 'mousedown' || mt === 'mouseup' || mt === 'mousemove' || mt === 'click' || mt === 'dblclick' || mt === 'contextmenu') {
+        el.dispatchEvent(new MouseEvent(mt, common));
+      }
+    } catch (eM) {}
+  }
+
+  function domPointFromUv(uv) {
+    var vw = Math.max(320, global.innerWidth || 1280), vh = Math.max(240, global.innerHeight || 800);
+    var px = clampN(uv.x, 0, 1) * vw;
+    var py = (1 - clampN(uv.y, 0, 1)) * vh;
+    return { x: px, y: py, el: pickDomAt(px, py) };
+  }
+
+  /* Pulsar: pointerdown + mousedown + foco en campos de texto. */
+  function domPressUv(uv) {
+    var a = domPointFromUv(uv);
+    if (!a.el) return null;
+    fireDom(a.el, 'pointerdown', a.x, a.y);
+    fireDom(a.el, 'mousedown', a.x, a.y);
+    try {
+      var f = a.el.closest ? a.el.closest('input,textarea,select') : null;
+      if (f && f.focus) f.focus({ preventScroll: true });
+      else if (a.el.focus) a.el.focus({ preventScroll: true });
+    } catch (eF) {}
+    return { x: a.x, y: a.y, moved: 0, t: Date.now(), el: a.el };
+  }
+
+  /* Mover con el botón pulsado: arrastra ventanas, iconos y selecciona texto. */
+  function domMoveUv(uv, press) {
+    if (!press || !uv) return;
+    var a = domPointFromUv(uv);
+    var el = a.el || press.el;
+    if (!el) return;
+    press.moved += Math.abs(a.x - press.x) + Math.abs(a.y - press.y);
+    press.x = a.x;
+    press.y = a.y;
+    fireDom(el, 'pointermove', a.x, a.y);
+    fireDom(el, 'mousemove', a.x, a.y);
+  }
+
+  /* Soltar: pointerup + mouseup y, si no arrastró, click (y dblclick al repetir). */
+  function domReleaseUv(uv, press) {
+    if (!press) return false;
+    if (uv) domMoveUv(uv, press);
+    var a = uv ? domPointFromUv(uv) : { x: press.x, y: press.y, el: pickDomAt(press.x, press.y) };
+    var el = a.el || press.el;
+    if (!el) return false;
+    fireDom(el, 'pointerup', a.x, a.y);
+    fireDom(el, 'mouseup', a.x, a.y);
+    var now = Date.now();
+    var clicked = press.moved < 14 && (now - press.t) < 1500;
+    if (clicked) {
+      fireDom(el, 'click', a.x, a.y);
+      var last = st.deskLastTap;
+      if (last && now - last.t < 460 && Math.abs(a.x - last.x) < 16 && Math.abs(a.y - last.y) < 16) {
+        fireDom(el, 'dblclick', a.x, a.y);
+        st.deskLastTap = null;
+      } else {
+        st.deskLastTap = { t: now, x: a.x, y: a.y };
+      }
+    }
+    return clicked;
+  }
+
+  /* Clic derecho: pointerdown/mousedown + contextmenu + up (menú contextual). */
+  function domRightClickUv(uv) {
+    var a = domPointFromUv(uv);
+    if (!a.el) return false;
+    fireDom(a.el, 'pointerdown', a.x, a.y, { button: 2, buttons: 2 });
+    fireDom(a.el, 'mousedown', a.x, a.y, { button: 2, buttons: 2 });
+    fireDom(a.el, 'contextmenu', a.x, a.y, { button: 2, buttons: 2 });
+    fireDom(a.el, 'pointerup', a.x, a.y, { button: 2, buttons: 2 });
+    fireDom(a.el, 'mouseup', a.x, a.y, { button: 2, buttons: 0 });
+    return true;
+  }
+
+  /* Rueda del ratón en la app que esté bajo el rayo (scroll de listas y paneles). */
+  function domWheelUv(uv, dx, dy) {
+    var a = domPointFromUv(uv);
+    if (!a.el) return false;
+    try {
+      a.el.dispatchEvent(new WheelEvent('wheel', {
+        bubbles: true, cancelable: true, clientX: a.x, clientY: a.y,
+        deltaX: dx || 0, deltaY: dy || 0, deltaMode: 0
+      }));
+    } catch (eW) {}
+    return true;
+  }
+
+  /* Clic rápido completo (compatibilidad con el código anterior). */
   function clickDomFromUv(uv) {
     if (!uv) return false;
-    var px = clampN(uv.x, 0, 1) * (global.innerWidth || 1280);
-    var py = (1 - clampN(uv.y, 0, 1)) * (global.innerHeight || 800);
-    var el = pickDomAt(px, py);
-    if (!el) return false;
-    var target = (el.closest && (el.closest('button,a,input,textarea,select,[data-app],.desktop-icon,.win-titlebar,[role="button"],.start-item') || el)) || el;
-    try {
-      if (target.focus && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) target.focus();
-      target.click();
-      return true;
-    } catch (eC) { return false; }
+    var press = domPressUv(uv);
+    if (!press) return false;
+    domReleaseUv(uv, press);
+    return true;
+  }
+
+  /* UV del punto de la pantalla que hay bajo un punto de la ventana (modo ratón). */
+  function screenUvAt(cx, cy) {
+    if (!st.three || !st.camera || !st.screenOpen || !st.mirrorMesh) return null;
+    var w = global.innerWidth || 1280, h = global.innerHeight || 800;
+    var rc = new st.three.Raycaster();
+    rc.setFromCamera(new st.three.Vector2((cx / w) * 2 - 1, -(cy / h) * 2 + 1), st.camera);
+    var hits = rc.intersectObject(st.mirrorMesh, false);
+    return (hits && hits.length && hits[0].uv) ? hits[0].uv : null;
+  }
+
+  /* ¿El ratón/dedo está encima del tótem? (va delante de la pantalla y manda). */
+  function spiritHitAt(cx, cy) {
+    if (!st.three || !st.camera || !st.spirit) return false;
+    var w = global.innerWidth || 1280, h = global.innerHeight || 800;
+    var rc = new st.three.Raycaster();
+    rc.setFromCamera(new st.three.Vector2((cx / w) * 2 - 1, -(cy / h) * 2 + 1), st.camera);
+    return rc.intersectObject(st.spirit.pickMesh, false).length > 0;
   }
 
   function tapAt(cx, cy) {
@@ -1422,10 +1650,28 @@
     var c = st.canvas;
     c.addEventListener('pointerdown', function (e) {
       if (st.mode === 'xr') return;
+      /* Si se pulsa sobre el escritorio abierto, es ratón real del PC:
+         pulsar = clic, mantener y mover = arrastrar ventanas/iconos.
+         El tótem va delante de la pantalla, así que se mira él primero. */
+      if (!spiritHitAt(e.clientX, e.clientY)) {
+        var uv = screenUvAt(e.clientX, e.clientY);
+        if (uv) {
+          st.deskDrag = domPressUv(uv);
+          st.pointer = null;
+          try { c.setPointerCapture(e.pointerId); } catch (eP0) {}
+          try { paintMirror(); } catch (ePP) {}
+          return;
+        }
+      }
       st.pointer = { id: e.pointerId, x: e.clientX, y: e.clientY, t: Date.now(), moved: 0 };
       try { c.setPointerCapture(e.pointerId); } catch (eP) {}
     });
     c.addEventListener('pointermove', function (e) {
+      if (st.deskDrag) {
+        var uvD = screenUvAt(e.clientX, e.clientY);
+        if (uvD) domMoveUv(uvD, st.deskDrag);
+        return;
+      }
       var p = st.pointer;
       if (!p || p.id !== e.pointerId) return;
       var dx = e.clientX - p.x, dy = e.clientY - p.y;
@@ -1438,6 +1684,16 @@
       }
     });
     function finish(e, up) {
+      if (st.deskDrag) {
+        var d = st.deskDrag;
+        st.deskDrag = null;
+        if (up) {
+          var uvU = screenUvAt(e.clientX, e.clientY);
+          try { domReleaseUv(uvU, d); } catch (eRel) {}
+        }
+        try { paintMirror(); } catch (ePP2) {}
+        return;
+      }
       var p = st.pointer;
       if (!p || p.id !== e.pointerId) return;
       st.pointer = null;
@@ -1449,6 +1705,14 @@
     c.addEventListener('wheel', function (e) {
       if (st.mode === 'xr') return;
       e.preventDefault();
+      /* Rueda sobre el escritorio = desplazar la app (igual que en el PC);
+         rueda fuera de él = acercarse o alejarse en la jungla. */
+      var uvW = screenUvAt(e.clientX, e.clientY);
+      if (uvW) {
+        domWheelUv(uvW, e.deltaX, e.deltaY);
+        try { paintMirror(); } catch (ePP3) {}
+        return;
+      }
       moveForward(-e.deltaY * 0.0022);
     }, { passive: false });
 
@@ -1603,11 +1867,8 @@
       c.userData.snake = snake;
       c.addEventListener('connected', onCtrlConnected(c));
       c.addEventListener('selectstart', onXRSelect.bind(null, c, rc));
-      if (i === 0) {
-        c.addEventListener('squeezestart', function () {
-          if (st.xrSession) { try { st.xrSession.end(); } catch (eQ) {} }
-        });
-      }
+      c.addEventListener('selectend', onXRSelectEnd.bind(null, c, rc));
+      c.addEventListener('squeezestart', onXRSqueeze.bind(null, c, rc));
       st.scene.add(c);
       st.xrControllers.push(c);
     }
@@ -1631,13 +1892,16 @@
       toggleScreen();
       return;
     }
-    /* 2) La pantalla del escritorio, si ya está abierta: clic real en el DOM. */
+    /* 2) La pantalla del escritorio, si ya está abierta: pulsar es el botón
+     *    izquierdo del ratón (clic al soltar; mantener y mover = arrastrar). */
     if (st.screenOpen && st.mirrorMesh) {
       var hits = rc.intersectObject(st.mirrorMesh, false);
       if (hits.length && hits[0].uv) {
         biteNow(c);
         flashAtPoint(hits[0].point);
-        clickDomFromUv(hits[0].uv);
+        c.userData.press = domPressUv(hits[0].uv);
+        c.userData.lastUv = hits[0].uv;
+        try { paintMirror(); } catch (ePp) {}
         return;
       }
     }
@@ -1646,6 +1910,41 @@
       var fh = rc.intersectObject(st.floorMesh, false);
       if (fh.length) { biteNow(c); teleportTo(fh[0].point); }
     }
+  }
+
+  /* Soltar el gatillo: pointerup/mouseup y clic (o doble clic si repites). */
+  function onXRSelectEnd(c, rc) {
+    var press = c.userData.press;
+    if (!press) return;
+    c.userData.press = null;
+    castFromController(c, rc);
+    var uv = c.userData.lastUv;
+    if (st.screenOpen && st.mirrorMesh) {
+      var hits = rc.intersectObject(st.mirrorMesh, false);
+      if (hits.length && hits[0].uv) uv = hits[0].uv;
+    }
+    if (uv) {
+      try { domReleaseUv(uv, press); } catch (eRel) {}
+      try { paintMirror(); } catch (ePr) {}
+    }
+  }
+
+  /* Apretar el mando (squeeze) apuntando al escritorio = clic derecho, como en
+   * el PC (menú contextual). Apretarlo fuera de la pantalla sigue sirviendo de
+   * atajo de salida del modo VR. */
+  function onXRSqueeze(c, rc) {
+    castFromController(c, rc);
+    if (st.screenOpen && st.mirrorMesh) {
+      var hits = rc.intersectObject(st.mirrorMesh, false);
+      if (hits.length && hits[0].uv) {
+        biteNow(c);
+        flashAtPoint(hits[0].point);
+        domRightClickUv(hits[0].uv);
+        try { paintMirror(); } catch (ePq) {}
+        return;
+      }
+    }
+    if (st.xrSession) { try { st.xrSession.end(); } catch (eQ) {} }
   }
 
   /* ---------------- Bucle de render ---------------- */
@@ -1695,7 +1994,15 @@
       }
     } catch (eAnim) {}
 
-    if (st.screenOpen && now - st.mirrorLast > 1.2) { st.mirrorLast = now; try { paintMirror(); } catch (ePm) {} }
+    if (st.screenOpen && now - st.mirrorLast > st.paintEvery) {
+      st.mirrorLast = now;
+      try { paintMirror(); } catch (ePm) {}
+      /* Repintado adaptativo: si pintar el DOM real cuesta mucho (gafas lentas),
+         se espacia; si va sobrado, se aprieta hasta ~14 fps. */
+      var targetP = st.mode === 'xr' ? 0.07 : 0.09;
+      if (st.paintCost > 0.045) st.paintEvery = Math.min(0.28, st.paintEvery * 1.35 + 0.01);
+      else st.paintEvery = Math.max(targetP, st.paintEvery * 0.82 - 0.002);
+    }
     if (now - st.infoLast > 2) { st.infoLast = now; try { paintInfo(); } catch (ePi) {} }
 
     renderFrame();

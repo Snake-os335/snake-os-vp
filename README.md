@@ -86,7 +86,7 @@ los ajustes rápidos) y un acceso en Ajustes rápidos. Reglas:
   `requireOnline(nombre)`, `isOnlineRequest(url)`, `profile()`, `syncProfile()`, `on(fn)`).
   Pruebas: `node tests/test_release_2617.js`, `node tests/test_release_2618.js` y `node tests/test_release_2619.js`.
 
-## Snake VR (2026.21)
+## Snake VR (2026.22)
 
 `snake-vr.js` añade la app **🥽 Snake VR** (escritorio y buscador de apps): tu escritorio de Snake OS
 dentro de una **jungla viva en 3D** — árboles, helechos, lianas meciéndose, luciérnagas y serpientes que
@@ -108,14 +108,21 @@ laterales en vivo (hora, versión, estado del escritorio, apps abiertas, novedad
   y al volver a pulsarlo se cierra. También desde el HUD (🗔 Escritorio) y desde la app (🔮 Abrir el
   escritorio dentro de VR).
 
-- **Pantalla espejo del escritorio de verdad:** un canvas 2D lee el DOM real (`.desktop-icon` con sus
-  iconos/imágenes y etiquetas, `.app-window` con su título, reloj y fondo de pantalla) y se sube como
-  textura a un plano de three.js. Se repinta cada ~1,2 s, así que lo que abres o cierras se ve dentro.
-  Las ventanas se dibujan con su título real y un esqueleto del cuerpo (no se copia su contenido interno).
-- **Clics que funcionan:** al pulsar la pantalla (ratón, dedo, o gatillo del mando en VR) el rayo da las
-  coordenadas UV del plano, se convierten a píxeles reales del escritorio y se busca el elemento del DOM
-  con `document.elementsFromPoint` (ignorando el propio overlay) para hacerle `click()`. Puedes abrir y
-  cerrar apps, pulsar la barra de tareas o la barra de título sin salir de VR.
+- **Escritorio REAL dentro de la pantalla (2026.22):** el espejo ya no dibuja un boceto: `paintDomNode`
+  recorre los hijos del `body` (salvo el propio visor) y pinta fondos, bordes, textos (con los
+  rectángulos reales de cada línea vía `Range.getClientRects`), imágenes y **el canvas de las apps**,
+  respetando `opacity`, `overflow` (recorte) y ocultando lo que no se ve. Los estilos se cachean
+  (`Map` + `getComputedStyle` cada 0,7 s) y el repintado es **adaptativo (~14 fps)**: si pintar cuesta
+  más de 45 ms se espacia hasta 280 ms y, si va sobrado, se aprieta. Lo que abres, mueves o cierras se
+  ve al instante dentro del visor.
+- **Todo funciona igual que en el ordenador (2026.22):** los eventos se inyectan como
+  `PointerEvent` + `MouseEvent` (y `WheelEvent`) reales en el elemento bajo el rayo
+  (`raycast → uv → píxel CSS → elementsFromPoint → evento`), así que funcionan:
+  **clic**, **mantener y arrastrar** ventanas (barra de título) e iconos, **doble clic** (abrir),
+  **clic derecho** (menú contextual: apretar el mando —squeeze— apuntando a la pantalla; fuera de la
+  pantalla sigue siendo el atajo de salida de VR), **rueda/stick** (desplazar listas dentro de las
+  apps) y **foco** en campos de texto. En modo ratón, pulsar sobre la pantalla arrastra el escritorio y
+  la rueda desplaza la app en vez de hacer zoom (el zoom sigue fuera de la pantalla).
 - **Tres formas de mirar:** ratón/teclado (arrastrar, rueda, WASD/flechas, doble toque en el fondo =
   recentrar), **👓 Gafas (SBS)** con dos cámaras y dos viewports (gafas de cartón, pide horizontal en el
   móvil) y **🥽 VR real** con `navigator.xr.requestSession('immersive-vr')` (Meta Quest y PCVR): el visor
@@ -130,5 +137,5 @@ laterales en vivo (hora, versión, estado del escritorio, apps abiertas, novedad
 - API: `window.SnakeVR` (`open({sbs, xr, screen})`, `close()`, `recenter()`, `supported()`,
   `toggleScreen()`, `setScreenOpen(bool)`, `isScreenOpen`, `isOpen`, `mode`) y
   `window.renderSnakeVrApp(body)`.
-- Pruebas: `node tests/test_release_2621.js` (y `node tests/test_release_2616.js` … `2620`, que siguen la versión actual).
+- Pruebas: `node tests/test_release_2622.js`, `node tests/test_release_2621.js` (y `tests/test_release_2616.js` … `tests/test_release_2620.js`, que siguen la versión actual).
 

@@ -1,4 +1,4 @@
-/* Snake OS 2026.21: Snake VR — jungla viva, mandos-serpiente y tótem para abrir el escritorio.
+/* Snake OS 2026.22: Snake VR — jungla viva, mandos-serpiente y tótem para abrir el escritorio.
  *
  * Qué se comprueba (estático, sobre los ficheros reales):
  *  - Jungla animada: suelo de musgo, árboles/helechos instanciados, lianas que se mecen,
@@ -8,7 +8,7 @@
  *  - La pantalla del escritorio empieza CERRADA; la serpiente tótem te sigue, y al pulsarla
  *    (ratón o mando) se abre; al volver a pulsarla se cierra. Se puede abrir también desde
  *    el HUD (🗔 Escritorio) y desde la app (botón #snkvr-screen).
- *  - index.html: versión 2026.21, entrada de novedades primera y ?v= nuevo del script.
+ *  - index.html: versión 2026.22, entrada de novedades primera y ?v= nuevo del script.
  */
 'use strict';
 var fs = require('fs');
@@ -24,7 +24,7 @@ var i18n = fs.readFileSync(path.join(root, 'snake-i18n.js'), 'utf8');
 var readme = fs.readFileSync(path.join(root, 'README.md'), 'utf8');
 
 /* 1) Jungla animada con serpientes por todas partes */
-assert.ok(vr.indexOf("VR_VERSION = '2026.21'") >= 0, 'versión del módulo 2026.21');
+assert.ok(vr.indexOf("VR_VERSION = '2026.22'") >= 0, 'versión del módulo 2026.22');
 assert.ok(vr.indexOf('function makeJungle(THREE)') >= 0, 'se construye la jungla');
 assert.ok(vr.indexOf('function makeGroundTexture(') >= 0, 'suelo de musgo procedural');
 assert.ok(vr.indexOf('function makeLeafTexture(') >= 0, 'textura de hoja para los helechos');
@@ -97,18 +97,18 @@ assert.ok(i18n.indexOf("'Cerrado: muerde al tótem':'Closed: bite the totem'") >
 assert.ok(i18n.indexOf("'Abrir el escritorio dentro de VR':'Open the desktop inside VR'") >= 0, 'i18n del botón de la app');
 ok('cadenas nuevas en snake-i18n.js (ES/EN)');
 
-/* 5) index.html en 2026.21 con novedades nuevas */
-assert.ok(html.indexOf("window.SNAKE_OS_VERSION='2026.21'") >= 0, 'versión 2026.21');
-assert.ok(html.indexOf("{v:'2026.21'") >= 0, 'entrada de novedades 2026.21');
-assert.ok(html.indexOf("{v:'2026.21'") < html.indexOf("{v:'2026.20'"), 'la entrada 2026.21 va primera');
+/* 5) index.html en 2026.22 con novedades nuevas */
+assert.ok(html.indexOf("window.SNAKE_OS_VERSION='2026.22'") >= 0, 'versión 2026.22');
+assert.ok(html.indexOf("{v:'2026.22'") >= 0, 'entrada de novedades 2026.22');
+assert.ok(html.indexOf("{v:'2026.22'") < html.indexOf("{v:'2026.20'"), 'la entrada 2026.22 va primera');
 assert.ok(html.indexOf('jungla viva') >= 0, 'las novedades cuentan la jungla');
 assert.ok(html.indexOf('serpiente tótem') >= 0, 'las novedades cuentan el tótem');
-assert.ok(html.indexOf('/static/snake-vr.js?v=202607111600') >= 0, '?v= nuevo de snake-vr.js (sin caché vieja)');
+assert.ok(html.indexOf('/static/snake-vr.js?v=202607112100') >= 0, '?v= nuevo de snake-vr.js (sin caché vieja)');
 assert.ok(html.indexOf("'snake-vr': { title:'Snake VR'") >= 0, 'la app sigue registrada');
-ok('index.html en 2026.21 con la jungla y el tótem en las novedades');
+ok('index.html en 2026.22 con la jungla y el tótem en las novedades');
 
 /* 6) README y limpieza */
-assert.ok(readme.indexOf('2026.21') >= 0, 'README cita la 2026.21');
+assert.ok(readme.indexOf('2026.22') >= 0, 'README cita la 2026.22');
 assert.ok(readme.indexOf('tests/test_release_2621.js') >= 0, 'README lista esta prueba');
 assert.strictEqual(/TODO|FIXME/.test(vr), false, 'sin TODOs pendientes');
 ok('README actualizado y sin TODOs');
