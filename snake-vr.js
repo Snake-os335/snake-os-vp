@@ -221,8 +221,8 @@
         '<button type="button" class="right" data-move="right" aria-label="' + vrT('Derecha', 'Right') + '">▶</button>' +
       '</div>' +
       '<div class="snk-vr-help">' + vrT(
-        'Arrastra para mirar · rueda o pellizco = acercarte · WASD/flechas = moverte · la serpiente tótem que te sigue abre y cierra el escritorio (púlsala) · dentro, clic = usar Snake OS · doble clic = recentrar',
-        'Drag to look · wheel or pinch = zoom · WASD/arrows = move · the totem snake that follows you opens and closes the desktop (press it) · inside, click = use Snake OS · double click = recenter'
+        'Arrastra para mirar · rueda o pellizco = acercarte · WASD/flechas = moverte · la serpiente tótem, abajo a la derecha sin estorbar, abre y cierra el escritorio (púlsala) · dentro, clic = usar Snake OS · doble clic = recentrar',
+        'Drag to look · wheel or pinch = zoom · WASD/arrows = move · the totem snake, bottom-right out of the way, opens and closes the desktop (press it) · inside, click = use Snake OS · double click = recenter'
       ) + '</div>';
     document.body.appendChild(root);
     return root;
@@ -544,8 +544,8 @@
   }
 
 
-  /* Serpiente tótem que flota delante de ti: se enrolla en espiral, tiene halo y
-     anillo, y al pulsarla (ratón o mandos) abre/cierra el escritorio. */
+  /* Serpiente tótem que flota a tu lado, en la esquina inferior derecha: se enrolla en espiral,
+     tiene halo y anillo, y al pulsarla (ratón o mandos) abre/cierra el escritorio. */
   function makeSpiritSnake(THREE) {
     var group = new THREE.Group();
     var color = 0x9dff5a;
@@ -591,9 +591,10 @@
     ring.position.y = -0.16;
     group.add(ring);
 
-    /* Zona clicable (invisible pero el raycaster sí la ve) */
+    /* Zona clicable (invisible pero el raycaster sí la ve): pequeña, para que un clic
+       cerca del tótem pase de largo y no estorbe. */
     var pick = new THREE.Mesh(
-      new THREE.SphereGeometry(0.26, 10, 8),
+      new THREE.SphereGeometry(0.2, 10, 8),
       new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false })
     );
     group.add(pick);
@@ -633,16 +634,25 @@
     dir.y = 0;
     if (dir.lengthSq() < 0.0001) dir.set(0, 0, -1);
     dir.normalize();
-    look.copy(pos).addScaledVector(dir, 0.95);
-    look.y = clampN(pos.y - 0.18, 0.85, 1.55);
-    look.y += Math.sin(now * 1.4) * 0.015;
+    /* Vive en la esquina inferior derecha de la vista: a la altura del pecho, pequeño y
+       translúcido, para que no estorbe — ni tapa el centro de la mirada ni la pantalla.
+       Con el escritorio abierto se aparta aún más y se desvanece casi del todo. */
+    var sideX = -dir.z, sideZ = dir.x; // hombro derecho
+    var reach = st.screenOpen ? 1.55 : 1.25;
+    var side = st.screenOpen ? 0.85 : 0.62;
+    look.copy(pos).addScaledVector(dir, reach);
+    look.x += sideX * side;
+    look.z += sideZ * side;
+    look.y = clampN(pos.y - (st.screenOpen ? 0.7 : 0.52), 0.5, 1.35);
+    look.y += Math.sin(now * 1.4) * 0.012;
     sp.group.position.lerp(look, Math.min(1, dt * 4.5));
     /* La cabeza te mira siempre a ti */
     sp.head.group.lookAt(pos.x, pos.y, pos.z);
     sp.spiral.rotation.y = now * 0.9;
     sp.ring.rotation.z = now * (st.screenOpen ? 2.4 : 0.7);
-    sp.halo.material.opacity = (st.screenOpen ? 0.95 : 0.6) + Math.sin(now * 5) * 0.08;
-    sp.group.scale.setScalar(1 + Math.sin(now * 3.2) * 0.045 + sp.bite * 0.3);
+    sp.halo.material.opacity = (st.screenOpen ? 0.28 : 0.55) + Math.sin(now * 5) * 0.05;
+    var baseScale = st.screenOpen ? 0.44 : 0.6;
+    sp.group.scale.setScalar(baseScale * (1 + Math.sin(now * 3.2) * 0.05 + sp.bite * 0.35));
     sp.head.tongue.scale.z = 0.5 + Math.max(0, Math.sin(now * 6.5)) * 1.4;
     if (sp.bite > 0) sp.bite = Math.max(0, sp.bite - dt * 3);
     var col = st.screenOpen ? 0x9dff5a : 0xffc861;
@@ -803,10 +813,10 @@
       st.ambient.push(asn);
     }
 
-    /* Serpiente tótem que te sigue: abre y cierra el escritorio */
+    /* Serpiente tótem que te sigue: abre y cierra el escritorio (esquina inferior derecha) */
     st.spirit = makeSpiritSnake(THREE);
     st.spirit.bite = 0;
-    st.spirit.group.position.set(0, 1.35, 2.45);
+    st.spirit.group.position.set(0.62, 1.1, 2.15);
     scene.add(st.spirit.group);
 
     /* Pantalla central: espejo del escritorio (pulsable) */
@@ -1220,8 +1230,8 @@
     R.font = vrFont(16, 600);
     R.fillStyle = 'rgba(234,255,244,.86)';
     var lines = vrT(
-      '🐍 Mandos: serpientes que apuntan y muerden|🎮 Gatillo/morder: pulsar la pantalla|🔮 Tótem delante: muerde para abrir/cerrar el escritorio|🖐 Muerde el suelo: moverte|🌿 Jungla viva con serpientes|Arrastra: mirar · rueda: acercarte · WASD: moverte|🧭 Giroscopio · 👓 SBS · doble clic: recentrar',
-      '🐍 Controllers: snakes that aim and bite|🎮 Trigger/bite: click the screen|🔮 Totem in front: bite it to open/close the desktop|🖐 Bite the floor: move|🌿 Living jungle full of snakes|Drag: look · wheel: zoom · WASD: move|🧭 Gyro · 👓 SBS · double click: recenter'
+      '🐍 Mandos: serpientes que apuntan y muerden|🎮 Gatillo/morder: pulsar la pantalla|🔮 Tótem abajo a la derecha: muerde para abrir/cerrar|🖐 Muerde el suelo: moverte|🌿 Jungla viva con serpientes|Arrastra: mirar · rueda: acercarte · WASD: moverte|🧭 Giroscopio · 👓 SBS · doble clic: recentrar',
+      '🐍 Controllers: snakes that aim and bite|🎮 Trigger/bite: click the screen|🔮 Totem bottom-right: bite to open/close|🖐 Bite the floor: move|🌿 Living jungle full of snakes|Drag: look · wheel: zoom · WASD: move|🧭 Gyro · 👓 SBS · double click: recenter'
     ).split('|');
     var ly = 576;
     for (var l = 0; l < lines.length; l++) {
@@ -1890,15 +1900,15 @@
         '<div>' +
           '<p style="margin:0 0 6px;font-weight:700">' + vrT('Qué puedes hacer dentro', 'What you can do inside') + '</p>' +
           '<ul>' +
-            '<li>' + vrT('La pantalla gigante empieza cerrada: muerde a la serpiente tótem que te sigue (o púlsala con el ratón) para abrir tu escritorio, y muerde otra vez para cerrarlo.', 'The giant screen starts closed: bite the totem snake that follows you (or press it with the mouse) to open your desktop, and bite again to close it.') + '</li>' +
+            '<li>' + vrT('La pantalla gigante empieza cerrada: muerde a la serpiente tótem que te sigue (abajo a la derecha, sin estorbar; o púlsala con el ratón) para abrir tu escritorio, y muerde otra vez para cerrarlo.', 'The giant screen starts closed: bite the totem snake that follows you (bottom-right, out of the way; or press it with the mouse) to open your desktop, and bite again to close it.') + '</li>' +
             '<li>' + vrT('Con las dos manos: cada mando es una serpiente con ojos y lengua. El rayo sale de su boca y el gatillo la hace morder lo que apunta (iconos, apps, ventanas).', 'Both hands: each controller is a snake with eyes and tongue. Its ray comes out of its mouth and the trigger makes it bite whatever it points at (icons, apps, windows).') + '</li>' +
             '<li>' + vrT('Jungla animada alrededor: árboles, helechos, lianas meciéndose, luciérnagas y serpientes que se arrastran por todas partes.', 'Animated jungle all around: trees, ferns, swaying vines, fireflies and snakes crawling everywhere.') + '</li>' +
             '<li>' + vrT('Paneles laterales con hora, versión de Snake OS, estado del escritorio, apps abiertas y novedades.', 'Side panels with the time, Snake OS version, desktop state, open apps and what’s new.') + '</li>' +
           '</ul>' +
         '</div>' +
         '<p class="snkvr-note">' + vrT(
-          'Consejo: en el móvil, abre Snake VR, pulsa 🧭 Giroscopio y 👓 Gafas (SBS) y mete el teléfono en las gafas de cartón. En Meta Quest usa directamente 🥽 VR real y busca al tótem delante de ti.',
-          'Tip: on your phone, open Snake VR, press 🧭 Gyroscope and 👓 Headset (SBS) and put the phone into your cardboard goggles. On Meta Quest just use 🥽 True VR and look for the totem in front of you.'
+          'Consejo: en el móvil, abre Snake VR, pulsa 🧭 Giroscopio y 👓 Gafas (SBS) y mete el teléfono en las gafas de cartón. En Meta Quest usa directamente 🥽 VR real y busca al tótem en la esquina inferior derecha, apartado para no estorbarte.',
+          'Tip: on your phone, open Snake VR, press 🧭 Gyroscope and 👓 Headset (SBS) and put the phone into your cardboard goggles. On Meta Quest just use 🥽 True VR and look for the totem in the bottom-right corner, out of your way.'
         ) + '</p>' +
       '</div>';
 

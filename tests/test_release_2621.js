@@ -79,6 +79,15 @@ assert.ok(vr.indexOf('get isScreenOpen()') >= 0, 'API pública isScreenOpen');
 assert.ok(vr.indexOf('if (opts.screen) setScreenOpen(true);') >= 0, 'open({screen:true}) abre el escritorio');
 assert.ok(vr.indexOf('id="snkvr-screen"') >= 0, 'la app tiene el botón de abrir el escritorio');
 assert.ok(vr.indexOf('Cerrado: muerde al tótem') >= 0, 'el panel enseña que está cerrado');
+/* El tótem no estorba: esquina inferior derecha, pequeño y translúcido */
+assert.ok(vr.indexOf('esquina inferior derecha de la vista') >= 0, 'el tótem vive en la esquina, no en el centro');
+assert.ok(vr.indexOf('look.x += sideX * side;') >= 0 && vr.indexOf('look.z += sideZ * side;') >= 0, 'se aparta al hombro derecho de la mirada');
+assert.ok(vr.indexOf('look.y = clampN(pos.y - (st.screenOpen ? 0.7 : 0.52), 0.5, 1.35);') >= 0, 'flota a la altura del pecho, por debajo de la mirada');
+assert.ok(vr.indexOf('var baseScale = st.screenOpen ? 0.44 : 0.6;') >= 0, 'es pequeño y aún más con el escritorio abierto');
+assert.ok(vr.indexOf('sp.halo.material.opacity = (st.screenOpen ? 0.28 : 0.55)') >= 0, 'translúcido para no tapar la vista');
+assert.ok(vr.indexOf('new THREE.SphereGeometry(0.2, 10, 8)') >= 0, 'zona de clic pequeña: lo de alrededor pasa de largo');
+assert.ok(vr.indexOf('look.y = clampN(pos.y - 0.18, 0.85, 1.55)') === -1, 'ya no flota en el centro de la mirada');
+assert.ok(vr.indexOf('abajo a la derecha') >= 0, 'los textos avisan de dónde está');
 ok('el tótem te sigue y abre/cierra el escritorio con ratón, mandos y HUD');
 
 
@@ -94,7 +103,7 @@ assert.ok(html.indexOf("{v:'2026.21'") >= 0, 'entrada de novedades 2026.21');
 assert.ok(html.indexOf("{v:'2026.21'") < html.indexOf("{v:'2026.20'"), 'la entrada 2026.21 va primera');
 assert.ok(html.indexOf('jungla viva') >= 0, 'las novedades cuentan la jungla');
 assert.ok(html.indexOf('serpiente tótem') >= 0, 'las novedades cuentan el tótem');
-assert.ok(html.indexOf('/static/snake-vr.js?v=202607111200') >= 0, '?v= nuevo de snake-vr.js (sin caché vieja)');
+assert.ok(html.indexOf('/static/snake-vr.js?v=202607111600') >= 0, '?v= nuevo de snake-vr.js (sin caché vieja)');
 assert.ok(html.indexOf("'snake-vr': { title:'Snake VR'") >= 0, 'la app sigue registrada');
 ok('index.html en 2026.21 con la jungla y el tótem en las novedades');
 

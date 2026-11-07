@@ -102,9 +102,11 @@ laterales en vivo (hora, versión, estado del escritorio, apps abiertas, novedad
   boca y se acorta/colorea según lo que apuntas (ámbar = tótem, verde = pantalla). El gatillo «muerde»
   (animación + vibración háptica) y hace `click` real en lo apuntado; morder el suelo teletransporta.
 - **Serpiente tótem que te sigue (2026.21):** una serpiente enrollada en espiral con halo y anillo flota
-  delante de ti (te sigue la cabeza, en XR o con ratón). La pantalla del escritorio **empieza cerrada**:
-  al pulsar/morder al tótem se abre con animación de escala, y al volver a pulsarlo se cierra. También
-  desde el HUD (🗔 Escritorio) y desde la app (🔮 Abrir el escritorio dentro de VR).
+  a tu lado (te sigue la cabeza, en XR o con ratón), **en la esquina inferior derecha, pequeña y
+  translúcida para no estorbar** (y se aparta y se desvanece cuando el escritorio está abierto). La
+  pantalla del escritorio **empieza cerrada**: al pulsar/morder al tótem se abre con animación de escala,
+  y al volver a pulsarlo se cierra. También desde el HUD (🗔 Escritorio) y desde la app (🔮 Abrir el
+  escritorio dentro de VR).
 
 - **Pantalla espejo del escritorio de verdad:** un canvas 2D lee el DOM real (`.desktop-icon` con sus
   iconos/imágenes y etiquetas, `.app-window` con su título, reloj y fondo de pantalla) y se sube como
