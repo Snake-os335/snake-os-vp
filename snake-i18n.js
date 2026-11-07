@@ -23,7 +23,11 @@
     'Llamar':'Call','Colgar':'Hang up','Contactos':'Contacts','Recientes':'Recent','Favoritos':'Favorites','Ejecutar':'Run','Parar':'Stop',
     'Borrador sin enviar':'Unsent draft',
     'Notas del bot':'Bot notes','Ajustes del bot':'Bot settings','Reiniciar mini OS':'Restart mini OS','Apagar mini OS':'Shut down mini OS','Encender':'Power on',
-    'Despertar':'Wake up','La computadora está dormida':'The computer is asleep','Snake OS Lite está apagado':'Snake OS Lite is off','Vacío':'Empty','Crear':'Create'
+    'Despertar':'Wake up','La computadora está dormida':'The computer is asleep','Snake OS Lite está apagado':'Snake OS Lite is off','Vacío':'Empty','Crear':'Create',
+    'Snake VR':'Snake VR','Entrar en Snake VR':'Enter Snake VR','Salir de VR':'Exit VR','Realidad virtual':'Virtual reality',
+    'Visor estereoscópico':'Stereoscopic viewer','VR real (WebXR)':'True VR (WebXR)','Qué puedes hacer dentro':'What you can do inside',
+    'Gafas (SBS)':'Headset (SBS)','Giroscopio':'Gyroscope','Recentrar':'Recenter','Sonido':'Sound',
+    'Tu escritorio de Snake OS en 3D: pantalla gigante con tus iconos y ventanas, paneles en vivo a los lados y suelo de neón. Funciona con gafas VR de verdad, con gafas de cartón y con ratón y teclado.':'Your Snake OS desktop in 3D: a giant screen with your icons and windows, live side panels and a neon floor. Works with true VR headsets, cardboard goggles, and mouse and keyboard.'
   };
   var PARTS = [[/^Navegador de /, 'Browser of '], [/^Notas de /, 'Notes of '], [/^Archivos de /, 'Files of '], [/^Código de /, 'Code of '], [/ está usando tu escritorio$/, ' is using your desktop']];
   var ATTRS = ['title', 'placeholder', 'aria-label'];

@@ -53,9 +53,19 @@ window.addEventListener('error', function(e){
 <script src="/static/doganiero-chat.js?v=202611111830" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/doganiero-desk.js?v=202610180120" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/desktop-extras.js?v=202610212130" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
-<script>window.SNAKE_OS_VERSION='2026.19';/* versión de Snake OS: cambiar SOLO aquí */</script>
+<script src="/static/snake-vr.js?v=202611112030" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
+<script>window.SNAKE_OS_VERSION='2026.20';/* versión de Snake OS: cambiar SOLO aquí */</script>
 <script>/* Novedades por versión (Ajustes › Acerca de). En cada actualización: cambia SNAKE_OS_VERSION y AÑADE una entrada al principio. */
 window.SNAKE_OS_CHANGES=[
+ {v:'2026.20',es:[
+  'Snake VR: nueva app de realidad virtual para gafas VR. Entra en un mundo 3D con tu escritorio real en una pantalla gigante: iconos, apps abiertas y reloj se actualizan solos, y puedes abrir apps pulsándolas desde dentro',
+  'Tres formas de entrar: 🥽 VR real con WebXR (Meta Quest y PCVR, con mandos y teletransporte), 👓 Gafas de cartón con la pantalla partida en dos ojos, o ratón y teclado con WASD. El giroscopio del móvil mueve la vista con la cabeza',
+  'Dentro de VR tienes paneles en vivo con la hora, la versión de Snake OS, las apps abiertas y las novedades, en una sala con suelo de neón y estrellas'
+ ],en:[
+  'Snake VR: a brand-new virtual reality app for VR headsets. Step into a 3D world with your real desktop on a giant screen: icons, open apps and the clock update by themselves, and you can open apps by clicking them from inside',
+  'Three ways in: 🥽 True VR with WebXR (Meta Quest and PCVR, with controllers and teleport), 👓 Cardboard goggles with the screen split into two eyes, or mouse and keyboard with WASD. Your phone’s gyroscope moves the view with your head',
+  'Inside VR you get live side panels with the time, Snake OS version, open apps and what’s new, in a room with a neon floor and stars'
+ ]},
  {v:'2026.19',es:[
   'Llamadas y videollamadas: vuelven a oírse. El audio del otro lado se desbloquea solo y, si el navegador lo bloquea, hay un botón «🔊 Sonido» en la barra de la llamada',
   'Si el vídeo conecta pero la voz no llega, la llamada pasa automáticamente al audio del chat para que os oigáis igual',
@@ -14936,6 +14946,13 @@ function renderStoreApp(container){
     profile:  { title:'Mi perfil',   icon:'👤', width:330, height:480, render: renderProfileApp },
     cloud:    { title:'Doganiero Cloud', icon:'☁️', width:340, height:420, render: renderCloudApp },
     metaverse:{ title:'Doganiero Metaverse', icon:'🌐', iconImg: METAVERSE_ICON_URL, iconHtml: appIconImgHtml(METAVERSE_ICON_URL), width:780, height:560, render: renderMetaverseAppWrapper },
+    'snake-vr': { title:'Snake VR', icon:'🥽', width:560, height:600, render: function(body){
+      if(typeof window.renderSnakeVrApp !== 'function'){
+        body.innerHTML = '<div style="padding:16px;color:#ff8a7a">No se pudo cargar Snake VR. Recarga la página.</div>';
+        return function(){};
+      }
+      return window.renderSnakeVrApp(body);
+    } },
     chat:     { title:'Doganiero Chat', icon:'💬', width:720, height:520, render: renderDoganieroChatAppWrapper },
     desk:     { title:'Doganiero Desk', icon:'🖥️', width:860, height:640, render: renderDoganieroDeskAppWrapper },
     store:    { title:'Doganiero Store', icon:'🛍️', iconImg: STORE_ICON_URL, iconImgClass: 'store-logo', iconHtml: appIconImgHtml(STORE_ICON_URL, 'store-logo'), width:720, height:580, render: renderStoreApp },

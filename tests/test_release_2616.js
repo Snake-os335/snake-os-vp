@@ -116,15 +116,15 @@ assert.ok(en[1].indexOf('sá') < 0);
 ok('cal alinea y se traduce');
 
 var html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
-assert.ok(html.indexOf("window.SNAKE_OS_VERSION='2026.19'") >= 0);
-assert.ok(html.indexOf("{v:'2026.19'") >= 0);
-assert.ok(html.indexOf("{v:'2026.19'") < html.indexOf("{v:'2026.18'"));
+assert.ok(html.indexOf("window.SNAKE_OS_VERSION='2026.20'") >= 0);
+assert.ok(html.indexOf("{v:'2026.20'") >= 0);
+assert.ok(html.indexOf("{v:'2026.20'") < html.indexOf("{v:'2026.19'"));
 ['snake-apps-extras.js', 'snake-terminal.js', 'doganiero-phone.js', 'snake-i18n.js', 'snake-2615.js', 'snake-2616.js'].forEach(function (f) {
   if (html.indexOf('/static/' + f + '?v=202611062200') < 0) fail('falta ?v= en ' + f);
 });
 assert.ok(html.indexOf('snake-2616.js?v=202611062200') >= 0);
 assert.ok(html.indexOf('doganiero-chat.js?v=202611111830') >= 0, 'el chat de llamadas lleva su propio ?v=');
-ok('versión 2026.19 y ?v= por fichero');
+ok('versión 2026.20 y ?v= por fichero');
 
 if (process.exitCode) process.exit(process.exitCode);
 console.log('todo bien');

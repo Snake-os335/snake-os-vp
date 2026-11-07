@@ -86,3 +86,32 @@ los ajustes rápidos) y un acceso en Ajustes rápidos. Reglas:
   `requireOnline(nombre)`, `isOnlineRequest(url)`, `profile()`, `syncProfile()`, `on(fn)`).
   Pruebas: `node tests/test_release_2617.js`, `node tests/test_release_2618.js` y `node tests/test_release_2619.js`.
 
+## Snake VR (2026.20)
+
+`snake-vr.js` añade la app **🥽 Snake VR** (escritorio y buscador de apps): tu escritorio de Snake OS
+dentro de un mundo 3D con suelo de neón y estrellas, una **pantalla gigante** con el escritorio real y
+dos paneles laterales en vivo (hora, versión, apps abiertas, novedades y controles).
+
+- **Pantalla espejo del escritorio de verdad:** un canvas 2D lee el DOM real (`.desktop-icon` con sus
+  iconos/imágenes y etiquetas, `.app-window` con su título, reloj y fondo de pantalla) y se sube como
+  textura a un plano de three.js. Se repinta cada ~1,2 s, así que lo que abres o cierras se ve dentro.
+  Las ventanas se dibujan con su título real y un esqueleto del cuerpo (no se copia su contenido interno).
+- **Clics que funcionan:** al pulsar la pantalla (ratón, dedo, o gatillo del mando en VR) el rayo da las
+  coordenadas UV del plano, se convierten a píxeles reales del escritorio y se busca el elemento del DOM
+  con `document.elementsFromPoint` (ignorando el propio overlay) para hacerle `click()`. Puedes abrir y
+  cerrar apps, pulsar la barra de tareas o la barra de título sin salir de VR.
+- **Tres formas de mirar:** ratón/teclado (arrastrar, rueda, WASD/flechas, doble toque en el fondo =
+  recentrar), **👓 Gafas (SBS)** con dos cámaras y dos viewports (gafas de cartón, pide horizontal en el
+  móvil) y **🥽 VR real** con `navigator.xr.requestSession('immersive-vr')` (Meta Quest y PCVR): el visor
+  manda la orientación/posición, los mandos tienen rayo visible, el gatillo pulsa la pantalla y apuntar al
+  suelo teletransporta la «sala». El **🧭 Giroscopio** mueve la vista con la cabeza (pide permiso en iOS).
+- **Sin dependencias nuevas:** usa el three.js local que ya sirven Snake Racing 3D, el Metaverso y la TV
+  (`/static/assets/three-r160.min.js`), cargado solo al entrar. Al salir se para el bucle (`setAnimationLoop(null)`),
+  se hace `dispose()` y se quita el overlay: no quedan renders ni listeners colgados.
+- Límites conocidos: no hay audio posicional propio; la pantalla es un reflejo (las apps se siguen usando
+  desde el escritorio normal, aquí se ven y se pulsan). En WebXR la cámara y el movimiento los lleva el visor;
+  fuera de WebXR la posición inicial se puede mover con WASD/rueda.
+- API: `window.SnakeVR` (`open({sbs, xr})`, `close()`, `recenter()`, `supported()`, `isOpen`, `mode`) y
+  `window.renderSnakeVrApp(body)`.
+- Pruebas: `node tests/test_release_2620.js` (y `node tests/test_release_2616.js` … `2619`, que siguen la versión actual).
+
