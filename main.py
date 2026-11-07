@@ -9646,13 +9646,8 @@ async def _i9_socket_sweep() -> None:
 
 @app.middleware("http")
 async def server_i9_api_gate(request: Request, call_next):
-    path = request.url.path
-    if path.startswith("/api/") and not any(path.startswith(open_path) for open_path in _I9_OPEN_API):
-        if not _server_i9_alive():
-            return JSONResponse(
-                status_code=503,
-                content={"connected": False, "detail": "server i9 no está conectada"},
-            )
+    # 2026.18: ya no se bloquea la API cuando el server i9 no está conectado.
+    # Antes devolvía 503 con «server i9 no está conectada» en todas las rutas /api/*.
     return await call_next(request)
 
 

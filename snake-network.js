@@ -38,7 +38,7 @@
   var LOC = W.location || { href: '/', origin: '', pathname: '/' };
 
   var OFF_MSG = 'Conéctate a Doganiero_Network para usar esta función';
-  var LS_ON = 'dogaNetOn';
+  var LS_ON = 'dogaNetOn';        // se guarda por perfil: dogaNetOn:u:<email> / dogaNetOn:guest
   var CHECK_MS = 30000;      // repaso periódico de internet real
   var CONNECT_MIN_MS = 2400; // el planeta gira al menos esto (que se vea)
   var PING_TIMEOUT = 6000;
@@ -46,6 +46,7 @@
   /* ---------------- estado ---------------- */
   var st = {
     on: true,          // interruptor
+    profile: 'guest',  // perfil dueño del interruptor (ver profileTag)
     real: null,        // true = internet real, false = sin internet, null = sin comprobar
     fails: 0,          // fallos seguidos del ping (2 fallos = sin internet)
     connecting: false,
@@ -53,6 +54,7 @@
     lastCheck: 0,
     checkTimer: 0,
     retryTimer: 0,
+    profileTimer: 0,
     blocked: 0,        // peticiones online bloqueadas desde el arranque
     lastBlockedUrl: ''
   };
@@ -63,8 +65,33 @@
   function writeLS(k, v) {
     try { if (W.localStorage) W.localStorage.setItem(k, v); } catch (e) {}
   }
-  var savedOn = readLS(LS_ON);
-  st.on = savedOn === null ? true : savedOn === '1'; // por defecto encendida: no cambia nada al entrar
+
+  /* El interruptor es POR PERFIL: desconectarte solo afecta a tu cuenta en este navegador.
+     Clave por perfil: dogaNetOn:u:<email> con sesión; dogaNetOn:guest sin sesión. */
+  function profileTag() {
+    try {
+      var u = W.currentUser;
+      var email = u && u.email ? String(u.email).trim().toLowerCase() : '';
+      return email ? 'u:' + email : 'guest';
+    } catch (e) { return 'guest'; }
+  }
+  function onKey() { return LS_ON + ':' + st.profile; }
+  function readOnStored() {
+    var v = readLS(onKey());
+    if (v === null) {                       // migración del interruptor global antiguo (una sola vez)
+      v = readLS(LS_ON);
+      if (v !== null) {
+        writeLS(onKey(), v);
+        try { if (W.localStorage) W.localStorage.removeItem(LS_ON); } catch (e) {}
+      }
+    }
+    return v;
+  }
+  st.profile = profileTag();
+  (function () {
+    var v = readOnStored();
+    st.on = v === null ? true : v === '1';  // por defecto encendida: no cambia nada al entrar
+  })();
 
   /* ---------------- qué necesita internet ---------------- */
   // Rutas que SIEMPRE pasan: acceso inicial, sesión y recursos de la propia cuenta.
@@ -341,6 +368,30 @@
       if (DOC && DOC.hidden) return;
       check({ manual: false });
     }, CHECK_MS);
+    // login/logout sin recargar la página: cada perfil tiene su propio interruptor
+    if (st.profileTimer) clearInterval(st.profileTimer);
+    st.profileTimer = setInterval(syncProfile, 1500);
+  }
+
+  /* Cambió la cuenta (login/logout): carga el interruptor de ese perfil sin tocar los demás. */
+  function syncProfile() {
+    var p = profileTag();
+    if (p === st.profile) return false;
+    st.profile = p;
+    var v = readOnStored();
+    st.on = v === null ? true : v === '1';
+    st.real = null;
+    st.fails = 0;
+    st.blocked = 0;
+    st.lastBlockedUrl = '';
+    st.connecting = false;
+    st.connectToken++;
+    hideOverlay();
+    hideToast();
+    updateUI();
+    emit();
+    if (st.on) check({ manual: false });
+    return true;
   }
 
   /* ---------------- encender / apagar ---------------- */
@@ -351,14 +402,14 @@
       st.connecting = false;
       st.connectToken++;
       st.on = false;
-      writeLS(LS_ON, '0');
+      writeLS(onKey(), '0');
       closeOverlay();
       updateUI();
       emit();
       return Promise.resolve(false);
     }
     if (st.on && st.real === true && !st.connecting) {
-      writeLS(LS_ON, '1');
+      writeLS(onKey(), '1');
       updateUI();
       check({ manual: true });   // solo refresca el estado, sin animación
       return Promise.resolve(true);
@@ -378,7 +429,7 @@
             if (token !== st.connectToken) { resolve(false); return; }
             st.connecting = false;
             st.on = true;
-            writeLS(LS_ON, '1');
+            writeLS(onKey(), '1');
             if (!silent) finishOverlay(ok);
             updateUI();
             emit();
@@ -992,7 +1043,7 @@ body.theme-light #dogaNetPanel .dn-legal, body.light #dogaNetPanel .dn-legal{ co
   /* ---------------- API pública (window.DogaNet) ---------------- */
   var api = {
     __installed: true,
-    version: '2026.17',
+    version: '2026.18',
     msg: OFF_MSG,
     isOn: function () { return !!st.on; },
     hasInternet: function () { return st.real === true; },
@@ -1000,6 +1051,8 @@ body.theme-light #dogaNetPanel .dn-legal, body.light #dogaNetPanel .dn-legal{ co
     state: snapshot,
     set: set,
     toggle: toggle,
+    profile: profileTag,
+    syncProfile: syncProfile,
     check: function () {
       return new Promise(function (resolve) { check({ manual: true, done: resolve }); });
     },

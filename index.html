@@ -53,9 +53,18 @@ window.addEventListener('error', function(e){
 <script src="/static/doganiero-chat.js?v=202611062200" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/doganiero-desk.js?v=202610180120" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
 <script src="/static/desktop-extras.js?v=202610212130" onerror="if(!window.__snakeBootAck)window.__snakeBootBroken=1"></script>
-<script>window.SNAKE_OS_VERSION='2026.17';/* versión de Snake OS: cambiar SOLO aquí */</script>
+<script>window.SNAKE_OS_VERSION='2026.18';/* versión de Snake OS: cambiar SOLO aquí */</script>
 <script>/* Novedades por versión (Ajustes › Acerca de). En cada actualización: cambia SNAKE_OS_VERSION y AÑADE una entrada al principio. */
 window.SNAKE_OS_CHANGES=[
+ {v:'2026.18',es:[
+  'Doganiero_Network va por perfil: si te desconectas solo afecta a tu cuenta en este navegador, los demás perfiles no se enteran. Cada perfil recuerda si la dejó encendida o apagada',
+  'Fuera la pantalla «server i9 no está conectada»: Snake OS ya no se bloquea ni muestra ese error cuando no hay conexión con el server i9 o Doganiero_Network está desconectada',
+  'Sin esa pantalla, el login y el escritorio entran directamente: nada se queda esperando al server i9'
+ ],en:[
+  'Doganiero_Network is now per profile: disconnecting only affects your account in this browser, other profiles are unaffected. Each profile remembers whether it was left on or off',
+  'The “server i9 is not connected” screen is gone: Snake OS no longer blocks or shows that error when server i9 is unreachable or Doganiero_Network is disconnected',
+  'Without that screen, login and desktop go straight in: nothing waits for server i9'
+ ]},
  {v:'2026.17',es:[
   'Doganiero_Network: red wifi de Snake OS, con interruptor en la barra de tareas y en Ajustes rápidos. Enseña si hay internet real y avisa («Conéctate a Doganiero_Network para usar esta función») cuando una función online está bloqueada',
   'Al encenderla, el planeta gira con «Conectando…» mientras Snake OS comprueba la conexión real del dispositivo. Si no hay internet de verdad, lo dice: «Sin internet real»',
@@ -1846,29 +1855,18 @@ window.SNAKE_OS_CHANGES=[
   }
   #lock .card h1 .lock-snake{ font-size:1.15em; line-height:1; filter:drop-shadow(0 2px 6px rgba(0,0,0,0.2)); }
   #lock .card p.sub{ display:none; }
-  #i9OffView{
-    position:fixed; inset:0; z-index:2147483600;
-    display:flex; flex-direction:column; align-items:center; justify-content:center;
-    gap:28px; box-sizing:border-box; margin:0; padding:24px;
-    background:#000; color:#fff;
-  }
-  #i9OffView.hidden{ display:none !important; }
-  #i9OffView .i9-mark,
   #bootError .i9-mark{
     display:flex; align-items:center; justify-content:center;
     gap:clamp(8px, 2vw, 22px);
   }
-  #i9OffView .i9-snake,
   #bootError .i9-snake{
     width:min(300px, 54vw); height:auto; display:block; flex:none;
   }
-  #i9OffView .i9-bang,
   #bootError .i9-bang{
     color:#fff; font-weight:800; line-height:0.8;
     font-size:clamp(5.5rem, 18vw, 9.5rem);
     font-family:var(--snake-font);
   }
-  #i9OffView .i9-off-line,
   #bootError .i9-off-line{
     display:block; margin:0; max-width:16em;
     color:#fff; font-weight:650; text-align:center;
@@ -1883,12 +1881,10 @@ window.SNAKE_OS_CHANGES=[
   }
   #bootError.hidden{ display:none !important; }
   html.snake-boot-failed #boot{ display:none !important; }
-  html.snake-boot-failed body:not(.i9-offline) #bootError:not(.hidden){
+  html.snake-boot-failed body #bootError:not(.hidden){
     display:flex !important;
     z-index:10000 !important;
   }
-  html.i9-offline, body.i9-offline{ background:#000 !important; }
-  body.i9-offline > *:not(#i9OffView){ display:none !important; }
   #lock .card label{
     position:absolute !important; width:1px; height:1px; padding:0; margin:-1px;
     overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0;
@@ -3650,18 +3646,6 @@ window.SNAKE_OS_CHANGES=[
         </div>
     <p class="i9-off-line">Error al iniciar Snake OS!</p>
   </div>
-  <div id="i9OffView" class="hidden" role="alert">
-    <div class="i9-mark" aria-hidden="true">
-      <svg class="i9-snake" viewBox="0 0 268 160" xmlns="http://www.w3.org/2000/svg">
-        <path d="M28 118 C58 118 72 64 104 74 C136 84 124 128 158 110 C186 96 176 52 210 48" fill="none" stroke="#ffffff" stroke-width="18" stroke-linecap="round"/>
-        <ellipse cx="214" cy="44" rx="24" ry="16" fill="#ffffff" transform="rotate(-16 214 44)"/>
-        <circle cx="222" cy="38" r="3.4" fill="#000000"/>
-        <path d="M234 48 L252 40 M234 50 L252 58" fill="none" stroke="#ffffff" stroke-width="3.5" stroke-linecap="round"/>
-      </svg>
-      <span class="i9-bang">!</span>
-    </div>
-    <p class="i9-off-line">server i9 no está conectada.</p>
-  </div>
   <div class="blob blob1"></div>
   <div class="blob blob2"></div>
   <div class="blob blob3"></div>
@@ -4963,145 +4947,10 @@ window.SNAKE_OS_CHANGES=[
       }, 350);
     }, 2000);
   }
-  var i9WaitTimer = null;
-  var i9WatchTimer = null;
-  var i9WatchFails = 0;
-  var i9Return = 'login';
-  function hideI9Off(){
-    document.documentElement.classList.remove('i9-offline');
-    document.body.classList.remove('i9-offline');
-    var off = document.getElementById('i9OffView');
-    if(off) off.classList.add('hidden');
-  }
-  function rememberI9Place(){
-    var off = document.getElementById('i9OffView');
-    if(off && !off.classList.contains('hidden')) return;
-    var po = document.getElementById('poweroffScreen');
-    var poLoad = document.getElementById('poweroffLoading');
-    if((po && !po.classList.contains('hidden')) || (poLoad && !poLoad.classList.contains('hidden'))){
-      i9Return = 'poweroff';
-      return;
-    }
-    var desktop = document.getElementById('desktop');
-    if(desktop && !desktop.classList.contains('hidden') && currentUser){
-      i9Return = 'desktop';
-      return;
-    }
-    i9Return = 'login';
-  }
-  function resumeDesktopAfterI9(){
-    hideI9Off();
-    if(currentUser && isProfilePoweredOff(currentUser.email)){
-      var lockOff = document.getElementById('lock');
-      var deskOff = document.getElementById('desktop');
-      if(lockOff) lockOff.classList.add('hidden');
-      if(deskOff) deskOff.classList.add('hidden');
-      showPoweroffScreen();
-      return;
-    }
-    hidePoweroffUi();
-    var lockEl = document.getElementById('lock');
-    var deskEl = document.getElementById('desktop');
-    if(lockEl) lockEl.classList.add('hidden');
-    if(deskEl) deskEl.classList.remove('hidden');
-    try{ if(typeof window.maybeRestoreAccountLock === 'function') window.maybeRestoreAccountLock(); }catch(eLock){}
-  }
-  function showI9Disconnected(){
-    rememberI9Place();
-    i9WatchFails = 0;
-    try{ if(document.activeElement && document.activeElement.blur) document.activeElement.blur(); }catch(eBlur){}
-    try{ if(typeof closeAllApps === 'function') closeAllApps(); }catch(eClose){}
-    try{ if(typeof closeStartMenu === 'function') closeStartMenu(); }catch(eMenu){}
-    try{ if(typeof abortOsTutorial === 'function') abortOsTutorial(); }catch(eTut){}
-    hidePoweroffUi();
-    var desktop = document.getElementById('desktop');
-    var lock = document.getElementById('lock');
-    if(desktop) desktop.classList.add('hidden');
-    if(lock) lock.classList.add('hidden');
-    if(loginView) loginView.classList.add('hidden');
-    if(signupView) signupView.classList.add('hidden');
-    document.documentElement.classList.add('i9-offline');
-    document.body.classList.add('i9-offline');
-    var off = document.getElementById('i9OffView');
-    if(off) off.classList.remove('hidden');
-    if(!i9WaitTimer){
-      i9WaitTimer = setInterval(function(){ gateServerI9(); }, 2000);
-    }
-  }
-  function serverI9Live(){
-    return fetch('/api/server-i9/connected', {cache:'no-store', headers:{'Cache-Control':'no-cache'}})
-      .then(function(r){ return r.ok ? r.json() : {connected:false}; })
-      .then(function(data){ return !!(data && data.connected === true); })
-      .catch(function(){ return false; });
-  }
-  function gateServerI9(){
-    serverI9Live().then(function(ok){
-      if(!ok){ showI9Disconnected(); return; }
-      if(i9WaitTimer){ clearInterval(i9WaitTimer); i9WaitTimer = null; }
-      i9WatchFails = 0;
-      hideI9Off();
-      var back = i9Return;
-      i9Return = 'login';
-      if(back === 'desktop' && currentUser){
-        resumeDesktopAfterI9();
-        return;
-      }
-      if(back === 'poweroff' && currentUser){
-        showPoweroffScreen();
-        return;
-      }
-      continueAfterOsGate();
-    });
-  }
-  function i9OnEntrySurface(){
-    var boot = document.getElementById('boot');
-    if(boot && !boot.classList.contains('hidden')) return false;
-    var off = document.getElementById('i9OffView');
-    if(off && !off.classList.contains('hidden')) return false;
-    var desktop = document.getElementById('desktop');
-    if(desktop && !desktop.classList.contains('hidden')) return true;
-    if(loginView && !loginView.classList.contains('hidden')) return true;
-    if(signupView && !signupView.classList.contains('hidden')) return true;
-    var po = document.getElementById('poweroffScreen');
-    var poLoad = document.getElementById('poweroffLoading');
-    if(po && !po.classList.contains('hidden')) return true;
-    if(poLoad && !poLoad.classList.contains('hidden')) return true;
-    return false;
-  }
-  function watchServerI9(){
-    if(!i9OnEntrySurface()) return;
-    fetch('/api/server-i9/connected', {cache:'no-store', headers:{'Cache-Control':'no-cache'}})
-      .then(function(r){
-        if(!r.ok) throw new Error('status');
-        return r.json();
-      })
-      .then(function(data){
-        if(!i9OnEntrySurface()) return;
-        if(data && data.connected === false){
-          i9WatchFails = 0;
-          showI9Disconnected();
-          return;
-        }
-        if(data && data.connected === true){
-          i9WatchFails = 0;
-          return;
-        }
-        i9WatchFails += 1;
-        if(i9WatchFails >= 2) showI9Disconnected();
-      })
-      .catch(function(){
-        if(!i9OnEntrySurface()) return;
-        i9WatchFails += 1;
-        if(i9WatchFails >= 2) showI9Disconnected();
-      });
-  }
-  function startI9Watch(){
-    if(i9WatchTimer) return;
-    i9WatchTimer = setInterval(watchServerI9, 4000);
-  }
+  /* server i9: se ha quitado la pantalla «server i9 no está conectada» y sus esperas.
+     Snake OS arranca igual aunque el server i9 no esté disponible o la red esté apagada. */
+  function gateServerI9(){ continueAfterOsGate(); }
   (function(){ /* arranque: en load, o en DOMContentLoaded si imágenes/recursos lentos retrasan load (VM cargada) */ var _bootRan=false; function _bootOnce(){ if(_bootRan) return; _bootRan=true; runBootLoader(); } window.addEventListener('load', _bootOnce); if(document.readyState==='complete'){ setTimeout(_bootOnce,0); } else { document.addEventListener('DOMContentLoaded', function(){ setTimeout(_bootOnce, 0); }); } })();
-  startI9Watch();
-
   // ---------- Navegación login / registro ----------
   document.getElementById('goToSignup').addEventListener('click', () => showView(signupView));
   document.getElementById('goToLogin').addEventListener('click', () => showView(loginView));
@@ -7107,17 +6956,6 @@ function buildIcons(){
   }
 
   function enterApp(){
-    if(!enterApp._pass){
-      if(enterApp._busy) return;
-      enterApp._busy = true;
-      serverI9Live().then(function(ok){
-        enterApp._busy = false;
-        if(!ok){ showI9Disconnected(); return; }
-        enterApp._pass = true;
-        try{ enterApp(); } finally { enterApp._pass = false; }
-      });
-      return;
-    }
     if(currentUser && isProfilePoweredOff(currentUser.email)){
       document.getElementById('lock').classList.add('hidden');
       document.getElementById('desktop').classList.add('hidden');

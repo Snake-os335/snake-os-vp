@@ -68,9 +68,15 @@ los ajustes rápidos) y un acceso en Ajustes rápidos. Reglas:
   Estáticos, páginas y descargas del propio servidor son locales y no se tocan.
 - **Como sin cobertura:** fetch rechaza con `TypeError` (`code: doga_net_offline`), XHR acaba en `error` con
   `status 0`, WebSocket cierra con `1006`, EventSource no abre y `sendBeacon` devuelve `false`.
-- **Por defecto va encendida** (`localStorage.dogaNetOn`): al entrar no cambia nada. Al encenderla se ve el
-  planeta girando con «Conectando…» (mínimo 2,4 s) mientras se comprueba la conexión real.
+- **Por defecto va encendida y se guarda POR PERFIL** (`localStorage['dogaNetOn:u:<email>']`; sin sesión,
+  `dogaNetOn:guest`): al entrar no cambia nada y, si te desconectas, solo afecta a tu cuenta en ese navegador
+  (los demás perfiles no se enteran). Al cambiar de cuenta (login/logout sin recargar) se carga el interruptor
+  de ese perfil. El formato global antiguo (`dogaNetOn`) se migra una sola vez al primer perfil que entre.
+  Al encenderla se ve el planeta girando con «Conectando…» (mínimo 2,4 s) mientras se comprueba la conexión real.
 - **Con la conexión real del dispositivo:** no crea ni modifica ninguna wifi; solo refleja si hay internet.
+- **Sin la pantalla «server i9 no está conectada» (2026.18):** el OS arranca siempre, haya o no server i9, y la
+  API ya no devuelve 503 por su causa.
 - API: `window.DogaNet` (`isOn()`, `isConnected()`, `hasInternet()`, `set(bool)`, `toggle()`, `check()`,
-  `requireOnline(nombre)`, `isOnlineRequest(url)`, `on(fn)`). Pruebas: `node tests/test_release_2617.js`.
+  `requireOnline(nombre)`, `isOnlineRequest(url)`, `profile()`, `syncProfile()`, `on(fn)`).
+  Pruebas: `node tests/test_release_2617.js` y `node tests/test_release_2618.js`.
 
