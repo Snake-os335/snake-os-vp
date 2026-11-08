@@ -366,9 +366,77 @@ ok(api.state.poseOk > ok0, 'se cuenta como pose correcta: poseOk=' + api.state.p
 sess.frame(8066);
 ok(true, 'un fotograma sin frame no rompe el bucle');
 
-console.log('');
-if (fails) {
-  console.error(fails + ' comprobación(es) fallida(s)');
-  process.exit(1);
+console.log('\n9) la pestaña vieja se entera y se recarga sola (2026.29)');
+
+/* El servidor ya sirve el snake-vr.js nuevo, pero la pestaña tiene el viejo en
+   memoria y el aviso «Actualizar ahora» es DOM (en VR ni se ve). El parche
+   compara el ?v= de esta página con el del HTML servido y recarga una vez. */
+async function case9() {
+  st.mode = 'mono';       /* fuera de VR, como al abrir la app */
+  const scripts = [{ src: 'https://snake-os-vp.softportweb.com/static/snake-vr.js?v=viejo123' }];
+  let reloads = 0;
+  let servedVer = 'aaaaaaa-1111';                   // version de /api/status
+  let served = '<script src="/static/snake-vr.js?v=nuevo456"></script>';
+  const store = {};
+  Object.assign(sandbox, {
+    document: {
+      hidden: false,
+      querySelectorAll(sel) { return sel === 'script[src]' ? scripts : []; },
+      addEventListener() {}
+    },
+    sessionStorage: {
+      getItem(k) { return Object.prototype.hasOwnProperty.call(store, k) ? store[k] : null; },
+      setItem(k, v) { store[k] = String(v); }
+    },
+    location: { reload() { reloads++; } },
+    fetch: (url) => Promise.resolve({
+      ok: true,
+      json: () => Promise.resolve({ updating: false, version: servedVer }),
+      text: () => Promise.resolve(String(url) === '/' ? served : '')
+    })
+  });
+  const tick = () => new Promise((r) => setTimeout(r, 10));
+
+  ok(api.version === '2026.29', 'la versión del parche se puede consultar: ' + api.version);
+  ok(typeof api.update === 'function', 'existe window.SnakeVrLocomotion.update()');
+
+  api.update();
+  await tick();
+  ok(reloads === 1, 'con un ?v= nuevo en el servidor, la página se recarga: ' + reloads);
+  ok(api.state.updNew === true && api.state.updTo === 'nuevo456', 'queda anotado a qué versión se actualiza: ' + api.state.updTo);
+
+  api.update();
+  await tick();
+  ok(reloads === 1, 'no entra en bucle: la segunda vez no vuelve a recargar');
+  ok(store.snkXrUpd === 'nuevo456', 'la marca queda en sessionStorage');
+  ok(api.state.updVer === servedVer, 'recuerda el version del servidor ya comprobado: ' + api.state.updVer);
+
+  /* Ya con el archivo nuevo en la página: no hay nada que recargar. */
+  scripts[0].src = 'https://snake-os-vp.softportweb.com/static/snake-vr.js?v=nuevo456';
+  servedVer = 'bbbbbbb-2222';                       // nuevo deploy, mismo archivo de VR
+  reloads = 0;
+  api.update();
+  await tick();
+  ok(reloads === 0, 'si el ?v= ya es el del servidor, no se recarga');
+  ok(api.state.updNew === false, 'y se anota que no hay nada nuevo');
+
+  /* En VR nunca recarga sola (no cortar la partida), pero sí avisa. */
+  st.mode = 'xr';
+  scripts[0].src = 'https://snake-os-vp.softportweb.com/static/snake-vr.js?v=otro789';
+  servedVer = 'ccccccc-3333';
+  served = '<script src="/static/snake-vr.js?v=zzz000"></script>';
+  reloads = 0;
+  api.update();
+  await tick();
+  ok(reloads === 0, 'dentro de VR no recarga aunque haya versión nueva');
+  ok(api.state.updNew === true, 'pero avisa de que hay versión nueva');
 }
-console.log('todo correcto ✔');
+
+case9().then(function () {
+  console.log('');
+  if (fails) {
+    console.error(fails + ' comprobación(es) fallida(s)');
+    process.exit(1);
+  }
+  console.log('todo correcto ✔');
+});

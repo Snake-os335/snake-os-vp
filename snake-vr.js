@@ -102,7 +102,7 @@
     clock: null
   };
 
-                /* === SNK-XR-MANDOS (2026.28) ==========================================
+                    /* === SNK-XR-MANDOS (2026.29) ==========================================
      · Los mandos VR no se dibujan (ni serpientes-mano ni empuñaduras), pero
        el RAYO-PUNTERO sigue a la vista: así se puede apuntar y pulsar el
        tótem, el escritorio y sus ventanas sin perder la referencia.
@@ -111,6 +111,9 @@
      · El rayo-puntero va SIEMPRE encima del mando de verdad: en cada fotograma
        se lee la pose real del mando (frame.getPose) y, si el objeto que dibuja
        el rayo se ha quedado congelado, se recoloca (2026.28).
+     · Si el servidor ya sirve un snake-vr.js nuevo y esta pestaña tiene el
+       viejo, se recarga sola (nunca dentro de VR): el aviso de «Actualizar
+       ahora» es DOM y en el visor no se ve (2026.29).
      · El gatillo apuntando al SUELO ya no teletransporta mientras se anda
        con el stick: ese teletransporte ("morder el suelo") dejaba al jugador
        pegado, avanzaba un milímetro y lo devolvía atrás. Todo lo demás se
@@ -123,6 +126,8 @@
                                     window.SnakeVrLocomotion.teleport(true)
      Volver a ver manos y rayos:    window.SnakeVrLocomotion.hideHands(false)
      ¿Dónde está cada puntero?     window.SnakeVrLocomotion.diag()
+     ¿Versión nueva?               window.SnakeVrLocomotion.update()
+     Versión del parche:           window.SnakeVrLocomotion.version  ("2026.29")
      Para quitarlo: borra este bloque completo (marcadores SNK-XR-MANDOS).
      ==================================================================== */
   var SNK_XR = {
@@ -148,6 +153,10 @@
     space: null,     // referenceSpace para leer poses
     spaceAsked: false,
     spaceLocal: false,
+    updDone: false,  // ya se ha mirado si hay versión nueva en el servidor
+    updNew: false,   // el servidor sirve un snake-vr.js más nuevo que esta pestaña
+    updTo: '',       // ?v= que sirve el servidor ahora mismo
+    updVer: '',      // último version de /api/status comprobado
     rc: null,        // raycaster propio del puntero
     rcFloor: null    // raycaster propio del suelo
   };
@@ -244,6 +253,82 @@
       } catch (eSp) {}
     }
     return null;
+  }
+
+  /* Token ?v= con el que esta página cargó snake-vr.js. */
+  function snkXrToken() {
+    try {
+      var list = (document && document.querySelectorAll) ? document.querySelectorAll('script[src]') : null;
+      for (var i = 0; list && i < list.length; i++) {
+        var m = /\/static\/snake-vr\.js\?v=([A-Za-z0-9_.-]+)/.exec((list[i] && list[i].src) || '');
+        if (m) return m[1];
+      }
+    } catch (eTk) {}
+    return '';
+  }
+
+  /* Auto-actualización del navegador. El servidor ya sirve el snake-vr.js nuevo
+     (?v= nuevo en el HTML, que no se cachea), pero la pestaña abierta sigue con
+     el viejo en memoria: el aviso «Actualizar ahora» es DOM y en VR ni se ve, así
+     que los arreglos no llegaban al visor. Aquí se compara el ?v= de esta página
+     con el que sirve el servidor y, si es otro, se recarga una vez (con marca en
+     sessionStorage para no entrar en bucle). Nunca recarga dentro de una sesión
+     de VR: se espera a estar fuera. */
+  function snkXrAutoUpdate(force) {
+    SNK_XR.updDone = true;
+    if (typeof fetch !== 'function') return;
+    var mine = snkXrToken();
+    if (!mine) return;
+    var ask;
+    try {
+      ask = fetch('/api/status?t=' + Date.now(), { cache: 'no-store', credentials: 'same-origin' });
+    } catch (eF) { return; }
+    if (!ask || typeof ask.then !== 'function') return;
+    /* /api/status es pequeño: sirve para saber si el servidor ha cambiado algo
+       (su version = commit + firma de los estáticos). Sólo cuando cambia se
+       pide el HTML para comparar el ?v= del snake-vr.js. */
+    ask.then(function (r) { return (r && typeof r.json === 'function') ? r.json() : null; }).then(function (j) {
+      var ver = (j && j.version) || '';
+      if (!ver) return;
+      if (!force && SNK_XR.updVer === ver) { SNK_XR.updNew = false; return; }
+      SNK_XR.updVer = ver;
+      return fetch('/', { cache: 'no-store', credentials: 'same-origin' }).then(function (r) {
+        return (r && typeof r.text === 'function') ? r.text() : '';
+      }).then(function (html) {
+        var m = /\/static\/snake-vr\.js\?v=([A-Za-z0-9_.-]+)/.exec(html || '');
+        if (!m || !m[1] || m[1] === mine) { SNK_XR.updNew = false; return; }
+        SNK_XR.updNew = true;
+        SNK_XR.updTo = m[1];
+        snkXrLog('Snake VR nuevo en el servidor (' + m[1] + '); esta pestaña tiene ' + mine);
+        if (!force && st && st.mode === 'xr') return;   /* no cortar la partida */
+        var seen = '';
+        try { seen = sessionStorage.getItem('snkXrUpd') || ''; } catch (eS) {}
+        if (seen === m[1]) return;                      /* ya se intentó: sin bucles */
+        try { sessionStorage.setItem('snkXrUpd', m[1]); } catch (eS2) {}
+        try { location.reload(); } catch (eR) {}
+      });
+    }).catch(function () {});
+  }
+
+  /* Comprobación periódica (sólo fuera de VR) y al volver a la pestaña. */
+  function snkXrAutoUpdateWatch() {
+    try {
+      if (document && document.addEventListener) {
+        document.addEventListener('visibilitychange', function () {
+          if (!document.hidden) snkXrAutoUpdate();
+        });
+      }
+      if (typeof setInterval === 'function') {
+        setInterval(function () {
+          try {
+            if (!document || document.hidden) return;
+            if (st && st.mode === 'xr') return;      /* en VR no se recarga */
+            snkXrAutoUpdate();
+          } catch (eI) {}
+        }, 45000);
+      }
+    } catch (eW) {}
+    snkXrAutoUpdate();
   }
 
   /* El rayo-puntero es hijo del objeto del mando que usa el juego
@@ -566,6 +651,8 @@
   }
 
   snkXrInstall();
+  /* Que la pestaña abierta no se quede con un snake-vr.js viejo en memoria. */
+  try { snkXrAutoUpdateWatch(); } catch (eUp) {}
 
   try {
     global.SnakeVrLocomotion = {
@@ -622,7 +709,11 @@
         }
         return true;
       },
-      state: SNK_XR
+      /* ¿Hay versión nueva en el servidor? update() la busca; update(true)
+         recarga aunque estés en VR (por defecto nunca recarga dentro de VR). */
+      update: function (force) { SNK_XR.updDone = false; snkXrAutoUpdate(force === true); return { updNew: SNK_XR.updNew, updTo: SNK_XR.updTo, updDone: SNK_XR.updDone }; },
+      state: SNK_XR,
+      version: '2026.29'
     };
   } catch (eApi) {}
   /* === fin SNK-XR-MANDOS === */
