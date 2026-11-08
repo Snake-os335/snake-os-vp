@@ -94,27 +94,38 @@ class XRSession {
   /* three.js vuelve a pedir fotograma en cada vuelta: el simulador hace lo
      mismo antes de ejecutar el que toca. Between the parche's frame and its
      watch(), el "juego" ejecuta su tick (this.nextGameTick). */
-  frame(t) {
+  frame(t, frame) {
     const self = this;
     if (!this.frames.length) {
       this.requestAnimationFrame(function () { if (self.nextGameTick) self.nextGameTick(); });
     }
     const cb = this.frames.shift();
-    if (cb) cb(t || 0);
+    if (cb) cb(t || 0, frame);
   }
   setStick(hand, x, y) {
     this.inputSources = this.inputSources.filter((s) => s.handedness !== hand);
-    this.inputSources.push({ handedness: hand, gamepad: { axes: [0, 0, x, y] } });
+    this.inputSources.push({ handedness: hand, targetRaySpace: { id: hand }, gamepad: { axes: [0, 0, x, y] } });
   }
 }
 
 function makeCtl() {
-  const ray = { visible: true, material: { opacity: 0.55 } };
+  const ray = { visible: true, material: { opacity: 0.55 }, scale: { z: 7 } };
   const snakeGroup = { visible: true, traverse(fn) { fn(this); } };
+  const mat = {
+    e: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
+    fromArray(a) { this.e = a.slice(); return this; },
+    decompose(p, q, s) { p.x = this.e[12]; p.y = this.e[13]; p.z = this.e[14]; return this; }
+  };
   const ctl = {
     userData: { ray: ray, snake: { group: snakeGroup } },
     children: [snakeGroup, ray],
-    matrixWorld: {},
+    matrix: mat,
+    /* pose congelada del objeto del juego (el bug: el rayo se queda fijo) */
+    matrixWorld: { elements: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 1.2, -0.3, 1] },
+    position: { x: 0, y: 1.2, z: -0.3 },
+    quaternion: { x: 0, y: 0, z: 0, w: 1 },
+    scale: { x: 1, y: 1, z: 1 },
+    matrixWorldNeedsUpdate: false,
     seen: [],
     dispatchEvent(ev) { this.seen.push(ev && ev.type); return true; },
     updateMatrixWorld() {}
@@ -155,6 +166,7 @@ const st = {
   mode: 'xr',
   yaw: 0,
   xrMoveTo: null,
+  xrControllers: ctrls,
   handSnakes: [],
   reticles: [],
   screenOpen: false,
@@ -167,7 +179,8 @@ const st = {
       getSession() { return sess; },
       getCamera() { return head; },
       getController(i) { return ctrls[i]; },
-      getControllerGrip(i) { return grips[i]; }
+      getControllerGrip(i) { return grips[i]; },
+      getReferenceSpace() { return { id: 'local-floor' }; }
     }
   }
 };
@@ -313,6 +326,45 @@ sess.setStick('left', 0, -1);
 const zBack = rig.position.z;
 for (let i = 1; i <= 10; i++) sess.frame(7000 + i * 33);
 ok(rig.position.z < zBack - 0.3, 'de vuelta al juego, el stick avanza: ' + (zBack - rig.position.z).toFixed(2) + ' m');
+
+console.log('\n8) el puntero va donde está el mando, no clavado en un punto fijo');
+
+/* El rayo es hijo del objeto del mando del juego y su pose la escribe three.js
+   con frame.getPose(); si se queda congelada, el puntero se ve fijo. Con el
+   "frame" del fotograma el parche lee la pose REAL y recoloca el mando. */
+function poseFrame(map) {
+  return {
+    getPose(space) {
+      const p = map[space.id];
+      if (!p) return null;
+      const m = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, p[0], p[1], p[2], 1];
+      return { transform: { matrix: m, position: { x: p[0], y: p[1], z: p[2] } } };
+    }
+  };
+}
+const fix0 = api.state.poseFix;
+const ok0 = api.state.poseOk;
+/* mando izquierdo de verdad en (0.42, 1.35, -0.60); el objeto del juego sigue
+   clavado en (0, 1.20, -0.30) */
+sess.setStick('left', 0, 0);
+sess.setStick('right', 0, 0);   // los dos mandos están delante del jugador
+sess.frame(8000, poseFrame({ left: [0.42, 1.35, -0.60], right: [-0.35, 1.30, -0.45] }));
+ok(Math.abs(ctrls[0].position.x - 0.42) < 1e-6 && Math.abs(ctrls[0].position.z + 0.60) < 1e-6,
+  'el mando del juego se recoloca en la pose real: (' + ctrls[0].position.x + ', ' + ctrls[0].position.z + ')');
+ok(api.state.poseFix === fix0 + 2, 'recolocados los dos mandos: poseFix=' + api.state.poseFix);
+ok(ctrls[0].matrixWorldNeedsUpdate === true, 'se pide recalcular la matriz (el rayo hijo se mueve con él)');
+ok(ctrls[0].userData.ray.visible === true, 'el rayo sigue visible tras recolocarlo');
+
+/* Ya coincide: no se toca nada (no se pelea con three.js). */
+ctrls[0].matrixWorld.elements = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0.42, 1.35, -0.60, 1];
+ctrls[1].matrixWorld.elements = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, -0.35, 1.30, -0.45, 1];
+const fix1 = api.state.poseFix;
+sess.frame(8033, poseFrame({ left: [0.42, 1.35, -0.60], right: [-0.35, 1.30, -0.45] }));
+ok(api.state.poseFix === fix1, 'si la pose ya es la buena, no se recoloca');
+ok(api.state.poseOk > ok0, 'se cuenta como pose correcta: poseOk=' + api.state.poseOk);
+/* Y sin frame (navegadores que no lo dan) no se rompe nada. */
+sess.frame(8066);
+ok(true, 'un fotograma sin frame no rompe el bucle');
 
 console.log('');
 if (fails) {

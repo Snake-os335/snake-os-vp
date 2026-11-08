@@ -102,12 +102,15 @@
     clock: null
   };
 
-          /* === SNK-XR-MANDOS (2026.27) ==========================================
+                /* === SNK-XR-MANDOS (2026.28) ==========================================
      · Los mandos VR no se dibujan (ni serpientes-mano ni empuñaduras), pero
        el RAYO-PUNTERO sigue a la vista: así se puede apuntar y pulsar el
        tótem, el escritorio y sus ventanas sin perder la referencia.
      · Stick IZQUIERDO  = moverse (adelante/atrás + lateral).
      · Stick DERECHO    = girar la vista (suave, alrededor de la cabeza).
+     · El rayo-puntero va SIEMPRE encima del mando de verdad: en cada fotograma
+       se lee la pose real del mando (frame.getPose) y, si el objeto que dibuja
+       el rayo se ha quedado congelado, se recoloca (2026.28).
      · El gatillo apuntando al SUELO ya no teletransporta mientras se anda
        con el stick: ese teletransporte ("morder el suelo") dejaba al jugador
        pegado, avanzaba un milímetro y lo devolvía atrás. Todo lo demás se
@@ -119,6 +122,7 @@
      Volver a permitir el teletransporte de la mordida:
                                     window.SnakeVrLocomotion.teleport(true)
      Volver a ver manos y rayos:    window.SnakeVrLocomotion.hideHands(false)
+     ¿Dónde está cada puntero?     window.SnakeVrLocomotion.diag()
      Para quitarlo: borra este bloque completo (marcadores SNK-XR-MANDOS).
      ==================================================================== */
   var SNK_XR = {
@@ -139,6 +143,11 @@
     blocked: 0,      // mordidas al suelo descartadas (teletransporte)
     kills: 0,        // teletransportes pendientes cancelados al andar
     stickSeen: false,// se ha visto un mando con stick (locomoción posible)
+    poseOk: 0,       // fotogramas en que la pose del mando ya era la real
+    poseFix: 0,      // fotogramas en que hubo que recolocar el mando del juego
+    space: null,     // referenceSpace para leer poses
+    spaceAsked: false,
+    spaceLocal: false,
     rc: null,        // raycaster propio del puntero
     rcFloor: null    // raycaster propio del suelo
   };
@@ -191,6 +200,88 @@
       if (sess && st.renderer.xr.getSession && st.renderer.xr.getSession() !== sess) return false;
       return true;
     } catch (eOwn) { return false; }
+  }
+
+  /* Mando del juego al que corresponde un inputSource de la sesión. */
+  function snkXrCtlFor(src, i) {
+    var list = (st.xrControllers && st.xrControllers.length)
+      ? st.xrControllers
+      : [snkXrController(0), snkXrController(1)];
+    var j, c;
+    for (j = 0; j < list.length; j++) {
+      c = list[j];
+      if (c && c.userData && src.gamepad && c.userData.gamepad === src.gamepad) return c;
+    }
+    for (j = 0; j < list.length; j++) {
+      c = list[j];
+      if (c && c.userData && src.handedness && c.userData.handedness === src.handedness) return c;
+    }
+    if (src.handedness === 'left') return list[0] || null;
+    if (src.handedness === 'right') return list[1] || null;
+    return list[i] || null;
+  }
+
+  /* Espacio de referencia para leer las poses de los mandos. Normalmente el del
+     renderer (local-floor, que es lo que pide el juego); si no lo hay se pide. */
+  function snkXrSpace() {
+    if (SNK_XR.space) return SNK_XR.space;
+    try {
+      var rs = (st.renderer.xr.getReferenceSpace && st.renderer.xr.getReferenceSpace()) || null;
+      if (rs) return (SNK_XR.space = rs);
+    } catch (eRs0) {}
+    var sess = snkXrSession();
+    if (sess && sess.requestReferenceSpace && !SNK_XR.spaceAsked) {
+      SNK_XR.spaceAsked = true;
+      try {
+        sess.requestReferenceSpace('local-floor').then(function (s) { SNK_XR.space = s; }, function () {
+          try {
+            sess.requestReferenceSpace('local').then(function (s) {
+              SNK_XR.space = s;
+              SNK_XR.spaceLocal = true;   // origen en la cabeza, no en el suelo
+            }, function () {});
+          } catch (eLoc) {}
+        });
+      } catch (eSp) {}
+    }
+    return null;
+  }
+
+  /* El rayo-puntero es hijo del objeto del mando que usa el juego
+     (renderer.xr.getController → target-ray space). Esa pose la escribe
+     three.js en cada fotograma con frame.getPose(); si se queda congelada
+     (el objeto no está en el árbol que se actualiza, el renderer se recreó,
+     el juego paró su bucle…), el puntero se queda clavado en un punto fijo.
+     Aquí se lee la pose REAL del mando en el fotograma y, si no coincide con
+     la del objeto, se copia: el rayo vuelve a estar donde está el mando. */
+  function snkXrPoseSync(frame) {
+    if (!frame || typeof frame.getPose !== 'function') return;
+    var rs = snkXrSpace();
+    if (!rs) return;
+    var sess = snkXrSession();
+    var srcs = (sess && sess.inputSources) || [];
+    for (var i = 0; i < srcs.length; i++) {
+      var src = srcs[i];
+      if (!src || !src.targetRaySpace) continue;
+      var ctl = snkXrCtlFor(src, i);
+      if (!ctl || !ctl.matrix || typeof ctl.matrix.fromArray !== 'function') continue;
+      var pose = null;
+      try { pose = frame.getPose(src.targetRaySpace, rs); } catch (ePos) {}
+      var tr = pose && pose.transform;
+      var arr = tr && (tr.matrix || (tr.position && [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        tr.position.x, tr.position.y, tr.position.z, 1]));
+      if (!arr) continue;
+      var mw = ctl.matrixWorld && ctl.matrixWorld.elements;
+      var dx = arr[12] - (mw ? mw[12] : 0);
+      var dy = arr[13] - (mw ? mw[13] : 0);
+      var dz = arr[14] - (mw ? mw[14] : 0);
+      if (mw && Math.sqrt(dx * dx + dy * dy + dz * dz) < 0.05) { SNK_XR.poseOk++; continue; }
+      try {
+        ctl.matrix.fromArray(arr);
+        ctl.matrix.decompose(ctl.position, ctl.quaternion, ctl.scale);
+        ctl.matrixWorldNeedsUpdate = true;
+        SNK_XR.poseFix++;
+      } catch (eAp) {}
+    }
   }
 
   /* Deja a la vista sólo el rayo-puntero de cada mando. Se llama cada
@@ -413,14 +504,15 @@
     };
   }
 
-  /* Un fotograma de XR: puntero/ manos ocultas + guardia del gatillo + sticks.
+  /* Un fotograma de XR: mando en su sitio + puntero/manos + guardia + sticks.
      dt limitado para que un parón del navegador no dé un salto enorme. */
-  function snkXrFrame(nowMs, sess) {
+  function snkXrFrame(nowMs, sess, frame) {
     var t = (typeof nowMs === 'number' ? nowMs : Date.now()) / 1000;
     var dt = SNK_XR.last ? Math.min(0.1, Math.max(0, t - SNK_XR.last)) : 0.016;
     SNK_XR.last = t;
     /* Sesión de otro módulo (mascota de realidad mixta): se respeta tal cual. */
     if (!snkXrOwn(sess)) return;
+    snkXrPoseSync(frame);
     snkXrHideHands();
     snkXrGuard(snkXrController(0));
     snkXrGuard(snkXrController(1));
@@ -455,7 +547,7 @@
     XRSession.prototype.requestAnimationFrame = function (cb) {
       var self = this;
       return orig.call(this, function (time, frame) {
-        try { snkXrFrame(time, self); } catch (eF) {}
+        try { snkXrFrame(time, self, frame); } catch (eF) {}
         try {
           cb(time, frame);
         } catch (err) {
@@ -489,6 +581,39 @@
       },
       speed: function (v) { if (typeof v === 'number' && v > 0) SNK_XR.speed = v; return SNK_XR.speed; },
       turn: function (v) { if (typeof v === 'number' && v > 0) SNK_XR.turn = v; return SNK_XR.turn; },
+      /* ¿Los punteros están donde están los mandos? Devuelve, por mando, la
+         posición REAL (pose del fotograma) y la del objeto que dibuja el rayo.
+         Si "d" es grande, el rayo no está en el mando. */
+      diag: function () {
+        var out = { pointers: [], poseOk: SNK_XR.poseOk, poseFix: SNK_XR.poseFix,
+          hide: SNK_XR.hide, pointer: SNK_XR.pointer, sess: !!SNK_XR.sess, rig: null };
+        try {
+          if (st && st.rig && st.rig.position) {
+            out.rig = { x: +st.rig.position.x.toFixed(2), y: +st.rig.position.y.toFixed(2), z: +st.rig.position.z.toFixed(2) };
+          }
+        } catch (eR) {}
+        for (var i = 0; i < 2; i++) {
+          var ctl = snkXrController(i);
+          var grip = null;
+          try { grip = st.renderer.xr.getControllerGrip ? st.renderer.xr.getControllerGrip(i) : null; } catch (eGr) {}
+          var e = (ctl && ctl.matrixWorld && ctl.matrixWorld.elements) || null;
+          var g = (grip && grip.matrixWorld && grip.matrixWorld.elements) || null;
+          var ray = (ctl && ctl.userData && ctl.userData.ray) || null;
+          out.pointers.push({
+            i: i,
+            ctl: !!ctl,
+            ray: !!ray,
+            rayVisible: ray ? ray.visible : null,
+            len: ray && ray.scale ? +Number(ray.scale.z || 0).toFixed(2) : null,
+            ctlPos: e ? { x: +e[12].toFixed(2), y: +e[13].toFixed(2), z: +e[14].toFixed(2) } : null,
+            gripPos: g ? { x: +g[12].toFixed(2), y: +g[13].toFixed(2), z: +g[14].toFixed(2) } : null,
+            /* d: cuánto se separa el dibujo del mando real (0 = perfecto) */
+            d: (e && g) ? +Math.hypot(e[12] - g[12], e[13] - g[13], e[14] - g[14]).toFixed(2) : null
+          });
+        }
+        try { if (console.table) console.table(out.pointers); } catch (eT) {}
+        return out;
+      },
       /* Vuelve a poner al jugador donde estaba al entrar en VR. */
       reset: function () {
         if (SNK_XR.base && SNK_XR.acc) {
