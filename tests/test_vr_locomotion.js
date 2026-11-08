@@ -277,6 +277,43 @@ ok(ctrls[0].userData.snake.group.visible === true, 'hideHands(false) devuelve la
 ok(grips[0].visible === true, 'hideHands(false) devuelve la empuñadura');
 api.hideHands(true);
 
+console.log('\n7) el juego de realidad mixta (🐍 MR) queda intacto: sesión ajena');
+
+/* La mascota de realidad mixta (SNK-MR-MASCOTA) abre su PROPIA sesión con su
+   propio renderer. El parche de mandos se cuelga de
+   XRSession.prototype.requestAnimationFrame, así que ve esos fotogramas: no
+   debe ocultar sus manos, ni mover el rig del juego, ni tragarse su gatillo. */
+const mrSess = new XRSession();
+mrSess.setStick('left', 0, -1);                  // stick a tope en el juego MR
+st.renderer.xr.isPresenting = false;             // el renderer del juego NO presenta
+const mr = { getSession: st.renderer.xr.getSession, isPresenting: true };
+st.renderer.xr.getSession = function () { return null; };
+const zMr = rig.position.z;
+const walkedMr = api.state.walked;
+ctrls[0].userData.snake.group.visible = true;
+grips[0].visible = true;
+for (let i = 1; i <= 10; i++) mrSess.frame(6000 + i * 33);
+ok(Math.abs(rig.position.z - zMr) < 1e-9, 'en la sesión MR no se mueve el rig del juego: ' + (rig.position.z - zMr).toFixed(3) + ' m');
+ok(api.state.walked === walkedMr, 'en la sesión MR no se cuenta como andado');
+ok(ctrls[0].userData.snake.group.visible === true, 'en la sesión MR no se ocultan las manos');
+ok(grips[0].visible === true, 'en la sesión MR no se oculta la empuñadura');
+
+/* Un fotograma roto de la sesión MR no debe arrancar el bucle de rescate del
+   juego (que dibujaría su escena dentro de la habitación). */
+const errs0 = api.state.errs;
+mrSess.requestAnimationFrame(function () { throw new Error('fotograma MR roto'); });
+mrSess.frame(6500);
+ok(api.state.errs === errs0 + 1, 'el error del fotograma MR se cuenta: ' + api.state.errs);
+ok(!mrSess.__snkRescue, 'sin bucle de rescate dentro de la sesión MR (no se dibuja la escena del juego)');
+
+/* Al volver al juego, la locomoción funciona otra vez. */
+st.renderer.xr.isPresenting = mr.isPresenting;
+st.renderer.xr.getSession = mr.getSession;
+sess.setStick('left', 0, -1);
+const zBack = rig.position.z;
+for (let i = 1; i <= 10; i++) sess.frame(7000 + i * 33);
+ok(rig.position.z < zBack - 0.3, 'de vuelta al juego, el stick avanza: ' + (zBack - rig.position.z).toFixed(2) + ' m');
+
 console.log('');
 if (fails) {
   console.error(fails + ' comprobación(es) fallida(s)');

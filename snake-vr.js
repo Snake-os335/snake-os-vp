@@ -102,7 +102,7 @@
     clock: null
   };
 
-        /* === SNK-XR-MANDOS (2026.27) ==========================================
+          /* === SNK-XR-MANDOS (2026.27) ==========================================
      · Los mandos VR no se dibujan (ni serpientes-mano ni empuñaduras), pero
        el RAYO-PUNTERO sigue a la vista: así se puede apuntar y pulsar el
        tótem, el escritorio y sus ventanas sin perder la referencia.
@@ -177,6 +177,20 @@
     if (!obj) return;
     if (obj.traverse) obj.traverse(function (o) { o.visible = vis; });
     else obj.visible = vis;
+  }
+
+  /* ¿Esta sesión XR es la del juego? El parche se cuelga de
+     XRSession.prototype.requestAnimationFrame, así que también ve las sesiones
+     que abren otros módulos con su propio renderer, como la mascota de realidad
+     mixta (SNK-MR-MASCOTA, botón «🐍 MR»). En esas NO se hace nada: ni ocultar
+     manos, ni locomoción, ni guardia del gatillo, ni bucle de rescate. */
+  function snkXrOwn(sess) {
+    try {
+      if (!st || !st.renderer || !st.renderer.xr) return false;
+      if (st.renderer.xr.isPresenting === false) return false;
+      if (sess && st.renderer.xr.getSession && st.renderer.xr.getSession() !== sess) return false;
+      return true;
+    } catch (eOwn) { return false; }
   }
 
   /* Deja a la vista sólo el rayo-puntero de cada mando. Se llama cada
@@ -387,7 +401,8 @@
     c.dispatchEvent = function (ev) {
       try {
         if (ev && ev.type === 'selectstart' && SNK_XR.on && SNK_XR.noTeleport &&
-            SNK_XR.stickSeen && SNK_XR.sess && st.mode === 'xr' && st.floorMesh) {
+            SNK_XR.stickSeen && SNK_XR.sess && st.mode === 'xr' && st.floorMesh &&
+            snkXrOwn(snkXrSession())) {
           if (!snkXrAimPlayable(c) && snkXrAim(c, st.floorMesh, 'floor')) {
             SNK_XR.blocked++;
             return true;      /* se traga el evento: ni mordida ni teletransporte */
@@ -400,10 +415,12 @@
 
   /* Un fotograma de XR: puntero/ manos ocultas + guardia del gatillo + sticks.
      dt limitado para que un parón del navegador no dé un salto enorme. */
-  function snkXrFrame(nowMs) {
+  function snkXrFrame(nowMs, sess) {
     var t = (typeof nowMs === 'number' ? nowMs : Date.now()) / 1000;
     var dt = SNK_XR.last ? Math.min(0.1, Math.max(0, t - SNK_XR.last)) : 0.016;
     SNK_XR.last = t;
+    /* Sesión de otro módulo (mascota de realidad mixta): se respeta tal cual. */
+    if (!snkXrOwn(sess)) return;
     snkXrHideHands();
     snkXrGuard(snkXrController(0));
     snkXrGuard(snkXrController(1));
@@ -438,14 +455,17 @@
     XRSession.prototype.requestAnimationFrame = function (cb) {
       var self = this;
       return orig.call(this, function (time, frame) {
-        try { snkXrFrame(time); } catch (eF) {}
+        try { snkXrFrame(time, self); } catch (eF) {}
         try {
           cb(time, frame);
         } catch (err) {
           SNK_XR.errs++;
           snkXrLog('fotograma XR fallido #' + SNK_XR.errs + ' ' +
             (err && err.message ? err.message : err));
-          snkXrRescue(self, orig);
+          /* El rescate es para la sesión del juego: en la de la mascota de
+             realidad mixta cada fotograma dibuja su propia escena y no se debe
+             meter la del juego. */
+          if (snkXrOwn(self)) snkXrRescue(self, orig);
         }
         try { snkXrWatch(); } catch (eW) {}
       });
