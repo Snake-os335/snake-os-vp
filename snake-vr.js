@@ -102,7 +102,7 @@
     clock: null
   };
 
-      /* === SNK-XR-MANDOS (2026.27) ==========================================
+        /* === SNK-XR-MANDOS (2026.27) ==========================================
      · Los mandos VR no se dibujan (ni serpientes-mano ni empuñaduras), pero
        el RAYO-PUNTERO sigue a la vista: así se puede apuntar y pulsar el
        tótem, el escritorio y sus ventanas sin perder la referencia.
@@ -196,7 +196,9 @@
       }
       if (ray) {
         ray.visible = SNK_XR.hide ? keepRay : true;
-        try { if (ray.material) ray.material.opacity = SNK_XR.hide ? 0.32 : 0.55; } catch (eM) {}
+        /* Ni color ni opacidad se tocan: los lleva el juego y cambian (verde en
+           el escritorio, amarillo en el tótem) cuando el rayo apunta a algo que
+           se puede pulsar. Así se ve a qué estás apuntando antes de darle. */
       }
       try {
         if (st.renderer && st.renderer.xr && st.renderer.xr.getControllerGrip) {
