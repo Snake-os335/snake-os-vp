@@ -102,6 +102,265 @@
     clock: null
   };
 
+  /* === SNK-XR-MANDOS (2026.25) ==========================================
+     · Los mandos VR NO se dibujan (ni serpientes-mano ni rayos ni retícula).
+     · Stick IZQUIERDO  = moverse (adelante/atrás + lateral).
+     · Stick DERECHO    = girar la vista (suave, alrededor de la cabeza).
+     Se instala envolviendo XRSession.prototype.requestAnimationFrame: no
+     depende de ningún nombre interno del juego y no borra código existente.
+     Para desactivarlo: window.SnakeVrLocomotion.on(false)
+     Para quitarlo: borra este bloque completo (marcadores SNK-XR-MANDOS).
+     ==================================================================== */
+  var SNK_XR = {
+    on: true,        // locomoción activa
+    hide: true,      // mandos invisibles
+    speed: 2.4,      // m/s con el stick izquierdo
+    turn: 1.9,       // rad/s con el stick derecho
+    dead: 0.16,      // zona muerta del stick
+    last: 0,
+    errs: 0,
+    sess: null,      // sesión XR en curso
+    base: null,      // posición del rig al empezar (Vector3)
+    acc: null,       // desplazamiento acumulado por el stick (Vector3)
+    fights: 0        // veces que hubo que reaplicar la posición del rig
+  };
+
+  function snkXrLog(msg) {
+    try { if (global.console && console.warn) console.warn('[SnakeVR] ' + msg); } catch (e) {}
+  }
+
+  function snkXrSession() {
+    try {
+      if (st.renderer && st.renderer.xr && st.renderer.xr.getSession) return st.renderer.xr.getSession();
+    } catch (e) {}
+    return null;
+  }
+
+  function snkXrController(i) {
+    try {
+      if (st.renderer && st.renderer.xr) return st.renderer.xr.getController(i);
+    } catch (e) {}
+    return null;
+  }
+
+  /* Cámara de la cabeza: en XR la buena es la de renderer.xr (su matrixWorld ya
+     lleva el rig aplicado), si no st.camera. */
+  function snkXrHead() {
+    try {
+      if (st.renderer && st.renderer.xr && st.renderer.xr.isPresenting && st.renderer.xr.getCamera) {
+        var xc = st.renderer.xr.getCamera();
+        if (xc && xc.matrixWorld) return xc;
+      }
+    } catch (e) {}
+    return st.camera;
+  }
+
+  /* Oculta todo lo que cuelga de los dos mandos, las serpientes-mano que
+     guarde el juego y la retícula de teletransporte. Se llama cada fotograma
+     porque el juego puede volver a poner visible=true al apretar el gatillo. */
+  function snkXrHideHands() {
+    if (!SNK_XR.hide) return;
+    for (var i = 0; i < 2; i++) {
+      var ctl = snkXrController(i);
+      if (ctl && ctl.traverse) ctl.traverse(function (o) { o.visible = false; });
+      try {
+        if (st.renderer && st.renderer.xr && st.renderer.xr.getControllerGrip) {
+          var grip = st.renderer.xr.getControllerGrip(i);
+          if (grip && grip.traverse) grip.traverse(function (o) { o.visible = false; });
+        }
+      } catch (eG) {}
+    }
+    var hs = st.handSnakes || [];
+    for (var h = 0; h < hs.length; h++) {
+      var it = hs[h];
+      var obj = it && (it.group || it.root || it.holder || it.obj || it.mesh || it);
+      if (obj && obj.traverse) obj.traverse(function (o) { o.visible = false; });
+      else if (obj && typeof obj === 'object') obj.visible = false;
+    }
+    var ret = st.reticles || [];
+    for (var r = 0; r < ret.length; r++) if (ret[r]) ret[r].visible = false;
+  }
+
+  /* Gamepad del mando izquierdo/derecho (inputSources y, si no, el controller). */
+  function snkXrGamepad(hand) {
+    var sess = snkXrSession();
+    var srcs = (sess && sess.inputSources) || [];
+    for (var i = 0; i < srcs.length; i++) {
+      var s = srcs[i];
+      if (s && s.handedness === hand && s.gamepad) return s.gamepad;
+    }
+    for (var j = 0; j < 2; j++) {
+      var ctl = snkXrController(j);
+      var gp = ctl && ctl.gamepad;
+      if (!gp) continue;
+      if (gp.handedness === hand) return gp;
+      if (hand === 'left' && j === 0 && !gp.handedness) return gp;
+      if (hand === 'right' && j === 1 && !gp.handedness) return gp;
+    }
+    return null;
+  }
+
+  /* Stick real: en Quest/WebXR está en axes[2] y axes[3]; si el mando expone
+     el trackpad en axes[0]/[1] y está más movido, se usa ese. */
+  function snkXrStick(gp) {
+    if (!gp || !gp.axes) return [0, 0];
+    var a = gp.axes;
+    var x1 = a[0] || 0, y1 = a[1] || 0, x2 = a[2] || 0, y2 = a[3] || 0;
+    var ax = 0, ay = 0;
+    if (Math.abs(x2) + Math.abs(y2) >= Math.abs(x1) + Math.abs(y1)) { ax = x2; ay = y2; }
+    else { ax = x1; ay = y1; }
+    if (Math.abs(ax) < SNK_XR.dead) ax = 0;
+    if (Math.abs(ay) < SNK_XR.dead) ay = 0;
+    return [ax, ay];
+  }
+
+  /* Gira la vista dyaw radianes ALREDEDOR DE LA CABEZA (no del origen del rig),
+     moviendo el rig como un todo: así el jugador no se desplaza al girar. */
+  function snkXrTurn(dyaw) {
+    var THREE = st.three, rig = st.rig, cam = snkXrHead();
+    if (!THREE || !rig || !cam || !dyaw) return;
+    var pivot = new THREE.Vector3();
+    cam.getWorldPosition(pivot);
+    var q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), dyaw);
+    var rel = rig.position.clone().sub(pivot);
+    rel.applyQuaternion(q);
+    rig.position.copy(pivot).add(rel);
+    rig.quaternion.premultiply(q);
+    rig.updateMatrixWorld(true);
+    /* si el juego reconstruye la rotación del rig desde st.yaw, se mantiene */
+    if (typeof st.yaw === 'number') st.yaw += dyaw;
+    snkXrRebase();
+  }
+
+  /* Prepara el modelo base + desplazamiento de la sesión en curso (y lo
+     reinicia si el juego abre otra sesión XR). */
+  function snkXrReady() {
+    var THREE = st.three, rig = st.rig;
+    if (!THREE || !rig) return false;
+    var sess = snkXrSession();
+    if (!sess) { SNK_XR.base = null; SNK_XR.sess = null; return false; }
+    if (!SNK_XR.base || SNK_XR.sess !== sess) {
+      SNK_XR.sess = sess;
+      SNK_XR.base = new THREE.Vector3().copy(rig.position);
+      SNK_XR.acc = new THREE.Vector3();
+    }
+    return true;
+  }
+
+  /* El giro mueve el rig: se toma su posición actual como nueva base. */
+  function snkXrRebase() {
+    if (SNK_XR.base && SNK_XR.acc && st.rig) SNK_XR.base.copy(st.rig.position).sub(SNK_XR.acc);
+  }
+
+  function snkXrApply() {
+    if (!SNK_XR.base || !SNK_XR.acc || !st.rig) return;
+    st.rig.position.copy(SNK_XR.base).add(SNK_XR.acc);
+    st.rig.updateMatrixWorld(true);
+  }
+
+  /* Stick izquierdo: adelante/atrás (eje Y) y lateral (eje X) en el plano del
+     suelo, mirando hacia donde mira la cabeza. El stick derecho gira. */
+  function snkXrWalk(dt) {
+    var THREE = st.three, cam = snkXrHead();
+    if (!THREE || !cam || !snkXrReady()) return;
+    var R = snkXrStick(snkXrGamepad('right'));
+    if (R[0]) snkXrTurn(-R[0] * SNK_XR.turn * dt);          // stick derecho = girar
+    var L = snkXrStick(snkXrGamepad('left'));
+    if (L[0] || L[1]) {
+      var fwd = new THREE.Vector3();
+      cam.getWorldDirection(fwd);
+      fwd.y = 0;
+      if (fwd.lengthSq() > 1e-6) {
+        fwd.normalize();
+        var side = new THREE.Vector3(-fwd.z, 0, fwd.x);
+        SNK_XR.acc.addScaledVector(fwd, -L[1] * SNK_XR.speed * dt);
+        SNK_XR.acc.addScaledVector(side, L[0] * SNK_XR.speed * dt);
+      }
+    }
+    snkXrApply();
+  }
+
+  /* Después del fotograma del juego: si reescribió la posición del rig, se
+     reaplica lo nuestro; si fue un salto grande (su teletransporte), se toma
+     su posición como nueva base y se respeta. */
+  function snkXrWatch() {
+    var THREE = st.three, rig = st.rig;
+    if (!THREE || !rig || !SNK_XR.base || !SNK_XR.acc) return;
+    var want = new THREE.Vector3().copy(SNK_XR.base).add(SNK_XR.acc);
+    var d = rig.position.distanceTo(want);
+    if (d > 0.5) { SNK_XR.base.copy(rig.position).sub(SNK_XR.acc); return; }
+    if (d > 1e-5) {
+      rig.position.copy(want);
+      rig.updateMatrixWorld(true);
+      SNK_XR.fights++;
+    }
+  }
+
+  /* Un fotograma de XR: mandos ocultos + sticks. dt limitado para que un
+     parón del navegador no dé un salto enorme. */
+  function snkXrFrame(nowMs) {
+    var t = (typeof nowMs === 'number' ? nowMs : Date.now()) / 1000;
+    var dt = SNK_XR.last ? Math.min(0.1, Math.max(0, t - SNK_XR.last)) : 0.016;
+    SNK_XR.last = t;
+    snkXrHideHands();
+    if (SNK_XR.on) snkXrWalk(dt);
+  }
+
+  /* Si el fotograma del juego lanza una excepción, three.js deja de pedir
+     fotogramas y la sesión immersive-vr se cierra sola. Aquí se mantiene viva
+     con un bucle de rescate que solo dibuja la escena. */
+  function snkXrRescue(sess, orig) {
+    if (!sess || sess.__snkRescue) return;
+    sess.__snkRescue = true;
+    var step = function () {
+      try {
+        orig.call(sess, function () {
+          try {
+            snkXrHideHands();
+            if (st.renderer && st.scene && st.camera) st.renderer.render(st.scene, st.camera);
+          } catch (eR) {}
+          step();
+        });
+      } catch (eS) {}
+    };
+    step();
+  }
+
+  function snkXrInstall() {
+    if (typeof XRSession === 'undefined' || !XRSession.prototype) return;
+    if (XRSession.prototype.__snkMandos) return;
+    var orig = XRSession.prototype.requestAnimationFrame;
+    if (typeof orig !== 'function') return;
+    XRSession.prototype.requestAnimationFrame = function (cb) {
+      var self = this;
+      return orig.call(this, function (time, frame) {
+        try { snkXrFrame(time); } catch (eF) {}
+        try {
+          cb(time, frame);
+        } catch (err) {
+          SNK_XR.errs++;
+          snkXrLog('fotograma XR fallido #' + SNK_XR.errs + ' ' +
+            (err && err.message ? err.message : err));
+          snkXrRescue(self, orig);
+        }
+        try { snkXrWatch(); } catch (eW) {}
+      });
+    };
+    XRSession.prototype.__snkMandos = true;
+  }
+
+  snkXrInstall();
+
+  try {
+    global.SnakeVrLocomotion = {
+      on: function (v) { SNK_XR.on = (v !== false); return SNK_XR.on; },
+      hideHands: function (v) { SNK_XR.hide = (v !== false); if (SNK_XR.hide) snkXrHideHands(); return SNK_XR.hide; },
+      speed: function (v) { if (typeof v === 'number' && v > 0) SNK_XR.speed = v; return SNK_XR.speed; },
+      turn: function (v) { if (typeof v === 'number' && v > 0) SNK_XR.turn = v; return SNK_XR.turn; },
+      state: SNK_XR
+    };
+  } catch (eApi) {}
+  /* === fin SNK-XR-MANDOS === */
   function vrT(es, en) {
     try {
       var l = global.snakeI18n && global.snakeI18n.lang;
@@ -2271,3 +2530,1134 @@
     get isOpen() { return !!st.open; }
   };
 })(window);
+
+/* === SNK-MR-MASCOTA (2026.26) =========================================
+   Mascota de realidad mixta para Snake VR: una serpiente vive en TU
+   habitación. Antes de aparecer, las gafas te piden ESCANEAR el cuarto
+   apuntando al suelo con los mandos; con eso se construye un mapa de
+   celdas de 25 cm, se detectan muebles y paredes (plane-detection y
+   mesh-detection cuando el visor los soporta) y la serpiente se mueve
+   SOLO por suelo conocido, rodea los obstáculos y no sale del cuarto.
+
+   Uso:
+     · Aparece un botón «🐍 MR» abajo a la derecha mientras Snake VR está
+       abierto (o entrando con la URL acabada en #mr).
+     · Al pulsarlo se entra en XR con passthrough: immersive-ar si el visor
+       lo soporta, si no immersive-vr.
+     · Fase 1 ESCANEO: mira alrededor y apunta al suelo hasta el 100 %.
+       Gatillo = empezar ya con lo escaneado.
+     · Fase 2 MASCOTA: la serpiente sale enroscada delante de ti y te
+       sigue. Gatillo = llámala. Agarre = salir.
+     · Acércale la mano o el mando a la cabeza (<30 cm) para acariciarla.
+
+   API: window.SnakeMr.open(), .close(), .state()
+   No toca nada del juego base: escena, canvas y sesión XR propias.
+   ==================================================================== */
+(function () {
+  'use strict';
+  if (window.SnakeMr && window.SnakeMr.__v) return;
+
+  var THREE_URL = '/static/assets/three-r160.min.js?v=r160';
+  var CELL = 0.25;        // lado de cada celda del mapa (m)
+  var GOAL = 90;          // celdas de suelo conocidas para dar el cuarto por escaneado
+  var SEGS = 16;          // segmentos de la serpiente
+  var SEG_LEN = 0.075;    // separación entre segmentos (m) → serpiente de ~1,2 m
+  var MAX_CELLS = 5000;
+
+  var S = {
+    __v: '2026.26',
+    phase: 'idle',        // idle | scan | play
+    three: null, loadP: null,
+    canvas: null, renderer: null, scene: null, cam: null,
+    session: null, refSpace: null, viewer: null, hits: null, planes: null,
+    cells: null, blocks: [], blockedSet: null, floorY: 0, room: null,
+    instWalk: null, instBlocked: null,
+    panel: null, panelCtx: null, panelTex: null, panelDrawn: -1,
+    stack: null, ring: null,
+    snake: null, parts: [], pts: [], head: null, path: null, pathI: 0,
+    mood: 'scan', moodT: 0, target: null, roamT: 0,
+    t: 0, dt: 0, last: 0, pet: 0, hearts: [],
+    lastPlayer: null, idleT: 0, playerMoved: 0,
+    progress: 0, msg: '', btn: null, overlay: null, err: ''
+  };
+
+  function log(m) { try { console.info('[SnakeMR] ' + m); } catch (e) {} }
+  function warn(m) { try { console.warn('[SnakeMR] ' + m); } catch (e) {} }
+  function css(o) { var s = '', k; for (k in o) s += k + ':' + o[k] + ';'; return s; }
+
+  function makeEl(tag, style, text) {
+    var d = document.createElement(tag);
+    if (style) d.setAttribute('style', style);
+    if (text != null) d.textContent = text;
+    return d;
+  }
+
+  /* three.js: ya suele estar cargado por Snake VR; si no, se pide el local. */
+  function loadThree() {
+    if (window.THREE) return Promise.resolve(window.THREE);
+    if (S.loadP) return S.loadP;
+    S.loadP = new Promise(function (res, rej) {
+      var s = document.createElement('script');
+      s.src = THREE_URL;
+      s.onload = function () {
+        if (window.THREE) res(window.THREE);
+        else rej(new Error('three.js cargó pero no definió THREE'));
+      };
+      s.onerror = function () { rej(new Error('no pude cargar ' + THREE_URL)); };
+      document.head.appendChild(s);
+    });
+    return S.loadP;
+  }
+
+  /* ---------------------------------------------------------------- UI 2D */
+  function mountBtn() {
+    if (S.btn || !document.body) return;
+    var b = makeEl('button', css({
+      position: 'fixed', right: '18px', bottom: '18px', zIndex: 2147483000,
+      padding: '10px 16px', borderRadius: '12px', cursor: 'pointer',
+      background: 'linear-gradient(180deg,#123a24,#0b2a1a)',
+      color: '#8ff7b6', border: '1px solid #2f8f5a',
+      font: '600 14px/1 system-ui,system-ui,sans-serif',
+      boxShadow: '0 6px 20px rgba(0,0,0,.45)', display: 'none'
+    }), '🐍 MR');
+    b.title = 'Mascota de realidad mixta: una serpiente en tu habitación';
+    b.onclick = function () { open(); };
+    document.body.appendChild(b);
+    S.btn = b;
+    /* Solo mientras Snake VR está abierto (su root es #snk-vr-root), o con #mr. */
+    setInterval(function () {
+      var on = !!document.getElementById('snk-vr-root') || /(^|#)mr\b/.test(location.hash);
+      if (S.open) on = false;
+      if (b.style.display !== (on ? 'block' : 'none')) b.style.display = on ? 'block' : 'none';
+    }, 1200);
+  }
+
+  function overlay(html) {
+    if (!S.overlay) {
+      var o = makeEl('div', css({
+        position: 'fixed', inset: '0', zIndex: 2147483001, display: 'flex',
+        alignItems: 'center', justifyContent: 'center', textAlign: 'center',
+        padding: '24px', background: 'rgba(4,12,9,.92)', color: '#d6ffe6',
+        font: '500 16px/1.5 system-ui,system-ui,sans-serif'
+      }));
+      o.id = 'snk-mr-overlay';
+      document.body.appendChild(o);
+      S.overlay = o;
+    }
+    S.overlay.innerHTML = html;
+    S.overlay.style.display = 'flex';
+  }
+
+  function hideOverlay() { if (S.overlay) S.overlay.style.display = 'none'; }
+
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
+      return c === '&' ? '&amp;' : c === '<' ? '&lt;' : c === '>' ? '&gt;' : '&quot;';
+    });
+  }
+
+  /* ------------------------------------------------------------ arranque */
+  S.open = false;
+
+  function open() {
+    if (S.open) return Promise.resolve();
+    S.open = true;
+    S.phase = 'scan';
+    S.progress = 0;
+    S.msg = '';
+    S.err = '';
+    reset();
+    overlay('<div><div style="font-size:42px">🐍</div><b style="font-size:19px">Mascota de realidad mixta</b><br>' +
+      'Ponte las gafas. Primero escaneamos la habitación y después la serpiente aparecerá dentro.</div>');
+    return loadThree().then(function (T) {
+      S.three = T;
+      return startXR();
+    }).catch(function (e) {
+      S.open = false;
+      S.phase = 'idle';
+      warn('open: ' + (e && e.message ? e.message : e));
+      overlay('<div><div style="font-size:42px">😕</div><b>No pude abrir la realidad mixta</b><br>' +
+        esc(e && e.message ? e.message : e) +
+        '<br><br>Hace falta un visor con WebXR (Meta Quest y similares) y passthrough.' +
+        '<br><br><button id="snk-mr-x" style="padding:10px 18px;border-radius:10px;border:1px solid #2f8f5a;' +
+        'background:#12261c;color:#8ff7b6;font-weight:600;cursor:pointer">Cerrar</button></div>');
+      var b = document.getElementById('snk-mr-x');
+      if (b) b.onclick = close;
+    });
+  }
+
+  function startXR() {
+    var T = S.three;
+    if (!navigator.xr || !navigator.xr.requestSession) {
+      return Promise.reject(new Error('este navegador no tiene WebXR'));
+    }
+    var cv = makeEl('canvas', 'position:fixed;inset:0;width:100%;height:100%;z-index:2147483000;' +
+      'background:transparent;touch-action:none');
+    cv.id = 'snk-mr-canvas';
+    document.body.appendChild(cv);
+    S.canvas = cv;
+    var r = new T.WebGLRenderer({ canvas: cv, antialias: true, alpha: true, powerPreference: 'high-performance' });
+    r.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    r.setSize(window.innerWidth, window.innerHeight, false);
+    r.setClearAlpha(0);                 // fondo transparente = passthrough
+    r.xr.enabled = true;
+    r.xr.setReferenceSpaceType('local-floor');
+    S.renderer = r;
+    var init = {
+      optionalFeatures: ['local-floor', 'bounded-floor', 'hit-test', 'anchors',
+        'plane-detection', 'mesh-detection', 'hand-tracking'],
+      requiredFeatures: []
+    };
+    return navigator.xr.isSessionSupported('immersive-ar').then(function (ok) {
+      S.mode = ok ? 'immersive-ar' : 'immersive-vr';
+      return navigator.xr.requestSession(S.mode, init).catch(function (e1) {
+        if (S.mode === 'immersive-ar') {           // visor sin AR: probamos VR
+          S.mode = 'immersive-vr';
+          return navigator.xr.requestSession('immersive-vr', init);
+        }
+        throw e1;
+      });
+    }).then(function (sess) {
+      S.session = sess;
+      return r.xr.setSession(sess);
+    }).then(function () {
+      buildScene();
+      hookSession();
+      r.setAnimationLoop(onFrame);
+      hideOverlay();
+      log('sesión ' + S.mode + ' lista');
+    });
+  }
+
+  function hookSession() {
+    var sess = S.session;
+    sess.addEventListener('selectstart', onSelect);
+    sess.addEventListener('squeezestart', onSqueeze);
+    sess.addEventListener('end', function () { cleanup(); });
+    sess.requestReferenceSpace('viewer').then(function (v) {
+      S.viewer = v;
+      if (!sess.requestHitTestSource) return null;
+      return sess.requestHitTestSource({ space: v });
+    }).then(function (src) {
+      S.hits = src || null;
+      if (!src) S.msg = 'este visor no tiene hit-test: apunta a ojo';
+    }).catch(function (e) { S.msg = 'sin hit-test (' + e.message + ')'; });
+  }
+
+  /* ------------------------------------------------------------- escena 3D */
+  function buildScene() {
+    var T = S.three;
+    var sc = new T.Scene();
+    S.scene = sc;
+    S.cam = new T.PerspectiveCamera(70, 1, 0.05, 60);
+    sc.add(new T.HemisphereLight(0xffffff, 0x33423b, 2.2));
+    var dl = new T.DirectionalLight(0xfff3d6, 1.3);
+    dl.position.set(0.8, 3.2, 1.1);
+    sc.add(dl);
+    var g = new T.PlaneGeometry(CELL * 0.86, CELL * 0.86);
+    var matW = new T.MeshBasicMaterial({ color: 0x35d07f, transparent: true, opacity: 0.15, depthWrite: false, side: T.DoubleSide });
+    var matB = new T.MeshBasicMaterial({ color: 0xff5a5a, transparent: true, opacity: 0.30, depthWrite: false, side: T.DoubleSide });
+    S.instWalk = new T.InstancedMesh(g, matW, MAX_CELLS);
+    S.instBlocked = new T.InstancedMesh(g, matB, MAX_CELLS);
+    S.instWalk.count = 0;
+    S.instBlocked.count = 0;
+    S.instWalk.frustumCulled = false;
+    S.instBlocked.frustumCulled = false;
+    sc.add(S.instWalk);
+    sc.add(S.instBlocked);
+    S.ring = new T.Mesh(new T.RingGeometry(0.30, 0.365, 48),
+      new T.MeshBasicMaterial({ color: 0x8ff7b6, transparent: true, opacity: 0.8, depthWrite: false, depthTest: false }));
+    S.ring.rotation.x = -Math.PI / 2;
+    S.ring.renderOrder = 20;
+    sc.add(S.ring);
+    var cv = document.createElement('canvas');
+    cv.width = 512;
+    cv.height = 256;
+    S.panelCtx = cv.getContext('2d');
+    S.panelTex = new T.CanvasTexture(cv);
+    S.panel = new T.Mesh(new T.PlaneGeometry(1.05, 0.525),
+      new T.MeshBasicMaterial({ map: S.panelTex, transparent: true, depthWrite: false, depthTest: false }));
+    S.panel.renderOrder = 30;
+    sc.add(S.panel);
+    S.snake = new T.Group();
+    S.snake.visible = false;
+    sc.add(S.snake);
+    drawPanel(true);
+  }
+
+
+  /* ------------------------------------------------------------- bucle XR */
+  function onFrame(time, frame) {
+    var r = S.renderer;
+    if (!r) return;
+    var dt = S.last ? Math.min(0.1, Math.max(0, (time - S.last) / 1000)) : 0.016;
+    S.last = time;
+    S.t += dt;
+    S.dt = dt;
+    if (!S.refSpace && r.xr.getReferenceSpace) S.refSpace = r.xr.getReferenceSpace();
+    var head = headPose(frame);
+    S.lastHeadP = head.p.clone();
+    S.lastHeadF = head.fwd.clone();
+    playerStill(head.p, dt);
+    if (S.phase === 'scan') scanStep(frame);
+    else if (S.phase === 'play') updateSnake(dt, head);
+    updateHearts(dt);
+    placeHud(head);
+    r.render(S.scene, S.cam);
+  }
+
+  /* Cuánto tiempo llevas sin moverte (para que se duerma si te paras). */
+  function playerStill(p, dt) {
+    if (!S.lastPlayer) { S.lastPlayer = p.clone(); return S.idleT; }
+    var d = Math.hypot(p.x - S.lastPlayer.x, p.y - S.lastPlayer.y, p.z - S.lastPlayer.z);
+    S.lastPlayer.copy(p);
+    if (d > 0.04) S.idleT = 0; else S.idleT += dt;
+    return S.idleT;
+  }
+
+  /* Posición/orientación de la cabeza en el espacio de referencia. */
+  function headPose(frame) {
+    var T = S.three;
+    var out = { p: new T.Vector3(0, 1.6, 0), q: new T.Quaternion(), fwd: new T.Vector3(0, 0, -1) };
+    if (!frame || !S.refSpace || !frame.getViewerPose) return out;
+    var pose = frame.getViewerPose(S.refSpace);
+    if (!pose) return out;
+    var tr = pose.transform;
+    out.p.set(tr.position.x, tr.position.y, tr.position.z);
+    out.q.set(tr.orientation.x, tr.orientation.y, tr.orientation.z, tr.orientation.w);
+    out.fwd.set(0, 0, -1).applyQuaternion(out.q);
+    return out;
+  }
+
+  /* ------------------------------------------ FASE 1: escanear el cuarto */
+  function scanStep(frame) {
+    var T = S.three, i;
+    if (S.hits && frame && frame.getHitTestResults) {   // suelo apuntando con el mando
+      var res = frame.getHitTestResults(S.hits);
+      for (i = 0; i < res.length; i++) {
+        var pose = res[i].getPose(S.refSpace);
+        if (!pose) continue;
+        var m = new T.Matrix4().fromArray(pose.transform.matrix);
+        var p = new T.Vector3().setFromMatrixPosition(m);
+        var nrm = new T.Vector3(0, 1, 0).transformDirection(m);
+        if (nrm.y < 0.75) continue;            // solo superficies que miran hacia arriba
+        S.floorY = p.y;
+        stampFloor(p.x, p.z, 0.42);
+      }
+    }
+    absorbPlanes(frame);
+    absorbMeshes(frame);
+    /* Plan B: visores sin hit-test ni planos. Tras 15 s se supone el suelo
+       alrededor del jugador para que se pueda jugar igualmente. */
+    if (S.progress < 0.02 && !S.hits && S.t > 15 && S.lastHeadP) {
+      stampFloor(S.lastHeadP.x, S.lastHeadP.z, 1.4);
+      S.msg = 'este visor no da suelo: he supuesto el tuyo alrededor';
+    }
+    var walk = 0;
+    S.cells.forEach(function (c) { if (!c.blocked) walk++; });
+    S.progress = Math.min(1, walk / GOAL);
+    if (S.progress >= 1) finishScan();         // cuarto escaneado: la serpiente sale
+  }
+
+  /* Suelo y muebles detectados por el visor (plane-detection). */
+  function absorbPlanes(frame) {
+    var T = S.three, ps = frame && frame.detectedPlanes;
+    if (!ps || !ps.forEach || !S.refSpace || !frame.getPose) return;
+    if (!S.planes) S.planes = new Set();
+    ps.forEach(function (plane) {
+      if (S.planes.has(plane)) return;
+      var pose = frame.getPose(plane.planeSpace, S.refSpace);
+      if (!pose) return;                       // se reintenta en el siguiente frame
+      S.planes.add(plane);
+      var M = new T.Matrix4().fromArray(pose.transform.matrix);
+      var poly = plane.polygon || [];
+      var pts = [], i;
+      for (i = 0; i < poly.length; i++) {
+        pts.push(new T.Vector3(poly[i].x, poly[i].y, poly[i].z).applyMatrix4(M));
+      }
+      if (pts.length < 3) {                    // sin polígono: ancho × alto
+        var w = (plane.width || 0) / 2, h = (plane.height || 0) / 2;
+        if (w > 0.02 && h > 0.02) {
+          pts.push(new T.Vector3(-w, 0, -h).applyMatrix4(M));
+          pts.push(new T.Vector3(w, 0, -h).applyMatrix4(M));
+          pts.push(new T.Vector3(w, 0, h).applyMatrix4(M));
+          pts.push(new T.Vector3(-w, 0, h).applyMatrix4(M));
+        }
+      }
+      if (pts.length < 3) return;
+      var minx = 1e9, maxx = -1e9, minz = 1e9, maxz = -1e9, miny = 1e9, maxy = -1e9, sy = 0;
+      for (i = 0; i < pts.length; i++) {
+        var p = pts[i];
+        sy += p.y;
+        if (p.x < minx) minx = p.x;
+        if (p.x > maxx) maxx = p.x;
+        if (p.z < minz) minz = p.z;
+        if (p.z > maxz) maxz = p.z;
+        if (p.y < miny) miny = p.y;
+        if (p.y > maxy) maxy = p.y;
+      }
+      var y = sy / pts.length;
+      if ((maxy - miny) < 0.06 && y < S.floorY + 0.12) {
+        for (i = 0; i < pts.length; i++) stampFloor(pts[i].x, pts[i].z, 0.22);
+      } else {
+        addBlock(minx, maxx, minz, maxz, miny, maxy);   // pared, mesa, sofá…
+      }
+    });
+  }
+
+  /* ------------------------------------------------------ mapa de celdas */
+  function cellKey(ix, iz) { return ix + ',' + iz; }
+  function cellOf(x, z) { return { ix: Math.round(x / CELL), iz: Math.round(z / CELL) }; }
+  function walkable(ix, iz) {
+    var c = S.cells.get(cellKey(ix, iz));
+    return !!c && !c.blocked;
+  }
+
+  function stampFloor(x, z, radius) {
+    var r = Math.max(0, Math.ceil(radius / CELL)), c0 = cellOf(x, z);
+    for (var dx = -r; dx <= r; dx++) {
+      for (var dz = -r; dz <= r; dz++) {
+        if (dx * dx + dz * dz > r * r + 1) continue;
+        addCell(c0.ix + dx, c0.iz + dz, false);
+      }
+    }
+  }
+
+  function addCell(ix, iz, blocked) {
+    var k = cellKey(ix, iz), c = S.cells.get(k);
+    if (c) {
+      c.n++;
+      if (blocked && !c.blocked) { c.blocked = true; paintCell(c, true); }
+      return c;
+    }
+    if (S.cells.size >= MAX_CELLS) return null;
+    c = { ix: ix, iz: iz, n: 1, blocked: !!blocked, pw: false, pb: false };
+    S.cells.set(k, c);
+    paintCell(c, !!blocked);
+    return c;
+  }
+
+  /* Cada celda se pinta como losa fina en el suelo: verde = transitable,
+     rojo = obstáculo. InstancedMesh para no crear mil mallas. */
+  function paintCell(c, blocked) {
+    var T = S.three;
+    if (blocked ? c.pb : c.pw) return;
+    var inst = blocked ? S.instBlocked : S.instWalk;
+    if (!inst || inst.count >= MAX_CELLS) return;
+    var m = new T.Matrix4();
+    var q = new T.Quaternion().setFromAxisAngle(new T.Vector3(1, 0, 0), -Math.PI / 2);
+    m.compose(new T.Vector3(c.ix * CELL, S.floorY + (blocked ? 0.006 : 0.003), c.iz * CELL),
+      q, new T.Vector3(1, 1, 1));
+    inst.setMatrixAt(inst.count, m);
+    inst.count++;
+    inst.instanceMatrix.needsUpdate = true;
+    if (blocked) c.pb = true; else c.pw = true;
+  }
+
+  function blockAround(x, z, radius) {
+    var r = Math.max(0, Math.ceil(radius / CELL)), c0 = cellOf(x, z);
+    for (var dx = -r; dx <= r; dx++) {
+      for (var dz = -r; dz <= r; dz++) {
+        if (dx * dx + dz * dz > r * r + 1) continue;
+        addCell(c0.ix + dx, c0.iz + dz, true);
+      }
+    }
+  }
+
+  /* Obstáculo para la colisión fina (caja en XZ, con margen). */
+  function addBlock(x0, x1, z0, z1, y0, y1) {
+    if (S.blocks.length > 400) return;
+    var pad = 0.05;
+    S.blocks.push({ x0: x0 - pad, x1: x1 + pad, z0: z0 - pad, z1: z1 + pad, y0: y0, y1: y1 });
+    var ix0 = Math.round((x0 - pad) / CELL), ix1 = Math.round((x1 + pad) / CELL);
+    var iz0 = Math.round((z0 - pad) / CELL), iz1 = Math.round((z1 + pad) / CELL);
+    if (Math.abs(ix1 - ix0) > 40 || Math.abs(iz1 - iz0) > 40) return;   // pared enorme
+    for (var ix = ix0; ix <= ix1; ix++) {
+      for (var iz = iz0; iz <= iz1; iz++) addCell(ix, iz, true);
+    }
+  }
+
+  function finishScan() {
+    if (S.phase !== 'scan') return;
+    buildRoom();
+    S.phase = 'play';
+    S.mood = 'spawn';
+    S.moodT = 0;
+    S.playT0 = S.t;
+    spawnSnake();
+    drawPanel(true);
+    log('cuarto escaneado: ' + Math.round(S.progress * 100) + ' %');
+  }
+
+  /* Límites del cuarto: caja que envuelve el suelo conocido, 18 cm hacia dentro. */
+  function buildRoom() {
+    var minx = 1e9, maxx = -1e9, minz = 1e9, maxz = -1e9, any = false;
+    S.cells.forEach(function (c) {
+      if (c.blocked) return;
+      any = true;
+      if (c.ix < minx) minx = c.ix;
+      if (c.ix > maxx) maxx = c.ix;
+      if (c.iz < minz) minz = c.iz;
+      if (c.iz > maxz) maxz = c.iz;
+    });
+    if (!any) { minx = -6; maxx = 6; minz = -6; maxz = 6; }
+    var m = 0.18;
+    S.room = {
+      x0: minx * CELL + m, x1: maxx * CELL - m,
+      z0: minz * CELL + m, z1: maxz * CELL - m
+    };
+  }
+
+  /* ------------------------------------------------ navegación y colisión */
+  function insideRoom(x, z) {
+    var r = S.room;
+    return !!r && x >= r.x0 && x <= r.x1 && z >= r.z0 && z <= r.z1;
+  }
+
+  function blockedAt(x, z, pad) {
+    for (var i = 0; i < S.blocks.length; i++) {
+      var b = S.blocks[i];
+      if (x > b.x0 - pad && x < b.x1 + pad && z > b.z0 - pad && z < b.z1 + pad) return true;
+    }
+    return false;
+  }
+
+  /* Solo suelo escaneado, sin obstáculos y dentro del cuarto. */
+  function freeAt(x, z) {
+    if (!insideRoom(x, z)) return false;
+    if (blockedAt(x, z, 0.06)) return false;
+    return walkable(Math.round(x / CELL), Math.round(z / CELL));
+  }
+
+  function clearLine(a, b) {
+    var d = a.distanceTo(b), n = Math.max(2, Math.ceil(d / 0.1));
+    for (var i = 1; i < n; i++) {
+      var t = i / n;
+      if (!freeAt(a.x + (b.x - a.x) * t, a.z + (b.z - a.z) * t)) return false;
+    }
+    return true;
+  }
+
+  function nearestWalk(ix, iz, maxR) {
+    for (var r = 0; r <= maxR; r++) {
+      for (var dx = -r; dx <= r; dx++) {
+        for (var dz = -r; dz <= r; dz++) {
+          if (Math.max(Math.abs(dx), Math.abs(dz)) !== r) continue;
+          if (walkable(ix + dx, iz + dz)) return { ix: ix + dx, iz: iz + dz };
+        }
+      }
+    }
+    return null;
+  }
+
+  var DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]];
+
+  function rebuildPath(prev, cur) {
+    var out = [], k = cellKey(cur[0], cur[1]), guard = 0;
+    while (k && guard++ < 600) {
+      var p = k.split(',');
+      out.push(new S.three.Vector3(parseInt(p[0], 10) * CELL, S.floorY, parseInt(p[1], 10) * CELL));
+      k = prev[k];
+    }
+    out.reverse();
+    return out;
+  }
+
+  /* BFS sobre celdas transitables: la serpiente nunca cruza lo no escaneado. */
+  function findPath(from, to) {
+    var s = cellOf(from.x, from.z), g = cellOf(to.x, to.z);
+    if (!walkable(g.ix, g.iz)) {
+      g = nearestWalk(g.ix, g.iz, 8);
+      if (!g) return null;
+    }
+    if (!walkable(s.ix, s.iz)) {
+      s = nearestWalk(s.ix, s.iz, 8);
+      if (!s) return null;
+    }
+    var goalK = cellKey(g.ix, g.iz), startK = cellKey(s.ix, s.iz);
+    var q = [[s.ix, s.iz]], qi = 0, seen = {}, prev = {}, guard = 0;
+    seen[startK] = 1;
+    while (qi < q.length && guard++ < 5000) {
+      var cur = q[qi++], cx = cur[0], cz = cur[1];
+      if (cellKey(cx, cz) === goalK) return rebuildPath(prev, cur);
+      for (var d = 0; d < 8; d++) {
+        var nx = cx + DIRS[d][0], nz = cz + DIRS[d][1], nk = cellKey(nx, nz);
+        if (seen[nk] || !walkable(nx, nz)) continue;
+        if (d >= 4 && (!walkable(cx + DIRS[d][0], cz) || !walkable(cx, cz + DIRS[d][1]))) continue;
+        if (blockedAt(nx * CELL, nz * CELL, 0.06)) continue;
+        seen[nk] = 1;
+        prev[nk] = cellKey(cx, cz);
+        q.push([nx, nz]);
+      }
+    }
+    return null;
+  }
+
+  function randomWalkPoint(around, radius) {
+    var list = [];
+    S.cells.forEach(function (c) {
+      if (!c.blocked && !blockedAt(c.ix * CELL, c.iz * CELL, 0.06)) list.push(c);
+    });
+    if (!list.length) return null;
+    for (var t = 0; t < 24; t++) {
+      var c = list[(Math.random() * list.length) | 0];
+      var p = new S.three.Vector3(c.ix * CELL, S.floorY, c.iz * CELL);
+      if (around && radius && p.distanceTo(around) > radius) continue;
+      return p;
+    }
+    return null;
+  }
+
+  /* ---------------------------------------------------------- la mascota */
+  function spawnSnake() {
+    var T = S.three;
+    if (S.parts.length) return;
+    var skin = new T.MeshStandardMaterial({ color: 0x2f9b46, roughness: 0.5, metalness: 0.08 });
+    var light = new T.MeshStandardMaterial({ color: 0xd8f58a, roughness: 0.6 });
+    var white = new T.MeshBasicMaterial({ color: 0xf7fff4 });
+    var black = new T.MeshBasicMaterial({ color: 0x10160f });
+    var red = new T.MeshBasicMaterial({ color: 0xe8455f });
+
+    var head = new T.Group();
+    head.add(new T.Mesh(new T.SphereGeometry(0.048, 16, 12), skin));
+    var snout = new T.Mesh(new T.SphereGeometry(0.032, 14, 10), skin);
+    snout.position.set(0, -0.004, 0.032);
+    snout.scale.set(1.25, 0.85, 1.1);
+    head.add(snout);
+    [-1, 1].forEach(function (sd) {
+      var eye = new T.Mesh(new T.SphereGeometry(0.014, 10, 8), white);
+      eye.position.set(0.021 * sd, 0.014, 0.028);
+      head.add(eye);
+      var pup = new T.Mesh(new T.SphereGeometry(0.007, 8, 6), black);
+      pup.position.set(0.021 * sd, 0.014, 0.040);
+      head.add(pup);
+    });
+    var tongue = new T.Group();
+    [-1, 1].forEach(function (sd) {
+      var c = new T.Mesh(new T.ConeGeometry(0.005, 0.055, 6), red);
+      c.position.set(0.008 * sd, 0, 0.03);
+      c.rotation.set(Math.PI / 2, 0, 0.28 * sd);
+      tongue.add(c);
+    });
+    tongue.position.set(0, -0.008, 0.05);
+    head.add(tongue);
+    S.tongue = tongue;
+    S.head = head;
+    S.snake.add(head);
+    S.parts.push(head);
+
+    for (var i = 1; i < SEGS; i++) {
+      var t = i / (SEGS - 1);
+      var ball = new T.Mesh(new T.SphereGeometry(0.038 * (1 - 0.55 * t), 12, 10), light);
+      S.snake.add(ball);
+      S.parts.push(ball);
+    }
+
+    /* Sale enroscada a ~0,9 m delante del jugador, en suelo escaneado. */
+    var base = spawnSpot();
+    S.pts = [];
+    for (i = 0; i < SEGS; i++) {
+      var ang = i * 0.62;
+      var rad = 0.012 + i * 0.011;
+      S.pts.push(new S.three.Vector3(
+        base.x + Math.cos(ang) * rad, S.floorY, base.z + Math.sin(ang) * rad));
+    }
+    S.snake.visible = true;
+    S.snake.scale.setScalar(0.001);
+    S.mood = 'spawn';
+    S.moodT = 0;
+    S.path = null;
+    S.target = null;
+  }
+
+  function spawnSpot() {
+    var T = S.three;
+    var p = S.lastHeadP || new T.Vector3(0, 0, 0);
+    var f = S.lastHeadF || new T.Vector3(0, 0, -1);
+    var x = p.x + f.x * 0.9, z = p.z + f.z * 0.9;
+    if (freeAt(x, z)) return new T.Vector3(x, S.floorY, z);
+    var n = nearestWalkFrom(x, z);
+    if (n) return n;
+    var r = randomWalkPoint(p, 3);
+    return r || new T.Vector3(p.x, S.floorY, p.z + 0.9);
+  }
+
+  function nearestWalkFrom(x, z) {
+    var c = cellOf(x, z);
+    var n = nearestWalk(c.ix, c.iz, 10);
+    return n ? new S.three.Vector3(n.ix * CELL, S.floorY, n.iz * CELL) : null;
+  }
+
+  /* ------------------------------------------------------------ movimiento */
+  function updateSnake(dt, head) {
+    var T = S.three, i;
+    if (!S.parts.length || !S.pts.length) return;
+    S.moodT += dt;
+
+    /* aparición: la serpiente "crece" delante de ti */
+    if (S.mood === 'spawn') {
+      S.snake.scale.setScalar(0.15 + 0.85 * Math.min(1, S.moodT / 1.1));
+      if (S.moodT > 1.3) { S.mood = 'follow'; S.moodT = 0; }
+    }
+
+    /* acariciar: mano o mando a menos de 30 cm de la cabeza */
+    var petting = handNearHead();
+    if (petting && S.mood !== 'pet') { S.mood = 'pet'; S.moodT = 0; addHearts(4); }
+    else if (!petting && S.mood === 'pet') { S.mood = 'follow'; S.moodT = 0; }
+
+    /* si te quedas quieto mucho rato se acurruca y se duerme */
+    if (S.mood !== 'pet' && S.mood !== 'spawn') {
+      if (S.idleT > 45 && S.mood !== 'sleep') { S.mood = 'sleep'; S.moodT = 0; }
+      else if (S.idleT < 1 && S.mood === 'sleep') { S.mood = 'follow'; S.moodT = 0; }
+    }
+
+    var hp = S.pts[0];
+    var tgt = pickTarget(head, dt);
+    var speed = S.mood === 'follow' ? 0.9 : S.mood === 'roam' ? 0.55 : 0;
+    if (S.mood === 'pet' || S.mood === 'sleep' || S.mood === 'idle') speed = 0;
+
+    /* recalcula la ruta cada 0,7 s o si el objetivo se ha movido */
+    S.pathT = (S.pathT || 0) - dt;
+    if (tgt && speed > 0 &&
+        (!S.path || S.pathT <= 0 || !S.pathGoal || S.pathGoal.distanceTo(tgt) > 0.35)) {
+      S.path = findPath(hp, tgt);
+      S.pathI = 0;
+      S.pathGoal = tgt.clone();
+      S.pathT = 0.7;
+    }
+
+    /* waypoint actual, saltando los que ya se ven en línea recta */
+    var wp = tgt;
+    if (S.path && S.path.length) {
+      var guard = 0;
+      while (S.pathI < S.path.length - 1 && guard++ < 6 && clearLine(hp, S.path[S.pathI + 1])) S.pathI++;
+      wp = S.path[S.pathI] || tgt;
+      if (wp && Math.hypot(wp.x - hp.x, wp.z - hp.z) < 0.12) {
+        S.pathI++;
+        wp = S.path[S.pathI] || tgt;
+      }
+    }
+
+    /* avanza la cabeza (con deslizamiento si hay un obstáculo de frente) */
+    if (wp && speed > 0) {
+      var dx = wp.x - hp.x, dz = wp.z - hp.z;
+      var len = Math.hypot(dx, dz);
+      if (len > 0.05) {
+        var step = Math.min(speed * dt, len);
+        var nx = hp.x + (dx / len) * step, nz = hp.z + (dz / len) * step;
+        if (freeAt(nx, nz)) { hp.x = nx; hp.z = nz; }
+        else if (freeAt(nx, hp.z)) { hp.x = nx; }
+        else if (freeAt(hp.x, nz)) { hp.z = nz; }
+        else { S.pathT = 0; }          // atascada: que recalcule ruta
+      }
+    }
+    hp.y = S.floorY;
+    S.moving = speed > 0 && Math.hypot(wp ? wp.x - hp.x : 0, wp ? wp.z - hp.z : 0) > 0.06;
+
+    /* cadena de segmentos: cada uno sigue al anterior a distancia fija */
+    for (i = 1; i < S.pts.length; i++) {
+      var a = S.pts[i - 1], b = S.pts[i];
+      var ddx = b.x - a.x, ddz = b.z - a.z;
+      var dl = Math.hypot(ddx, ddz) || 1e-6;
+      var tx = a.x + (ddx / dl) * SEG_LEN, tz = a.z + (ddz / dl) * SEG_LEN;
+      var curFree = freeAt(b.x, b.z);
+      if (freeAt(tx, tz) || !curFree) { b.x = tx; b.z = tz; }
+      b.y = S.floorY;
+    }
+    positionParts();
+  }
+
+  /* Coloca los segmentos con ondulación lateral y orienta la cabeza. */
+  function positionParts() {
+    var T = S.three, i, n = S.parts.length;
+    var wave = (S.mood === 'sleep' || S.mood === 'pet') ? 0.35 : 1;
+    var freq = S.moving ? 9 : 3.2;
+    for (i = 0; i < n; i++) {
+      var p = S.pts[i], q = S.pts[Math.max(0, i - 1)];
+      var dx = p.x - q.x, dz = p.z - q.z, dl = Math.hypot(dx, dz) || 1;
+      var px = -dz / dl, pz = dx / dl;
+      var amp = 0.024 * wave * Math.min(1, i / 3);
+      var off = Math.sin(S.t * freq - i * 0.85) * amp;
+      var lift = 0.03 + Math.sin(S.t * 3.1 + i * 0.4) * 0.002;
+      S.parts[i].position.set(p.x + px * off, p.y + lift, p.z + pz * off);
+    }
+    /* la cabeza mira hacia donde va; si la acaricias, te mira a ti */
+    var h = S.pts[0], ahead = S.pts[1];
+    var look = new T.Vector3(h.x, h.y + 0.03, h.z);
+    if (S.mood === 'pet' || S.mood === 'sleep' || S.mood === 'idle') {
+      if (S.lastHeadP) look.copy(S.lastHeadP).setY(S.floorY + 0.05);
+    } else if (ahead) {
+      look.set(h.x + (h.x - ahead.x) * 3, S.floorY + 0.03, h.z + (h.z - ahead.z) * 3);
+    }
+    S.parts[0].lookAt(look);
+    /* cabeza un poco levantada cuando está quieta o te mira */
+    var raise = (S.mood === 'pet' || S.mood === 'idle') ? 0.045 : 0;
+    S.parts[0].position.y += raise;
+    if (S.tongue) {
+      var flick = Math.max(0, Math.sin(S.t * 2.6) - 0.75) * 4;
+      S.tongue.scale.set(1, 1, 0.4 + flick);
+      S.tongue.visible = S.mood !== 'sleep';
+    }
+  }
+
+  /* Qué quiere hacer: seguirte, curiosear, dejarse acariciar o dormir. */
+  function pickTarget(head, dt) {
+    var T = S.three, hp = S.pts[0], player = head.p;
+    var dist = Math.hypot(hp.x - player.x, hp.z - player.z);
+    if (S.mood === 'pet' || S.mood === 'sleep') {
+      S.target = null;
+      return null;
+    }
+    if (dist > 1.55) {                       // te sigue a ~0,9 m
+      S.mood = 'follow';
+      S.target = pointNear(player, 0.9, hp) || S.target;
+      return S.target;
+    }
+    if (dist < 0.6) {                        // no se te echa encima
+      S.mood = 'idle';
+      S.target = null;
+      return null;
+    }
+    if (S.mood === 'follow') { S.mood = 'roam'; S.roamT = 0; S.target = null; }
+    S.roamT = (S.roamT || 0) + dt;
+    if (!S.target || S.roamT > 9 ||
+        Math.hypot(S.target.x - hp.x, S.target.z - hp.z) < 0.18) {
+      S.roamT = 0;
+      S.target = randomWalkPoint(player, 2.6) || randomWalkPoint(hp, 2) || null;
+    }
+    return S.target;
+  }
+
+  /* Punto libre a «r» metros del jugador, en la dirección en que está la serpiente. */
+  function pointNear(p, r, from) {
+    var T = S.three;
+    var dx = from.x - p.x, dz = from.z - p.z;
+    var l = Math.hypot(dx, dz);
+    if (l < 0.05) { dx = 0; dz = 1; l = 1; }
+    var x = p.x + (dx / l) * r, z = p.z + (dz / l) * r;
+    if (freeAt(x, z)) return new T.Vector3(x, S.floorY, z);
+    return nearestWalkFrom(x, z);
+  }
+
+  /* ¿Hay una mano o un mando a menos de 30 cm de la cabeza? */
+  function handNearHead() {
+    var sess = S.session, head = S.head;
+    if (!sess || !sess.inputSources || !head) return false;
+    var frame = S.renderer && S.renderer.xr.getFrame ? S.renderer.xr.getFrame() : null;
+    if (!frame || !frame.getPose || !S.refSpace) return false;
+    var c = head.position;
+    for (var i = 0; i < sess.inputSources.length; i++) {
+      var src = sess.inputSources[i];
+      var sp = src.gripSpace || src.targetRaySpace;
+      if (!sp) continue;
+      var pose = null;
+      try { pose = frame.getPose(sp, S.refSpace); } catch (e) { pose = null; }
+      if (!pose) continue;
+      var p = pose.transform.position;
+      if (Math.hypot(p.x - c.x, p.y - c.y, p.z - c.z) < 0.3) return true;
+    }
+    return false;
+  }
+
+  /* Objetos por malla (mesh-detection): la API no da vértices, así que solo
+     se bloquea una zona alrededor de su origen si está por encima del suelo. */
+  function absorbMeshes(frame) {
+    var ms = frame && frame.detectedMeshes;
+    if (!ms || !ms.forEach || !S.refSpace || !frame.getPose) return;
+    ms.forEach(function (mesh) {
+      if (!mesh.meshSpace) return;
+      var pose = frame.getPose(mesh.meshSpace, S.refSpace);
+      if (!pose) return;
+      var p = pose.transform.position;
+      if (p.y > S.floorY + 0.15) blockAround(p.x, p.z, 0.4);
+    });
+  }
+
+  /* ------------------------------------------------------------- adorno */
+  function heartTexture() {
+    if (S.heartTex) return S.heartTex;
+    var c = document.createElement('canvas');
+    c.width = 64;
+    c.height = 64;
+    var g = c.getContext('2d');
+    g.fillStyle = '#ff5a7a';
+    g.beginPath();
+    g.moveTo(32, 58);
+    g.bezierCurveTo(0, 32, 10, 6, 32, 22);
+    g.bezierCurveTo(54, 6, 64, 32, 32, 58);
+    g.fill();
+    S.heartTex = new S.three.CanvasTexture(c);
+    return S.heartTex;
+  }
+
+  function addHearts(n) {
+    var T = S.three;
+    if (!S.scene || !S.head) return;
+    for (var i = 0; i < n; i++) {
+      var sp = new T.Sprite(new T.SpriteMaterial({
+        map: heartTexture(), transparent: true, depthWrite: false
+      }));
+      sp.scale.setScalar(0.07);
+      sp.position.copy(S.head.position);
+      sp.position.x += (Math.random() - 0.5) * 0.12;
+      sp.position.y += 0.09 + Math.random() * 0.06;
+      sp.position.z += (Math.random() - 0.5) * 0.12;
+      sp.userData.age = 0;
+      sp.userData.vel = new T.Vector3((Math.random() - 0.5) * 0.12,
+        0.22 + Math.random() * 0.12, (Math.random() - 0.5) * 0.12);
+      S.scene.add(sp);
+      S.hearts.push(sp);
+    }
+    while (S.hearts.length > 24) {
+      var old = S.hearts.shift();
+      S.scene.remove(old);
+      if (old.material) old.material.dispose();
+    }
+  }
+
+  function updateHearts(dt) {
+    for (var i = S.hearts.length - 1; i >= 0; i--) {
+      var h = S.hearts[i];
+      h.userData.age += dt;
+      h.position.addScaledVector(h.userData.vel, dt);
+      h.scale.setScalar(0.07 + h.userData.age * 0.03);
+      if (h.material) h.material.opacity = Math.max(0, 1 - h.userData.age / 1.6);
+      if (h.userData.age > 1.6) {
+        S.scene.remove(h);
+        if (h.material) h.material.dispose();
+        S.hearts.splice(i, 1);
+      }
+    }
+  }
+
+  /* ------------------------------------------------- panel flotante 3D */
+  function roundRect(g, x, y, w, h, r) {
+    g.beginPath();
+    g.moveTo(x + r, y);
+    g.arcTo(x + w, y, x + w, y + h, r);
+    g.arcTo(x + w, y + h, x, y + h, r);
+    g.arcTo(x, y + h, x, y, r);
+    g.arcTo(x, y, x + w, y, r);
+    g.closePath();
+  }
+
+  function drawPanel(force) {
+    var g = S.panelCtx;
+    if (!g || !S.panelTex) return;
+    var pct = Math.round(S.progress * 100);
+    var stamp = S.phase + '|' + pct + '|' + S.mood + '|' + (S.msg || '');
+    if (!force && S.panelDrawn === stamp) return;
+    S.panelDrawn = stamp;
+    g.clearRect(0, 0, 512, 256);
+    g.fillStyle = 'rgba(6,18,13,.86)';
+    roundRect(g, 6, 6, 500, 244, 24);
+    g.fill();
+    g.strokeStyle = '#2f8f5a';
+    g.lineWidth = 3;
+    roundRect(g, 6, 6, 500, 244, 24);
+    g.stroke();
+    if (S.phase === 'scan') {
+      g.fillStyle = '#8ff7b6';
+      g.font = 'bold 30px system-ui,sans-serif';
+      g.fillText('Escanéame la habitación', 30, 62);
+      g.fillStyle = '#d6ffe6';
+      g.font = '19px system-ui,sans-serif';
+      g.fillText('Apunta al suelo con el mando y ve mirando', 30, 100);
+      g.fillText('alrededor. La serpiente sólo andará por ahí.', 30, 126);
+      g.fillStyle = '#0d2418';
+      roundRect(g, 30, 148, 452, 28, 14);
+      g.fill();
+      g.fillStyle = '#35d07f';
+      roundRect(g, 30, 148, Math.max(10, 452 * S.progress), 28, 14);
+      g.fill();
+      g.fillStyle = '#8ff7b6';
+      g.font = 'bold 24px system-ui,sans-serif';
+      g.fillText(pct + ' %', 30, 216);
+      g.fillStyle = '#9fc4ae';
+      g.font = '18px system-ui,sans-serif';
+      g.fillText('Gatillo = empezar con lo escaneado', 140, 216);
+      if (S.msg) {
+        g.fillStyle = '#ffcf6b';
+        g.font = '16px system-ui,sans-serif';
+        g.fillText(S.msg, 30, 240);
+      }
+    } else {
+      var moods = {
+        spawn: '¡Hola!', follow: 'Te sigue', roam: 'Curioseando',
+        idle: 'Esperando a tu lado', pet: 'Le gustan los mimos', sleep: 'Durmiendo'
+      };
+      g.fillStyle = '#8ff7b6';
+      g.font = 'bold 28px system-ui,sans-serif';
+      g.fillText('Tu serpiente · ' + (moods[S.mood] || 'A tu lado'), 30, 66);
+      g.fillStyle = '#d6ffe6';
+      g.font = '19px system-ui,sans-serif';
+      g.fillText('Gatillo: llámala    ·    Acerca la mano: mimos', 30, 114);
+      g.fillText('Agarre: salir', 30, 144);
+      g.fillStyle = '#9fc4ae';
+      g.font = '16px system-ui,sans-serif';
+      g.fillText('Mapa: ' + S.cells.size + ' celdas · ' + S.blocks.length + ' obstáculos', 30, 196);
+    }
+    S.panelTex.needsUpdate = true;
+  }
+
+  function placeHud(head) {
+    var p = head.p, f = head.fwd;
+    if (S.panel) {
+      S.panel.position.set(p.x + f.x * 1.15, p.y + f.y * 1.15 - 0.2, p.z + f.z * 1.15);
+      S.panel.lookAt(p.x, p.y - 0.2, p.z);
+      S.panel.visible = S.phase === 'scan' || (S.t - (S.playT0 || 0)) < 8;
+    }
+    if (S.ring) {
+      S.ring.position.set(p.x, S.floorY + 0.012, p.z);
+      S.ring.scale.setScalar(0.7 + S.progress * 1.1);
+      S.ring.visible = S.phase === 'scan';
+    }
+    if (S.phase === 'scan') drawPanel(false);
+  }
+
+  /* ----------------------------------------------------------- controles */
+  function onSelect() {
+    if (S.phase === 'scan') {
+      if (S.progress < 0.35) {
+        S.msg = 'escanea un poco más (mínimo 35 %)';
+        drawPanel(true);
+        return;
+      }
+      finishScan();
+    } else if (S.phase === 'play') {
+      callSnake();
+    }
+  }
+
+  function callSnake() {
+    if (!S.parts.length) return;
+    S.mood = 'follow';
+    S.moodT = 0;
+    S.roamT = 0;
+    S.target = null;
+    S.path = null;
+    S.pathT = 0;
+    addHearts(2);
+    drawPanel(true);
+  }
+
+  function onSqueeze() { close(); }
+
+  function reset() {
+    S.phase = 'scan';
+    S.progress = 0;
+    S.msg = '';
+    S.cells = new Map();
+    S.planes = null;
+    S.blocks = [];
+    S.parts = [];
+    S.pts = [];
+    S.hearts = [];
+    S.head = null;
+    S.tongue = null;
+    S.snake = null;
+    S.hits = null;
+    S.refSpace = null;
+    S.room = null;
+    S.floorY = 0;
+    S.path = null;
+    S.target = null;
+    S.pathGoal = null;
+    S.mood = 'scan';
+    S.moodT = 0;
+    S.roamT = 0;
+    S.idleT = 0;
+    S.lastPlayer = null;
+    S.lastHeadP = null;
+    S.lastHeadF = null;
+    S.last = 0;
+    S.moving = false;
+    S.panelDrawn = -1;
+    S.panel = null;
+    S.panelCtx = null;
+    S.panelTex = null;
+    S.ring = null;
+    S.instWalk = null;
+    S.instBlocked = null;
+    S.scene = null;
+    S.cam = null;
+  }
+
+  function cleanup() {
+    var r = S.renderer;
+    if (r) {
+      try { r.setAnimationLoop(null); } catch (e) {}
+      try { r.xr.setSession(null); } catch (e) {}
+      try { r.dispose(); } catch (e) {}
+    }
+    if (S.canvas && S.canvas.parentNode) S.canvas.parentNode.removeChild(S.canvas);
+    if (S.overlay) S.overlay.style.display = 'none';
+    reset();
+    S.renderer = null;
+    S.canvas = null;
+    S.session = null;
+    S.open = false;
+    log('realidad mixta cerrada');
+  }
+
+  function close() {
+    var s = S.session;
+    if (s) {
+      try {
+        var p = s.end();
+        if (p && p.catch) p.catch(function () { cleanup(); });
+      } catch (e) { cleanup(); }
+    } else {
+      cleanup();
+    }
+  }
+
+  /* ---------------------------------------------------------------- API */
+  window.SnakeMr = {
+    __v: S.__v,
+    open: open,
+    close: close,
+    start: function () { finishScan(); },
+    /* ganchos para tests automáticos sin visor (tests/test_mr_pet.js) */
+    __test: {
+      setThree: function (T) { S.three = T; },
+      newMap: function () {
+        S.cells = new Map();
+        S.blocks = [];
+        S.room = null;
+        S.floorY = 0;
+        S.instWalk = null;
+        S.instBlocked = null;
+      },
+      stampFloor: stampFloor,
+      addBlock: addBlock,
+      blockAround: blockAround,
+      buildRoom: buildRoom,
+      freeAt: freeAt,
+      findPath: findPath,
+      walkable: walkable,
+      count: function () { return S.cells.size; }
+    },
+    state: function () {
+      return {
+        version: S.__v,
+        open: !!S.open,
+        xr: !!S.session,
+        mode: S.mode || null,
+        phase: S.phase,
+        progress: Math.round(S.progress * 100),
+        cells: S.cells ? S.cells.size : 0,
+        blocks: S.blocks.length,
+        mood: S.mood,
+        msg: S.msg,
+        room: S.room
+      };
+    }
+  };
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mountBtn);
+  else mountBtn();
+  setTimeout(mountBtn, 2000);      // por si el script se carga de forma diferida
+})();
+/* === fin SNK-MR-MASCOTA === */
