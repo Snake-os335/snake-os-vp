@@ -102,18 +102,30 @@
     clock: null
   };
 
-  /* === SNK-XR-MANDOS (2026.25) ==========================================
-     · Los mandos VR NO se dibujan (ni serpientes-mano ni rayos ni retícula).
+      /* === SNK-XR-MANDOS (2026.27) ==========================================
+     · Los mandos VR no se dibujan (ni serpientes-mano ni empuñaduras), pero
+       el RAYO-PUNTERO sigue a la vista: así se puede apuntar y pulsar el
+       tótem, el escritorio y sus ventanas sin perder la referencia.
      · Stick IZQUIERDO  = moverse (adelante/atrás + lateral).
      · Stick DERECHO    = girar la vista (suave, alrededor de la cabeza).
+     · El gatillo apuntando al SUELO ya no teletransporta mientras se anda
+       con el stick: ese teletransporte ("morder el suelo") dejaba al jugador
+       pegado, avanzaba un milímetro y lo devolvía atrás. Todo lo demás se
+       sigue pudiendo pulsar igual (tótem y pantalla del escritorio).
      Se instala envolviendo XRSession.prototype.requestAnimationFrame: no
      depende de ningún nombre interno del juego y no borra código existente.
-     Para desactivarlo: window.SnakeVrLocomotion.on(false)
+     Para desactivar la locomoción: window.SnakeVrLocomotion.on(false)
+     Puntero visible on/off:        window.SnakeVrLocomotion.pointer(false)
+     Volver a permitir el teletransporte de la mordida:
+                                    window.SnakeVrLocomotion.teleport(true)
+     Volver a ver manos y rayos:    window.SnakeVrLocomotion.hideHands(false)
      Para quitarlo: borra este bloque completo (marcadores SNK-XR-MANDOS).
      ==================================================================== */
   var SNK_XR = {
     on: true,        // locomoción activa
-    hide: true,      // mandos invisibles
+    hide: true,      // mandos invisibles (menos el puntero)
+    pointer: true,   // el rayo-puntero se queda a la vista para poder pulsar
+    noTeleport: true,// el gatillo sobre el suelo no teletransporta
     speed: 2.4,      // m/s con el stick izquierdo
     turn: 1.9,       // rad/s con el stick derecho
     dead: 0.16,      // zona muerta del stick
@@ -122,7 +134,13 @@
     sess: null,      // sesión XR en curso
     base: null,      // posición del rig al empezar (Vector3)
     acc: null,       // desplazamiento acumulado por el stick (Vector3)
-    fights: 0        // veces que hubo que reaplicar la posición del rig
+    fights: 0,       // veces que hubo que reaplicar la posición del rig
+    walked: 0,       // segundos andando con el stick
+    blocked: 0,      // mordidas al suelo descartadas (teletransporte)
+    kills: 0,        // teletransportes pendientes cancelados al andar
+    stickSeen: false,// se ha visto un mando con stick (locomoción posible)
+    rc: null,        // raycaster propio del puntero
+    rcFloor: null    // raycaster propio del suelo
   };
 
   function snkXrLog(msg) {
@@ -155,18 +173,34 @@
     return st.camera;
   }
 
-  /* Oculta todo lo que cuelga de los dos mandos, las serpientes-mano que
-     guarde el juego y la retícula de teletransporte. Se llama cada fotograma
-     porque el juego puede volver a poner visible=true al apretar el gatillo. */
+  function snkXrVis(obj, vis) {
+    if (!obj) return;
+    if (obj.traverse) obj.traverse(function (o) { o.visible = vis; });
+    else obj.visible = vis;
+  }
+
+  /* Deja a la vista sólo el rayo-puntero de cada mando. Se llama cada
+     fotograma porque el juego vuelve a poner visible=true al apretar el
+     gatillo (anima la serpiente-mano y el rayo al morder). */
   function snkXrHideHands() {
-    if (!SNK_XR.hide) return;
     for (var i = 0; i < 2; i++) {
       var ctl = snkXrController(i);
-      if (ctl && ctl.traverse) ctl.traverse(function (o) { o.visible = false; });
+      if (!ctl) continue;
+      var ray = (ctl.userData && ctl.userData.ray) || null;
+      var keepRay = SNK_XR.pointer !== false;
+      var kids = ctl.children || [];
+      for (var k = 0; k < kids.length; k++) {
+        var o = kids[k];
+        if (!o || o === ray) continue;
+        snkXrVis(o, !SNK_XR.hide);
+      }
+      if (ray) {
+        ray.visible = SNK_XR.hide ? keepRay : true;
+        try { if (ray.material) ray.material.opacity = SNK_XR.hide ? 0.32 : 0.55; } catch (eM) {}
+      }
       try {
         if (st.renderer && st.renderer.xr && st.renderer.xr.getControllerGrip) {
-          var grip = st.renderer.xr.getControllerGrip(i);
-          if (grip && grip.traverse) grip.traverse(function (o) { o.visible = false; });
+          snkXrVis(st.renderer.xr.getControllerGrip(i), !SNK_XR.hide);
         }
       } catch (eG) {}
     }
@@ -174,11 +208,10 @@
     for (var h = 0; h < hs.length; h++) {
       var it = hs[h];
       var obj = it && (it.group || it.root || it.holder || it.obj || it.mesh || it);
-      if (obj && obj.traverse) obj.traverse(function (o) { o.visible = false; });
-      else if (obj && typeof obj === 'object') obj.visible = false;
+      if (obj) snkXrVis(obj, !SNK_XR.hide);
     }
     var ret = st.reticles || [];
-    for (var r = 0; r < ret.length; r++) if (ret[r]) ret[r].visible = false;
+    for (var r = 0; r < ret.length; r++) if (ret[r]) ret[r].visible = !SNK_XR.hide;
   }
 
   /* Gamepad del mando izquierdo/derecho (inputSources y, si no, el controller). */
@@ -258,14 +291,30 @@
     st.rig.updateMatrixWorld(true);
   }
 
+  /* El juego, en modo XR, mueve el rig con rig.position.lerp(st.xrMoveTo, dt*6)
+     cuando su "mordida al suelo" deja un teletransporte pendiente. Si se anda
+     con el stick, ese lerp tira del jugador hacia el punto de destino viejo:
+     se avanza un milímetro y se vuelve atrás. Al detectar el stick se cancela
+     el teletransporte pendiente y la posición actual pasa a ser la base. */
+  function snkXrStopTeleport() {
+    if (!st || !st.xrMoveTo) return false;
+    st.xrMoveTo = null;
+    SNK_XR.kills++;
+    snkXrRebase();
+    return true;
+  }
+
   /* Stick izquierdo: adelante/atrás (eje Y) y lateral (eje X) en el plano del
      suelo, mirando hacia donde mira la cabeza. El stick derecho gira. */
   function snkXrWalk(dt) {
     var THREE = st.three, cam = snkXrHead();
     if (!THREE || !cam || !snkXrReady()) return;
     var R = snkXrStick(snkXrGamepad('right'));
+    var gpL = snkXrGamepad('left');
+    if (gpL && gpL.axes && gpL.axes.length > 1) SNK_XR.stickSeen = true;
+    var L = snkXrStick(gpL);
+    if (R[0] || L[0] || L[1]) snkXrStopTeleport();
     if (R[0]) snkXrTurn(-R[0] * SNK_XR.turn * dt);          // stick derecho = girar
-    var L = snkXrStick(snkXrGamepad('left'));
     if (L[0] || L[1]) {
       var fwd = new THREE.Vector3();
       cam.getWorldDirection(fwd);
@@ -275,6 +324,7 @@
         var side = new THREE.Vector3(-fwd.z, 0, fwd.x);
         SNK_XR.acc.addScaledVector(fwd, -L[1] * SNK_XR.speed * dt);
         SNK_XR.acc.addScaledVector(side, L[0] * SNK_XR.speed * dt);
+        SNK_XR.walked += dt;
       }
     }
     snkXrApply();
@@ -282,10 +332,12 @@
 
   /* Después del fotograma del juego: si reescribió la posición del rig, se
      reaplica lo nuestro; si fue un salto grande (su teletransporte), se toma
-     su posición como nueva base y se respeta. */
+     su posición como nueva base y se respeta; si su teletransporte suave está
+     en curso y no hay stick, se le deja mandar a él. */
   function snkXrWatch() {
     var THREE = st.three, rig = st.rig;
     if (!THREE || !rig || !SNK_XR.base || !SNK_XR.acc) return;
+    if (st.xrMoveTo) { SNK_XR.base.copy(rig.position).sub(SNK_XR.acc); return; }
     var want = new THREE.Vector3().copy(SNK_XR.base).add(SNK_XR.acc);
     var d = rig.position.distanceTo(want);
     if (d > 0.5) { SNK_XR.base.copy(rig.position).sub(SNK_XR.acc); return; }
@@ -296,13 +348,63 @@
     }
   }
 
-  /* Un fotograma de XR: mandos ocultos + sticks. dt limitado para que un
-     parón del navegador no dé un salto enorme. */
+  /* Rayo desde la boca del mando hacia lo que se quiera comprobar. */
+  function snkXrAim(c, target, slot) {
+    var THREE = st.three;
+    if (!THREE || !c || !c.matrixWorld || !target) return false;
+    try {
+      var key = slot === 'floor' ? 'rcFloor' : 'rc';
+      var rc = SNK_XR[key] || (SNK_XR[key] = new THREE.Raycaster());
+      var m = new THREE.Matrix4().extractRotation(c.matrixWorld);
+      var o = new THREE.Vector3().setFromMatrixPosition(c.matrixWorld);
+      var d = new THREE.Vector3(0, 0, -1).applyMatrix4(m).normalize();
+      rc.set(o, d);
+      return rc.intersectObject(target, false).length > 0;
+    } catch (eA) { return false; }
+  }
+
+  /* ¿El mando está apuntando a algo pulsable? El tótem (abre/cierra el
+     escritorio) y la pantalla del escritorio, con sus ventanas y botones. */
+  function snkXrAimPlayable(c) {
+    try {
+      if (st.spirit && st.spirit.pickMesh && snkXrAim(c, st.spirit.pickMesh, 'play')) return true;
+      if (st.screenOpen && st.mirrorMesh && snkXrAim(c, st.mirrorMesh, 'play')) return true;
+    } catch (eP) {}
+    return false;
+  }
+
+  /* El gatillo apuntando al suelo es la "mordida" que teletransporta. Con los
+     sticks ya se anda, así que se descarta sólo ese caso: los clics en el
+     tótem y en el escritorio siguen llegando al juego como siempre. Si las
+     gafas no dan ningún stick (no habría forma de andar), no se descarta
+     nada: el teletransporte sigue disponible. */
+  function snkXrGuard(c) {
+    if (!c || c.__snkGuard || typeof c.dispatchEvent !== 'function') return;
+    c.__snkGuard = true;
+    var orig = c.dispatchEvent;
+    c.dispatchEvent = function (ev) {
+      try {
+        if (ev && ev.type === 'selectstart' && SNK_XR.on && SNK_XR.noTeleport &&
+            SNK_XR.stickSeen && SNK_XR.sess && st.mode === 'xr' && st.floorMesh) {
+          if (!snkXrAimPlayable(c) && snkXrAim(c, st.floorMesh, 'floor')) {
+            SNK_XR.blocked++;
+            return true;      /* se traga el evento: ni mordida ni teletransporte */
+          }
+        }
+      } catch (eGu) {}
+      return orig.apply(this, arguments);
+    };
+  }
+
+  /* Un fotograma de XR: puntero/ manos ocultas + guardia del gatillo + sticks.
+     dt limitado para que un parón del navegador no dé un salto enorme. */
   function snkXrFrame(nowMs) {
     var t = (typeof nowMs === 'number' ? nowMs : Date.now()) / 1000;
     var dt = SNK_XR.last ? Math.min(0.1, Math.max(0, t - SNK_XR.last)) : 0.016;
     SNK_XR.last = t;
     snkXrHideHands();
+    snkXrGuard(snkXrController(0));
+    snkXrGuard(snkXrController(1));
     if (SNK_XR.on) snkXrWalk(dt);
   }
 
@@ -354,13 +456,30 @@
   try {
     global.SnakeVrLocomotion = {
       on: function (v) { SNK_XR.on = (v !== false); return SNK_XR.on; },
-      hideHands: function (v) { SNK_XR.hide = (v !== false); if (SNK_XR.hide) snkXrHideHands(); return SNK_XR.hide; },
+      hideHands: function (v) { SNK_XR.hide = (v !== false); snkXrHideHands(); return SNK_XR.hide; },
+      /* El rayo del mando se queda visible para poder apuntar y pulsar. */
+      pointer: function (v) { SNK_XR.pointer = (v !== false); snkXrHideHands(); return SNK_XR.pointer; },
+      /* teleport(false) = la mordida al suelo no te mueve (por defecto). */
+      teleport: function (v) {
+        SNK_XR.noTeleport = (v !== true);
+        if (!SNK_XR.noTeleport) snkXrRebase();
+        return !SNK_XR.noTeleport;
+      },
       speed: function (v) { if (typeof v === 'number' && v > 0) SNK_XR.speed = v; return SNK_XR.speed; },
       turn: function (v) { if (typeof v === 'number' && v > 0) SNK_XR.turn = v; return SNK_XR.turn; },
+      /* Vuelve a poner al jugador donde estaba al entrar en VR. */
+      reset: function () {
+        if (SNK_XR.base && SNK_XR.acc) {
+          SNK_XR.acc.set(0, 0, 0);
+          if (st && st.rig) { st.rig.position.copy(SNK_XR.base); st.rig.updateMatrixWorld(true); }
+        }
+        return true;
+      },
       state: SNK_XR
     };
   } catch (eApi) {}
   /* === fin SNK-XR-MANDOS === */
+
   function vrT(es, en) {
     try {
       var l = global.snakeI18n && global.snakeI18n.lang;

@@ -15,7 +15,20 @@ log(){ echo "$(date "+%F %T") $*" >> "$LOG"; }
 cd "$REPO" || exit 1
 export GIT_TERMINAL_PROMPT=0
 [ "$(git symbolic-ref --short HEAD 2>/dev/null)" = main ] || { log "SKIP: carpeta no está en main"; exit 0; }
-git fetch -q "$URL" +refs/heads/main:refs/remotes/origin/main 2>>"$LOG" || { log "ERROR fetch"; exit 1; }
+# Descarga robusta: reintentos HTTPS (sin credenciales). No cambia merge/deploy.
+FETCH_OK=0
+for FETCH_I in 1 2 3; do
+  if git fetch -q "$URL" +refs/heads/main:refs/remotes/origin/main 2>>"$LOG"; then
+    FETCH_OK=1
+    break
+  fi
+  log "ERROR fetch intento $FETCH_I/3"
+  sleep $((FETCH_I * 5))
+done
+if [ "$FETCH_OK" != 1 ]; then
+  log "ERROR fetch: agotados reintentos a $URL"
+  exit 1
+fi
 OLD=$(git rev-parse HEAD); NEW=$(git rev-parse origin/main)
 [ "$OLD" = "$NEW" ] && exit 0
 [ "$(cat "$BK/bad" 2>/dev/null)" = "$NEW" ] && exit 0  # ya falló: esperar a un commit nuevo
