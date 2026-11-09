@@ -61,12 +61,29 @@ if (!found) {
 console.log('bloque: ' + found.file);
 
 /* Sandbox: sin DOM real y sin XR, sólo lo justo para que el IIFE se evalúe. */
+function fakeEl(tag) {
+  return {
+    tagName: String(tag || 'div').toUpperCase(),
+    style: {}, innerHTML: '', textContent: '', id: '', title: '',
+    children: [], dataset: {}, _q: null,
+    setAttribute: function (k, v) { this[k] = v; },
+    appendChild: function (c) { this.children.push(c); if (c) c.parentNode = this; return c; },
+    removeChild: function (c) { return c; },
+    querySelector: function (sel) {
+      if (!this._q) this._q = {};
+      if (!this._q[sel]) this._q[sel] = fakeEl('button');
+      return this._q[sel];
+    },
+    getContext: function () { return null; }
+  };
+}
 const sandbox = {
   console: console,
   Math: Math,
   Promise: Promise,
   setTimeout: function () {},
   setInterval: function () {},
+  clearInterval: function () {},
   location: { hash: '' },
   navigator: {},
   document: {
@@ -75,7 +92,7 @@ const sandbox = {
     head: null,
     addEventListener: function () {},
     getElementById: function () { return null; },
-    createElement: function () { return { style: {}, getContext: function () { return null; } }; }
+    createElement: function (tag) { return fakeEl(tag); }
   }
 };
 sandbox.window = sandbox;
@@ -128,6 +145,35 @@ t.newMap();
 t.setThree({ Vector3: V3 });
 ok(t.findPath(new V3(0, 0, 0), new V3(1, 0, 1)) === null, 'sin mapa: findPath devuelve null');
 ok(!t.freeAt(0, 0), 'sin mapa: freeAt es false');
+
+console.log('\n5) la mascota se abre desde Snake OS, sin entrar en Snake VR');
+
+ok(typeof sandbox.window.renderSnakeMrApp === 'function', 'window.renderSnakeMrApp existe (app del escritorio)');
+
+/* Ventana «Mascota MR» del escritorio: panel con el botón de abrir/cerrar. */
+const winBody = fakeEl('div');
+const cleanup = sandbox.window.renderSnakeMrApp(winBody);
+ok(winBody.children.length === 1, 'la ventana monta su panel');
+const panel = winBody.children[0];
+const go = panel && panel._q && panel._q['#snk-mr-go'];
+const stTxt = panel && panel._q && panel._q['#snk-mr-st'];
+ok(!!go, 'hay botón «Abrir mascota MR» en el escritorio');
+ok(!!go && go.textContent === '🥽 Abrir mascota MR', 'el botón invita a abrir: ' + (go && go.textContent));
+ok(!!go && typeof go.onclick === 'function', 'el botón abre la mascota (tiene onclick)');
+ok(!!stTxt && /Pulsa el botón/.test(stTxt.textContent), 'explica qué pasa al pulsar: ' + (stTxt && stTxt.textContent));
+ok(typeof cleanup === 'function', 'devuelve la limpieza del refresco de estado');
+
+/* El botón flotante «🐍 MR» ya no depende de tener Snake VR abierto. */
+ok(found.code.indexOf("b.id = 'snk-mr-btn'") !== -1, 'el botón flotante se identifica (#snk-mr-btn)');
+const mountSrc = found.code.slice(found.code.indexOf('function mountBtn'));
+const mountBody = mountSrc.slice(0, mountSrc.indexOf('\n  }\n'));
+ok(mountBody.indexOf('snk-vr-root') !== -1 && !/var on = !!document\.getElementById\('snk-vr-root'\)/.test(mountBody),
+  'el botón flotante se ve en todo Snake OS (no sólo con Snake VR abierto)');
+
+/* index.html registra la app para el escritorio. */
+const idxHtml = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+ok(idxHtml.indexOf("'snake-mr'") !== -1, 'index.html registra la app «Mascota MR» (window.APPS)');
+ok(idxHtml.indexOf('window.renderSnakeMrApp') !== -1, 'index.html la pinta con window.renderSnakeMrApp');
 
 console.log('');
 if (fails) {

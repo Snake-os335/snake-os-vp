@@ -137,7 +137,21 @@ laterales en vivo (hora, versión, estado del escritorio, apps abiertas, novedad
 - API: `window.SnakeVR` (`open({sbs, xr, screen})`, `close()`, `recenter()`, `supported()`,
   `toggleScreen()`, `setScreenOpen(bool)`, `isScreenOpen`, `isOpen`, `mode`) y
   `window.renderSnakeVrApp(body)`.
-- Pruebas: `node tests/test_release_2622.js`, `node tests/test_release_2621.js` (y `tests/test_release_2616.js` … `tests/test_release_2620.js`, que siguen la versión actual).
+- **Mandos y puntero (2026.28 … 2026.30, bloque `SNK-XR-MANDOS`):** en VR los mandos no se dibujan
+  (ni serpientes-mano ni empuñaduras) pero **el rayo-puntero sigue a la vista**; el **stick izquierdo
+  anda** y el **derecho gira** (sin el retroceso de la «mordida al suelo»). El rayo **cuelga de un ancla
+  propia colocada con la pose real del mando** (`frame.getPose`, o la empuñadura si el visor no la da),
+  así que el puntero sigue al mando aunque la jerarquía del juego se quede congelada, y los mandos se
+  emparejan con su objeto por `handedness` (no por orden de conexión). La pestaña se **recarga sola**
+  cuando el servidor sirve otro `?v=`, y con el visor puesto la actualización **espera a que salgas**
+  (`window.__snkXrBusy`). API de ajuste: `window.SnakeVrLocomotion`
+  (`on`, `pointer`, `teleport`, `speed`, `turn`, `reset`, `diag()`, `state`, `version`, `update()`).
+- **Mascota MR desde el escritorio (2026.30):** el botón flotante **🐍 MR** está en todo Snake OS (no
+  hay que entrar en Snake VR) y hay app **🐍 Mascota MR** en el escritorio
+  (`window.renderSnakeMrApp(body)` → `window.SnakeMr.open()`).
+- Pruebas: `node tests/test_release_2622.js`, `node tests/test_release_2621.js` (y `tests/test_release_2616.js` … `tests/test_release_2620.js`, que siguen la versión actual), más
+  `node tests/test_vr_locomotion.js` (61 comprobaciones: sticks, puntero anclado, emparejamiento de
+  mandos), `node tests/test_mr_pet.js` y `node tests/test_update_xr.js`.
 
 ## Doganiero VR (2026.23): buscar gafas + ver lo que ves + juego de realidad mixta
 

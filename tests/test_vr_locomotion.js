@@ -14,6 +14,8 @@
  *   5. el gatillo sobre el suelo se descarta, pero los clics en el tótem y en
  *      el escritorio siguen llegando al juego (se puede seguir pulsando)
  *   6. el rayo-puntero queda visible y la serpiente-mano oculta
+ *   7. el rayo cuelga de un ANCLA propia con la pose real del mando (2026.30)
+ *   8. la pestaña vieja se recarga sola cuando el servidor sirve otro ?v=
  */
 'use strict';
 
@@ -72,15 +74,44 @@ class Quat {
   premultiply() { return this; }
 }
 class Mat4 {
+  constructor() { this.elements = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]; }
   extractRotation() { return this; }
   setFromMatrixPosition() { return this; }
+  fromArray(a) { if (a && a.length >= 16) this.elements = a.slice(); return this; }
+  copy(m) { if (m && m.elements) this.elements = m.elements.slice(); return this; }
+  decompose(p, q, s) {
+    const e = this.elements;
+    if (p) { p.x = e[12]; p.y = e[13]; p.z = e[14]; }
+    return this;
+  }
+}
+/* Object3D mínimo: el parche cuelga el rayo de un ancla propia en la escena. */
+class Object3D {
+  constructor() {
+    this.matrix = new Mat4();
+    this.matrixWorld = new Mat4();
+    this.userData = {};
+    this.children = [];
+    this.parent = null;
+    this.matrixAutoUpdate = true;
+    this.visible = true;
+  }
+  add(o) {
+    if (o.parent && o.parent.children) {
+      const i = o.parent.children.indexOf(o);
+      if (i !== -1) o.parent.children.splice(i, 1);
+    }
+    o.parent = this;
+    this.children.push(o);
+    return this;
+  }
 }
 let HIT = null;                                     // objeto que "toca" el rayo
 class Raycaster {
   set() { return this; }
   intersectObject(target) { return target && target === HIT ? [{ distance: 1 }] : []; }
 }
-const THREE = { Vector3: V3, Quaternion: Quat, Matrix4: Mat4, Raycaster: Raycaster };
+const THREE = { Vector3: V3, Quaternion: Quat, Matrix4: Mat4, Raycaster: Raycaster, Object3D: Object3D };
 
 /* ---- sesión XR falsa: permite disparar fotogramas a mano ---------------- */
 class XRSession {
@@ -163,6 +194,7 @@ const st = {
   three: THREE,
   rig: rig,
   camera: head,
+  scene: new Object3D(),
   mode: 'xr',
   yaw: 0,
   xrMoveTo: null,
@@ -366,6 +398,55 @@ ok(api.state.poseOk > ok0, 'se cuenta como pose correcta: poseOk=' + api.state.p
 sess.frame(8066);
 ok(true, 'un fotograma sin frame no rompe el bucle');
 
+console.log('\n10) el rayo cuelga de un ancla propia, con la pose real (2026.30)');
+
+ok(api.version === '2026.30', 'la versión del parche es la 2026.30: ' + api.version);
+
+/* El objeto del mando del juego se queda clavado (la jerarquía no se refresca).
+   El rayo se cuelga de un ancla del parche colocada con la pose real leída del
+   fotograma: el puntero sigue al mando aunque el juego no mueva su objeto. */
+ctrls[0].matrixWorld.elements = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 1.2, -0.3, 1];
+sess.setStick('left', 0, 0);
+sess.setStick('right', 0, 0);
+sess.frame(9000, poseFrame({ left: [0.42, 1.35, -0.60], right: [-0.35, 1.30, -0.45] }));
+const anchorL = api.state.anchors[0];
+ok(!!anchorL && anchorL.parent === st.scene, 'el ancla del rayo izquierdo cuelga de la escena');
+ok(ctrls[0].userData.ray.parent === anchorL, 'el rayo del juego se cuelga del ancla del parche');
+ok(anchorL && Math.abs(anchorL.matrix.elements[12] - 0.42) < 1e-6 && Math.abs(anchorL.matrix.elements[14] + 0.60) < 1e-6,
+  'el ancla está en la pose REAL del mando: (' +
+  (anchorL ? anchorL.matrix.elements[12] + ', ' + anchorL.matrix.elements[14] : '-') + ')');
+ok(api.state.rayNorm >= 2, 'los dos rayos están colgados de su ancla: rayNorm=' + api.state.rayNorm);
+
+/* Se mueve el mando: el rayo se mueve con él (el objeto del juego sigue quieto). */
+sess.frame(9033, poseFrame({ left: [0.10, 1.10, -0.80], right: [-0.35, 1.30, -0.45] }));
+ok(Math.abs(anchorL.matrix.elements[12] - 0.10) < 1e-6 && Math.abs(anchorL.matrix.elements[14] + 0.80) < 1e-6,
+  'al mover el mando el rayo se mueve: (' + anchorL.matrix.elements[12] + ', ' + anchorL.matrix.elements[14] + ')');
+
+const dg = api.diag();
+ok(dg.pointers[0].parent === 'ancla', 'diag() dice que el rayo lo coloca el ancla');
+ok(dg.pointers[0].rayPos && Math.abs(dg.pointers[0].rayPos.x - 0.10) < 0.02,
+  'diag() da la posición real del rayo: ' + JSON.stringify(dg.pointers[0].rayPos));
+
+/* Marca para la pantalla de actualización: con el visor puesto no se recarga. */
+ok(sandbox.__snkXrBusy === 1, 'se marca «visor en marcha» (__snkXrBusy) en los fotogramas del juego');
+
+/* Y sin frame (navegadores que no lo dan) no se va al origen: sigue la última pose. */
+sess.frame(9066);
+ok(Math.abs(anchorL.matrix.elements[12] - 0.10) < 1e-6,
+  'sin frame se conserva la última pose buena del rayo');
+
+/* El visor puede conectar antes el mando derecho: el parche empareja por mano
+   (lo que anuncia 'connected'), no por posición, así que no cruza los rayos. */
+ctrls[0].userData.snkHand = 'right';
+ctrls[1].userData.snkHand = 'left';
+sess.frame(9099, poseFrame({ left: [0.66, 1.00, -0.55], right: [-0.11, 1.22, -0.33] }));
+const anchorR = api.state.anchors[1];
+ok(anchorR && Math.abs(anchorR.matrix.elements[12] - 0.66) < 1e-6,
+  'el mando izquierdo del visor mueve el objeto que el visor llama izquierdo: ' +
+  (anchorR ? anchorR.matrix.elements[12] : '-'));
+ok(Math.abs(api.state.anchors[0].matrix.elements[12] + 0.11) < 1e-6,
+  'y el derecho va al otro objeto (rayos sin cruzar)');
+
 console.log('\n9) la pestaña vieja se entera y se recarga sola (2026.29)');
 
 /* El servidor ya sirve el snake-vr.js nuevo, pero la pestaña tiene el viejo en
@@ -397,7 +478,7 @@ async function case9() {
   });
   const tick = () => new Promise((r) => setTimeout(r, 10));
 
-  ok(api.version === '2026.29', 'la versión del parche se puede consultar: ' + api.version);
+  ok(api.version === '2026.30', 'la versión del parche se puede consultar: ' + api.version);
   ok(typeof api.update === 'function', 'existe window.SnakeVrLocomotion.update()');
 
   api.update();

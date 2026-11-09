@@ -12,12 +12,17 @@
          ofrece «Ahora no» (queda un aviso con «Actualizar ahora»; se vuelve a lanzar a los 10 min).
    - Al ABRIR Snake OS con una versión distinta de la última vista (localStorage snkSeenVersion) se muestra
      10,5 s la pantalla mientras se refrescan cachés. La primera visita no la muestra.
+   - Con el visor puesto (window.__snkXrBusy, lo marca snake-vr.js) no se recarga en mitad de la partida: la
+     versión nueva se instala en cuanto el jugador sale del visor (el sondeo la reintenta cada 3 s).
    - Cargas nuevas durante el despliegue: página 503 maintenance.html (se recarga sola).
    - window.snakeUpdate = { check, apply, version, pending } para depurar. */
 (function () {
   var KEY = 'snkSeenVersion', SHOW_MS = 10500, POLL_MS = 20000, FAST_MS = 3000, COUNT_S = 10, SNOOZE_MS = 600000;
   var loaded = null, pending = null, shownEl = null, inDeploy = false, applying = false, snoozeUntil = 0, timer = 0, cdTimer = 0;
+  var xrPending = false;   // versión nueva esperando a que el jugador salga del visor
   function en() { try { return window.snakeI18n && window.snakeI18n.lang === 'en'; } catch (e) { return false; } }
+  /* ¿Hay una sesión de VR/realidad mixta en marcha? (lo marca snake-vr.js) */
+  function xrBusy() { try { return !!window.__snkXrBusy; } catch (e) { return false; } }
   function get() { try { return localStorage.getItem(KEY); } catch (e) { return null; } }
   function put(v) { try { localStorage.setItem(KEY, v); } catch (e) {} }
   function loggedIn() { try { return !!window.currentUser; } catch (e) { return false; } }
@@ -67,7 +72,17 @@
     setTimeout(hideScreen, SHOW_MS);
   }
   function reloadNow() {
-    if (applying) return; applying = true; clearInterval(cdTimer);
+    if (applying) return;
+    /* Con el visor puesto (VR o realidad mixta) no se recarga en mitad de la
+       partida: la versión nueva queda pendiente y se instala al salir. Lo marca
+       snake-vr.js con window.__snkXrBusy. */
+    if (xrBusy()) {
+      xrPending = true;
+      try { var d0 = screen(); d0.querySelector('.su-row').classList.remove('on'); } catch (e0) {}
+      msg(en() ? 'The new version will install when you leave the headset.' : 'La versión nueva se instalará al salir del visor.');
+      return;
+    }
+    applying = true; clearInterval(cdTimer);
     if (pending) put(pending); // ya se ha visto la pantalla: al recargar no se repite la de 10,5 s
     var n = document.getElementById('snkUpdNotice'); if (n) n.remove();
     screen().querySelector('.su-row').classList.remove('on');
@@ -78,6 +93,7 @@
   // Fin de la actualización (o versión nueva detectada): recargar ya, o cuenta atrás si hay sesión.
   function finish() {
     if (applying) return;
+    if (xrBusy()) { xrPending = true; return; }   // se instala al salir del visor
     if (!loggedIn()) { reloadNow(); return; }
     if (Date.now() < snoozeUntil) { notice(); return; }
     var d = screen(), left = COUNT_S;
@@ -115,6 +131,8 @@
       if (j.version && loaded && j.version !== loaded) {
         if (pending !== j.version) { pending = j.version; inDeploy = false; finish(); }
         else if (!loggedIn() && !applying) reloadNow(); // al cerrar sesión se instala sola
+        /* Se detectó con el visor puesto: en cuanto se lo quite, se instala. */
+        else if (xrPending && !xrBusy() && !applying) { xrPending = false; reloadNow(); }
       } else if (inDeploy) { inDeploy = false; pending = loaded; finish(); } // update sin cambios: recarga igual
       return j;
     }).catch(function () { if (inDeploy) msg(en() ? 'Restarting Snake OS…' : 'Reiniciando Snake OS…'); return null; })

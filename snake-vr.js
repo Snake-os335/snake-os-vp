@@ -102,15 +102,17 @@
     clock: null
   };
 
-                    /* === SNK-XR-MANDOS (2026.29) ==========================================
+/* === SNK-XR-MANDOS (2026.30) ==========================================
      · Los mandos VR no se dibujan (ni serpientes-mano ni empuñaduras), pero
        el RAYO-PUNTERO sigue a la vista: así se puede apuntar y pulsar el
        tótem, el escritorio y sus ventanas sin perder la referencia.
      · Stick IZQUIERDO  = moverse (adelante/atrás + lateral).
      · Stick DERECHO    = girar la vista (suave, alrededor de la cabeza).
-     · El rayo-puntero va SIEMPRE encima del mando de verdad: en cada fotograma
-       se lee la pose real del mando (frame.getPose) y, si el objeto que dibuja
-       el rayo se ha quedado congelado, se recoloca (2026.28).
+     · El rayo-puntero va SIEMPRE encima del mando de verdad: se lee la pose
+       real del mando (frame.getPose; si no, la empuñadura) y el rayo cuelga
+       de un ANCLA PROPIA del parche, no del objeto del juego, así que el
+       puntero sigue al mando aunque la jerarquía del juego se quede congelada
+       (2026.30). El objeto del mando también se recoloca si hace falta (2026.28).
      · Si el servidor ya sirve un snake-vr.js nuevo y esta pestaña tiene el
        viejo, se recarga sola (nunca dentro de VR): el aviso de «Actualizar
        ahora» es DOM y en el visor no se ve (2026.29).
@@ -127,7 +129,7 @@
      Volver a ver manos y rayos:    window.SnakeVrLocomotion.hideHands(false)
      ¿Dónde está cada puntero?     window.SnakeVrLocomotion.diag()
      ¿Versión nueva?               window.SnakeVrLocomotion.update()
-     Versión del parche:           window.SnakeVrLocomotion.version  ("2026.29")
+     Versión del parche:           window.SnakeVrLocomotion.version  ("2026.30")
      Para quitarlo: borra este bloque completo (marcadores SNK-XR-MANDOS).
      ==================================================================== */
   var SNK_XR = {
@@ -150,6 +152,9 @@
     stickSeen: false,// se ha visto un mando con stick (locomoción posible)
     poseOk: 0,       // fotogramas en que la pose del mando ya era la real
     poseFix: 0,      // fotogramas en que hubo que recolocar el mando del juego
+    anchors: [null, null],  // ancla propia de cada rayo (pose real del mando)
+    rayNorm: 0,      // veces que el rayo se ha colgado de su ancla
+    busyT: null,     // temporizador de window.__snkXrBusy (visor en marcha)
     space: null,     // referenceSpace para leer poses
     spaceAsked: false,
     spaceLocal: false,
@@ -211,12 +216,19 @@
     } catch (eOwn) { return false; }
   }
 
-  /* Mando del juego al que corresponde un inputSource de la sesión. */
+  /* Mando del juego al que corresponde un inputSource de la sesión. El visor
+     puede conectar antes el derecho, así que NO se empareja por posición: se
+     usa el gamepad, la mano que anunció el visor ('connected') y, sólo al
+     final, el orden en que llegan los inputSources. */
   function snkXrCtlFor(src, i) {
     var list = (st.xrControllers && st.xrControllers.length)
       ? st.xrControllers
       : [snkXrController(0), snkXrController(1)];
     var j, c;
+    for (j = 0; j < list.length; j++) {
+      c = list[j];
+      if (c && c.userData && src.handedness && c.userData.snkHand === src.handedness) return c;
+    }
     for (j = 0; j < list.length; j++) {
       c = list[j];
       if (c && c.userData && src.gamepad && c.userData.gamepad === src.gamepad) return c;
@@ -225,9 +237,23 @@
       c = list[j];
       if (c && c.userData && src.handedness && c.userData.handedness === src.handedness) return c;
     }
+    if (list[i]) return list[i];
     if (src.handedness === 'left') return list[0] || null;
     if (src.handedness === 'right') return list[1] || null;
-    return list[i] || null;
+    return null;
+  }
+
+  /* Recuerda qué mano es cada mando del juego (el visor lo dice al conectar). */
+  function snkXrTagHands(c) {
+    if (!c || c.__snkTag || typeof c.addEventListener !== 'function') return;
+    c.__snkTag = true;
+    c.addEventListener('connected', function (ev) {
+      try {
+        var d = ev && ev.data;
+        if (d && d.handedness) c.userData.snkHand = d.handedness;
+        if (d && d.gamepad) c.userData.gamepad = d.gamepad;
+      } catch (eT) {}
+    });
   }
 
   /* Espacio de referencia para leer las poses de los mandos. Normalmente el del
@@ -331,41 +357,116 @@
     snkXrAutoUpdate();
   }
 
+  /* Ancla propia para el rayo-puntero. El rayo del juego es hijo del objeto
+     del mando (getController): si esa jerarquía se queda congelada (objeto que
+     no se actualiza, renderer recreado, pose que no llega…), el rayo no se
+     mueve. Aquí el rayo se cuelga de un Object3D NUESTRO, metido en la escena,
+     y su matriz se escribe con la pose real del mando en cada fotograma: el
+     puntero sigue al mando pase lo que pase con la jerarquía del juego. */
+  function snkXrRayAnchor(i) {
+    var THREE = st.three;
+    if (!THREE || !THREE.Object3D || !st.scene) return null;
+    var a = SNK_XR.anchors[i];
+    if (!a) a = SNK_XR.anchors[i] = new THREE.Object3D();
+    a.matrixAutoUpdate = false;
+    if (a.parent !== st.scene) {
+      try { st.scene.add(a); } catch (eAdd) { return null; }
+    }
+    return a;
+  }
+
+  /* Cuelga el rayo del ancla (una vez) y coloca el ancla en la pose real. */
+  function snkXrRayTo(i, ctl, arr) {
+    var ray = (ctl && ctl.userData && ctl.userData.ray) || null;
+    var a = snkXrRayAnchor(i);
+    if (!a) return null;
+    var use = arr;
+    /* Primera vez sin pose del fotograma: se arranca desde donde el juego tenga
+       el mando. Después manda SIEMPRE la pose real (si no llega, se conserva la
+       última buena; nunca se vuelve a la del objeto, que puede estar congelada). */
+    if (!use && !(a.userData && a.userData.snkPos)) {
+      use = (ctl && ctl.matrixWorld && ctl.matrixWorld.elements) || null;
+    }
+    if (use && a.matrix && typeof a.matrix.fromArray === 'function') {
+      try {
+        a.matrix.fromArray(use);
+        if (a.matrixWorld && typeof a.matrixWorld.fromArray === 'function') a.matrixWorld.fromArray(use);
+        if (a.userData) a.userData.snkPos = true;
+      } catch (eAm) {}
+    }
+    /* Sin pose conocida todavía no se mueve el rayo: se deja donde el juego. */
+    if (!(a.userData && a.userData.snkPos)) return a;
+    if (ray && ray.parent !== a) {
+      try {
+        /* Al reabrir Snake VR el juego crea un rayo nuevo: el viejo se quita del
+           ancla para que no quede un rayo fantasma en la escena. */
+        var kids = a.children || [];
+        for (var k = kids.length - 1; k >= 0; k--) {
+          if (kids[k] !== ray && a.remove) a.remove(kids[k]);
+        }
+        a.add(ray);
+        SNK_XR.rayNorm++;
+      } catch (eRep) {}
+    }
+    return a;
+  }
+
   /* El rayo-puntero es hijo del objeto del mando que usa el juego
      (renderer.xr.getController → target-ray space). Esa pose la escribe
      three.js en cada fotograma con frame.getPose(); si se queda congelada
      (el objeto no está en el árbol que se actualiza, el renderer se recreó,
      el juego paró su bucle…), el puntero se queda clavado en un punto fijo.
      Aquí se lee la pose REAL del mando en el fotograma y, si no coincide con
-     la del objeto, se copia: el rayo vuelve a estar donde está el mando. */
+     la del objeto, se copia: el rayo vuelve a estar donde está el mando.
+     Además el rayo se cuelga de un ancla propia (snkXrRayTo), así que aunque
+     la jerarquía del juego esté muerta el puntero sigue al mando. */
   function snkXrPoseSync(frame) {
-    if (!frame || typeof frame.getPose !== 'function') return;
-    var rs = snkXrSpace();
-    if (!rs) return;
+    var rs = frame && typeof frame.getPose === 'function' ? snkXrSpace() : null;
     var sess = snkXrSession();
     var srcs = (sess && sess.inputSources) || [];
+    var list = (st.xrControllers && st.xrControllers.length) ? st.xrControllers : [];
     for (var i = 0; i < srcs.length; i++) {
       var src = srcs[i];
-      if (!src || !src.targetRaySpace) continue;
+      if (!src) continue;
       var ctl = snkXrCtlFor(src, i);
-      if (!ctl || !ctl.matrix || typeof ctl.matrix.fromArray !== 'function') continue;
-      var pose = null;
-      try { pose = frame.getPose(src.targetRaySpace, rs); } catch (ePos) {}
-      var tr = pose && pose.transform;
-      var arr = tr && (tr.matrix || (tr.position && [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        tr.position.x, tr.position.y, tr.position.z, 1]));
-      if (!arr) continue;
-      var mw = ctl.matrixWorld && ctl.matrixWorld.elements;
-      var dx = arr[12] - (mw ? mw[12] : 0);
-      var dy = arr[13] - (mw ? mw[13] : 0);
-      var dz = arr[14] - (mw ? mw[14] : 0);
-      if (mw && Math.sqrt(dx * dx + dy * dy + dz * dz) < 0.05) { SNK_XR.poseOk++; continue; }
-      try {
-        ctl.matrix.fromArray(arr);
-        ctl.matrix.decompose(ctl.position, ctl.quaternion, ctl.scale);
-        ctl.matrixWorldNeedsUpdate = true;
-        SNK_XR.poseFix++;
-      } catch (eAp) {}
+      if (!ctl) continue;
+      var idx = list.indexOf ? list.indexOf(ctl) : -1;
+      if (idx < 0) idx = i;
+      var arr = null, mw = (ctl.matrixWorld && ctl.matrixWorld.elements) || null;
+      if (rs && src.targetRaySpace) {
+        var pose = null;
+        try { pose = frame.getPose(src.targetRaySpace, rs); } catch (ePos) {}
+        /* Si el visor no da la pose del rayo, al menos la de la empuñadura. */
+        if (!pose && src.gripSpace) {
+          try { pose = frame.getPose(src.gripSpace, rs); } catch (eGrip) {}
+        }
+        var tr = pose && pose.transform;
+        arr = (tr && (tr.matrix || (tr.position && [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+          tr.position.x, tr.position.y, tr.position.z, 1]))) || null;
+      }
+      if (arr) {
+        var dx = arr[12] - (mw ? mw[12] : 0);
+        var dy = arr[13] - (mw ? mw[13] : 0);
+        var dz = arr[14] - (mw ? mw[14] : 0);
+        if (mw && Math.sqrt(dx * dx + dy * dy + dz * dz) < 0.05) {
+          SNK_XR.poseOk++;          /* el mando del juego ya está bien: no se toca */
+        } else if (ctl.matrix && typeof ctl.matrix.fromArray === 'function') {
+          try {
+            ctl.matrix.fromArray(arr);
+            ctl.matrix.decompose(ctl.position, ctl.quaternion, ctl.scale);
+            /* El clic del juego (raycast con matrixWorld) apunta ya bien en
+               ESTE fotograma, sin esperar al siguiente. */
+            if (ctl.matrixWorld && typeof ctl.matrixWorld.fromArray === 'function') {
+              ctl.matrixWorld.fromArray(arr);
+            }
+            ctl.matrixWorldNeedsUpdate = true;
+            SNK_XR.poseFix++;
+          } catch (eAp) {}
+        }
+      }
+      /* El rayo se coloca con la pose REAL del fotograma (precisión completa),
+         cuelgue de donde cuelgue el objeto del mando. */
+      snkXrRayTo(idx, ctl, arr);
     }
   }
 
@@ -589,6 +690,20 @@
     };
   }
 
+  /* Marca «hay visor en marcha» (window.__snkXrBusy) para que la pantalla de
+     actualización (snake-update-screen.js) no recargue la página en mitad de la
+     partida: la versión nueva se instala al salir del visor. Se apaga sola si
+     los fotogramas dejan de llegar (sesión cerrada). */
+  function snkXrBusyOn() {
+    try { global.__snkXrBusy = 1; } catch (eB) {}
+    try { if (SNK_XR.busyT) clearTimeout(SNK_XR.busyT); } catch (eC) {}
+    try {
+      SNK_XR.busyT = setTimeout(function () {
+        try { global.__snkXrBusy = 0; } catch (eZ) {}
+      }, 1200);
+    } catch (eT) {}
+  }
+
   /* Un fotograma de XR: mando en su sitio + puntero/manos + guardia + sticks.
      dt limitado para que un parón del navegador no dé un salto enorme. */
   function snkXrFrame(nowMs, sess, frame) {
@@ -597,6 +712,9 @@
     SNK_XR.last = t;
     /* Sesión de otro módulo (mascota de realidad mixta): se respeta tal cual. */
     if (!snkXrOwn(sess)) return;
+    snkXrBusyOn();
+    snkXrTagHands(snkXrController(0));
+    snkXrTagHands(snkXrController(1));
     snkXrPoseSync(frame);
     snkXrHideHands();
     snkXrGuard(snkXrController(0));
@@ -614,6 +732,7 @@
       try {
         orig.call(sess, function () {
           try {
+            snkXrBusyOn();
             snkXrHideHands();
             if (st.renderer && st.scene && st.camera) st.renderer.render(st.scene, st.camera);
           } catch (eR) {}
@@ -673,6 +792,7 @@
          Si "d" es grande, el rayo no está en el mando. */
       diag: function () {
         var out = { pointers: [], poseOk: SNK_XR.poseOk, poseFix: SNK_XR.poseFix,
+          rayNorm: SNK_XR.rayNorm, space: SNK_XR.space ? (SNK_XR.spaceLocal ? 'local' : 'local-floor/visor') : null,
           hide: SNK_XR.hide, pointer: SNK_XR.pointer, sess: !!SNK_XR.sess, rig: null };
         try {
           if (st && st.rig && st.rig.position) {
@@ -686,16 +806,23 @@
           var e = (ctl && ctl.matrixWorld && ctl.matrixWorld.elements) || null;
           var g = (grip && grip.matrixWorld && grip.matrixWorld.elements) || null;
           var ray = (ctl && ctl.userData && ctl.userData.ray) || null;
+          var a = SNK_XR.anchors[i] || null;
+          var am = (a && a.matrix && a.matrix.elements) || null;
           out.pointers.push({
             i: i,
             ctl: !!ctl,
             ray: !!ray,
             rayVisible: ray ? ray.visible : null,
             len: ray && ray.scale ? +Number(ray.scale.z || 0).toFixed(2) : null,
+            /* parent: “ancla” = el rayo lo coloca el parche con la pose real */
+            parent: ray && ray.parent === a ? 'ancla' : (ray && ray.parent ? 'juego' : null),
             ctlPos: e ? { x: +e[12].toFixed(2), y: +e[13].toFixed(2), z: +e[14].toFixed(2) } : null,
             gripPos: g ? { x: +g[12].toFixed(2), y: +g[13].toFixed(2), z: +g[14].toFixed(2) } : null,
+            rayPos: am ? { x: +am[12].toFixed(2), y: +am[13].toFixed(2), z: +am[14].toFixed(2) } : null,
             /* d: cuánto se separa el dibujo del mando real (0 = perfecto) */
-            d: (e && g) ? +Math.hypot(e[12] - g[12], e[13] - g[13], e[14] - g[14]).toFixed(2) : null
+            d: (e && g) ? +Math.hypot(e[12] - g[12], e[13] - g[13], e[14] - g[14]).toFixed(2) : null,
+            /* dRay: cuánto se separa el rayo dibujado del mando real */
+            dRay: (am && g) ? +Math.hypot(am[12] - g[12], am[13] - g[13], am[14] - g[14]).toFixed(2) : null
           });
         }
         try { if (console.table) console.table(out.pointers); } catch (eT) {}
@@ -713,7 +840,7 @@
          recarga aunque estés en VR (por defecto nunca recarga dentro de VR). */
       update: function (force) { SNK_XR.updDone = false; snkXrAutoUpdate(force === true); return { updNew: SNK_XR.updNew, updTo: SNK_XR.updTo, updDone: SNK_XR.updDone }; },
       state: SNK_XR,
-      version: '2026.29'
+      version: '2026.30'
     };
   } catch (eApi) {}
   /* === fin SNK-XR-MANDOS === */
@@ -2897,8 +3024,10 @@
    SOLO por suelo conocido, rodea los obstáculos y no sale del cuarto.
 
    Uso:
-     · Aparece un botón «🐍 MR» abajo a la derecha mientras Snake VR está
-       abierto (o entrando con la URL acabada en #mr).
+     · Botón «🐍 MR» flotante abajo a la derecha en cualquier pantalla de
+       Snake OS (escritorio y Snake VR): no hace falta entrar en Snake VR para
+       abrir la mascota.
+       También hay una ventana «Mascota MR» en el escritorio (icono 🐍).
      · Al pulsarlo se entra en XR con passthrough: immersive-ar si el visor
        lo soporta, si no immersive-vr.
      · Fase 1 ESCANEO: mira alrededor y apunta al suelo hasta el 100 %.
@@ -2967,6 +3096,10 @@
   }
 
   /* ---------------------------------------------------------------- UI 2D */
+  /* Botón flotante «🐍 MR». Está SIEMPRE en Snake OS (escritorio incluido):
+     para abrir la mascota no hace falta entrar en Snake VR. Dentro de Snake VR
+     se queda igual que siempre (abajo a la derecha); en el escritorio sube un
+     poco para no tapar el dock. Se oculta mientras la mascota está abierta. */
   function mountBtn() {
     if (S.btn || !document.body) return;
     var b = makeEl('button', css({
@@ -2977,14 +3110,18 @@
       font: '600 14px/1 system-ui,system-ui,sans-serif',
       boxShadow: '0 6px 20px rgba(0,0,0,.45)', display: 'none'
     }), '🐍 MR');
+    b.id = 'snk-mr-btn';
     b.title = 'Mascota de realidad mixta: una serpiente en tu habitación';
     b.onclick = function () { open(); };
     document.body.appendChild(b);
     S.btn = b;
-    /* Solo mientras Snake VR está abierto (su root es #snk-vr-root), o con #mr. */
     setInterval(function () {
-      var on = !!document.getElementById('snk-vr-root') || /(^|#)mr\b/.test(location.hash);
-      if (S.open) on = false;
+      /* Sólo donde hay WebXR (Quest y visores); en un PC sin visor no aparece. */
+      var xr = !!(navigator && navigator.xr && navigator.xr.requestSession);
+      var on = xr && !S.open && !document.hidden;
+      var inVr = !!document.getElementById('snk-vr-root');
+      var bottom = inVr ? '18px' : '88px';
+      if (b.style.bottom !== bottom) b.style.bottom = bottom;
       if (b.style.display !== (on ? 'block' : 'none')) b.style.display = on ? 'block' : 'none';
     }, 1200);
   }
@@ -3145,7 +3282,19 @@
 
 
   /* ------------------------------------------------------------- bucle XR */
+  /* Marca «visor en marcha» mientras la mascota está en XR: la pantalla de
+     actualización (snake-update-screen.js) no recarga en mitad de la sesión y
+     la instala al salir. Se apaga sola si los fotogramas dejan de llegar. */
+  function busyOn() {
+    try { window.__snkXrBusy = 1; } catch (eB) {}
+    try {
+      if (S.busyT) clearTimeout(S.busyT);
+      S.busyT = setTimeout(function () { try { window.__snkXrBusy = 0; } catch (eZ) {} }, 1200);
+    } catch (eT) {}
+  }
+
   function onFrame(time, frame) {
+    busyOn();
     var r = S.renderer;
     if (!r) return;
     var dt = S.last ? Math.min(0.1, Math.max(0, (time - S.last) / 1000)) : 0.016;
@@ -3950,6 +4099,7 @@
     }
     if (S.canvas && S.canvas.parentNode) S.canvas.parentNode.removeChild(S.canvas);
     if (S.overlay) S.overlay.style.display = 'none';
+    try { window.__snkXrBusy = 0; if (S.busyT) clearTimeout(S.busyT); } catch (eB) {}
     reset();
     S.renderer = null;
     S.canvas = null;
@@ -3968,6 +4118,59 @@
     } else {
       cleanup();
     }
+  }
+
+  /* -------------------------------------------- app «Mascota MR» del OS */
+  /* Ventana del escritorio de Snake OS: abre la mascota de realidad mixta sin
+     tener que entrar antes en Snake VR. Muestra el estado de la sesión en
+     marcha (escaneo %, fase) y deja cerrarla desde aquí. */
+  function renderSnakeMrApp(body) {
+    if (!body) return function () {};
+    var wrap = makeEl('div', 'padding:16px 18px;height:100%;box-sizing:border-box;overflow:auto;' +
+      'font:500 14px/1.5 system-ui,system-ui,sans-serif;color:#d6ffe6;background:#08150f');
+    wrap.innerHTML =
+      '<div style="font-size:34px;line-height:1">🐍</div>' +
+      '<div style="font-size:17px;font-weight:700;margin:6px 0 4px">Mascota de realidad mixta</div>' +
+      '<div style="opacity:.85;margin-bottom:12px">Una serpiente vive en tu habitación: primero se ' +
+      'escanea el cuarto apuntando al suelo con el mando y después aparece la mascota, que se mueve ' +
+      'sólo por suelo conocido. Hace falta un visor con WebXR y passthrough (Meta Quest o similar).</div>' +
+      '<button id="snk-mr-go" style="width:100%;padding:12px 16px;border-radius:12px;cursor:pointer;' +
+      'background:linear-gradient(180deg,#123a24,#0b2a1a);color:#8ff7b6;border:1px solid #2f8f5a;' +
+      'font:700 15px/1 system-ui,sans-serif">🥽 Abrir mascota MR</button>' +
+      '<div id="snk-mr-st" style="opacity:.75;margin-top:10px;font-size:13px"></div>' +
+      '<div style="opacity:.55;margin-top:10px;font-size:12px">También está el botón «🐍 MR» del ' +
+      'escritorio, abajo a la derecha.</div>';
+    body.appendChild(wrap);
+    var go = wrap.querySelector('#snk-mr-go');
+    var stEl = wrap.querySelector('#snk-mr-st');
+    var read = function () {
+      try { if (window.SnakeMr && window.SnakeMr.state) return window.SnakeMr.state() || {}; } catch (e) {}
+      return {};
+    };
+    var paint = function () {
+      var s = read();
+      var txt;
+      if (s.xr) {
+        txt = 'En marcha (' + (s.mode || 'xr') + '). ' +
+          (s.phase === 'scan' ? 'Escaneando el cuarto: ' + (s.progress || 0) + ' % (apunta al suelo).'
+            : s.phase === 'play' ? 'La serpiente ya está fuera: gatillo para llamarla, agarre para salir.'
+              : 'Fase: ' + s.phase + '.');
+      } else if (s.open) txt = 'Abriendo… ponte las gafas.';
+      else txt = 'Pulsa el botón; el navegador pedirá permiso para entrar en el visor.';
+      if (stEl.textContent !== txt) stEl.textContent = txt;
+      var label = s.open ? '⏹ Cerrar mascota MR' : '🥽 Abrir mascota MR';
+      if (go.textContent !== label) go.textContent = label;
+    };
+    go.onclick = function () {
+      try {
+        if (read().open) close();
+        else open();
+      } catch (e) {}
+      paint();
+    };
+    paint();
+    var t = setInterval(paint, 800);
+    return function () { try { clearInterval(t); } catch (e) {} };
   }
 
   /* ---------------------------------------------------------------- API */
@@ -4012,6 +4215,9 @@
       };
     }
   };
+
+  /* App «Mascota MR» del escritorio de Snake OS (window.APPS['snake-mr']). */
+  window.renderSnakeMrApp = renderSnakeMrApp;
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mountBtn);
   else mountBtn();

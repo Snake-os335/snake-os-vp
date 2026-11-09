@@ -14984,6 +14984,13 @@ function renderStoreApp(container){
       }
       return window.renderSnakeVrApp(body);
     } },
+    'snake-mr': { title:'Mascota MR', icon:'🐍', width:430, height:470, render: function(body){
+      if(typeof window.renderSnakeMrApp !== 'function'){
+        body.innerHTML = '<div style="padding:16px;color:#ff8a7a">No se pudo cargar la mascota MR. Recarga la página.</div>';
+        return function(){};
+      }
+      return window.renderSnakeMrApp(body);
+    } },
     chat:     { title:'Doganiero Chat', icon:'💬', width:720, height:520, render: renderDoganieroChatAppWrapper },
     desk:     { title:'Doganiero Desk', icon:'🖥️', width:860, height:640, render: renderDoganieroDeskAppWrapper },
     store:    { title:'Doganiero Store', icon:'🛍️', iconImg: STORE_ICON_URL, iconImgClass: 'store-logo', iconHtml: appIconImgHtml(STORE_ICON_URL, 'store-logo'), width:720, height:580, render: renderStoreApp },
