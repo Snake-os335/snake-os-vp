@@ -201,85 +201,84 @@ Dos páginas nuevas en este mismo servidor (no hace falta otro despliegue):
   `mirrorStream()`, `state()`, `supported()`).
 - **Pruebas:** `node tests/test_release_2623.js` (y `tests/test_release_2616.js` … `tests/test_release_2622.js`).
 
-## Doga Gorilla (2026.31): juego VR tipo «gorilla tag», sin terror
+## Doga Tag VR (2026.32): pilla-pilla estilo «gorilla tag» en el bosque de Doganiero
 
-Juego nuevo, con página propia en este mismo servidor:
+Sustituye al juego anterior de 2026.31 (ya no está `doga-gorilla.js`). Es el juego completo: bosque
+con **Ciudad Doganiero**, bots, **Doga-huesos**, tienda de cosméticos, power-ups, audio procedural y
+**WebXR** con locomoción de brazos. No hay paso de compilación: Three.js r160 va dentro del propio
+juego, en `doga-tag-vr/lib/three.module.js` (módulos ES + `importmap`), así que funciona sin CDN.
 
 | Dónde se abre | Para qué |
 | --- | --- |
-| <https://snake-os-vp.softportweb.com/doga-gorilla> | la página del juego (y vista previa sin gafas) |
+| <https://snake-os-vp.softportweb.com/doga-gorilla> | la página del juego (también `/doga-tag-vr`) |
 | <https://doga-gorilla.softportweb.com> | lo mismo, en su propio subdominio cuando el túnel lo publique |
 
-- **Cómo se anda (lo importante):** igual que en *gorilla tag*, **sin sticks**. Apoyas una mano en el
-  suelo, en una pared, en una seta o en una gelatina y la **arrastras**: cada mano que roza una
-  superficie empuja al cuerpo en sentido contrario (`PUSH_K`, alcance `HAND_REACH = 1.15 m`). Arrastrar
-  las manos hacia abajo **salta**; en el aire sigue el impulso (`GRAVITY = -12.5`, tope
-  `MAX_SPEED = 9.5 m/s`) y se encadenan empujones.
-- **Te ves el cuerpo (monke sin piernas):** `buildAvatar` cuelga de `S.player` un grupo
-  `doga-gorilla-monke` con torso, barriga, morro, orejas, hombros, **brazos largos** (`armL`/`armR`, se
-  estiran del hombro a la mano) y **manos** (`makeHand`: palma, nudillos, pulgar, puño). Cada fotograma
-  `updateAvatar` coloca las manos con la pose real de los mandos (`gripSpace`, posición y orientación) y
-  el brazo apunta a la mano; el puño se cierra con el gatillo. Sin gafas, las manos cuelgan y se
-  balancean, así que en la vista previa también se ve el gorila entero.
-- **El suelo, a la altura del pecho:** el jugador es bajito como en el original. `EYE_MONKE = 1.15 m`
-  son los ojos del monke sobre el suelo y el cuerpo se baja `drop = clamp(altura_real_de_tus_ojos -
-  EYE_MONKE, 0, DROP_MAX = 1.05)` (campo `S.drop`, suavizado). Con eso el suelo virtual queda a la
-  altura del pecho y las manos alcanzan el suelo sin agacharse de más. Todo lo que usa la altura
-  (empujar, tocar cosas, HUD, cámara de la vista previa) descuenta ese `drop`.
-- **Trepar con el gatillo (grip):** con el botón `1` del mando apretado y la mano sobre el suelo o
-  junto a un tronco (`trunkNear`, troncos y cristales apuntados en `S.trunks`), el cuerpo se mueve
-  **1:1** con la mano: bajas las manos y subes, las subes y bajas. Así puedes trepar por los árboles y
-  columpiarte, el truco clásico del original.
-- **Tres mundos bonitos y con límites de verdad:** `prado` (Prado de las Nubes, r 26 m), `caramelo`
-  (Isla Caramelo, r 24 m) y `cristal` (Selva de Cristal, r 25 m). En el borde hay una **pared
-  invisible** (`radius - 0.9`) que rebota y avisa, y **no se puede caer al vacío**: por debajo de
-  `FALL_Y = -9` vuelves al centro. Cielo con degradado, sol, hierba, lago, árboles, flores, farolillos,
-  luciérnagas, mariposas y arcoíris; nada de oscuridad ni de sustos.
-- **Cosas con las que jugar:** orbes ⭐ que se recogen (`respawnOrbs`), campanas 🔔, setas y gelatinas
-  🍄 que te lanzan, molinos que giran y bichitos 🦋 que salen volando. Todo con sonido y **vibración**
-  en los mandos (`hapticActuators`).
-- **HUD:** un cartel flotante (`makeHud`/`drawHud`/`placeHud`) con mundo, orbes, campanas y saltos; se
-  esconde solo mientras estás empujando y vuelve cuando paras.
-- **El look es pixelado, como el Gorilla Tag original:** nada de texturas realistas. Todo el juego usa
-  **caras planas** (`flatShading`, vía `flatMat`) y **pocos polígonos** (torso `IcosahedronGeometry`,
-  brazos de 6 caras, manos de bloques, colinas y copas icosaédricas, nubes de cajas), **texturas de
-  píxeles** dibujadas a mano en mapas de letras (`pixelTex` con `FUR_MAP` para el pelo del monke y
-  `GRASS_MAP` para la hierba) mostradas con **`NearestFilter`** (el píxel se ve cuadrado, sin suavizar),
-  y el **cielo en bandas** (`skyTexture`, 12 escalones duros). Los colores son lisos y saturados, con la
-  **paleta de monkes** del original (`MONKES`: azul, verde, naranja, rosa, rojo, morado, lima, marrón);
-  cada mundo tiñe su monke (`paintMonke`). En la vista previa del PC se dibuja a `PIXEL_RES = 0.55` de
-  resolución y se estira con `image-rendering: pixelated` (píxeles gordos); **en el visor va nítido**,
-  que bajar la resolución en VR marea. El cartel es un lienzo de 288×144 con tipografía monoespaciada,
-  marco de bloques y sombras duras (`hudText`/`hudBlock`): look de mapa de bits, no un HUD moderno.
-- **Sin gafas:** vista previa en el PC (`startPreview`) en tercera persona: **WASD** para andar,
-  **espacio** para saltar y arrastrar con el ratón para girar la vista.
-- **Ficheros:** `doga-gorilla.js` (motor: mundos, física, XR, HUD), `doga-gorilla-page.js` (botones y
-  estado de la página), `doga-gorilla.html` (la página), `doga_gorilla.py` (ruta `/doga-gorilla`,
-  `/api/doga-gorilla/status` y el subdominio). Los dos `.js` se sirven como estáticos
-  (`/static/doga-gorilla.js`, `/static/doga-gorilla-page.js`) porque la lista blanca de `/static` deja
-  pasar los `.js` de la raíz.
-- **Caché del motor (por qué a veces «no llegaban» los cambios):** Cloudflare reescribe el
-  `Cache-Control` de los estáticos a `max-age=14400` (**4 horas**). Mientras la página pedía
-  `?v=2026.31`, esa URL no cambiaba nunca y el navegador se quedaba con el `doga-gorilla.js` viejo
-  aunque el deploy fuese nuevo. Ahora `doga_gorilla.py` sirve la página **reescrita** (`_render_page`)
-  y le pone a cada `/static/...` el **token real del archivo** (`_asset_token` = sha1 de ruta+mtime+
-  tamaño, igual que hace `main.py` con `index.html`): si el archivo cambia, cambia la URL y no hay copia
-  vieja que valga (además, cuando el `?v=` coincide con el token, `/static` responde `immutable`). La
-  página en sí va con `no-store`. El sello `build <token>` del pie y
-  `/api/doga-gorilla/status` (`build`, `engineTokens`) dicen qué motor está sirviendo producción.
-- **API:** `window.DogaGorilla` (`version`, `supported()`, `worlds()`, `world(nombre)`,
-  `start({host, world, onState, onLog, onEnd})`, `startPreview(host, opts)`, `stop()`, `state()` con
-  `pixel`, y `monke()` con cuerpo/manos/`drop`/trepando/`flat`/`pixelTex`/`palette`).
+- **Cómo se anda (lo importante):** como en *gorilla tag*, **con los brazos**. En VR apoyas las manos
+  en el suelo, los troncos, las rocas o las plataformas (`insideSurface`) y las **arrastras** para
+  empujarte (`updatePlayerVR`, anclas por mano y `handHistory` para el impulso); al **soltar** sales
+  disparado con la media de la velocidad de las manos (`powerMul().cap`). En el ordenador, **WASD**
+  anda, el **ratón** mira, **espacio** salta, **shift** corre y **clic** da un manotazo. En el móvil,
+  mitad izquierda para moverse y mitad derecha para mirar.
+- **El mundo:** claro de Doganiero (`AREA_R = 15 m`), bosque de 170 árboles instanciados, rocas y
+  troncos (`trunks`, `boxes`) por los que trepar, y **Ciudad Doganiero** al norte (`CITY`, `-52..-23`
+  en Z) con plaza, calles, azoteas, torre del reloj, tiendas con toldos, farolas y contenedores.
+  `heightAt` hace las colinas y `supportHeight`/`pushOut` la física de suelo y choques. Los límites del
+  mundo están en `WORLD_R = 58`.
+- **El monke:** avatar low-poly con textura de pelo moteada (`furTex`), antifaz en forma de corazón,
+  ojos grandes, morro gris, emblema «</>» de Doganiero en el pecho (`badgeTex` con
+  `assets/doganiero-icon.png`) y **manos de bloques** (`makeBlockyHand`); sin piernas, como el original.
+  Los bots (`makeGorilla`, 6 en el mapa) llevan los mismos cuerpos, colores y gorros de la tienda.
+- **Pilla-pilla:** quien la lleva brilla en rojo (`IT_COLOR`); tocarlo con las manos (o el cuerpo, en
+  el ordenador) se la pasa (`checkTags`, `setIt`) con 2 s de gracia para no devolverla al instante. Hay
+  marcador en el claro y HUD con quién la lleva, avisos y ranking por tiempo libre.
+- **Doga-huesos 🦴:** 24 flotando por el mapa en **un solo `InstancedMesh`** (`boneIM`), reaparecen a
+  los 18-28 s. Se gastan en la **Tienda Doganiero** (`SHOP`): gorros (`HATS`: Gorra Doga, Chistera
+  Snake, Hoja, Corona) y colores de pelo (`COLORS`); los botones se tocan con la mano en VR o con
+  clic/raycast en el ordenador (`pressShop`, `shopRaycast`). Se guarda en `localStorage`
+  (`dogaTag.v1`: huesos, `owned`, `hat`, `color`).
+- **Power-ups (8 s, reaparecen a los 25 s):** **Salto Snake 🐍** (salto ×1,8; en VR el lanzamiento
+  ×1,55 con tope 15 m/s) y **Turbo Doga ⚡** (velocidad ×1,55 y más alcance de brazos). Ver
+  `powerMul`.
+- **Audio sin descargar nada:** WebAudio procedural (`initAudio`, `playImpact`, `beep`) con pasos de
+  nudillos, variantes por superficie (hierba, madera, piedra, cemento, metal: `SURFACE_FX`,
+  `surfaceAt`), golpes de manos en VR y pasos de bots con `PannerNode`; música del menú propia
+  (`composeTitleMusic`, ~116 BPM) con botón 🔊 para silenciar (`dogaTag.musicMuted`).
+- **Rendimiento para Quest:** huesos en un `InstancedMesh`, árboles y farolas instanciados, geometrías
+  y materiales compartidos (`SHARED`, `G`), partículas de etiqueta en pool y zero allocations en los
+  bucles calientes.
+
+- **Ficheros:** `doga-tag-vr/` (`index.html`, `game.js`, `lib/three.module.js`, `lib/VRButton.js`,
+  `assets/*.png`, su propio `README.md`) y `doga_gorilla.py` (rutas `/doga-gorilla`, `/doga-tag-vr`,
+  `/api/doga-gorilla/status` y el subdominio). Los archivos del juego se sirven por
+  **`/doga-gorilla/files/<ruta>`** y no por `/static`: la lista blanca de `/static` solo deja pasar la
+  raíz del proyecto y `assets/`, y aquí hay subcarpetas (`lib/`, `assets/`) con módulos `.js` y `.png`.
+  `_safe_rel` sanea la ruta (nada de `..`, `.env` ni extensiones raras) y `FileResponse` pone el tipo
+  correcto (`text/javascript` para los módulos ES, que es obligatorio para que el navegador los
+  ejecute como módulo).
+- **Caché (por qué a veces «no llegaban» los cambios):** Cloudflare reescribe el `Cache-Control` de
+  los estáticos a `max-age=14400` (**4 horas**). Con una URL fija el navegador se quedaba con el
+  `game.js` viejo aunque el deploy fuese nuevo. Ahora `doga_gorilla.py` sirve la página **reescrita**
+  (`_render_page` + `_REL_REF_RE`) y cambia cada `./game.js`, `./lib/three.module.js` y `./assets/*.png`
+  por `/doga-gorilla/files/<ruta>?v=<token real>` (`_asset_token` = sha1 de ruta+mtime+tamaño, igual
+  que hace `main.py` con `index.html`): si el archivo cambia, cambia la URL y no hay copia vieja que
+  valga. Con el `?v=` bueno la respuesta va `immutable`; sin él, `no-cache` (revalida y nunca se queda
+  viejo). La página va con `no-store`. `/api/doga-gorilla/status` dice qué está sirviendo producción
+  (`version`, `build`, `engineTokens`, `fileTokens`).
+- **API:** `window.__game` (`THREE`, `scene`, `rig`, `camera`, `entities`, `player`, `hands`, `boxes`,
+  `trunks`, `setIt`, `save`, `power`, `bones`, `powerItems`, `shopButtons`, `pressShop`, `tagBurst`,
+  `CITY`, `CITY_SPOTS`, `inCity`, `keys`, `surfaceAt`, `ensureAudio`, `playImpact`, música, `look()`,
+  `simT`). Parámetros de URL para pruebas: `?autostart`,
+  `&view=forest|doganiero|arms|tienda|avatar|ciudad`, `&freeze`, `&seed=N`.
 - **DNS / túnel (solo la primera vez):** en Cloudflare (túnel `snake-os-vp-cloudflared`) hay que añadir
   el *public hostname* `doga-gorilla.softportweb.com` → `http://web:8000`. Mientras no esté, el juego
   funciona igual en `https://snake-os-vp.softportweb.com/doga-gorilla`.
-- **Pruebas:** `node tests/test_release_2631.js` (y `tests/test_release_2616.js` … `tests/test_release_2623.js`),
-  `python3 -m unittest tests.test_doga_gorilla_cache` (el `?v=` real de la página, sin fastapi).
-  Además hay dos **pruebas de humo que arrancan el motor de verdad** (cargan el `three.js` real y sólo
-  cambian el `WebGLRenderer`, así que no hace falta WebGL): `node tests/test_doga_gorilla_smoke.js`
-  (vista previa: cuerpo, manos, brazos, WASD y salto) y `node tests/test_doga_gorilla_xr.js` (VR falsa con
-  visor a 1,70 m: `drop` del suelo al pecho, manos siguiendo los mandos, empujar arrastrando y trepar con
-  el gatillo).
+- **Pruebas:** `node tests/test_doga_tag_vr.js` (arranca el motor de verdad: carga el `three.js` real y
+  solo cambia el `WebGLRenderer` y el reloj, así que sin WebGL ni gafas se ejecutan el mundo, los bots,
+  los huesos, los power-ups, la tienda, el HUD, el pilla-pilla y la **locomoción de brazos en VR**),
+  `python3 -m unittest tests.test_doga_tag_vr` (el `?v=` real de la página, las rutas saneadas y la
+  caché, sin fastapi) y `node tests/test_release_2632.js` (y `tests/test_release_2616.js` …
+  `tests/test_release_2623.js`).
+
 
 ### Mascota MR sin límites (2026.31)
 

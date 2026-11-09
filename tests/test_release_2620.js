@@ -74,7 +74,7 @@ assert.strictEqual(/TODO|FIXME/.test(vr), false, 'sin TODOs pendientes');
 ok('salida limpia sin fugas de render ni overlay');
 
 // 7) index.html: versión, novedades, script y app
-assert.ok(html.indexOf("window.SNAKE_OS_VERSION='2026.31'") >= 0, 'versión 2026.22');
+assert.ok(html.indexOf("window.SNAKE_OS_VERSION='2026.32'") >= 0, 'versión 2026.22');
 assert.ok(html.indexOf("{v:'2026.22'") >= 0, 'entrada de novedades 2026.22');
 assert.ok(html.indexOf("{v:'2026.22'") < html.indexOf("{v:'2026.19'"), 'la entrada 2026.22 va primera');
 assert.ok(html.indexOf('/static/snake-vr.js?v=') >= 0, 'index.html carga snake-vr.js');

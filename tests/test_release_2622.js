@@ -89,7 +89,7 @@ assert.ok(vr.indexOf('clic derecho') >= 0, 'se menciona el clic derecho');
 assert.ok(vr.indexOf('todo va igual que en el ordenador') >= 0, 'la barra de ayuda lo explica');
 
 /* 6) index.html en 2026.22 con novedades nuevas */
-assert.ok(html.indexOf("window.SNAKE_OS_VERSION='2026.31'") >= 0, 'versión 2026.22');
+assert.ok(html.indexOf("window.SNAKE_OS_VERSION='2026.32'") >= 0, 'versión 2026.22');
 assert.ok(html.indexOf("{v:'2026.22'") >= 0, 'entrada de novedades 2026.22');
 assert.ok(html.indexOf("{v:'2026.22'") < html.indexOf("{v:'2026.21'"), 'la entrada 2026.22 va primera');
 assert.ok(html.indexOf('/static/snake-vr.js?v=202607112100') >= 0, '?v= nuevo de snake-vr.js');

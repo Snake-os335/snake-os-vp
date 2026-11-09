@@ -9802,8 +9802,9 @@ app.include_router(privacy_share.build_router(require_user))
 import vr_link
 app.include_router(vr_link.build_router(doga_auth.site_user))
 vr_link.install_hosts(app)
-# Doga Gorilla (2026.31): juego VR tipo «gorilla tag», sin terror
-#   → /doga-gorilla y https://doga-gorilla.softportweb.com (cuando el túnel lo publique)
+# Doga Tag VR (2026.32): pilla-pilla estilo «gorilla tag» en el bosque de Doganiero
+#   → /doga-gorilla (y /doga-tag-vr) y https://doga-gorilla.softportweb.com (cuando el túnel lo publique)
+#   Los archivos del juego salen por /doga-gorilla/files/... (carpeta doga-tag-vr/)
 import doga_gorilla
 app.include_router(doga_gorilla.build_router())
 doga_gorilla.install_hosts(app)

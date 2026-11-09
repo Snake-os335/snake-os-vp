@@ -169,7 +169,7 @@ function load() {
   var html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
   assert.ok(html.indexOf('/static/snake-network.js?v=') >= 0, 'index.html carga snake-network.js');
   assert.ok(html.indexOf('snake-network.js') < html.indexOf('snake-safe.js'), 'se carga antes que el resto de módulos');
-  assert.ok(html.indexOf("window.SNAKE_OS_VERSION='2026.31'") >= 0);
+  assert.ok(html.indexOf("window.SNAKE_OS_VERSION='2026.32'") >= 0);
   assert.ok(html.indexOf("{v:'2026.22'") >= 0);
   ok('index.html: módulo cargado pronto y versión 2026.22');
 
