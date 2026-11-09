@@ -39,7 +39,14 @@ assert.ok(srv.indexOf('HOST = "doga-gorilla."') >= 0, 'subdominio doga-gorilla.*
 assert.ok(srv.indexOf('@r.get("/doga-gorilla")') >= 0, 'ruta /doga-gorilla');
 assert.ok(srv.indexOf('@r.get("/api/doga-gorilla/status")') >= 0, 'estado del juego por API');
 assert.ok(srv.indexOf('def build_router()') >= 0 && srv.indexOf('def install_hosts(app)') >= 0, 'router + host');
-assert.ok(srv.indexOf('FileResponse(_PAGE') >= 0, 'sirve la página del juego');
+/* la página se sirve reescrita con el ?v= real de cada estático (caché de Cloudflare) */
+assert.ok(srv.indexOf('def _render_page()') >= 0, 'la página se reescribe al servirla');
+assert.ok(srv.indexOf('_STATIC_REF_RE') >= 0, 'busca los /static/ de la página');
+assert.ok(srv.indexOf('def _asset_token(rel: str)') >= 0, 'token por archivo (mtime+tamaño)');
+assert.ok(srv.indexOf('HTMLResponse(') >= 0, 'sirve la página del juego desde memoria');
+assert.ok(srv.indexOf('def _assets_sig()') >= 0, 'firma del motor para el sello de build');
+assert.ok(fs.existsSync(path.join(root, 'tests/test_doga_gorilla_cache.py')),
+  'hay test del token de caché de la página');
 assert.ok(main.indexOf('import doga_gorilla') >= 0, 'main.py incluye doga_gorilla');
 assert.ok(main.indexOf('doga_gorilla.build_router()') >= 0, 'main.py monta el router');
 assert.ok(main.indexOf('doga_gorilla.install_hosts(app)') >= 0, 'main.py enruta el subdominio');
@@ -98,6 +105,30 @@ assert.ok(game.indexOf('monke: 0x') >= 0 && game.indexOf('function paintMonke()'
 });
 assert.ok(game.indexOf('setFromUnitVectors(new T.Vector3(0, 1, 0)') >= 0, 'los brazos apuntan a las manos');
 ok('monke: cuerpo visible, manos con los mandos, trepar y suelo al pecho');
+
+/* 2c) Look pixelado, como Gorilla Tag: caras planas, texturas de píxeles y paleta */
+assert.ok(game.indexOf('var PIXEL = true') >= 0, 'el motor va en modo pixelado');
+assert.ok(game.indexOf('function flatMat(opts)') >= 0 && game.indexOf('flatShading = true') >= 0,
+  'todas las mallas usan caras planas (flat shading)');
+assert.ok(game.indexOf('function pixelTex(rows, palette, opts)') >= 0, 'texturas de píxeles por mapa de letras');
+assert.ok(game.indexOf('t.magFilter = T.NearestFilter') >= 0
+  && game.indexOf('t.minFilter = T.NearestFilter') >= 0, 'las texturas no se suavizan (nearest)');
+assert.ok(game.indexOf('var FUR_MAP = [') >= 0 && game.indexOf('var GRASS_MAP = [') >= 0,
+  'hay pelo de monke y hierba dibujados píxel a píxel');
+assert.ok(game.indexOf('var MONKES = {') >= 0 && game.indexOf('blue: 0x2f6fd0') >= 0
+  && game.indexOf('purple: 0x8b5cf6') >= 0, 'paleta de monkes del gorilla tag original');
+assert.ok(game.indexOf('new T.IcosahedronGeometry(0.34, 1)') >= 0, 'el torso es un icosaedro (pocos polígonos)');
+assert.ok(game.indexOf('new T.BoxGeometry(0.19, 0.13, 0.22)') >= 0, 'la palma de la mano es un bloque');
+assert.ok(game.indexOf('var PIXEL_RES = 0.55') >= 0, 'la vista previa se dibuja a menos resolución');
+assert.ok(game.indexOf("dom0.style.imageRendering = 'pixelated'") >= 0, 'los píxeles se estiran sin suavizar');
+assert.ok(game.indexOf('var HUD_W = 288, HUD_H = 144') >= 0, 'el cartel es un lienzo de píxeles pequeño');
+assert.ok(game.indexOf('function hudText(g, txt, x, y, size, color, bold)') >= 0
+  && game.indexOf('function hudBlock(g, x, y, size, color)') >= 0, 'cartel con texto y bloques de píxeles');
+assert.ok(game.indexOf('var STEPS = 12') >= 0, 'el cielo va en bandas de píxeles (sin degradado fino)');
+assert.ok(game.indexOf('pixel: !!PIXEL') >= 0, 'el estado y la API dicen que el look es pixelado');
+assert.ok(game.indexOf('pixelTex: !!(S.body') >= 0 && game.indexOf('palette: MONKES') >= 0,
+  'la API del monke cuenta el look');
+ok('look pixelado: caras planas, texturas nearest, paleta de monkes y cartel de píxeles');
 
 /* 2c) Pruebas de humo de verdad: hay dos ficheros que arrancan el motor */
 ['tests/test_doga_gorilla_smoke.js', 'tests/test_doga_gorilla_xr.js'].forEach(function (f) {
@@ -177,6 +208,14 @@ assert.ok(page.indexOf('suelo queda a la altura del pecho') >= 0, 'explica el su
 assert.ok(page.indexOf('gatillo apretado') >= 0 && page.indexOf('trepar') >= 0, 'explica cómo trepar');
 assert.ok(page.indexOf('id="kBody"') >= 0, 'la página muestra el cuerpo');
 assert.ok(pageJs.indexOf('kBody') >= 0, 'la página pinta el cuerpo');
+/* look pixelado y caché del motor */
+assert.ok(page.indexOf('id="kLook"') >= 0 && pageJs.indexOf('kLook') >= 0, 'la página muestra el look');
+assert.ok(page.indexOf('image-rendering: pixelated') >= 0, 'el lienzo del juego se estira sin suavizar');
+assert.ok(page.indexOf('look pixelado') >= 0, 'la página cuenta que el look es pixelado');
+assert.ok(page.indexOf('?v=auto') >= 0, 'el ?v= lo pone el servidor (token real, sin caché vieja)');
+assert.ok(pageJs.indexOf("split('?v=')") >= 0 && pageJs.indexOf('stampBuild') >= 0,
+  'la página enseña el build servido');
+assert.ok(page.indexOf('id="build"') >= 0, 'la página tiene sello de build');
 assert.ok(page.indexOf('no se puede caer al vacío') >= 0, 'explica los límites');
 assert.ok(page.indexOf('WebXR') >= 0, 'avisa de que hace falta WebXR');
 assert.ok(pageJs.indexOf('G.start({') >= 0, 'la página entra en VR');
@@ -206,6 +245,11 @@ assert.ok(readme.indexOf('doga-gorilla.softportweb.com') >= 0, 'README cita el s
 assert.ok(readme.indexOf('EYE_MONKE') >= 0 && readme.indexOf('buildAvatar') >= 0,
   'README cuenta el cuerpo y el suelo al pecho');
 assert.ok(readme.indexOf('trepar') >= 0 && readme.indexOf('S.trunks') >= 0, 'README cuenta cómo trepar');
+assert.ok(readme.indexOf('pixel') >= 0 || readme.indexOf('píxeles') >= 0, 'README cuenta el look pixelado');
+assert.ok(readme.indexOf('PIXEL_RES') >= 0 || readme.indexOf('NearestFilter') >= 0,
+  'README explica las texturas de píxeles');
+assert.ok(readme.indexOf('_render_page') >= 0 || readme.indexOf('max-age=14400') >= 0,
+  'README explica la caché del motor (?v= real)');
 ok('index.html y README en 2026.31');
 
 console.log('\ntest_release_2631 OK');

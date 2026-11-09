@@ -12,12 +12,16 @@
     --line: rgba(52, 209, 122, 0.28); --text: #eafff0; --muted: #9dffc2;
     --accent: #34d17a; --accent2: #1fa85a; --warn: #ffb454; --danger: #ff6b6b;
     --cyan: #57e6ff; --gold: #ffd166;
+    /* look pixelado, como gorilla tag: bordes duros, esquinas rectas, tipografía
+       de mapa de bits y sombras de bloque (nada de desenfoques ni degradados) */
+    --px: 3px; --pxfont: ui-monospace, "SF Mono", "Cascadia Mono", "Courier New", monospace;
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body {
     margin: 0; min-height: 100%; color: var(--text);
-    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+    font-family: var(--pxfont);
     background:
+      repeating-linear-gradient(0deg, rgba(0,0,0,.20) 0 2px, transparent 2px 4px),
       radial-gradient(ellipse 80% 50% at 50% -10%, rgba(52,209,122,0.22), transparent 55%),
       radial-gradient(ellipse 55% 40% at 100% 12%, rgba(255,209,102,0.10), transparent 60%),
       linear-gradient(165deg, var(--bg0), var(--bg1) 55%, #10281c);
@@ -25,17 +29,17 @@
   body { padding: max(12px, env(safe-area-inset-top)) 12px max(18px, env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 12px; max-width: 640px; margin: 0 auto; }
   header { text-align: center; padding: 8px 4px 2px; }
   .logo { font-size: .7rem; letter-spacing: .2em; text-transform: uppercase; color: var(--muted); font-weight: 700; }
-  h1 { margin: 4px 0 0; font-size: clamp(1.35rem, 5.2vw, 1.8rem); font-weight: 800; letter-spacing: -.02em; }
+  h1 { margin: 4px 0 0; font-size: clamp(1.35rem, 5.2vw, 1.8rem); font-weight: 800; letter-spacing: .05em; text-transform: uppercase; text-shadow: var(--px) var(--px) 0 rgba(0,0,0,.6); }
   h1 span.g { filter: drop-shadow(0 4px 10px rgba(52,209,122,.35)); }
   .sub { margin: 6px auto 0; max-width: 540px; font-size: .82rem; line-height: 1.45; color: var(--muted); opacity: .92; }
   .sub b { color: var(--cyan); }
-  .status { display: inline-flex; align-items: center; gap: 8px; margin-top: 10px; padding: 7px 14px; border-radius: 999px; border: 1px solid var(--line); background: rgba(0,0,0,.3); font-size: .78rem; font-weight: 700; }
-  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--danger); box-shadow: 0 0 0 3px rgba(255,107,107,.18); }
+  .status { display: inline-flex; align-items: center; gap: 8px; margin-top: 10px; padding: 7px 14px; border: var(--px) solid var(--line); background: rgba(0,0,0,.3); font-size: .78rem; font-weight: 700; box-shadow: var(--px) var(--px) 0 rgba(0,0,0,.5); }
+  .dot { width: 8px; height: 8px; background: var(--danger); box-shadow: 0 0 0 3px rgba(255,107,107,.18); }
   .status.on .dot { background: var(--accent); box-shadow: 0 0 0 3px rgba(52,209,122,.22); }
   .status.busy .dot { background: var(--warn); box-shadow: 0 0 0 3px rgba(255,180,84,.22); }
-  .card { border: 1px solid var(--line); border-radius: 22px; padding: 15px; background: linear-gradient(180deg, #163526, var(--panel) 65%); box-shadow: 0 16px 36px rgba(0,0,0,.3); }
-  .card h2 { margin: 0 0 8px; font-size: .95rem; font-weight: 800; display: flex; align-items: center; gap: 8px; }
-  .card h2 .n { width: 22px; height: 22px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: rgba(52,209,122,.16); border: 1px solid var(--line); font-size: .72rem; color: var(--muted); }
+  .card { border: var(--px) solid var(--line); padding: 15px; background: linear-gradient(180deg, #163526, var(--panel) 65%); box-shadow: 6px 6px 0 rgba(0,0,0,.45); }
+  .card h2 { margin: 0 0 8px; font-size: .95rem; font-weight: 800; display: flex; align-items: center; gap: 8px; text-transform: uppercase; letter-spacing: .06em; }
+  .card h2 .n { width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center; background: rgba(52,209,122,.16); border: 2px solid var(--line); font-size: .72rem; color: var(--muted); }
   .hint { margin: 8px 0 0; font-size: .78rem; line-height: 1.5; color: rgba(234,255,240,.62); }
   .hint b { color: var(--muted); }
   ol.steps { margin: 8px 0 0; padding-left: 20px; font-size: .82rem; line-height: 1.55; color: rgba(234,255,240,.76); }
@@ -43,38 +47,40 @@
   ol.steps li { margin-bottom: 6px; }
   .row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
   button {
-    appearance: none; border: 1px solid var(--line); border-radius: 14px; cursor: pointer;
+    appearance: none; border: var(--px) solid var(--line); cursor: pointer;
     background: rgba(52,209,122,.16); color: var(--text);
-    font: 800 .88rem/1.1 "Segoe UI", system-ui, sans-serif; padding: 13px 15px; flex: 1 1 auto;
-    transition: transform .08s ease, background .15s ease;
+    font: 800 .88rem/1.1 var(--pxfont); padding: 13px 15px; flex: 1 1 auto;
+    box-shadow: var(--px) var(--px) 0 rgba(0,0,0,.6);
+    transition: transform .05s steps(1), background .15s ease;
   }
   button:hover { background: rgba(52,209,122,.26); }
-  button:active { transform: scale(.98); }
+  button:active { transform: translate(var(--px), var(--px)); box-shadow: none; }
   button[disabled] { opacity: .45; cursor: not-allowed; }
   button.primary { background: linear-gradient(180deg, var(--accent), var(--accent2)); border-color: transparent; color: #03130a; }
-  button.big { font-size: 1rem; padding: 16px 18px; }
+  button.big { font-size: 1rem; padding: 16px 18px; text-transform: uppercase; letter-spacing: .04em; }
   button.ghost { background: rgba(255,255,255,.05); }
   .worlds { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
-  .worlds button { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 12px 6px; font-size: .74rem; font-weight: 700; border-radius: 16px; }
+  .worlds button { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 12px 6px; font-size: .74rem; font-weight: 700; }
   .worlds button .e { font-size: 1.5rem; line-height: 1; }
   .worlds button[aria-pressed="true"] { background: linear-gradient(180deg, rgba(52,209,122,.42), rgba(31,168,90,.3)); border-color: var(--accent); box-shadow: 0 0 0 3px rgba(52,209,122,.14) inset; }
   .keys { display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); gap: 8px; margin-top: 10px; }
-  .kv { border: 1px solid var(--line); border-radius: 14px; background: rgba(0,0,0,.26); padding: 9px 11px; }
+  .kv { border: 2px solid var(--line); background: rgba(0,0,0,.26); padding: 9px 11px; }
   .kv span { display: block; font-size: .64rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 700; }
   .kv b { display: block; font-size: 1.05rem; margin-top: 3px; font-variant-numeric: tabular-nums; }
   .kv b.gold { color: var(--gold); }
   ul#log { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 5px; max-height: 134px; overflow: auto; }
-  ul#log li { font-size: .76rem; line-height: 1.4; color: rgba(234,255,240,.72); padding: 7px 10px; border-radius: 11px; background: rgba(0,0,0,.26); border: 1px solid rgba(52,209,122,.16); }
+  ul#log li { font-size: .76rem; line-height: 1.4; color: rgba(234,255,240,.72); padding: 7px 10px; background: rgba(0,0,0,.26); border: 2px solid rgba(52,209,122,.16); }
   footer { text-align: center; font-size: .72rem; color: rgba(234,255,240,.42); padding: 4px 8px 0; line-height: 1.6; }
   footer a { color: var(--muted); text-decoration: none; font-weight: 700; }
   /* --- escenario 3D (se superpone al entrar) --- */
-  #stage { position: fixed; inset: 0; margin: 0 !important; padding: 0; display: none; z-index: 30; background: #06140f; border: 0; border-radius: 0; box-shadow: none; }
+  #stage { position: fixed; inset: 0; margin: 0 !important; padding: 0; display: none; z-index: 30; background: #06140f; border: 0; box-shadow: none; }
   #stage.on { display: block; }
-  #stage canvas { display: block; width: 100% !important; height: 100% !important; }
-  #exitFloat { position: fixed; z-index: 40; right: max(12px, env(safe-area-inset-right)); bottom: max(12px, env(safe-area-inset-bottom)); display: none; padding: 12px 16px; border-radius: 999px; background: rgba(6,20,15,.84); border: 1px solid var(--line); color: var(--text); font-weight: 800; font-size: .84rem; backdrop-filter: blur(6px); }
+  /* los píxeles del juego se ven cuadrados y gordos (vista previa del PC) */
+  #stage canvas { display: block; width: 100% !important; height: 100% !important; image-rendering: pixelated; image-rendering: crisp-edges; }
+  #exitFloat { position: fixed; z-index: 40; right: max(12px, env(safe-area-inset-right)); bottom: max(12px, env(safe-area-inset-bottom)); display: none; padding: 12px 16px; border: var(--px) solid var(--line); background: rgba(6,20,15,.84); color: var(--text); font-weight: 800; font-size: .84rem; box-shadow: var(--px) var(--px) 0 rgba(0,0,0,.6); flex: none; }
   body.playing #exitFloat { display: block; }
   body.playing .page { visibility: hidden; }
-  .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: max(16px, env(safe-area-inset-bottom)); z-index: 50; max-width: min(92vw, 560px); padding: 11px 15px; border-radius: 14px; background: rgba(255,107,107,.94); color: #2a0606; font-size: .84rem; font-weight: 800; display: none; }
+  .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: max(16px, env(safe-area-inset-bottom)); z-index: 50; max-width: min(92vw, 560px); padding: 11px 15px; border: var(--px) solid #2a0606; background: rgba(255,107,107,.94); color: #2a0606; font-size: .84rem; font-weight: 800; display: none; box-shadow: var(--px) var(--px) 0 rgba(0,0,0,.5); }
   .toast.on { display: block; }
 </style>
 </head>
@@ -86,7 +92,9 @@
     <h1><span class="g">🦍</span> Doga Gorilla</h1>
     <p class="sub">Juego de <b>realidad virtual</b> tipo <b>gorilla tag</b>, sin nada de terror:
       eres un <b>monke sin piernas</b>, con <b>brazos largos y manos visibles</b> y el suelo a la altura del
-      pecho, en mundos bonitos y coloridos. Para andar hay que <b>empujar con las manos</b>.</p>
+      pecho, en mundos bonitos y coloridos. Para andar hay que <b>empujar con las manos</b>.
+      Todo con el <b>look pixelado</b> del original: caras planas, texturas de píxeles gordos y
+      los colores de monke de siempre.</p>
     <div class="status" id="st"><i class="dot"></i><span id="stTxt">comprobando visor…</span></div>
   </header>
 
@@ -127,6 +135,10 @@
         y encadena empujones.</li>
       <li>Toca cosas: <b>orbes</b> ⭐ (se recogen), <b>campanas</b> 🔔, <b>setas y gelatinas</b> 🍄 (te lanzan),
         <b>molinos</b> y <b>bichitos</b> 🦋 que salen volando. Todo suena y vibra.</li>
+      <li>El <b>look es pixelado</b>, como el de <b>gorilla tag</b>: polígonos con las caras planas,
+        texturas de píxeles gordos (pelo del monke, hierba y cielo en bandas) y la paleta de monkes
+        del original (verde, rosa, morado…). En la vista previa del PC se dibuja a menos resolución,
+        así que los píxeles se ven cuadrados; en el visor va nítido para no marear.</li>
       <li>Para salir, el <b>menú del visor</b>. No hay sustos, no hay oscuridad y no hay enemigos: sólo mundos
         bonitos para saltar y columpiarte.</li>
     </ol>
@@ -145,13 +157,14 @@
       <div class="kv"><span>Velocidad</span><b id="kSpeed">0</b></div>
       <div class="kv"><span>Suelo</span><b id="kGround">—</b></div>
       <div class="kv"><span>Cuerpo</span><b id="kBody">—</b></div>
+      <div class="kv"><span>Look</span><b id="kLook">pixel</b></div>
     </div>
     <ul id="log"><li>Todavía no has entrado. Elige un mundo y pulsa «Entrar en VR».</li></ul>
   </section>
 
   <footer>
     Snake OS · <a href="https://snake-os-vp.softportweb.com/">snake-os-vp.softportweb.com</a><br />
-    <span id="ver">versión —</span>
+    <span id="ver">versión —</span> · <span id="build">build —</span>
   </footer>
 </div>
 
@@ -159,10 +172,9 @@
 <button id="exitFloat" type="button">⏹ Salir</button>
 <div class="toast" id="toast"></div>
 
-<script src="/static/doga-gorilla.js?v=2026.31"></script>
-<script src="/static/doga-gorilla-page.js?v=2026.31"></script>
-</body>
-</html>
-
+<!-- el ?v= lo sustituye el servidor por el token real de cada archivo (así el
+     navegador nunca se queda con una versión vieja del motor; caché de Cloudflare) -->
+<script src="/static/doga-gorilla.js?v=auto"></script>
+<script src="/static/doga-gorilla-page.js?v=auto"></script>
 </body>
 </html>

@@ -240,6 +240,17 @@ Juego nuevo, con página propia en este mismo servidor:
   en los mandos (`hapticActuators`).
 - **HUD:** un cartel flotante (`makeHud`/`drawHud`/`placeHud`) con mundo, orbes, campanas y saltos; se
   esconde solo mientras estás empujando y vuelve cuando paras.
+- **El look es pixelado, como el Gorilla Tag original:** nada de texturas realistas. Todo el juego usa
+  **caras planas** (`flatShading`, vía `flatMat`) y **pocos polígonos** (torso `IcosahedronGeometry`,
+  brazos de 6 caras, manos de bloques, colinas y copas icosaédricas, nubes de cajas), **texturas de
+  píxeles** dibujadas a mano en mapas de letras (`pixelTex` con `FUR_MAP` para el pelo del monke y
+  `GRASS_MAP` para la hierba) mostradas con **`NearestFilter`** (el píxel se ve cuadrado, sin suavizar),
+  y el **cielo en bandas** (`skyTexture`, 12 escalones duros). Los colores son lisos y saturados, con la
+  **paleta de monkes** del original (`MONKES`: azul, verde, naranja, rosa, rojo, morado, lima, marrón);
+  cada mundo tiñe su monke (`paintMonke`). En la vista previa del PC se dibuja a `PIXEL_RES = 0.55` de
+  resolución y se estira con `image-rendering: pixelated` (píxeles gordos); **en el visor va nítido**,
+  que bajar la resolución en VR marea. El cartel es un lienzo de 288×144 con tipografía monoespaciada,
+  marco de bloques y sombras duras (`hudText`/`hudBlock`): look de mapa de bits, no un HUD moderno.
 - **Sin gafas:** vista previa en el PC (`startPreview`) en tercera persona: **WASD** para andar,
   **espacio** para saltar y arrastrar con el ratón para girar la vista.
 - **Ficheros:** `doga-gorilla.js` (motor: mundos, física, XR, HUD), `doga-gorilla-page.js` (botones y
@@ -247,13 +258,23 @@ Juego nuevo, con página propia en este mismo servidor:
   `/api/doga-gorilla/status` y el subdominio). Los dos `.js` se sirven como estáticos
   (`/static/doga-gorilla.js`, `/static/doga-gorilla-page.js`) porque la lista blanca de `/static` deja
   pasar los `.js` de la raíz.
+- **Caché del motor (por qué a veces «no llegaban» los cambios):** Cloudflare reescribe el
+  `Cache-Control` de los estáticos a `max-age=14400` (**4 horas**). Mientras la página pedía
+  `?v=2026.31`, esa URL no cambiaba nunca y el navegador se quedaba con el `doga-gorilla.js` viejo
+  aunque el deploy fuese nuevo. Ahora `doga_gorilla.py` sirve la página **reescrita** (`_render_page`)
+  y le pone a cada `/static/...` el **token real del archivo** (`_asset_token` = sha1 de ruta+mtime+
+  tamaño, igual que hace `main.py` con `index.html`): si el archivo cambia, cambia la URL y no hay copia
+  vieja que valga (además, cuando el `?v=` coincide con el token, `/static` responde `immutable`). La
+  página en sí va con `no-store`. El sello `build <token>` del pie y
+  `/api/doga-gorilla/status` (`build`, `engineTokens`) dicen qué motor está sirviendo producción.
 - **API:** `window.DogaGorilla` (`version`, `supported()`, `worlds()`, `world(nombre)`,
-  `start({host, world, onState, onLog, onEnd})`, `startPreview(host, opts)`, `stop()`, `state()`,
-  `monke()` con cuerpo/manos/`drop`/trepando).
+  `start({host, world, onState, onLog, onEnd})`, `startPreview(host, opts)`, `stop()`, `state()` con
+  `pixel`, y `monke()` con cuerpo/manos/`drop`/trepando/`flat`/`pixelTex`/`palette`).
 - **DNS / túnel (solo la primera vez):** en Cloudflare (túnel `snake-os-vp-cloudflared`) hay que añadir
   el *public hostname* `doga-gorilla.softportweb.com` → `http://web:8000`. Mientras no esté, el juego
   funciona igual en `https://snake-os-vp.softportweb.com/doga-gorilla`.
-- **Pruebas:** `node tests/test_release_2631.js` (y `tests/test_release_2616.js` … `tests/test_release_2623.js`).
+- **Pruebas:** `node tests/test_release_2631.js` (y `tests/test_release_2616.js` … `tests/test_release_2623.js`),
+  `python3 -m unittest tests.test_doga_gorilla_cache` (el `?v=` real de la página, sin fastapi).
   Además hay dos **pruebas de humo que arrancan el motor de verdad** (cargan el `three.js` real y sólo
   cambian el `WebGLRenderer`, así que no hace falta WebGL): `node tests/test_doga_gorilla_smoke.js`
   (vista previa: cuerpo, manos, brazos, WASD y salto) y `node tests/test_doga_gorilla_xr.js` (VR falsa con

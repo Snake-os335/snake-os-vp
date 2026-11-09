@@ -20,19 +20,47 @@ var root = path.join(__dirname, '..');
 
 function ok(msg) { console.log('ok', msg); }
 
+function fake2d(canvas) {
+  /* contexto 2D mínimo: apunta lo que se pinta para poder comprobarlo */
+  var ctx = {
+    canvas: canvas, fillStyle: '#000', font: '', imageSmoothingEnabled: true,
+    ops: [],
+    fillRect: function (x, y, w, h) { ctx.ops.push(['fillRect', x, y, w, h, ctx.fillStyle]); },
+    clearRect: function () {},
+    strokeRect: function (x, y, w, h) { ctx.ops.push(['strokeRect', x, y, w, h]); },
+    fillText: function (t, x, y) { ctx.ops.push(['fillText', String(t), x, y, ctx.font]); },
+    measureText: function (t) { return { width: String(t).length * 6 }; },
+    beginPath: function () {}, moveTo: function () {}, lineTo: function () {},
+    arcTo: function () {}, arc: function () {}, closePath: function () {},
+    fill: function () {}, stroke: function () {},
+    save: function () {}, restore: function () {},
+    translate: function () {}, scale: function () {}, rotate: function () {},
+    setTransform: function () {}, drawImage: function () {},
+    createLinearGradient: function () { return { addColorStop: function () {} }; },
+    createPattern: function () { return null; }
+  };
+  return ctx;
+}
+
 function fakeCanvas() {
-  return {
-    width: 0, height: 0, style: {},
-    getContext: function () { return null; },
+  var c = {
+    width: 0, height: 0, style: {}, _ctx: null,
+    getContext: function (kind) {
+      if (kind !== '2d') return null;
+      if (!c._ctx) c._ctx = fake2d(c);
+      return c._ctx;
+    },
     addEventListener: function () {}, removeEventListener: function () {},
     setPointerCapture: function () {}, releasePointerCapture: function () {}
   };
+  return c;
 }
 
 var win = {};
 win.window = win;
 win.self = win;
 win.console = console;
+var canvases = [];   // los lienzos que se crean (para mirar el HUD de píxeles)
 win.performance = { now: function () { return 0; } };
 win.navigator = { userAgent: 'smoke-test' };
 win.devicePixelRatio = 1;
@@ -56,10 +84,10 @@ function key(k, down) {
 win.setTimeout = setTimeout;
 win.document = {
   createElement: function (tag) {
-    if (tag === 'canvas') return fakeCanvas();
+    if (tag === 'canvas') { var c = fakeCanvas(); canvases.push(c); return c; }
     return { style: {}, setAttribute: function () {}, appendChild: function () {} };
   },
-  createElementNS: function () { return fakeCanvas(); },
+  createElementNS: function () { var c = fakeCanvas(); canvases.push(c); return c; },
   getElementById: function () { return null; },
   querySelector: function () { return null; },
   head: { appendChild: function (s) { if (s && s.onload) s.onload(); } },
@@ -126,6 +154,34 @@ G.startPreview(host, {
   var dyL = mk.shoulderY - lm[1], dxL = lm[0] + 0.3, dzL = lm[2];
   var lenL = Math.sqrt(dxL * dxL + dyL * dyL + dzL * dzL);
   assert.ok(Math.abs(lenL - mk.armLen[0]) < 0.05, 'la longitud del brazo es la distancia hombro-mano');
+
+  /* look pixelado de verdad: caras planas, texturas nearest y cartel de píxeles */
+  assert.strictEqual(mk.pixel, true, 'el motor va en modo pixelado');
+  assert.strictEqual(mk.flat, true, 'el pelo del monke usa caras planas (flat shading)');
+  assert.strictEqual(mk.pixelTex, true, 'el pelo lleva textura de píxeles (8x8 nearest)');
+  assert.ok(mk.palette && mk.palette.green && mk.palette.purple,
+    'está la paleta de monkes (verde, morado…)');
+  ['torso', 'belly', 'armL'].forEach(function (p) {
+    assert.ok(mk.parts.indexOf(p) >= 0, 'sigue estando ' + p + ' en el monke pixelado');
+  });
+
+  /* el cartel de estado se pinta en un lienzo de píxeles (288x144) con texto en mayúsculas */
+  var hudCanvas = null;
+  for (var ci = 0; ci < canvases.length; ci++) {
+    var cc = canvases[ci];
+    if (cc.width === 288 && cc.height === 144) { hudCanvas = cc; break; }
+  }
+  assert.ok(hudCanvas, 'el HUD usa el lienzo de píxeles de 288x144');
+  var hudOps = (hudCanvas._ctx && hudCanvas._ctx.ops) || [];
+  var texts = hudOps.filter(function (o) { return o[0] === 'fillText'; })
+    .map(function (o) { return o[1]; });
+  assert.ok(texts.indexOf('DOGA GORILLA') >= 0, 'el cartel pinta el título');
+  assert.ok(texts.some(function (t) { return t.indexOf('MONKE') >= 0 || t.indexOf('AGARRADO') >= 0; })
+    || texts.some(function (t) { return t.indexOf('SUELO AL PECHO') >= 0; }),
+    'el cartel explica el monke y el suelo al pecho');
+  assert.ok(hudOps.some(function (o) { return o[0] === 'fillRect' && o[3] === 288; }),
+    'el cartel pinta el marco de bloques');
+  ok('look pixelado: caras planas, texturas nearest y cartel de mapa de bits');
 
   /* física: apoyado en el suelo y andando de verdad */
   var st = G.state();

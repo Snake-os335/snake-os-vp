@@ -68,7 +68,8 @@
       kBounces: String(s.bounces || 0),
       kSpeed: fmt(s.speed) + ' m/s',
       kGround: s.running ? (s.onGround ? 'sí' : 'aire') : '—',
-      kBody: s.running ? (s.grabbing ? '🖐️ trepando' : (s.body ? '🦍 monke' : '—')) : '—'
+      kBody: s.running ? (s.grabbing ? '🖐️ trepando' : (s.body ? '🦍 monke' : '—')) : '—',
+      kLook: s.pixel ? 'pixel' : 'normal'
     };
     for (var k in K) {
       if (!Object.prototype.hasOwnProperty.call(K, k)) continue;
@@ -198,6 +199,23 @@
 
   var verNode = el('ver');
   if (verNode) verNode.textContent = 'DogaGorilla ' + (G.version || '');
+
+  /* Sello del build servido: es el ?v=<token> que pone el servidor en el <script>.
+     Si cambia el motor, cambia este token; sirve para ver de un vistazo si el
+     navegador está sirviendo una copia vieja (caché). */
+  (function stampBuild() {
+    var tok = '';
+    try {
+      var me = document.currentScript || el('buildSrc');
+      if (me && me.src) tok = String(me.src).split('?v=')[1] || '';
+      if (tok) tok = tok.split('&')[0];
+    } catch (e) {}
+    var node = el('build');
+    if (node) node.textContent = 'build ' + (tok || 'auto');
+    if (tok && tok !== 'auto') {
+      try { document.body.setAttribute('data-build', tok); } catch (e2) {}
+    }
+  })();
 
   if (G.supported()) {
     pill('', 'WebXR listo · esperando');

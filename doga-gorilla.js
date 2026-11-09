@@ -17,8 +17,18 @@
  *   · caramelo — Isla Caramelo: colinas de helado, gelatinas y caramelos.
  *   · cristal  — Selva de Cristal: cristales que se encienden, lianas y luciérnagas.
  *
+ * EL LOOK ES PIXELADO, COMO EL DE GORILLA TAG
+ *   · Caras planas (flat shading) y pocos polígonos: torso icosaédrico, brazos de
+ *     seis caras y manos de bloques con puño.
+ *   · Texturas de 8x8 con NearestFilter (pelo del monke, hierba, cielo en bandas):
+ *     los píxeles se ven cuadrados y gordos, sin filtros suaves.
+ *   · Colores lisos de la paleta de monkes del original (azul, verde, naranja,
+ *     rosa, rojo, morado, lima, marrón); cada mundo tiene el suyo.
+ *   · La vista previa del PC se dibuja a menos resolución y se estira con
+ *     «image-rendering: pixelated»; el cartel (HUD) es de mapa de bits.
+ *
  * API: window.DogaGorilla = { version, supported(), worlds(), world(nombre),
- *      start(opts), stop(), state() }
+ *      start(opts), stop(), state(), monke() }
  *   opts = { onState(state), onLog(text), onEnd(motivo), world }
  */
 (function (global) {
@@ -42,24 +52,45 @@
   var EYE_MONKE = 1.15;     // altura de los ojos del monke sobre el suelo (m)
   var DROP_MAX = 1.05;      // cuánto se puede bajar el cuerpo como mucho (m)
 
+  /* LOOK PIXELADO, COMO GORILLA TAG
+     Gorilla Tag no usa texturas realistas: modelos de pocos polígonos con las
+     caras PLANAS (flat shading), colores lisos muy saturados y texturas de
+     píxeles gordos (nada de degradados finos). Aquí igual:
+       · PIXEL      — caras planas + texturas de píxeles en todo el juego.
+       · PIXEL_RES  — resolución interna de la vista previa del PC (se estira al
+                      tamaño de la ventana con «image-rendering: pixelated», así
+                      los píxeles se ven cuadrados y gordos).
+       · PIXEL_FONT — tipografía de mapa de bits del cartel (HUD).
+     En VR NO se baja la resolución (marea y no se lee): allí sólo van las caras
+     planas y las texturas de píxeles. */
+  var PIXEL = true;
+  var PIXEL_RES = 0.55;     // 55 % de resolución en la vista previa (píxeles gordos)
+  var PIXEL_FONT = 'monospace';
+  /* Los colores de los monkes del Gorilla Tag original (azul, verde, naranja,
+     rosa, rojo, morado, lima y marrón), para el cuerpo y para la ropa. */
+  var MONKES = {
+    blue: 0x2f6fd0, green: 0x35b544, orange: 0xf28b17, pink: 0xf26ab6,
+    red: 0xd93a2b, purple: 0x8b5cf6, lime: 0xb6f24a, brown: 0x8a5a2b
+  };
+
   var WORLDS = {
     prado: {
       name: 'Prado de las Nubes', tag: '🌱', radius: 26,
       sky: ['#2f7fe0', '#79c8f5', '#d5f2ff', '#ffeccd'],
       grass: 0x7ee081, hill: 0x5cc47a, accent: 0xfff2a8, fog: 0xd6f2ff,
-      monke: 0x2fa84f, belly: 0xf3e7c8
+      monke: 0x35b544, belly: 0xf3e7c8
     },
     caramelo: {
       name: 'Isla Caramelo', tag: '🍭', radius: 24,
       sky: ['#ff7fb6', '#ffb3d1', '#ffe0ef', '#fff6cf'],
       grass: 0xffc2e0, hill: 0xff9ccb, accent: 0xfff3a0, fog: 0xffe6f2,
-      monke: 0xff8ec2, belly: 0xfff4e6
+      monke: 0xf26ab6, belly: 0xfff4e6
     },
     cristal: {
       name: 'Selva de Cristal', tag: '💎', radius: 25,
       sky: ['#0d1b4c', '#254a8f', '#5b8fd6', '#c9e8ff'],
       grass: 0x3f8f8a, hill: 0x2f6f7a, accent: 0xa8f7ff, fog: 0x9fd8ea,
-      monke: 0x53d8c8, belly: 0xd8fbff
+      monke: 0x8b5cf6, belly: 0xd8fbff
     }
   };
 
@@ -102,19 +133,118 @@
     return S.loadP;
   }
 
-  function skyTexture(T, stops) {
+  /* ============================================ TEXTURAS DE PÍXELES (retro) */
+  /* Un lienzo pequeñito (16x16, 8x8…) que se pinta píxel a píxel y se muestra
+     con NearestFilter: el píxel se ve CUADRADO y gordo, como en Gorilla Tag. */
+  function pixelCanvas(size, draw) {
     var c = document.createElement('canvas');
-    c.width = 8;
-    c.height = 512;
+    c.width = size;
+    c.height = size;
     var g = c.getContext('2d');
     if (!g) return null;
-    var grd = g.createLinearGradient(0, 0, 0, 512);
-    stops.forEach(function (hex, i) {
-      grd.addColorStop(stops.length > 1 ? i / (stops.length - 1) : 0, hex);
+    draw(g, size);
+    return c;
+  }
+
+  /* Textura de píxeles a partir de un mapa de letras (cada letra = un píxel). */
+  function pixelTex(rows, palette, opts) {
+    var T = S.three;
+    if (!T || !rows || !rows.length) return null;
+    var size = rows[0].length;
+    var c = pixelCanvas(size, function (g, n) {
+      g.clearRect(0, 0, n, n);
+      for (var y = 0; y < rows.length; y++) {
+        for (var x = 0; x < size; x++) {
+          var hex = palette[rows[y].charAt(x)];
+          if (!hex) continue;
+          g.fillStyle = hex;
+          g.fillRect(x, y, 1, 1);
+        }
+      }
     });
-    g.fillStyle = grd;
-    g.fillRect(0, 0, 8, 512);
-    return new T.CanvasTexture(c);
+    if (!c) return null;
+    var t = new T.CanvasTexture(c);
+    t.magFilter = T.NearestFilter;
+    t.minFilter = T.NearestFilter;
+    t.generateMipmaps = false;
+    if (T.SRGBColorSpace && 'colorSpace' in t) t.colorSpace = T.SRGBColorSpace;
+    t.wrapS = T.RepeatWrapping;
+    t.wrapT = T.RepeatWrapping;
+    if (opts && opts.repeat) t.repeat.set(opts.repeat, opts.repeat);
+    if (opts && opts.rotate) t.rotation = opts.rotate;
+    return t;
+  }
+
+  /* Piel de monke: pelo de dos tonos (claro con motas oscuras) en grises, para
+     poder teñirlo con material.color y que cada mundo tenga su monke. */
+  var FUR_MAP = [
+    'dLLdLLLd',
+    'LLLdLLLL',
+    'LLLLLLLd',
+    'dLLLLdLL',
+    'LLdLLLLL',
+    'LLLLLLLd',
+    'LdLLdLLL',
+    'LLLdLLLd'
+  ];
+  var FUR_PAL = { L: '#ffffff', d: '#b9b9b9' };
+
+  /* Hierba de píxeles: matas claras y oscuras sobre el color del mundo. */
+  var GRASS_MAP = [
+    '..g..g..',
+    '.gg.gg.g',
+    'gggg.ggg',
+    '.gGgggg.',
+    'gggggGgg',
+    'Ggg.gggg',
+    'gggggg.g',
+    '.g.ggg..'
+  ];
+  var GRASS_PAL = { '.': '#ffffff', g: '#d8ffd8', G: '#9fe09f' };
+
+  function flatMat(opts) {
+    var T = S.three;
+    var o = {};
+    for (var k in opts) if (Object.prototype.hasOwnProperty.call(opts, k)) o[k] = opts[k];
+    if (PIXEL && o.flatShading === undefined) o.flatShading = true;
+    return new T.MeshStandardMaterial(o);
+  }
+
+  function furTexture(repeat) {
+    return pixelTex(FUR_MAP, FUR_PAL, { repeat: repeat || 2 });
+  }
+
+  function grassTexture(repeat) {
+    return pixelTex(GRASS_MAP, GRASS_PAL, { repeat: repeat || 8 });
+  }
+
+  /* Cielo con BANDAS de píxeles (sin degradado suave): 4 colores → 12 escalones. */
+  function skyTexture(T, stops) {
+    var STEPS = 12;
+    var c = document.createElement('canvas');
+    c.width = 8;
+    c.height = STEPS;
+    var g = c.getContext('2d');
+    if (!g) return null;
+    for (var i = 0; i < STEPS; i++) {
+      var f = STEPS > 1 ? i / (STEPS - 1) : 0;              // 0 arriba, 1 abajo
+      var seg = Math.min(stops.length - 2, Math.floor(f * (stops.length - 1)));
+      var local = (f * (stops.length - 1)) - seg;            // 0..1 dentro del tramo
+      g.fillStyle = mixHex(stops[seg], stops[seg + 1], local < 0.5 ? 0 : 1);
+      g.fillRect(0, i, 8, 1);
+    }
+    var t = new T.CanvasTexture(c);
+    t.magFilter = T.NearestFilter;
+    t.minFilter = T.NearestFilter;
+    t.generateMipmaps = false;
+    if (T.SRGBColorSpace && 'colorSpace' in t) t.colorSpace = T.SRGBColorSpace;
+    return t;
+  }
+
+  /* Mezcla dos colores #rrggbb… pero devolviendo el MÁS CERCANO de los dos (a
+     píxel limpio, sin medios tonos). */
+  function mixHex(a, b, t) {
+    return t < 0.5 ? a : b;
   }
 
   /* --------------------------------------------------------------- escena */
@@ -141,26 +271,28 @@
   /* ================================================== EL MONKE (tu cuerpo) */
   /* Como en gorilla tag: eres un gorila SIN PIERNAS. Te ves el torso, los brazos
      larguísimos y las manos, y el suelo queda a la altura del pecho para que las
-     manos lleguen siempre al suelo. Todo cuelga de S.player (el jugador). */
+     manos lleguen siempre al suelo. Todo cuelga de S.player (el jugador).
+     El look es el del original: pocos polígonos, caras planas y manos de bloques
+     (puño cerrado en cuanto aprietas el grip). */
   function makeHand(furMat, skinMat) {
     var T = S.three;
     var g = new T.Group();
-    var palm = new T.Mesh(new T.SphereGeometry(0.115, 14, 10), skinMat);
-    palm.scale.set(1.15, 0.75, 1.25);
+    /* palma cuadrada (un bloque, no una esfera) */
+    var palm = new T.Mesh(new T.BoxGeometry(0.19, 0.13, 0.22), skinMat);
     g.add(palm);
     var knuckles = [], i;
     for (i = 0; i < 4; i++) {
-      var f = new T.Mesh(new T.SphereGeometry(0.045, 8, 6), skinMat);
-      f.position.set(-0.068 + i * 0.045, -0.02, -0.1);
+      var f = new T.Mesh(new T.BoxGeometry(0.042, 0.055, 0.10), skinMat);
+      f.position.set(-0.066 + i * 0.044, -0.02, -0.1);
       g.add(f);
       knuckles.push(f);
     }
-    var thumb = new T.Mesh(new T.SphereGeometry(0.05, 8, 6), skinMat);
-    thumb.position.set(0.08, -0.03, 0.02);
+    var thumb = new T.Mesh(new T.BoxGeometry(0.055, 0.06, 0.08), skinMat);
+    thumb.position.set(0.085, -0.03, 0.02);
     g.add(thumb);
-    var cuff = new T.Mesh(new T.SphereGeometry(0.1, 12, 10), furMat);
+    /* puño de pelo en la muñeca, como el guante del monke */
+    var cuff = new T.Mesh(new T.BoxGeometry(0.21, 0.12, 0.12), furMat);
     cuff.position.set(0, 0.02, 0.1);
-    cuff.scale.set(1.05, 0.9, 0.8);
     g.add(cuff);
     return { g: g, palm: palm, knuckles: knuckles, thumb: thumb, fist: 0 };
   }
@@ -169,27 +301,30 @@
     var T = S.three;
     if (!T || !S.player) return;
     var meta = WORLDS[S.world] || WORLDS.prado;
-    var furMat = new T.MeshStandardMaterial({ color: meta.monke, roughness: 0.85 });
-    var skinMat = new T.MeshStandardMaterial({ color: meta.belly, roughness: 0.9 });
+    /* pelo de píxeles teñido con el color del mundo (caras planas = retro) */
+    var furMat = flatMat({ color: meta.monke, roughness: 0.95, map: furTexture(2) });
+    var skinMat = flatMat({ color: meta.belly, roughness: 1 });
     var g = new T.Group();
     g.name = 'doga-gorilla-monke';
-    var torso = new T.Mesh(new T.SphereGeometry(0.34, 18, 14), furMat);
+    /* torso de pocos polígonos (icosaedro sin suavizar) */
+    var torso = new T.Mesh(new T.IcosahedronGeometry(0.34, 1), furMat);
     torso.scale.set(1.0, 1.25, 0.9);
     g.add(torso);
-    var belly = new T.Mesh(new T.SphereGeometry(0.26, 16, 12), skinMat);
+    var belly = new T.Mesh(new T.IcosahedronGeometry(0.26, 0), skinMat);
     belly.scale.set(0.95, 1.15, 0.72);
     g.add(belly);
     /* morro y orejas: al mirar abajo te ves la cara de monke */
-    var muzzle = new T.Mesh(new T.SphereGeometry(0.15, 14, 10), skinMat);
+    var muzzle = new T.Mesh(new T.IcosahedronGeometry(0.15, 0), skinMat);
     muzzle.scale.set(1.25, 0.8, 1);
     g.add(muzzle);
-    var earGeo = new T.SphereGeometry(0.1, 12, 10);
+    var earGeo = new T.IcosahedronGeometry(0.1, 0);
     var earL = new T.Mesh(earGeo, furMat), earR = new T.Mesh(earGeo, furMat);
     g.add(earL); g.add(earR);
-    var shoulderGeo = new T.SphereGeometry(0.16, 12, 10);
+    var shoulderGeo = new T.IcosahedronGeometry(0.16, 0);
     var shL = new T.Mesh(shoulderGeo, furMat), shR = new T.Mesh(shoulderGeo, furMat);
     g.add(shL); g.add(shR);
-    var armGeo = new T.CylinderGeometry(0.115, 0.095, 1, 10, 1);
+    /* brazos de 6 caras (hexágono gordo, nada de cilindros suaves) */
+    var armGeo = new T.CylinderGeometry(0.115, 0.095, 1, 6, 1);
     var armL = new T.Mesh(armGeo, furMat), armR = new T.Mesh(armGeo, furMat);
     g.add(armL); g.add(armR);
     var hands = { left: makeHand(furMat, skinMat), right: makeHand(furMat, skinMat) };
@@ -308,30 +443,46 @@
   }
 
   /* ----------------------------------------------------- piezas comunes */
+  /* Cielo de píxeles. En la vista previa se ve el cartel de nubes cuadradas;
+     dentro del visor es igual pero envolviendo todo. */
   function addSky(meta) {
     var T = S.three, radius = meta.radius;
     var mat = new T.MeshBasicMaterial({ side: T.BackSide, depthWrite: false });
     var tex = skyTexture(T, meta.sky);
     if (tex) mat.map = tex; else mat.color = new T.Color(meta.fog);
-    S.group.add(new T.Mesh(new T.SphereGeometry(radius * 5, 32, 20), mat));
+    S.group.add(new T.Mesh(new T.SphereGeometry(radius * 5, 16, 10), mat));
+    /* nubes de bloques, como los sprites gordos del original */
+    var cloudMat = new T.MeshBasicMaterial({ color: 0xffffff, transparent: true,
+      opacity: 0.85, fog: false });
+    for (var c = 0; c < 14; c++) {
+      var ca = (c / 14) * Math.PI * 2 + 0.4, cd = radius * (1.4 + (c % 4) * 0.45);
+      var cloud = new T.Mesh(new T.BoxGeometry(4 + (c % 3) * 2.5, 1.1 + (c % 2) * 0.7,
+        3 + (c % 4) * 1.6), cloudMat);
+      cloud.position.set(Math.cos(ca) * cd, 9 + (c % 5) * 2.2, Math.sin(ca) * cd);
+      cloud.rotation.y = ca;
+      S.group.add(cloud);
+    }
     S.scene.fog = new T.Fog(new T.Color(meta.fog), radius * 1.2, radius * 4.2);
   }
 
   function addGround(meta) {
     var T = S.three, radius = meta.radius, i;
-    var ground = new T.Mesh(new T.CircleGeometry(radius, 84),
-      new T.MeshStandardMaterial({ color: meta.grass, roughness: 0.95 }));
+    /* suelo de píxeles: la misma textura de 8x8 repetida (píxel cuadrado) */
+    var gtex = grassTexture(Math.max(6, Math.round(radius / 3)));
+    var ground = new T.Mesh(new T.CircleGeometry(radius, 96),
+      flatMat({ color: meta.grass, roughness: 0.95, map: gtex }));
     ground.rotation.x = -Math.PI / 2;
     S.group.add(ground);
     /* canto de la isla: se ve dónde acaba el mundo (el límite es de verdad) */
-    var rim = new T.Mesh(new T.CylinderGeometry(radius, radius * 0.82, 3.4, 84, 1, true),
-      new T.MeshStandardMaterial({ color: meta.hill, roughness: 1, side: T.DoubleSide }));
+    var rim = new T.Mesh(new T.CylinderGeometry(radius, radius * 0.82, 3.4, 26, 1, true),
+      flatMat({ color: meta.hill, roughness: 1, side: T.DoubleSide }));
     rim.position.y = -1.7;
     S.group.add(rim);
     for (i = 0; i < 14; i++) {
       var a = (i / 14) * Math.PI * 2, d = radius * (0.74 + (i % 3) * 0.08);
-      var hill = new T.Mesh(new T.SphereGeometry(4 + (i % 4), 14, 10),
-        new T.MeshStandardMaterial({ color: meta.hill, roughness: 1 }));
+      /* colinas de pocos polígonos (icosaedro sin suavizar) */
+      var hill = new T.Mesh(new T.IcosahedronGeometry(4 + (i % 4), 0),
+        flatMat({ color: meta.hill, roughness: 1 }));
       hill.position.set(Math.cos(a) * d, -2.4 - (i % 3), Math.sin(a) * d);
       hill.scale.set(1, 0.6, 1);
       S.group.add(hill);
@@ -364,7 +515,7 @@
     var T = S.three;
     var hex = color || 0xffe066;
     var mesh = new T.Mesh(new T.IcosahedronGeometry(0.17, 0),
-      new T.MeshStandardMaterial({ color: hex, emissive: hex, emissiveIntensity: 0.85,
+      flatMat({ color: hex, emissive: hex, emissiveIntensity: 0.85,
         roughness: 0.3, metalness: 0.2 }));
     mesh.position.set(x, y, z);
     S.group.add(mesh);
@@ -416,8 +567,8 @@
   function addBouncer(x, z, color, power) {
     var T = S.three;
     var hex = color || 0xff7fb0;
-    var dome = new T.Mesh(new T.SphereGeometry(0.8, 18, 12, 0, Math.PI * 2, 0, Math.PI / 2),
-      new T.MeshStandardMaterial({ color: hex, roughness: 0.4, emissive: hex,
+    var dome = new T.Mesh(new T.SphereGeometry(0.8, 8, 4, 0, Math.PI * 2, 0, Math.PI / 2),
+      flatMat({ color: hex, roughness: 0.4, emissive: hex,
         emissiveIntensity: 0.2 }));
     dome.position.set(x, 0, z);
     dome.scale.set(1, 0.6, 1);
@@ -448,15 +599,15 @@
     var T = S.three;
     var hex = color || 0xfff2a8;
     var g = new T.Group();
-    var post = new T.Mesh(new T.CylinderGeometry(0.09, 0.12, 1.55, 8),
-      new T.MeshStandardMaterial({ color: 0xf4f4f4, roughness: 0.6 }));
+    var post = new T.Mesh(new T.CylinderGeometry(0.09, 0.12, 1.55, 5),
+      flatMat({ color: 0xf4f4f4, roughness: 0.6 }));
     post.position.y = 0.78;
     g.add(post);
     var hub = new T.Group();
     hub.position.y = 1.55;
     for (var i = 0; i < 4; i++) {
       var blade = new T.Mesh(new T.BoxGeometry(1.05, 0.5, 0.05),
-        new T.MeshStandardMaterial({ color: hex, roughness: 0.5 }));
+        flatMat({ color: hex, roughness: 0.5 }));
       blade.position.set(Math.cos(i * Math.PI / 2) * 0.55, Math.sin(i * Math.PI / 2) * 0.55, 0);
       blade.rotation.z = i * Math.PI / 2;
       hub.add(blade);
@@ -488,8 +639,8 @@
   function addBell(x, y, z, color) {
     var T = S.three;
     var hex = color || 0xffd166;
-    var bell = new T.Mesh(new T.SphereGeometry(0.34, 16, 12),
-      new T.MeshStandardMaterial({ color: hex, roughness: 0.25, metalness: 0.55,
+    var bell = new T.Mesh(new T.SphereGeometry(0.34, 8, 6),
+      flatMat({ color: hex, roughness: 0.25, metalness: 0.55,
         emissive: hex, emissiveIntensity: 0.25 }));
     bell.position.set(x, y, z);
     bell.scale.set(1, 1.15, 1);
@@ -546,20 +697,21 @@
 
   function buildPrado(meta) {
     var T = S.three, i;
-    var trunkMat = new T.MeshStandardMaterial({ color: 0x9a6b3f, roughness: 1 });
+    var trunkMat = flatMat({ color: 0x9a6b3f, roughness: 1 });
     var leafMats = [
-      new T.MeshStandardMaterial({ color: 0x35a54e, roughness: 0.9 }),
-      new T.MeshStandardMaterial({ color: 0x59c76a, roughness: 0.9 }),
-      new T.MeshStandardMaterial({ color: 0x8fe07a, roughness: 0.9 })
+      flatMat({ color: 0x35a54e, roughness: 0.95 }),
+      flatMat({ color: 0x59c76a, roughness: 0.95 }),
+      flatMat({ color: 0x8fe07a, roughness: 0.95 })
     ];
     scatter(12, function (x, z, n) {
       var tree = new T.Group();
       var h = 1.7 + (n % 3) * 0.5;
-      var trunk = new T.Mesh(new T.CylinderGeometry(0.13, 0.19, h, 8), trunkMat);
+      var trunk = new T.Mesh(new T.CylinderGeometry(0.13, 0.19, h, 5), trunkMat);
       trunk.position.y = h / 2;
       tree.add(trunk);
+      /* copa de bloques verdes (icosaedros sin suavizar) */
       for (var k = 0; k < 3; k++) {
-        var ball = new T.Mesh(new T.SphereGeometry(0.95 - k * 0.2, 12, 10), leafMats[(n + k) % 3]);
+        var ball = new T.Mesh(new T.IcosahedronGeometry(0.95 - k * 0.2, 0), leafMats[(n + k) % 3]);
         ball.position.set(Math.sin(n + k) * 0.3, h + 0.2 + k * 0.45, Math.cos(n * 2 + k) * 0.3);
         tree.add(ball);
       }
@@ -568,14 +720,14 @@
       /* el tronco se puede agarrar con el gatillo y trepar (como en gorilla tag) */
       S.trunks.push({ x: x, z: z, r: 0.34, top: h + 1.1 });
     });
-    /* nubes flotando (se pueden empujar con la cabeza, no molestan) */
+    /* nubes de cajas (pixel style: puro bloque) */
     for (i = 0; i < 14; i++) {
       var ca = (i / 14) * Math.PI * 2;
-      var cloud = new T.Mesh(new T.SphereGeometry(2.2 + (i % 3), 12, 8),
-        new T.MeshStandardMaterial({ color: 0xffffff, roughness: 1 }));
+      var cloud = new T.Mesh(new T.BoxGeometry(5.4 + (i % 3) * 1.4, 1.5, 4),
+        new T.MeshStandardMaterial({ color: 0xffffff, roughness: 1, flatShading: true }));
       cloud.position.set(Math.cos(ca) * meta.radius * 0.8, 9 + (i % 4) * 1.6,
         Math.sin(ca) * meta.radius * 0.8);
-      cloud.scale.set(1.4, 0.55, 1);
+      cloud.rotation.y = ca;
       S.group.add(cloud);
     }
     scatter(5, function (x, z, n) { addBouncer(x, z, 0xff8fb0, 8 + n * 0.4); });   // setas
@@ -586,10 +738,10 @@
 
   function buildCaramelo(meta) {
     var T = S.three;
-    var stickMat = new T.MeshStandardMaterial({ color: 0xffffff, roughness: 0.5 });
-    /* charco de chocolate */
-    var pond = new T.Mesh(new T.CircleGeometry(5.5, 48),
-      new T.MeshStandardMaterial({ color: 0x6b3a1f, roughness: 0.35, metalness: 0.15 }));
+    var stickMat = flatMat({ color: 0xffffff, roughness: 0.5 });
+    /* charco de chocolate (círculo de pocos lados) */
+    var pond = new T.Mesh(new T.CircleGeometry(5.5, 16),
+      flatMat({ color: 0x6b3a1f, roughness: 0.35, metalness: 0.15 }));
     pond.rotation.x = -Math.PI / 2;
     pond.position.set(9, 0.012, -7);
     S.group.add(pond);
@@ -597,11 +749,11 @@
     scatter(10, function (x, z, n) {
       if (Math.hypot(x - 9, z + 7) < 8) return;
       var g = new T.Group();
-      var stick = new T.Mesh(new T.CylinderGeometry(0.07, 0.07, 2.1, 8), stickMat);
+      var stick = new T.Mesh(new T.CylinderGeometry(0.07, 0.07, 2.1, 5), stickMat);
       stick.position.y = 1.05;
       g.add(stick);
-      var sweet = new T.Mesh(new T.TorusGeometry(0.75, 0.3, 10, 20),
-        new T.MeshStandardMaterial({ color: [0xff7fb6, 0x7fd6ff, 0xfff07a, 0xb48cff][n % 4],
+      var sweet = new T.Mesh(new T.TorusGeometry(0.75, 0.3, 4, 8),
+        flatMat({ color: [0xff7fb6, 0x7fd6ff, 0xfff07a, 0xb48cff][n % 4],
           roughness: 0.35 }));
       sweet.position.y = 2.3;
       sweet.rotation.x = Math.PI / 2;
@@ -618,17 +770,18 @@
 
   function buildCristal(meta) {
     var T = S.three, i;
-    var moon = new T.Mesh(new T.SphereGeometry(3.4, 20, 14),
+    /* luna de píxeles: un cubo grande girando, como un sprite del original */
+    var moon = new T.Mesh(new T.BoxGeometry(5.4, 5.4, 1.2),
       new T.MeshBasicMaterial({ color: 0xdff6ff }));
     moon.position.set(-22, 20, -32);
     S.group.add(moon);
-    /* cristales: conos translúcidos que se encienden */
+    /* cristales: conos translúcidos de pocas caras que se encienden */
     for (i = 0; i < 26; i++) {
       var a = (i / 26) * Math.PI * 2 + (i % 3) * 0.4;
       var d = 4.5 + (i % 5) * (meta.radius * 0.1);
       var h = 1.6 + (i % 4) * 0.9;
-      var cry = new T.Mesh(new T.ConeGeometry(0.5, h, 6),
-        new T.MeshStandardMaterial({ color: 0x9ff2ff, emissive: 0x2fa8c8,
+      var cry = new T.Mesh(new T.ConeGeometry(0.5, h, 5),
+        flatMat({ color: 0x9ff2ff, emissive: 0x2fa8c8,
           emissiveIntensity: 0.5, transparent: true, opacity: 0.82, roughness: 0.15,
           metalness: 0.4 }));
       cry.position.set(Math.cos(a) * d, h / 2, Math.sin(a) * d);
@@ -836,26 +989,42 @@
   }
 
   /* ================================================================ HUD */
-  function roundRect(g, x, y, w, h, r) {
-    g.beginPath();
-    g.moveTo(x + r, y);
-    g.arcTo(x + w, y, x + w, y + h, r);
-    g.arcTo(x + w, y + h, x, y + h, r);
-    g.arcTo(x, y + h, x, y, r);
-    g.arcTo(x, y, x + w, y, r);
-    g.closePath();
+  /* Cartel de estado con LOOK DE PÍXELES: lienzo de 288x144 (poca resolución a
+     propósito), tipografía monospace, bordes duros de 3 px y sombras de bloque.
+     Al mostrarlo con NearestFilter los píxeles se ven cuadrados, como el HUD de
+     los juegos retro (nada de esquinas redondeadas ni degradados). */
+  var HUD_W = 288, HUD_H = 144;
+
+  /* Pinta texto con sombra de bloque (1 píxel desplazado), sin antialias fino. */
+  function hudText(g, txt, x, y, size, color, bold) {
+    g.font = (bold ? 'bold ' : '') + size + 'px ' + PIXEL_FONT;
+    g.fillStyle = 'rgba(0,0,0,0.75)';
+    g.fillText(txt, x + 2, y + 2);
+    g.fillStyle = color;
+    g.fillText(txt, x, y);
+  }
+
+  /* Un cuadradito de píxeles (para las estrellas y los marcadores). */
+  function hudBlock(g, x, y, size, color) {
+    g.fillStyle = color;
+    g.fillRect(x, y, size, size);
   }
 
   function makeHud() {
     var T = S.three;
     if (S.hud || !T || !S.scene) return;
     var c = document.createElement('canvas');
-    c.width = 512;
-    c.height = 256;
+    c.width = HUD_W;
+    c.height = HUD_H;
     S.hudCtx = c.getContext('2d');
     if (!S.hudCtx) return;
+    if ('imageSmoothingEnabled' in S.hudCtx) S.hudCtx.imageSmoothingEnabled = false;
     S.hudTex = new T.CanvasTexture(c);
-    S.hud = new T.Mesh(new T.PlaneGeometry(0.66, 0.33),
+    S.hudTex.magFilter = T.NearestFilter;
+    S.hudTex.minFilter = T.NearestFilter;
+    S.hudTex.generateMipmaps = false;
+    if (T.SRGBColorSpace && 'colorSpace' in S.hudTex) S.hudTex.colorSpace = T.SRGBColorSpace;
+    S.hud = new T.Mesh(new T.PlaneGeometry(0.9, 0.45),
       new T.MeshBasicMaterial({ map: S.hudTex, transparent: true, depthTest: false,
         depthWrite: false }));
     S.hud.renderOrder = 999;
@@ -868,32 +1037,35 @@
     if (!force && S.t - S.hudAt < 0.25) return;
     S.hudAt = S.t;
     var g = S.hudCtx, meta = WORLDS[S.world] || WORLDS.prado;
-    g.clearRect(0, 0, 512, 256);
-    g.fillStyle = 'rgba(6,20,14,0.80)';
-    roundRect(g, 2, 2, 508, 252, 26);
-    g.fill();
-    g.fillStyle = '#8ff7b6';
-    g.font = 'bold 34px system-ui,sans-serif';
-    g.fillText('DOGA GORILLA', 24, 54);
-    g.fillStyle = '#d6ffe6';
-    g.font = '22px system-ui,sans-serif';
-    g.fillText(meta.tag + '  ' + meta.name, 24, 94);
-    g.fillStyle = '#ffe066';
-    g.font = 'bold 26px system-ui,sans-serif';
-    g.fillText('⭐ ' + S.orbs + '/' + S.orbsTotal + '    🔔 ' + S.bells + '    🍄 ' + S.bounces, 24, 138);
-    g.fillStyle = '#9fc4ae';
-    g.font = '19px system-ui,sans-serif';
-    g.fillText('Manos al suelo y arrástralas: así se anda.', 24, 176);
-    g.fillStyle = '#8ff7ff';
-    g.font = 'bold 19px system-ui,sans-serif';
-    g.fillText(S.grabbing ? ('🖐️ agarrado (' + (S.grabbing === 'left' ? 'izq' : 'der') +
-      ') · suelo al pecho') : ('🦍 monke · suelo al pecho · gatillo = trepar'), 24, 202);
-    g.fillStyle = '#ffcf6b';
-    g.font = '18px system-ui,sans-serif';
-    g.fillText(String(S.msg || '').slice(0, 42), 24, 228);
-    g.fillStyle = '#7fa692';
-    g.font = '15px system-ui,sans-serif';
-    g.fillText('Salir: menú del visor', 344, 228);
+    var B = 3;                       // grosor del borde en «píxeles gordos»
+    g.clearRect(0, 0, HUD_W, HUD_H);
+    g.fillStyle = 'rgba(6,20,14,0.88)';
+    g.fillRect(0, 0, HUD_W, HUD_H);
+    /* marco de bloques: verde por fuera, oscuro por dentro */
+    g.fillStyle = '#34d17a';
+    g.fillRect(0, 0, HUD_W, B);
+    g.fillRect(0, HUD_H - B, HUD_W, B);
+    g.fillRect(0, 0, B, HUD_H);
+    g.fillRect(HUD_W - B, 0, B, HUD_H);
+    g.fillStyle = 'rgba(0,0,0,0.45)';
+    g.fillRect(B, B, HUD_W - B * 2, B);
+    /* título */
+    hudText(g, 'DOGA GORILLA', 12, 26, 18, '#8ff7b6', true);
+    hudText(g, '> ' + meta.name.toUpperCase(), 12, 46, 12, '#d6ffe6', false);
+    /* marcadores con cuadraditos de píxeles */
+    hudBlock(g, 12, 56, 6, '#ffe066');
+    hudText(g, S.orbs + '/' + S.orbsTotal, 24, 63, 12, '#ffe066', true);
+    hudBlock(g, 82, 56, 6, '#8ff7ff');
+    hudText(g, String(S.bells), 94, 63, 12, '#8ff7ff', true);
+    hudBlock(g, 122, 56, 6, '#ff8fb0');
+    hudText(g, String(S.bounces), 134, 63, 12, '#ff8fb0', true);
+    /* ayuda y estado del monke */
+    hudText(g, 'MANOS AL SUELO Y ARRASTRALAS: ASI SE ANDA', 12, 82, 10, '#9fc4ae', false);
+    hudText(g, S.grabbing ? ('AGARRADO (' + (S.grabbing === 'left' ? 'IZQ' : 'DER') + ') · SUELO AL PECHO')
+      : 'MONKE · SUELO AL PECHO · GATILLO = TREPAR', 12, 98, 10, '#8ff7ff', true);
+    /* mensaje del juego (última línea) */
+    hudText(g, String(S.msg || '').slice(0, 40).toUpperCase(), 12, 114, 10, '#ffcf6b', false);
+    hudText(g, 'SALIR: MENU DEL VISOR', 12, 132, 9, '#7fa692', false);
     if (S.hudTex) S.hudTex.needsUpdate = true;
   }
 
@@ -946,8 +1118,8 @@
   function addCritter(x, z, color) {
     var T = S.three;
     var hex = color || 0xffb0e0;
-    var body = new T.Mesh(new T.SphereGeometry(0.11, 8, 6),
-      new T.MeshStandardMaterial({ color: hex, roughness: 0.5, emissive: hex,
+    var body = new T.Mesh(new T.SphereGeometry(0.11, 6, 4),
+      flatMat({ color: hex, roughness: 0.5, emissive: hex,
         emissiveIntensity: 0.3 }));
     body.scale.set(1.6, 0.6, 1);
     body.position.set(x, 1.1, z);
@@ -1004,6 +1176,7 @@
       drop: Math.round((S.drop || 0) * 100) / 100,
       grabbing: S.grabbing || null,
       body: !!S.body,
+      pixel: !!PIXEL,
       msg: S.msg
     };
   }
@@ -1018,11 +1191,30 @@
   /* ============================================================ SESIÓN XR */
   function makeRenderer(host) {
     var T = S.three;
-    var r = new T.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
-    r.setPixelRatio(Math.min(2, global.devicePixelRatio || 1));
-    r.setSize(host.clientWidth || global.innerWidth || 800, host.clientHeight || global.innerHeight || 600);
+    /* En la vista previa se apaga el antialias y se dibuja a menos resolución con
+       «image-rendering: pixelated»: los píxeles salen gordos y cuadrados (look
+       retro). Dentro del visor se mantiene la calidad normal, que si no marea. */
+    var pixel = !!PIXEL && !!S.preview;
+    var r = new T.WebGLRenderer({ antialias: !pixel, alpha: false,
+      powerPreference: 'high-performance' });
+    var w = host.clientWidth || global.innerWidth || 800;
+    var h = host.clientHeight || global.innerHeight || 600;
+    if (pixel) {
+      r.setPixelRatio(1);
+      r.setSize(Math.max(240, Math.round(w * PIXEL_RES)),
+        Math.max(160, Math.round(h * PIXEL_RES)), false);
+      try {
+        var dom0 = r.domElement;
+        dom0.style.imageRendering = 'pixelated';
+        dom0.style.width = '100%';
+        dom0.style.height = '100%';
+      } catch (e) {}
+    } else {
+      r.setPixelRatio(Math.min(2, global.devicePixelRatio || 1));
+      r.setSize(w, h);
+    }
     r.xr.enabled = true;
-    try { r.xr.setReferenceSpaceType('local-floor'); } catch (e) {}
+    try { r.xr.setReferenceSpaceType('local-floor'); } catch (e2) {}
     host.appendChild(r.domElement);
     S.renderer = r;
     return r;
@@ -1285,7 +1477,13 @@
         hands: !!(S.body && S.body.hands && S.body.hands.left && S.body.hands.right),
         drop: r2(S.drop),
         eyeY: r2(S.eyeY),
-        grabbing: S.grabbing || null
+        grabbing: S.grabbing || null,
+        /* look retro: caras planas, texturas de píxeles y colores de gorilla tag */
+        pixel: !!PIXEL,
+        flat: !!(S.body && S.body.fur && S.body.fur.flatShading),
+        pixelTex: !!(S.body && S.body.fur && S.body.fur.map),
+        palette: MONKES,
+        color: (WORLDS[S.world] || WORLDS.prado).monke
       };
       if (out.hands) {
         out.handPos = {
