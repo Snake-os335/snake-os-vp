@@ -3049,9 +3049,12 @@
   var SEGS = 16;          // segmentos de la serpiente
   var SEG_LEN = 0.075;    // separación entre segmentos (m) → serpiente de ~1,2 m
   var MAX_CELLS = 5000;
+  var GARDEN_R = 20;      // radio del «mundo bonito» (m): sus únicos límites
+  var WALK_SPEED = 2.8;   // m/s con el stick izquierdo (mundo bonito)
+  var TURN_SPEED = 1.9;   // rad/s con el stick derecho
 
   var S = {
-    __v: '2026.26',
+    __v: '2026.31',
     phase: 'idle',        // idle | scan | play
     three: null, loadP: null,
     canvas: null, renderer: null, scene: null, cam: null,
@@ -3064,6 +3067,10 @@
     mood: 'scan', moodT: 0, target: null, roamT: 0,
     t: 0, dt: 0, last: 0, pet: 0, hearts: [],
     lastPlayer: null, idleT: 0, playerMoved: 0,
+    /* mundo: 'room' = tu habitación (passthrough + suelo escaneado),
+       'garden' = mundo bonito (jardín propio, se anda con los sticks). */
+    world: 'room', prefWorld: 'room', player: null, garden: null,
+    roomFloorY: 0, padPrev: {}, flies: [], butter: [], lanterns: [],
     progress: 0, msg: '', btn: null, overlay: null, err: ''
   };
 
@@ -3163,7 +3170,8 @@
     S.err = '';
     reset();
     overlay('<div><div style="font-size:42px">🐍</div><b style="font-size:19px">Mascota de realidad mixta</b><br>' +
-      'Ponte las gafas. Primero escaneamos la habitación y después la serpiente aparecerá dentro.</div>');
+      'Ponte las gafas. Sin límites: pulsa el gatillo cuando quieras y la serpiente sale ya, ' +
+      'o pulsa A para llevarla al mundo bonito.</div>');
     return loadThree().then(function (T) {
       S.three = T;
       return startXR();
@@ -3244,7 +3252,15 @@
     var T = S.three;
     var sc = new T.Scene();
     S.scene = sc;
-    S.cam = new T.PerspectiveCamera(70, 1, 0.05, 60);
+    S.cam = new T.PerspectiveCamera(70, 1, 0.05, Math.max(80, GARDEN_R * 4));
+    /* El jugador es un grupo que CONTIENE la cámara: en el mundo bonito se anda
+       moviendo el grupo, y three.js aplica su matriz a la cámara de la sesión XR
+       (WebXRManager multiplica por la matriz del padre). En la habitación el
+       grupo se queda quieto en el origen: mandas tú andando de verdad. */
+    S.player = new T.Group();
+    S.player.name = 'snk-mr-player';
+    S.player.add(S.cam);
+    sc.add(S.player);
     sc.add(new T.HemisphereLight(0xffffff, 0x33423b, 2.2));
     var dl = new T.DirectionalLight(0xfff3d6, 1.3);
     dl.position.set(0.8, 3.2, 1.1);
@@ -3277,7 +3293,366 @@
     S.snake = new T.Group();
     S.snake.visible = false;
     sc.add(S.snake);
+    buildGarden();                    // mundo bonito, listo (oculto si no se usa)
+    applyWorldLook();
     drawPanel(true);
+  }
+
+  /* ================================================== MUNDO BONITO (jardín) */
+  /* Para jugar no hace falta límite ninguno: ni escanear el cuarto ni esperar
+     a nada. El jardín es un mundo entero (GARDEN_R metros de radio) con su
+     suelo, su cielo, su lago, sus árboles y sus luciérnagas, y la serpiente
+     puede ir a cualquier parte. Se entra y se sale con el botón A del mando
+     sin cerrar la sesión del visor. */
+
+  /* Cielo pintado en un canvas: degradado de día con sol. */
+  function skyTexture() {
+    var T = S.three;
+    if (S.skyTex) return S.skyTex;
+    var c = document.createElement('canvas');
+    c.width = 64;
+    c.height = 512;
+    var g = c.getContext('2d');
+    if (!g) return null;
+    var grd = g.createLinearGradient(0, 0, 0, 512);
+    grd.addColorStop(0.00, '#1f6fd0');
+    grd.addColorStop(0.35, '#59b7ef');
+    grd.addColorStop(0.62, '#a8e6f7');
+    grd.addColorStop(0.82, '#ffe6b8');
+    grd.addColorStop(1.00, '#ffd0a1');
+    g.fillStyle = grd;
+    g.fillRect(0, 0, 64, 512);
+    S.skyTex = new T.CanvasTexture(c);
+    return S.skyTex;
+  }
+
+  function buildGarden() {
+    var T = S.three, i;
+    if (!T || !S.scene || S.garden) return;
+    var G = new T.Group();
+    G.name = 'snk-mr-garden';
+    G.visible = false;
+
+    /* cielo + sol */
+    var skyMat = new T.MeshBasicMaterial({ side: T.BackSide, depthWrite: false });
+    var tex = skyTexture();
+    if (tex) skyMat.map = tex; else skyMat.color = new T.Color(0x7fd3ff);
+    G.add(new T.Mesh(new T.SphereGeometry(GARDEN_R * 2.4, 32, 20), skyMat));
+    var sun = new T.Mesh(new T.CircleGeometry(3.2, 32),
+      new T.MeshBasicMaterial({ color: 0xfff2c4, depthWrite: false }));
+    sun.position.set(-14, 13, -26);
+    sun.lookAt(0, 0, 0);
+    G.add(sun);
+
+    /* hierba y camino de piedra */
+    var grass = new T.Mesh(new T.CircleGeometry(GARDEN_R, 80),
+      new T.MeshStandardMaterial({ color: 0x74d06a, roughness: 0.95, metalness: 0 }));
+    grass.rotation.x = -Math.PI / 2;
+    G.add(grass);
+    [0.55, 0.62].forEach(function (k, n) {
+      var ring = new T.Mesh(new T.RingGeometry(GARDEN_R * k, GARDEN_R * (k + 0.012), 90),
+        new T.MeshStandardMaterial({ color: n ? 0xd9c9a3 : 0xc9b58c, roughness: 1 }));
+      ring.rotation.x = -Math.PI / 2;
+      ring.position.y = 0.006;
+      G.add(ring);
+    });
+    /* lago */
+    var lake = new T.Mesh(new T.CircleGeometry(5.2, 48),
+      new T.MeshStandardMaterial({ color: 0x53c7e8, roughness: 0.15, metalness: 0.35,
+        transparent: true, opacity: 0.92 }));
+    lake.rotation.x = -Math.PI / 2;
+    lake.position.set(8.5, 0.012, -6.5);
+    G.add(lake);
+
+    /* árboles: tronco + tres copas */
+    var trunkMat = new T.MeshStandardMaterial({ color: 0x8a5a34, roughness: 1 });
+    var leafMats = [
+      new T.MeshStandardMaterial({ color: 0x2f9b46, roughness: 0.85 }),
+      new T.MeshStandardMaterial({ color: 0x53c76a, roughness: 0.85 }),
+      new T.MeshStandardMaterial({ color: 0x8fe07a, roughness: 0.85 })
+    ];
+    for (i = 0; i < 18; i++) {
+      var a = (i / 18) * Math.PI * 2 + (i % 3) * 0.23;
+      var rad = 9 + (i % 4) * 2.6;
+      var tx = Math.cos(a) * rad, tz = Math.sin(a) * rad;
+      if (Math.hypot(tx - 8.5, tz + 6.5) < 8) continue;          // no en el lago
+      var tree = new T.Group();
+      var h = 1.5 + (i % 3) * 0.45;
+      var trunk = new T.Mesh(new T.CylinderGeometry(0.11, 0.16, h, 8), trunkMat);
+      trunk.position.y = h / 2;
+      tree.add(trunk);
+      for (var k = 0; k < 3; k++) {
+        var ball = new T.Mesh(new T.SphereGeometry(0.85 - k * 0.18, 12, 10), leafMats[(i + k) % 3]);
+        ball.position.set(Math.sin(i + k) * 0.34, h + 0.25 + k * 0.42, Math.cos(i * 2 + k) * 0.34);
+        tree.add(ball);
+      }
+      tree.position.set(tx, 0, tz);
+      G.add(tree);
+    }
+    /* flores (dos InstancedMesh: tallo y flor) */
+    var FLOWERS = 240;
+    var stems = new T.InstancedMesh(new T.CylinderGeometry(0.008, 0.008, 0.16, 5),
+      new T.MeshStandardMaterial({ color: 0x3f8f3a }), FLOWERS);
+    var heads = new T.InstancedMesh(new T.SphereGeometry(0.045, 7, 6),
+      new T.MeshStandardMaterial({ roughness: 0.6 }), FLOWERS);
+    var m4 = new T.Matrix4(), q0 = new T.Quaternion(), one = new T.Vector3(1, 1, 1);
+    var palette = [0xff8fbf, 0xffe066, 0xff6b6b, 0xc79bff, 0xffffff, 0x8fe07a];
+    var cols = new Float32Array(FLOWERS * 3), col = new T.Color();
+    for (i = 0; i < FLOWERS; i++) {
+      var fa = Math.random() * Math.PI * 2, fr = 2 + Math.random() * (GARDEN_R - 3.5);
+      var fx = Math.cos(fa) * fr, fz = Math.sin(fa) * fr;
+      if (Math.hypot(fx - 8.5, fz + 6.5) < 6) { fx *= 0.2; fz *= 0.2; }   // fuera del lago
+      m4.compose(new T.Vector3(fx, 0.08, fz), q0, one);
+      stems.setMatrixAt(i, m4);
+      m4.compose(new T.Vector3(fx, 0.17, fz), q0, one);
+      heads.setMatrixAt(i, m4);
+      col.setHex(palette[i % palette.length]);
+      cols[i * 3] = col.r;
+      cols[i * 3 + 1] = col.g;
+      cols[i * 3 + 2] = col.b;
+    }
+    heads.instanceColor = new T.InstancedBufferAttribute(cols, 3);
+    heads.material.vertexColors = true;
+    G.add(stems);
+    G.add(heads);
+
+    /* matas de hierba alta */
+    var TUFTS = 170;
+    var tufts = new T.InstancedMesh(new T.ConeGeometry(0.06, 0.34, 4),
+      new T.MeshStandardMaterial({ color: 0x4fae52, roughness: 1 }), TUFTS);
+    for (i = 0; i < TUFTS; i++) {
+      var ta = Math.random() * Math.PI * 2, tr = 1.6 + Math.random() * (GARDEN_R - 2.5);
+      m4.compose(new T.Vector3(Math.cos(ta) * tr, 0.17, Math.sin(ta) * tr), q0, one);
+      tufts.setMatrixAt(i, m4);
+    }
+    G.add(tufts);
+
+    /* colinas del horizonte y arcoíris: el mundo se ve cerrado y bonito */
+    var hillMats = [0x5fbf7a, 0x7fd08f, 0x4aa86a];
+    for (i = 0; i < 12; i++) {
+      var ha = (i / 12) * Math.PI * 2;
+      var hill = new T.Mesh(new T.SphereGeometry(7, 14, 10),
+        new T.MeshStandardMaterial({ color: hillMats[i % 3], roughness: 1 }));
+      hill.position.set(Math.cos(ha) * (GARDEN_R + 5), -4.6, Math.sin(ha) * (GARDEN_R + 5));
+      hill.scale.set(1, 0.55, 1);
+      G.add(hill);
+    }
+    [0xff5a5a, 0xffc75a, 0x5ad1ff].forEach(function (hex, n) {
+      var arch = new T.Mesh(new T.TorusGeometry(GARDEN_R * 0.95, 0.34, 8, 60, Math.PI),
+        new T.MeshBasicMaterial({ color: hex, transparent: true, opacity: 0.5 }));
+      arch.position.set(0, 0, -(GARDEN_R * 0.55));
+      arch.scale.setScalar(1 + n * 0.035);
+      G.add(arch);
+    });
+
+    /* farolillos (esferas que brillan) */
+    S.lanterns = [];
+    var postMat = new T.MeshStandardMaterial({ color: 0x6b4a2a, roughness: 1 });
+    for (i = 0; i < 10; i++) {
+      var la = (i / 10) * Math.PI * 2 + 0.3, lr = GARDEN_R * 0.66;
+      var lamp = new T.Mesh(new T.SphereGeometry(0.11, 10, 8),
+        new T.MeshBasicMaterial({ color: 0xfff0a8 }));
+      lamp.position.set(Math.cos(la) * lr, 1.5 + (i % 2) * 0.25, Math.sin(la) * lr);
+      G.add(lamp);
+      var post = new T.Mesh(new T.CylinderGeometry(0.03, 0.04, 1.5, 6), postMat);
+      post.position.set(lamp.position.x, 0.75, lamp.position.z);
+      G.add(post);
+      S.lanterns.push(lamp);
+    }
+
+    /* luciérnagas y mariposas (se mueven cada fotograma) */
+    S.flies = [];
+    for (i = 0; i < 70; i++) {
+      var fly = new T.Sprite(new T.SpriteMaterial({
+        color: 0xfff7a8, transparent: true, opacity: 0.9, depthWrite: false
+      }));
+      fly.scale.setScalar(0.07);
+      var faa = Math.random() * Math.PI * 2, frr = 1.5 + Math.random() * (GARDEN_R - 3);
+      fly.position.set(Math.cos(faa) * frr, 0.5 + Math.random() * 2.2, Math.sin(faa) * frr);
+      fly.userData.seed = Math.random() * 100;
+      fly.userData.base = fly.position.clone();
+      G.add(fly);
+      S.flies.push(fly);
+    }
+    S.butter = [];
+    for (i = 0; i < 8; i++) {
+      var but = new T.Mesh(new T.SphereGeometry(0.07, 6, 5),
+        new T.MeshStandardMaterial({ color: i % 2 ? 0xffb0e0 : 0xfff07a, roughness: 0.5 }));
+      but.scale.set(1.6, 0.5, 1);
+      but.userData.seed = i * 1.7;
+      G.add(but);
+      S.butter.push(but);
+    }
+
+    S.garden = G;
+    S.scene.add(G);
+  }
+
+  /* Luces y adornos del jardín que se mueven (barato: sin recalcular nada). */
+  function updateGarden(dt) {
+    if (S.world !== 'garden' || !S.garden || !S.garden.visible) return;
+    var t = S.t, i;
+    for (i = 0; i < S.flies.length; i++) {
+      var f = S.flies[i], s = f.userData.seed, b = f.userData.base;
+      f.position.set(b.x + Math.sin(t * 0.7 + s) * 0.6,
+        b.y + Math.sin(t * 1.3 + s * 2) * 0.28,
+        b.z + Math.cos(t * 0.6 + s) * 0.6);
+      f.material.opacity = 0.45 + 0.45 * Math.abs(Math.sin(t * 2 + s));
+    }
+    var R = GARDEN_R * 0.72;
+    for (i = 0; i < S.butter.length; i++) {
+      var bt = S.butter[i], sd = bt.userData.seed;
+      bt.position.set(Math.cos(t * 0.35 + sd) * R, 1.1 + Math.sin(t * 1.6 + sd) * 0.5,
+        Math.sin(t * 0.35 + sd) * R);
+      bt.rotation.y = t * 2 + sd;
+    }
+    for (i = 0; i < S.lanterns.length; i++) {
+      S.lanterns[i].scale.setScalar(1 + 0.12 * Math.sin(t * 2.4 + i));
+    }
+  }
+
+  /* --------------------------------------------------- mudarse de mundo */
+  function showRoomCells(on) {
+    if (S.instWalk) S.instWalk.visible = !!on;
+    if (S.instBlocked) S.instBlocked.visible = !!on;
+    if (S.ring) S.ring.visible = !!on && S.phase === 'scan';
+  }
+
+  /* Deja el escenario como toca según S.world (sin mensajes). */
+  function applyWorldLook() {
+    if (S.garden) S.garden.visible = S.world === 'garden';
+    showRoomCells(S.world !== 'garden');
+    if (S.player) S.player.visible = true;
+  }
+
+  /* Cambia de mundo: 'garden' (mundo bonito) o 'room' (tu habitación).
+     No cierra la sesión del visor: es instantáneo, ida y vuelta. */
+  function setWorld(w, silent) {
+    w = (w === 'garden') ? 'garden' : 'room';
+    if (w !== S.world) {
+      S.world = w;
+      S.prefWorld = w;
+      if (w === 'garden') {
+        S.roomFloorY = S.floorY;      // se recupera al volver
+        S.floorY = 0;                 // el jardín está en el suelo real
+        buildGarden();
+        if (S.phase === 'scan') finishScan();   // sin límites: la mascota sale ya
+      } else {
+        S.floorY = S.roomFloorY || 0;
+      }
+      applyWorldLook();
+      if (S.phase === 'play') respotSnake();
+    }
+    if (!silent) {
+      S.msg = S.world === 'garden'
+        ? 'mundo bonito · A: volver a tu habitación'
+        : 'tu habitación · A: al mundo bonito';
+      drawPanel(true);
+    }
+    return S.world;
+  }
+
+  function toggleWorld() { return setWorld(S.world === 'garden' ? 'room' : 'garden'); }
+
+  /* Coloca la serpiente delante del jugador (al cambiar de mundo). */
+  function respotSnake() {
+    if (!S.parts.length) { spawnSnake(); return; }
+    var base = spawnSpot(), i;
+    for (i = 0; i < S.pts.length; i++) {
+      var ang = i * 0.62, rad = 0.012 + i * 0.011;
+      S.pts[i].set(base.x + Math.cos(ang) * rad, S.floorY, base.z + Math.sin(ang) * rad);
+    }
+    S.path = null;
+    S.pathI = 0;
+    S.pathGoal = null;
+    S.target = null;
+    S.mood = 'spawn';
+    S.moodT = 0;
+  }
+
+  /* ------------------------------------------- andar con los mandos */
+  /* El stick izquierdo anda (adelante/atrás/lateral, mirando donde miras) y el
+     stick derecho gira, los dos en el mundo bonito. En la habitación andas tú
+     de verdad, así que los sticks no hacen nada. */
+  function padOf(hand) {
+    var sess = S.session, i, src, fallback = null;
+    if (!sess || !sess.inputSources) return null;
+    for (i = 0; i < sess.inputSources.length; i++) {
+      src = sess.inputSources[i];
+      if (!src || !src.gamepad) continue;
+      if (src.handedness === hand) return src.gamepad;
+      if (!fallback) fallback = src.gamepad;
+    }
+    return fallback;
+  }
+
+  function axis(gp, i) {
+    if (!gp || !gp.axes || gp.axes.length <= i) return 0;
+    var v = gp.axes[i];
+    return (typeof v === 'number' && isFinite(v)) ? v : 0;
+  }
+
+  function btn(gp, i) {
+    if (!gp || !gp.buttons || gp.buttons.length <= i) return false;
+    var b = gp.buttons[i];
+    return !!(b && (b.pressed || b.value > 0.6));
+  }
+
+  /* Botones del mando: A/X cambia de mundo, B/Y sale. */
+  function pollPad() {
+    var gp = padOf('right') || padOf('left');
+    var a = btn(gp, 4), b = btn(gp, 5);
+    if (a && !S.padPrev.a) toggleWorld();
+    if (b && !S.padPrev.b) close();
+    S.padPrev.a = a;
+    S.padPrev.b = b;
+  }
+
+  function walkSticks(dt) {
+    if (S.world !== 'garden' || !S.player || !S.three || !dt) return;
+    var T = S.three;
+    var gpL = padOf('left'), gpR = padOf('right');
+    var lx = axis(gpL, 2), ly = axis(gpL, 3), rx = axis(gpR, 2);
+    if (rx) {
+      /* girar alrededor de la cabeza (no del origen) para no desplazarse */
+      var pivot = (S.lastHeadP || new T.Vector3()).clone();
+      var q = new T.Quaternion().setFromAxisAngle(new T.Vector3(0, 1, 0), -rx * TURN_SPEED * dt);
+      var rel = S.player.position.clone().sub(pivot).applyQuaternion(q);
+      S.player.position.copy(pivot).add(rel);
+      S.player.quaternion.premultiply(q);
+      S.player.updateMatrixWorld(true);
+      S.moved = true;
+    }
+    if (lx || ly) {
+      var fwd = (S.lastHeadF || new T.Vector3(0, 0, -1)).clone();
+      fwd.y = 0;
+      if (fwd.lengthSq() < 1e-6) fwd.set(0, 0, -1);
+      fwd.normalize();
+      var side = new T.Vector3(-fwd.z, 0, fwd.x);
+      S.player.position.addScaledVector(fwd, -ly * WALK_SPEED * dt);
+      S.player.position.addScaledVector(side, lx * WALK_SPEED * dt);
+      S.player.updateMatrixWorld(true);
+      S.moved = true;
+    }
+    /* el único tope es el borde del jardín */
+    var P = S.player.position, d = Math.hypot(P.x, P.z), max = GARDEN_R - 1.5;
+    if (d > max) {
+      P.x *= max / d;
+      P.z *= max / d;
+      S.player.updateMatrixWorld(true);
+    }
+  }
+
+  /* Pasa una posición del espacio de referencia al mundo del jardín. */
+  function toWorld(v, out) {
+    var T = S.three;
+    out = out || new T.Vector3();
+    out.copy(v);
+    if (S.player) {
+      out.applyQuaternion(S.player.quaternion);
+      out.add(S.player.position);
+    }
+    return out;
   }
 
 
@@ -3302,12 +3677,15 @@
     S.t += dt;
     S.dt = dt;
     if (!S.refSpace && r.xr.getReferenceSpace) S.refSpace = r.xr.getReferenceSpace();
+    pollPad();                 // A cambia de mundo, B sale
+    walkSticks(dt);            // sticks: andar y girar (mundo bonito)
     var head = headPose(frame);
     S.lastHeadP = head.p.clone();
     S.lastHeadF = head.fwd.clone();
     playerStill(head.p, dt);
     if (S.phase === 'scan') scanStep(frame);
     else if (S.phase === 'play') updateSnake(dt, head);
+    updateGarden(dt);
     updateHearts(dt);
     placeHud(head);
     r.render(S.scene, S.cam);
@@ -3322,7 +3700,8 @@
     return S.idleT;
   }
 
-  /* Posición/orientación de la cabeza en el espacio de referencia. */
+  /* Posición/orientación de la cabeza en el mundo (con el desplazamiento del
+     jugador si está en el mundo bonito). */
   function headPose(frame) {
     var T = S.three;
     var out = { p: new T.Vector3(0, 1.6, 0), q: new T.Quaternion(), fwd: new T.Vector3(0, 0, -1) };
@@ -3332,6 +3711,10 @@
     var tr = pose.transform;
     out.p.set(tr.position.x, tr.position.y, tr.position.z);
     out.q.set(tr.orientation.x, tr.orientation.y, tr.orientation.z, tr.orientation.w);
+    if (S.player) {
+      out.p.applyQuaternion(S.player.quaternion).add(S.player.position);
+      out.q.premultiply(S.player.quaternion);
+    }
     out.fwd.set(0, 0, -1).applyQuaternion(out.q);
     return out;
   }
@@ -3339,6 +3722,7 @@
   /* ------------------------------------------ FASE 1: escanear el cuarto */
   function scanStep(frame) {
     var T = S.three, i;
+    if (S.world === 'garden') { finishScan(); return; }   // sin límites: no hay que escanear
     if (S.hits && frame && frame.getHitTestResults) {   // suelo apuntando con el mando
       var res = frame.getHitTestResults(S.hits);
       for (i = 0; i < res.length; i++) {
@@ -3354,10 +3738,11 @@
     }
     absorbPlanes(frame);
     absorbMeshes(frame);
-    /* Plan B: visores sin hit-test ni planos. Tras 15 s se supone el suelo
-       alrededor del jugador para que se pueda jugar igualmente. */
-    if (S.progress < 0.02 && !S.hits && S.t > 15 && S.lastHeadP) {
-      stampFloor(S.lastHeadP.x, S.lastHeadP.z, 1.4);
+    /* Plan B: visores sin hit-test ni planos. A los 6 s se supone el suelo
+       alrededor del jugador para que se pueda jugar igualmente (nada de
+       mínimos: la mascota sale siempre). */
+    if (S.progress < 0.02 && !S.hits && S.t > 6 && S.lastHeadP) {
+      stampFloor(S.lastHeadP.x, S.lastHeadP.z, 2.4);
       S.msg = 'este visor no da suelo: he supuesto el tuyo alrededor';
     }
     var walk = 0;
@@ -3529,8 +3914,10 @@
     return false;
   }
 
-  /* Solo suelo escaneado, sin obstáculos y dentro del cuarto. */
+  /* Sólo suelo escaneado, sin obstáculos y dentro del cuarto.
+     En el mundo bonito no hay ataduras: todo el jardín es transitable. */
   function freeAt(x, z) {
+    if (S.world === 'garden') return Math.hypot(x, z) < GARDEN_R - 0.8;
     if (!insideRoom(x, z)) return false;
     if (blockedAt(x, z, 0.06)) return false;
     return walkable(Math.round(x / CELL), Math.round(z / CELL));
@@ -3601,6 +3988,17 @@
   }
 
   function randomWalkPoint(around, radius) {
+    if (S.world === 'garden') {                    // mundo bonito: cualquier sitio vale
+      var T0 = S.three;
+      var c0 = around || S.lastHeadP || new T0.Vector3(0, 0, 0);
+      var rr = Math.min(GARDEN_R - 2, radius || 2.6);
+      for (var k = 0; k < 20; k++) {
+        var ang = Math.random() * Math.PI * 2, rad = rr * (0.3 + 0.7 * Math.random());
+        var gx = c0.x + Math.cos(ang) * rad, gz = c0.z + Math.sin(ang) * rad;
+        if (freeAt(gx, gz)) return new T0.Vector3(gx, S.floorY, gz);
+      }
+      return null;
+    }
     var list = [];
     S.cells.forEach(function (c) {
       if (!c.blocked && !blockedAt(c.ix * CELL, c.iz * CELL, 0.06)) list.push(c);
@@ -3690,6 +4088,7 @@
   }
 
   function nearestWalkFrom(x, z) {
+    if (S.world === 'garden') return freeAt(x, z) ? new S.three.Vector3(x, S.floorY, z) : null;
     var c = cellOf(x, z);
     var n = nearestWalk(c.ix, c.iz, 10);
     return n ? new S.three.Vector3(n.ix * CELL, S.floorY, n.iz * CELL) : null;
@@ -3723,9 +4122,10 @@
     var speed = S.mood === 'follow' ? 0.9 : S.mood === 'roam' ? 0.55 : 0;
     if (S.mood === 'pet' || S.mood === 'sleep' || S.mood === 'idle') speed = 0;
 
-    /* recalcula la ruta cada 0,7 s o si el objetivo se ha movido */
+    /* recalcula la ruta cada 0,7 s o si el objetivo se ha movido.
+       En el mundo bonito no hay celdas: se va en línea recta al objetivo. */
     S.pathT = (S.pathT || 0) - dt;
-    if (tgt && speed > 0 &&
+    if (S.world !== 'garden' && tgt && speed > 0 &&
         (!S.path || S.pathT <= 0 || !S.pathGoal || S.pathGoal.distanceTo(tgt) > 0.35)) {
       S.path = findPath(hp, tgt);
       S.pathI = 0;
@@ -3861,6 +4261,7 @@
       try { pose = frame.getPose(sp, S.refSpace); } catch (e) { pose = null; }
       if (!pose) continue;
       var p = pose.transform.position;
+      p = toWorld(p);
       if (Math.hypot(p.x - c.x, p.y - c.y, p.z - c.z) < 0.3) return true;
     }
     return false;
@@ -3952,7 +4353,7 @@
     var g = S.panelCtx;
     if (!g || !S.panelTex) return;
     var pct = Math.round(S.progress * 100);
-    var stamp = S.phase + '|' + pct + '|' + S.mood + '|' + (S.msg || '');
+    var stamp = S.phase + '|' + pct + '|' + S.mood + '|' + (S.msg || '') + '|' + S.world;
     if (!force && S.panelDrawn === stamp) return;
     S.panelDrawn = stamp;
     g.clearRect(0, 0, 512, 256);
@@ -3982,7 +4383,7 @@
       g.fillText(pct + ' %', 30, 216);
       g.fillStyle = '#9fc4ae';
       g.font = '18px system-ui,sans-serif';
-      g.fillText('Gatillo = empezar con lo escaneado', 140, 216);
+      g.fillText('Gatillo = empezar ya   ·   A = mundo bonito', 140, 216);
       if (S.msg) {
         g.fillStyle = '#ffcf6b';
         g.font = '16px system-ui,sans-serif';
@@ -3998,11 +4399,15 @@
       g.fillText('Tu serpiente · ' + (moods[S.mood] || 'A tu lado'), 30, 66);
       g.fillStyle = '#d6ffe6';
       g.font = '19px system-ui,sans-serif';
-      g.fillText('Gatillo: llámala    ·    Acerca la mano: mimos', 30, 114);
-      g.fillText('Agarre: salir', 30, 144);
+      g.fillText('Gatillo: llámala    ·    Acerca la mano: mimos', 30, 108);
+      g.fillText('A = ' + (S.world === 'garden' ? 'volver a tu habitación' : 'mundo bonito') +
+        '    ·    B = salir', 30, 138);
       g.fillStyle = '#9fc4ae';
       g.font = '16px system-ui,sans-serif';
-      g.fillText('Mapa: ' + S.cells.size + ' celdas · ' + S.blocks.length + ' obstáculos', 30, 196);
+      g.fillText(S.world === 'garden'
+        ? 'Mundo bonito · Stick izq: andar · Stick der: girar'
+        : 'Tu habitación · Mapa: ' + S.cells.size + ' celdas · ' + S.blocks.length + ' obstáculos',
+        30, 196);
     }
     S.panelTex.needsUpdate = true;
   }
@@ -4017,19 +4422,16 @@
     if (S.ring) {
       S.ring.position.set(p.x, S.floorY + 0.012, p.z);
       S.ring.scale.setScalar(0.7 + S.progress * 1.1);
-      S.ring.visible = S.phase === 'scan';
+      S.ring.visible = S.phase === 'scan' && S.world !== 'garden';
     }
     if (S.phase === 'scan') drawPanel(false);
   }
 
   /* ----------------------------------------------------------- controles */
+  /* Gatillo: en el escaneo empieza YA (sin mínimos: ni porcentaje ni tiempo) y
+     en el juego llama a la serpiente. */
   function onSelect() {
     if (S.phase === 'scan') {
-      if (S.progress < 0.35) {
-        S.msg = 'escanea un poco más (mínimo 35 %)';
-        drawPanel(true);
-        return;
-      }
       finishScan();
     } else if (S.phase === 'play') {
       callSnake();
@@ -4088,6 +4490,16 @@
     S.instBlocked = null;
     S.scene = null;
     S.cam = null;
+    /* el mundo elegido se recuerda entre sesiones (prefWorld no se toca) */
+    S.world = S.prefWorld || 'room';
+    S.player = null;
+    S.garden = null;
+    S.flies = [];
+    S.butter = [];
+    S.lanterns = [];
+    S.padPrev = {};
+    S.roomFloorY = 0;
+    S.skyTex = null;
   }
 
   function cleanup() {
@@ -4131,36 +4543,62 @@
     wrap.innerHTML =
       '<div style="font-size:34px;line-height:1">🐍</div>' +
       '<div style="font-size:17px;font-weight:700;margin:6px 0 4px">Mascota de realidad mixta</div>' +
-      '<div style="opacity:.85;margin-bottom:12px">Una serpiente vive en tu habitación: primero se ' +
-      'escanea el cuarto apuntando al suelo con el mando y después aparece la mascota, que se mueve ' +
-      'sólo por suelo conocido. Hace falta un visor con WebXR y passthrough (Meta Quest o similar).</div>' +
+      '<div style="opacity:.85;margin-bottom:12px">Sin límites: la serpiente sale sin tener que ' +
+      'escanear nada (el gatillo la saca cuando quieras) y puedes llevarla a tu habitación o al ' +
+      '<b>mundo bonito</b>, un jardín con su lago, sus árboles y sus luciérnagas. En el mundo bonito ' +
+      'andas con los sticks (izquierdo: andar, derecho: girar) y con el botón A cambias de mundo ' +
+      'sin salir del visor. Hace falta un visor con WebXR (Meta Quest o similar).</div>' +
       '<button id="snk-mr-go" style="width:100%;padding:12px 16px;border-radius:12px;cursor:pointer;' +
       'background:linear-gradient(180deg,#123a24,#0b2a1a);color:#8ff7b6;border:1px solid #2f8f5a;' +
       'font:700 15px/1 system-ui,sans-serif">🥽 Abrir mascota MR</button>' +
+      '<div style="display:flex;gap:8px;margin-top:10px">' +
+      '<button id="snk-mr-garden" style="flex:1;padding:10px 12px;border-radius:12px;cursor:pointer;' +
+      'background:#12301f;color:#8ff7b6;border:1px solid #2f8f5a;font:700 13px/1 system-ui,sans-serif">' +
+      '🌍 Mundo bonito</button>' +
+      '<button id="snk-mr-room" style="flex:1;padding:10px 12px;border-radius:12px;cursor:pointer;' +
+      'background:#12301f;color:#8ff7b6;border:1px solid #2f8f5a;font:700 13px/1 system-ui,sans-serif">' +
+      '🏠 Habitación</button>' +
+      '</div>' +
       '<div id="snk-mr-st" style="opacity:.75;margin-top:10px;font-size:13px"></div>' +
       '<div style="opacity:.55;margin-top:10px;font-size:12px">También está el botón «🐍 MR» del ' +
       'escritorio, abajo a la derecha.</div>';
     body.appendChild(wrap);
     var go = wrap.querySelector('#snk-mr-go');
     var stEl = wrap.querySelector('#snk-mr-st');
+    var bGarden = wrap.querySelector('#snk-mr-garden');
+    var bRoom = wrap.querySelector('#snk-mr-room');
     var read = function () {
       try { if (window.SnakeMr && window.SnakeMr.state) return window.SnakeMr.state() || {}; } catch (e) {}
       return {};
     };
+    var pick = function (w) {
+      try { if (window.SnakeMr && window.SnakeMr.world) window.SnakeMr.world(w); } catch (e) {}
+      paint();
+    };
     var paint = function () {
       var s = read();
+      var where = s.world === 'garden' ? 'mundo bonito' : 'tu habitación';
       var txt;
       if (s.xr) {
-        txt = 'En marcha (' + (s.mode || 'xr') + '). ' +
-          (s.phase === 'scan' ? 'Escaneando el cuarto: ' + (s.progress || 0) + ' % (apunta al suelo).'
-            : s.phase === 'play' ? 'La serpiente ya está fuera: gatillo para llamarla, agarre para salir.'
+        txt = 'En marcha (' + (s.mode || 'xr') + ') en ' + where + '. ' +
+          (s.phase === 'scan' ? 'Escaneando el cuarto: ' + (s.progress || 0) + ' % (o gatillo para empezar ya).'
+            : s.phase === 'play' ? 'La serpiente ya está fuera: gatillo para llamarla, A cambia de mundo, agarre para salir.'
               : 'Fase: ' + s.phase + '.');
       } else if (s.open) txt = 'Abriendo… ponte las gafas.';
-      else txt = 'Pulsa el botón; el navegador pedirá permiso para entrar en el visor.';
+      else txt = 'Pulsa el botón; el navegador pedirá permiso para entrar en el visor. ' +
+        'Sales en ' + where + '.';
       if (stEl.textContent !== txt) stEl.textContent = txt;
       var label = s.open ? '⏹ Cerrar mascota MR' : '🥽 Abrir mascota MR';
       if (go.textContent !== label) go.textContent = label;
+      var on = s.world === 'garden' ? bGarden : bRoom;
+      var off = s.world === 'garden' ? bRoom : bGarden;
+      if (on && off) {
+        on.style.background = '#1f7a4a';
+        off.style.background = '#12301f';
+      }
     };
+    if (bGarden) bGarden.onclick = function () { pick('garden'); };
+    if (bRoom) bRoom.onclick = function () { pick('room'); };
     go.onclick = function () {
       try {
         if (read().open) close();
@@ -4179,6 +4617,8 @@
     open: open,
     close: close,
     start: function () { finishScan(); },
+    /* 'garden' = mundo bonito, 'room' = tu habitación; sin argumento, devuelve el actual */
+    world: function (w) { return w ? setWorld(w) : S.world; },
     /* ganchos para tests automáticos sin visor (tests/test_mr_pet.js) */
     __test: {
       setThree: function (T) { S.three = T; },
@@ -4197,6 +4637,8 @@
       freeAt: freeAt,
       findPath: findPath,
       walkable: walkable,
+      setWorld: setWorld,
+      gardenRadius: function () { return GARDEN_R; },
       count: function () { return S.cells.size; }
     },
     state: function () {
@@ -4206,6 +4648,7 @@
         xr: !!S.session,
         mode: S.mode || null,
         phase: S.phase,
+        world: S.world,
         progress: Math.round(S.progress * 100),
         cells: S.cells ? S.cells.size : 0,
         blocks: S.blocks.length,

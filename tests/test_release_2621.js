@@ -98,7 +98,7 @@ assert.ok(i18n.indexOf("'Abrir el escritorio dentro de VR':'Open the desktop ins
 ok('cadenas nuevas en snake-i18n.js (ES/EN)');
 
 /* 5) index.html en 2026.22 con novedades nuevas */
-assert.ok(html.indexOf("window.SNAKE_OS_VERSION='2026.23'") >= 0, 'versión 2026.22');
+assert.ok(html.indexOf("window.SNAKE_OS_VERSION='2026.31'") >= 0, 'versión 2026.22');
 assert.ok(html.indexOf("{v:'2026.22'") >= 0, 'entrada de novedades 2026.22');
 assert.ok(html.indexOf("{v:'2026.22'") < html.indexOf("{v:'2026.20'"), 'la entrada 2026.22 va primera');
 assert.ok(html.indexOf('jungla viva') >= 0, 'las novedades cuentan la jungla');

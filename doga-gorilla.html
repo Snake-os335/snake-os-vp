@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no" />
+<title>Doga Gorilla · VR sin terror</title>
+<meta name="description" content="Doga Gorilla: juego de realidad virtual tipo gorilla tag, sin terror. Te mueves empujando con las manos, con mundos bonitos y límites: no se puede salir ni caer al vacío." />
+<meta name="theme-color" content="#10281c" />
+<style>
+  :root {
+    --bg0: #06140f; --bg1: #0d2418; --panel: #12281c;
+    --line: rgba(52, 209, 122, 0.28); --text: #eafff0; --muted: #9dffc2;
+    --accent: #34d17a; --accent2: #1fa85a; --warn: #ffb454; --danger: #ff6b6b;
+    --cyan: #57e6ff; --gold: #ffd166;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; min-height: 100%; color: var(--text);
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+    background:
+      radial-gradient(ellipse 80% 50% at 50% -10%, rgba(52,209,122,0.22), transparent 55%),
+      radial-gradient(ellipse 55% 40% at 100% 12%, rgba(255,209,102,0.10), transparent 60%),
+      linear-gradient(165deg, var(--bg0), var(--bg1) 55%, #10281c);
+  }
+  body { padding: max(12px, env(safe-area-inset-top)) 12px max(18px, env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 12px; max-width: 640px; margin: 0 auto; }
+  header { text-align: center; padding: 8px 4px 2px; }
+  .logo { font-size: .7rem; letter-spacing: .2em; text-transform: uppercase; color: var(--muted); font-weight: 700; }
+  h1 { margin: 4px 0 0; font-size: clamp(1.35rem, 5.2vw, 1.8rem); font-weight: 800; letter-spacing: -.02em; }
+  h1 span.g { filter: drop-shadow(0 4px 10px rgba(52,209,122,.35)); }
+  .sub { margin: 6px auto 0; max-width: 540px; font-size: .82rem; line-height: 1.45; color: var(--muted); opacity: .92; }
+  .sub b { color: var(--cyan); }
+  .status { display: inline-flex; align-items: center; gap: 8px; margin-top: 10px; padding: 7px 14px; border-radius: 999px; border: 1px solid var(--line); background: rgba(0,0,0,.3); font-size: .78rem; font-weight: 700; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--danger); box-shadow: 0 0 0 3px rgba(255,107,107,.18); }
+  .status.on .dot { background: var(--accent); box-shadow: 0 0 0 3px rgba(52,209,122,.22); }
+  .status.busy .dot { background: var(--warn); box-shadow: 0 0 0 3px rgba(255,180,84,.22); }
+  .card { border: 1px solid var(--line); border-radius: 22px; padding: 15px; background: linear-gradient(180deg, #163526, var(--panel) 65%); box-shadow: 0 16px 36px rgba(0,0,0,.3); }
+  .card h2 { margin: 0 0 8px; font-size: .95rem; font-weight: 800; display: flex; align-items: center; gap: 8px; }
+  .card h2 .n { width: 22px; height: 22px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: rgba(52,209,122,.16); border: 1px solid var(--line); font-size: .72rem; color: var(--muted); }
+  .hint { margin: 8px 0 0; font-size: .78rem; line-height: 1.5; color: rgba(234,255,240,.62); }
+  .hint b { color: var(--muted); }
+  ol.steps { margin: 8px 0 0; padding-left: 20px; font-size: .82rem; line-height: 1.55; color: rgba(234,255,240,.76); }
+  ol.steps b { color: var(--muted); }
+  ol.steps li { margin-bottom: 6px; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  button {
+    appearance: none; border: 1px solid var(--line); border-radius: 14px; cursor: pointer;
+    background: rgba(52,209,122,.16); color: var(--text);
+    font: 800 .88rem/1.1 "Segoe UI", system-ui, sans-serif; padding: 13px 15px; flex: 1 1 auto;
+    transition: transform .08s ease, background .15s ease;
+  }
+  button:hover { background: rgba(52,209,122,.26); }
+  button:active { transform: scale(.98); }
+  button[disabled] { opacity: .45; cursor: not-allowed; }
+  button.primary { background: linear-gradient(180deg, var(--accent), var(--accent2)); border-color: transparent; color: #03130a; }
+  button.big { font-size: 1rem; padding: 16px 18px; }
+  button.ghost { background: rgba(255,255,255,.05); }
+  .worlds { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
+  .worlds button { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 12px 6px; font-size: .74rem; font-weight: 700; border-radius: 16px; }
+  .worlds button .e { font-size: 1.5rem; line-height: 1; }
+  .worlds button[aria-pressed="true"] { background: linear-gradient(180deg, rgba(52,209,122,.42), rgba(31,168,90,.3)); border-color: var(--accent); box-shadow: 0 0 0 3px rgba(52,209,122,.14) inset; }
+  .keys { display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); gap: 8px; margin-top: 10px; }
+  .kv { border: 1px solid var(--line); border-radius: 14px; background: rgba(0,0,0,.26); padding: 9px 11px; }
+  .kv span { display: block; font-size: .64rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 700; }
+  .kv b { display: block; font-size: 1.05rem; margin-top: 3px; font-variant-numeric: tabular-nums; }
+  .kv b.gold { color: var(--gold); }
+  ul#log { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 5px; max-height: 134px; overflow: auto; }
+  ul#log li { font-size: .76rem; line-height: 1.4; color: rgba(234,255,240,.72); padding: 7px 10px; border-radius: 11px; background: rgba(0,0,0,.26); border: 1px solid rgba(52,209,122,.16); }
+  footer { text-align: center; font-size: .72rem; color: rgba(234,255,240,.42); padding: 4px 8px 0; line-height: 1.6; }
+  footer a { color: var(--muted); text-decoration: none; font-weight: 700; }
+  /* --- escenario 3D (se superpone al entrar) --- */
+  #stage { position: fixed; inset: 0; margin: 0 !important; padding: 0; display: none; z-index: 30; background: #06140f; border: 0; border-radius: 0; box-shadow: none; }
+  #stage.on { display: block; }
+  #stage canvas { display: block; width: 100% !important; height: 100% !important; }
+  #exitFloat { position: fixed; z-index: 40; right: max(12px, env(safe-area-inset-right)); bottom: max(12px, env(safe-area-inset-bottom)); display: none; padding: 12px 16px; border-radius: 999px; background: rgba(6,20,15,.84); border: 1px solid var(--line); color: var(--text); font-weight: 800; font-size: .84rem; backdrop-filter: blur(6px); }
+  body.playing #exitFloat { display: block; }
+  body.playing .page { visibility: hidden; }
+  .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: max(16px, env(safe-area-inset-bottom)); z-index: 50; max-width: min(92vw, 560px); padding: 11px 15px; border-radius: 14px; background: rgba(255,107,107,.94); color: #2a0606; font-size: .84rem; font-weight: 800; display: none; }
+  .toast.on { display: block; }
+</style>
+</head>
+<body class="pre">
+
+<div class="page">
+  <header>
+    <div class="logo">SoftPortWeb · Snake OS</div>
+    <h1><span class="g">🦍</span> Doga Gorilla</h1>
+    <p class="sub">Juego de <b>realidad virtual</b> tipo <b>gorilla tag</b>, sin nada de terror:
+      mundos bonitos y coloridos, y para andar hay que <b>empujar con las manos</b>.</p>
+    <div class="status" id="st"><i class="dot"></i><span id="stTxt">comprobando visor…</span></div>
+  </header>
+
+  <section class="card">
+    <h2><span class="n">1</span> Elige mundo</h2>
+    <div class="worlds" id="worlds">
+      <button type="button" data-world="prado" aria-pressed="true"><span class="e">🌱</span>Prado de las Nubes</button>
+      <button type="button" data-world="caramelo" aria-pressed="false"><span class="e">🍭</span>Isla Caramelo</button>
+      <button type="button" data-world="cristal" aria-pressed="false"><span class="e">💎</span>Selva de Cristal</button>
+    </div>
+    <p class="hint" id="worldHint">Isla flotante con molinos, setas saltarinas y nubes blanditas.</p>
+  </section>
+
+  <section class="card">
+    <h2><span class="n">2</span> Jugar</h2>
+    <div class="row">
+      <button class="primary big" type="button" id="go">🥽 Entrar en VR</button>
+    </div>
+    <div class="row">
+      <button class="ghost" type="button" id="prev">👀 Ver en el PC (sin gafas)</button>
+      <button class="ghost" type="button" id="out" disabled>⏹ Salir</button>
+    </div>
+    <p class="hint">Funciona en visores con <b>WebXR</b> (Quest, Pico, Vision Pro…): abre esta página en el
+      navegador del visor y pulsa <b>Entrar en VR</b>. En el PC puedes mirar los mundos con la vista previa.</p>
+  </section>
+
+  <section class="card">
+    <h2><span class="n">3</span> Cómo se juega</h2>
+    <ol class="steps">
+      <li><b>Manos al suelo</b> (o a una pared, una seta o una gelatina) y arrástralas: cada mano que roza
+        una superficie te empuja al lado contrario. Así se anda, igual que en <b>gorilla tag</b>.</li>
+      <li>Si arrastras las manos hacia abajo, <b>saltas</b>. En el aire sigue el impulso: apunta con la cabeza
+        y encadena empujones.</li>
+      <li>Toca cosas: <b>orbes</b> ⭐ (se recogen), <b>campanas</b> 🔔, <b>setas y gelatinas</b> 🍄 (te lanzan),
+        <b>molinos</b> y <b>bichitos</b> 🦋 que salen volando. Todo suena y vibra.</li>
+      <li>Para salir, el <b>menú del visor</b>. No hay sustos, no hay oscuridad y no hay enemigos: sólo mundos
+        bonitos para saltar y columpiarte.</li>
+    </ol>
+    <p class="hint"><b>Límites a propósito:</b> cada mundo es una isla con una pared invisible en el borde
+      (rebotas y te avisa) y no se puede caer al vacío: si bajas demasiado vuelves al centro. Así nadie se
+      marea ni se pierde.</p>
+  </section>
+
+  <section class="card">
+    <h2><span class="n">4</span> Ahora mismo</h2>
+    <div class="keys">
+      <div class="kv"><span>Mundo</span><b id="kWorld">—</b></div>
+      <div class="kv"><span>Estrellas</span><b class="gold" id="kOrbs">0/0</b></div>
+      <div class="kv"><span>Campanas</span><b id="kBells">0</b></div>
+      <div class="kv"><span>Saltos</span><b id="kBounces">0</b></div>
+      <div class="kv"><span>Velocidad</span><b id="kSpeed">0</b></div>
+      <div class="kv"><span>Suelo</span><b id="kGround">—</b></div>
+    </div>
+    <ul id="log"><li>Todavía no has entrado. Elige un mundo y pulsa «Entrar en VR».</li></ul>
+  </section>
+
+  <footer>
+    Snake OS · <a href="https://snake-os-vp.softportweb.com/">snake-os-vp.softportweb.com</a><br />
+    <span id="ver">versión —</span>
+  </footer>
+</div>
+
+<div id="stage"></div>
+<button id="exitFloat" type="button">⏹ Salir</button>
+<div class="toast" id="toast"></div>
+
+<script src="/static/doga-gorilla.js"></script>
+<script src="/static/doga-gorilla-page.js"></script>
+</body>
+</html>
+
+</body>
+</html>

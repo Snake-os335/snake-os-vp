@@ -124,7 +124,7 @@ assert.ok(gameJs.indexOf('function startPreview(why)') >= 0, 'y sin WebXR, modo 
 ok('juego: escaneo de la habitación y serpiente a cuidar');
 
 /* 5) index.html + README */
-assert.ok(html.indexOf("window.SNAKE_OS_VERSION='2026.23'") >= 0, 'versión 2026.23');
+assert.ok(html.indexOf("window.SNAKE_OS_VERSION='2026.31'") >= 0, 'versión 2026.23');
 assert.ok(html.indexOf("{v:'2026.23'") >= 0, 'entrada de novedades 2026.23');
 assert.ok(html.indexOf("{v:'2026.23'") < html.indexOf("{v:'2026.22'"), 'la entrada 2026.23 va primera');
 assert.ok(html.indexOf('Doganiero-vr-send.softportweb.com') >= 0, 'novedades citan la página de las gafas');

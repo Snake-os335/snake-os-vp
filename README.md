@@ -201,3 +201,53 @@ Dos páginas nuevas en este mismo servidor (no hace falta otro despliegue):
   `mirrorStream()`, `state()`, `supported()`).
 - **Pruebas:** `node tests/test_release_2623.js` (y `tests/test_release_2616.js` … `tests/test_release_2622.js`).
 
+## Doga Gorilla (2026.31): juego VR tipo «gorilla tag», sin terror
+
+Juego nuevo, con página propia en este mismo servidor:
+
+| Dónde se abre | Para qué |
+| --- | --- |
+| <https://snake-os-vp.softportweb.com/doga-gorilla> | la página del juego (y vista previa sin gafas) |
+| <https://doga-gorilla.softportweb.com> | lo mismo, en su propio subdominio cuando el túnel lo publique |
+
+- **Cómo se anda (lo importante):** igual que en *gorilla tag*, **sin sticks**. Apoyas una mano en el
+  suelo, en una pared, en una seta o en una gelatina y la **arrastras**: cada mano que roza una
+  superficie empuja al cuerpo en sentido contrario (`PUSH_K`, alcance `HAND_REACH = 1.0 m`). Arrastrar
+  las manos hacia abajo **salta**; en el aire sigue el impulso (`GRAVITY = -12.5`, tope
+  `MAX_SPEED = 9.5 m/s`) y se encadenan empujones. El gatillo no hace falta.
+- **Tres mundos bonitos y con límites de verdad:** `prado` (Prado de las Nubes, r 26 m), `caramelo`
+  (Isla Caramelo, r 24 m) y `cristal` (Selva de Cristal, r 25 m). En el borde hay una **pared
+  invisible** (`radius - 0.9`) que rebota y avisa, y **no se puede caer al vacío**: por debajo de
+  `FALL_Y = -9` vuelves al centro. Cielo con degradado, sol, hierba, lago, árboles, flores, farolillos,
+  luciérnagas, mariposas y arcoíris; nada de oscuridad ni de sustos.
+- **Cosas con las que jugar:** orbes ⭐ que se recogen (`respawnOrbs`), campanas 🔔, setas y gelatinas
+  🍄 que te lanzan, molinos que giran y bichitos 🦋 que salen volando. Todo con sonido y **vibración**
+  en los mandos (`hapticActuators`).
+- **HUD:** un cartel flotante (`makeHud`/`drawHud`/`placeHud`) con mundo, orbes, campanas y saltos; se
+  esconde solo mientras estás empujando y vuelve cuando paras.
+- **Sin gafas:** vista previa en el PC (`startPreview`) en tercera persona: **WASD** para andar,
+  **espacio** para saltar y arrastrar con el ratón para girar la vista.
+- **Ficheros:** `doga-gorilla.js` (motor: mundos, física, XR, HUD), `doga-gorilla-page.js` (botones y
+  estado de la página), `doga-gorilla.html` (la página), `doga_gorilla.py` (ruta `/doga-gorilla`,
+  `/api/doga-gorilla/status` y el subdominio). Los dos `.js` se sirven como estáticos
+  (`/static/doga-gorilla.js`, `/static/doga-gorilla-page.js`) porque la lista blanca de `/static` deja
+  pasar los `.js` de la raíz.
+- **API:** `window.DogaGorilla` (`version`, `supported()`, `worlds()`, `world(nombre)`,
+  `start({host, world, onState, onLog, onEnd})`, `startPreview(host, opts)`, `stop()`, `state()`).
+- **DNS / túnel (solo la primera vez):** en Cloudflare (túnel `snake-os-vp-cloudflared`) hay que añadir
+  el *public hostname* `doga-gorilla.softportweb.com` → `http://web:8000`. Mientras no esté, el juego
+  funciona igual en `https://snake-os-vp.softportweb.com/doga-gorilla`.
+- **Pruebas:** `node tests/test_release_2631.js` (y `tests/test_release_2616.js` … `tests/test_release_2623.js`).
+
+### Mascota MR sin límites (2026.31)
+
+- Ya **no hace falta escanear** la habitación para empezar: el gatillo pone la mascota en marcha al
+  instante y el suelo se coloca solo a los ~6 s (antes había mínimos de puntos escaneados).
+- **Jardín grande** (`GARDEN_R = 20 m`) al que se puede salir a pasear: cielo, sol, hierba, lago,
+  árboles, flores, matojos, colinas, arcoíris, farolillos, luciérnagas y mariposas (`buildGarden`,
+  `updateGarden`). Se cambia **jardín ↔ tu habitación** con el botón **A** del mando
+  (`setWorld`/`toggleWorld`, se recuerda en `prefWorld`).
+- **Andar con el mando en el jardín**: stick izquierdo para moverse y stick derecho para girar
+  (`walkSticks`); en la habitación se sigue andando de verdad (passthrough).
+
+

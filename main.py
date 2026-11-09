@@ -9802,6 +9802,11 @@ app.include_router(privacy_share.build_router(require_user))
 import vr_link
 app.include_router(vr_link.build_router(doga_auth.site_user))
 vr_link.install_hosts(app)
+# Doga Gorilla (2026.31): juego VR tipo «gorilla tag», sin terror
+#   → /doga-gorilla y https://doga-gorilla.softportweb.com (cuando el túnel lo publique)
+import doga_gorilla
+app.include_router(doga_gorilla.build_router())
+doga_gorilla.install_hosts(app)
 
 
 # --- Snake OS Kids: entrega del resumen semanal y códigos al Dogaemail del adulto (notificaciones de Snake OS) ---
