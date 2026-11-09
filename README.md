@@ -212,9 +212,24 @@ Juego nuevo, con página propia en este mismo servidor:
 
 - **Cómo se anda (lo importante):** igual que en *gorilla tag*, **sin sticks**. Apoyas una mano en el
   suelo, en una pared, en una seta o en una gelatina y la **arrastras**: cada mano que roza una
-  superficie empuja al cuerpo en sentido contrario (`PUSH_K`, alcance `HAND_REACH = 1.0 m`). Arrastrar
+  superficie empuja al cuerpo en sentido contrario (`PUSH_K`, alcance `HAND_REACH = 1.15 m`). Arrastrar
   las manos hacia abajo **salta**; en el aire sigue el impulso (`GRAVITY = -12.5`, tope
-  `MAX_SPEED = 9.5 m/s`) y se encadenan empujones. El gatillo no hace falta.
+  `MAX_SPEED = 9.5 m/s`) y se encadenan empujones.
+- **Te ves el cuerpo (monke sin piernas):** `buildAvatar` cuelga de `S.player` un grupo
+  `doga-gorilla-monke` con torso, barriga, morro, orejas, hombros, **brazos largos** (`armL`/`armR`, se
+  estiran del hombro a la mano) y **manos** (`makeHand`: palma, nudillos, pulgar, puño). Cada fotograma
+  `updateAvatar` coloca las manos con la pose real de los mandos (`gripSpace`, posición y orientación) y
+  el brazo apunta a la mano; el puño se cierra con el gatillo. Sin gafas, las manos cuelgan y se
+  balancean, así que en la vista previa también se ve el gorila entero.
+- **El suelo, a la altura del pecho:** el jugador es bajito como en el original. `EYE_MONKE = 1.15 m`
+  son los ojos del monke sobre el suelo y el cuerpo se baja `drop = clamp(altura_real_de_tus_ojos -
+  EYE_MONKE, 0, DROP_MAX = 1.05)` (campo `S.drop`, suavizado). Con eso el suelo virtual queda a la
+  altura del pecho y las manos alcanzan el suelo sin agacharse de más. Todo lo que usa la altura
+  (empujar, tocar cosas, HUD, cámara de la vista previa) descuenta ese `drop`.
+- **Trepar con el gatillo (grip):** con el botón `1` del mando apretado y la mano sobre el suelo o
+  junto a un tronco (`trunkNear`, troncos y cristales apuntados en `S.trunks`), el cuerpo se mueve
+  **1:1** con la mano: bajas las manos y subes, las subes y bajas. Así puedes trepar por los árboles y
+  columpiarte, el truco clásico del original.
 - **Tres mundos bonitos y con límites de verdad:** `prado` (Prado de las Nubes, r 26 m), `caramelo`
   (Isla Caramelo, r 24 m) y `cristal` (Selva de Cristal, r 25 m). En el borde hay una **pared
   invisible** (`radius - 0.9`) que rebota y avisa, y **no se puede caer al vacío**: por debajo de
@@ -233,11 +248,17 @@ Juego nuevo, con página propia en este mismo servidor:
   (`/static/doga-gorilla.js`, `/static/doga-gorilla-page.js`) porque la lista blanca de `/static` deja
   pasar los `.js` de la raíz.
 - **API:** `window.DogaGorilla` (`version`, `supported()`, `worlds()`, `world(nombre)`,
-  `start({host, world, onState, onLog, onEnd})`, `startPreview(host, opts)`, `stop()`, `state()`).
+  `start({host, world, onState, onLog, onEnd})`, `startPreview(host, opts)`, `stop()`, `state()`,
+  `monke()` con cuerpo/manos/`drop`/trepando).
 - **DNS / túnel (solo la primera vez):** en Cloudflare (túnel `snake-os-vp-cloudflared`) hay que añadir
   el *public hostname* `doga-gorilla.softportweb.com` → `http://web:8000`. Mientras no esté, el juego
   funciona igual en `https://snake-os-vp.softportweb.com/doga-gorilla`.
 - **Pruebas:** `node tests/test_release_2631.js` (y `tests/test_release_2616.js` … `tests/test_release_2623.js`).
+  Además hay dos **pruebas de humo que arrancan el motor de verdad** (cargan el `three.js` real y sólo
+  cambian el `WebGLRenderer`, así que no hace falta WebGL): `node tests/test_doga_gorilla_smoke.js`
+  (vista previa: cuerpo, manos, brazos, WASD y salto) y `node tests/test_doga_gorilla_xr.js` (VR falsa con
+  visor a 1,70 m: `drop` del suelo al pecho, manos siguiendo los mandos, empujar arrastrando y trepar con
+  el gatillo).
 
 ### Mascota MR sin límites (2026.31)
 

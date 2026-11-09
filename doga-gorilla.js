@@ -29,29 +29,37 @@
   var VERSION = '2026.31';
 
   var GRAVITY = -12.5;      // m/s² (un pelín más que la real: va mejor en VR)
-  var HAND_REACH = 1.0;     // altura a la que la mano «toca» el suelo (m)
+  var HAND_REACH = 1.15;    // altura a la que la mano «toca» el suelo (m)
   var PUSH_K = 4.5;         // cuánto empuja una mano al arrastrarla (1/s)
   var MAX_SPEED = 9.5;      // tope de velocidad (m/s)
   var DRAG_AIR = 0.10;      // roce en el aire
   var DRAG_GROUND = 1.6;    // roce con el suelo cuando no empujas
   var EYE = 1.6;            // altura de los ojos sobre los pies (vista previa)
   var FALL_Y = -9;          // por debajo de esto, al punto de salida
+  /* Igual que en gorilla tag: el jugador es un monke bajito sin piernas. El
+     suelo se sube hasta el pecho (se baja el cuerpo) para que las manos lleguen
+     siempre al suelo. EYE_MONKE es dónde quedan los ojos sobre el suelo. */
+  var EYE_MONKE = 1.15;     // altura de los ojos del monke sobre el suelo (m)
+  var DROP_MAX = 1.05;      // cuánto se puede bajar el cuerpo como mucho (m)
 
   var WORLDS = {
     prado: {
       name: 'Prado de las Nubes', tag: '🌱', radius: 26,
       sky: ['#2f7fe0', '#79c8f5', '#d5f2ff', '#ffeccd'],
-      grass: 0x7ee081, hill: 0x5cc47a, accent: 0xfff2a8, fog: 0xd6f2ff
+      grass: 0x7ee081, hill: 0x5cc47a, accent: 0xfff2a8, fog: 0xd6f2ff,
+      monke: 0x2fa84f, belly: 0xf3e7c8
     },
     caramelo: {
       name: 'Isla Caramelo', tag: '🍭', radius: 24,
       sky: ['#ff7fb6', '#ffb3d1', '#ffe0ef', '#fff6cf'],
-      grass: 0xffc2e0, hill: 0xff9ccb, accent: 0xfff3a0, fog: 0xffe6f2
+      grass: 0xffc2e0, hill: 0xff9ccb, accent: 0xfff3a0, fog: 0xffe6f2,
+      monke: 0xff8ec2, belly: 0xfff4e6
     },
     cristal: {
       name: 'Selva de Cristal', tag: '💎', radius: 25,
       sky: ['#0d1b4c', '#254a8f', '#5b8fd6', '#c9e8ff'],
-      grass: 0x3f8f8a, hill: 0x2f6f7a, accent: 0xa8f7ff, fog: 0x9fd8ea
+      grass: 0x3f8f8a, hill: 0x2f6f7a, accent: 0xa8f7ff, fog: 0x9fd8ea,
+      monke: 0x53d8c8, belly: 0xd8fbff
     }
   };
 
@@ -63,6 +71,8 @@
     props: [], orbs: 0, orbsTotal: 0, bells: 0, bounces: 0,
     hands: { left: null, right: null },
     vel: null, pos: null, onGround: true, lastPush: 0,
+    avatar: null, body: null, drop: 0.5, eyeY: EYE, dropSet: false,
+    trunks: [], grabbing: null,
     hud: null, hudCtx: null, hudTex: null, hudAt: 0, hudGoal: 0,
     keys: {}, drag: null, camYaw: 0.6, camPitch: 0.35,
     opts: {}, ended: false, msg: '¡Manos al suelo y a correr!'
@@ -125,12 +135,156 @@
     sc.add(sun);
     S.vel = new T.Vector3();
     S.pos = new T.Vector3(0, 0, 0);
+    buildAvatar();
+  }
+
+  /* ================================================== EL MONKE (tu cuerpo) */
+  /* Como en gorilla tag: eres un gorila SIN PIERNAS. Te ves el torso, los brazos
+     larguísimos y las manos, y el suelo queda a la altura del pecho para que las
+     manos lleguen siempre al suelo. Todo cuelga de S.player (el jugador). */
+  function makeHand(furMat, skinMat) {
+    var T = S.three;
+    var g = new T.Group();
+    var palm = new T.Mesh(new T.SphereGeometry(0.115, 14, 10), skinMat);
+    palm.scale.set(1.15, 0.75, 1.25);
+    g.add(palm);
+    var knuckles = [], i;
+    for (i = 0; i < 4; i++) {
+      var f = new T.Mesh(new T.SphereGeometry(0.045, 8, 6), skinMat);
+      f.position.set(-0.068 + i * 0.045, -0.02, -0.1);
+      g.add(f);
+      knuckles.push(f);
+    }
+    var thumb = new T.Mesh(new T.SphereGeometry(0.05, 8, 6), skinMat);
+    thumb.position.set(0.08, -0.03, 0.02);
+    g.add(thumb);
+    var cuff = new T.Mesh(new T.SphereGeometry(0.1, 12, 10), furMat);
+    cuff.position.set(0, 0.02, 0.1);
+    cuff.scale.set(1.05, 0.9, 0.8);
+    g.add(cuff);
+    return { g: g, palm: palm, knuckles: knuckles, thumb: thumb, fist: 0 };
+  }
+
+  function buildAvatar() {
+    var T = S.three;
+    if (!T || !S.player) return;
+    var meta = WORLDS[S.world] || WORLDS.prado;
+    var furMat = new T.MeshStandardMaterial({ color: meta.monke, roughness: 0.85 });
+    var skinMat = new T.MeshStandardMaterial({ color: meta.belly, roughness: 0.9 });
+    var g = new T.Group();
+    g.name = 'doga-gorilla-monke';
+    var torso = new T.Mesh(new T.SphereGeometry(0.34, 18, 14), furMat);
+    torso.scale.set(1.0, 1.25, 0.9);
+    g.add(torso);
+    var belly = new T.Mesh(new T.SphereGeometry(0.26, 16, 12), skinMat);
+    belly.scale.set(0.95, 1.15, 0.72);
+    g.add(belly);
+    /* morro y orejas: al mirar abajo te ves la cara de monke */
+    var muzzle = new T.Mesh(new T.SphereGeometry(0.15, 14, 10), skinMat);
+    muzzle.scale.set(1.25, 0.8, 1);
+    g.add(muzzle);
+    var earGeo = new T.SphereGeometry(0.1, 12, 10);
+    var earL = new T.Mesh(earGeo, furMat), earR = new T.Mesh(earGeo, furMat);
+    g.add(earL); g.add(earR);
+    var shoulderGeo = new T.SphereGeometry(0.16, 12, 10);
+    var shL = new T.Mesh(shoulderGeo, furMat), shR = new T.Mesh(shoulderGeo, furMat);
+    g.add(shL); g.add(shR);
+    var armGeo = new T.CylinderGeometry(0.115, 0.095, 1, 10, 1);
+    var armL = new T.Mesh(armGeo, furMat), armR = new T.Mesh(armGeo, furMat);
+    g.add(armL); g.add(armR);
+    var hands = { left: makeHand(furMat, skinMat), right: makeHand(furMat, skinMat) };
+    g.add(hands.left.g); g.add(hands.right.g);
+    S.player.add(g);
+    S.avatar = g;
+    S.body = {
+      torso: torso, belly: belly, muzzle: muzzle, earL: earL, earR: earR,
+      shL: shL, shR: shR, armL: armL, armR: armR, hands: hands,
+      fur: furMat, skin: skinMat
+    };
+  }
+
+  /* Coloca el cuerpo y las manos cada fotograma, y ajusta el suelo al pecho. */
+  function updateAvatar(frame) {
+    var T = S.three, b = S.body;
+    if (!T || !b || !S.player) return;
+    var dt = S.dt || 0.016;
+    /* 1) altura real de tus ojos → el suelo se sube hasta el pecho */
+    var eyeY = EYE;
+    if (frame && S.refSpace && frame.getViewerPose) {
+      try {
+        var vp = frame.getViewerPose(S.refSpace);
+        if (vp && vp.transform) eyeY = Math.max(0.7, Math.min(2.1, vp.transform.position.y));
+      } catch (e) {}
+    } else {
+      eyeY = EYE_MONKE;      // vista previa: mismo monke bajito que en las gafas
+    }
+    S.eyeY = eyeY;
+    var drop = Math.max(0, Math.min(DROP_MAX, eyeY - EYE_MONKE));
+    S.drop = S.dropSet ? S.drop + (drop - S.drop) * Math.min(1, 8 * dt) : drop;
+    S.dropSet = true;
+    S.player.position.y = S.pos.y - S.drop;
+    /* 2) cuerpo: sin piernas, colgando justo debajo de la cabeza */
+    var top = eyeY - 0.24;
+    var mid = top - 0.44;
+    b.torso.position.set(0, mid, 0);
+    b.belly.position.set(0, mid + 0.02, -0.07);
+    b.muzzle.position.set(0, eyeY - 0.19, -0.24);
+    b.earL.position.set(-0.29, eyeY - 0.1, 0.02);
+    b.earR.position.set(0.29, eyeY - 0.1, 0.02);
+    var shY = top - 0.05;
+    b.shL.position.set(-0.3, shY, 0);
+    b.shR.position.set(0.3, shY, 0);
+    /* 3) manos y brazos */
+    var names = ['left', 'right'];
+    for (var i = 0; i < 2; i++) {
+      var side = names[i], h = S.hands[side], hand = b.hands[side];
+      var sh = side === 'left' ? b.shL : b.shR;
+      var arm = side === 'left' ? b.armL : b.armR;
+      var target, quat = null;
+      if (h && h.now) {
+        target = new T.Vector3(h.now.x, h.now.y, h.now.z);
+        quat = h.quat || null;
+      } else {
+        /* sin mandos (vista previa): las manos cuelgan y se balancean */
+        var sw = Math.sin(S.t * 1.7 + (side === 'left' ? 0 : 2.3)) * 0.05;
+        target = new T.Vector3(side === 'left' ? -0.36 : 0.36,
+          Math.max(0.22, shY - 0.62 + sw), -0.2);
+      }
+      hand.g.position.copy(target);
+      if (quat) hand.g.quaternion.copy(quat); else hand.g.quaternion.identity();
+      var want = (h && h.grab) ? 1 : 0;
+      hand.fist += (want - hand.fist) * Math.min(1, 14 * dt);
+      for (var k = 0; k < hand.knuckles.length; k++) {
+        hand.knuckles[k].position.z = -0.1 + hand.fist * 0.07;
+        hand.knuckles[k].position.y = -0.02 + hand.fist * 0.035;
+      }
+      hand.thumb.position.z = 0.02 + hand.fist * 0.05;
+      var dir = new T.Vector3().subVectors(target, sh.position);
+      var len = dir.length();
+      if (len < 1e-4) { arm.visible = false; continue; }
+      arm.visible = true;
+      arm.position.copy(sh.position).addScaledVector(dir, 0.5);
+      arm.scale.set(1, len, 1);
+      arm.quaternion.setFromUnitVectors(new T.Vector3(0, 1, 0), dir.normalize());
+    }
+  }
+
+  /* Repinta el monke con los colores del mundo (cada mundo tiene su monke). */
+  function paintMonke() {
+    var meta = WORLDS[S.world] || WORLDS.prado;
+    if (S.body) {
+      try {
+        S.body.fur.color.setHex(meta.monke);
+        S.body.skin.color.setHex(meta.belly);
+      } catch (e) {}
+    }
   }
 
   /* Borra el mundo anterior (mallas y props) sin tocar jugador ni cámara. */
   function clearWorld() {
     var T = S.three;
     S.props = [];
+    S.trunks = [];
     S.orbs = 0;
     S.orbsTotal = 0;
     S.bells = 0;
@@ -372,6 +526,7 @@
     if (key === 'prado') buildPrado(meta);
     else if (key === 'caramelo') buildCaramelo(meta);
     else buildCristal(meta);
+    paintMonke();
     /* estrellas para recoger, repartidas por todo el mundo */
     for (i = 0; i < 9; i++) {
       a = (i / 9) * Math.PI * 2 + 0.4;
@@ -410,6 +565,8 @@
       }
       tree.position.set(x, 0, z);
       S.group.add(tree);
+      /* el tronco se puede agarrar con el gatillo y trepar (como en gorilla tag) */
+      S.trunks.push({ x: x, z: z, r: 0.34, top: h + 1.1 });
     });
     /* nubes flotando (se pueden empujar con la cabeza, no molestan) */
     for (i = 0; i < 14; i++) {
@@ -451,6 +608,7 @@
       g.add(sweet);
       g.position.set(x, 0, z);
       S.group.add(g);
+      S.trunks.push({ x: x, z: z, r: 0.3, top: 2.9 });   // palo trepable
     });
     scatter(5, function (x, z, n) { addBouncer(x, z, 0x8ef2c0, 8.4 + n * 0.3); });  // gelatinas
     scatter(3, function (x, z) { addSpinner(x, z, 0xff9ad5); });                    // remolinos
@@ -476,6 +634,7 @@
       cry.position.set(Math.cos(a) * d, h / 2, Math.sin(a) * d);
       cry.rotation.z = Math.sin(i) * 0.12;
       S.group.add(cry);
+      S.trunks.push({ x: Math.cos(a) * d, z: Math.sin(a) * d, r: 0.55, top: h });  // cristal trepable
     }
     /* luciérnagas de cristal */
     for (i = 0; i < 40; i++) {
@@ -502,6 +661,17 @@
   function groundAt() { return 0; }
 
   /* Lee dónde están las manos (coordenadas del cuerpo: y = 0 es el suelo). */
+  /* ¿Está apretado el botón «i» del mando? (0 = gatillo, 1 = squeeze/grip).
+     El grip sirve para agarrarse al suelo o a un tronco y trepar. */
+  function btn(src, i) {
+    try {
+      var gp = src && src.gamepad;
+      if (!gp || !gp.buttons || !gp.buttons[i]) return false;
+      var b = gp.buttons[i];
+      return !!b.pressed || (b.value || 0) > 0.5;
+    } catch (e) { return false; }
+  }
+
   function readHands(frame) {
     var T = S.three;
     if (!frame || !S.session || !frame.getPose || !T) return;
@@ -518,15 +688,18 @@
       var p = pose.transform.position;
       var now = new T.Vector3(p.x, p.y, p.z);
       var prev = S.hands[hand];
+      var q = pose.transform.orientation;
       var cur = {
         src: src,
         now: now,
         prev: prev && prev.now ? prev.now : now.clone(),
+        quat: new T.Quaternion(q.x, q.y, q.z, q.w),
+        grab: !!btn(src, 1),
         vel: new T.Vector3()
       };
       cur.vel.copy(now).sub(cur.prev).divideScalar(Math.max(1e-3, S.dt || 0.016));
       /* la mano «toca» el suelo si baja hasta la altura de la rodilla */
-      cur.touching = (S.pos.y + now.y) < groundAt() + HAND_REACH;
+      cur.touching = (S.pos.y + now.y - (S.drop || 0)) < groundAt() + HAND_REACH;
       seen[hand] = true;
       S.hands[hand] = cur;
     }
@@ -555,7 +728,9 @@
     for (i = 0; i < 2; i++) {
       var h = S.hands[names[i]];
       if (!h) continue;
-      var world = new T.Vector3(S.pos.x + h.now.x, S.pos.y + h.now.y, S.pos.z + h.now.z);
+      /* la mano en coordenadas del mundo (el cuerpo va bajado «drop») */
+      var world = new T.Vector3(S.pos.x + h.now.x, S.pos.y + h.now.y - (S.drop || 0),
+        S.pos.z + h.now.z);
       /* primero, ¿ha tocado alguna cosa? */
       if (propTouch(world, names[i])) pushed = true;
       if (!h.touching) continue;
@@ -584,21 +759,53 @@
     return pushed;
   }
 
-  /* Gravedad, rozamiento y límites del mundo. */
+  /* ¿Hay un tronco/cristal al alcance de esta mano (para trepar)? */
+  function trunkNear(h) {
+    if (!S.trunks || !S.trunks.length) return null;
+    var wx = S.pos.x + h.now.x;
+    var wy = S.pos.y + h.now.y - (S.drop || 0);
+    var wz = S.pos.z + h.now.z;
+    for (var i = 0; i < S.trunks.length; i++) {
+      var t = S.trunks[i];
+      if (wy < 0.12 || wy > t.top) continue;
+      if (Math.hypot(wx - t.x, wz - t.z) < t.r + 0.5) return t;
+    }
+    return null;
+  }
+
+  /* Gravedad, rozamiento, trepar y límites del mundo. */
   function physics(dt) {
     if (!S.three) return;
+    var drop = S.drop || 0;
     var pushed = armPush(dt);
-    var drag = (S.onGround && !pushed) ? DRAG_GROUND : DRAG_AIR;
-    S.vel.multiplyScalar(Math.max(0, 1 - drag * dt));
-    S.vel.y += GRAVITY * dt;
-    S.pos.addScaledVector(S.vel, dt);
-    var gy = groundAt();
-    if (S.pos.y <= gy + 1e-4) {
-      S.pos.y = gy;
-      if (S.vel.y < 0) S.vel.y = 0;
-      S.onGround = true;
+    /* Trepar: con el gatillo apretado y la mano en el suelo o en un tronco, el
+       cuerpo se mueve 1:1 con la mano (bajas las manos y subes, como en GT). */
+    var climb = null, climbSide = null, ci;
+    var cnames = ['left', 'right'];
+    for (ci = 0; ci < 2; ci++) {
+      var ch = S.hands[cnames[ci]];
+      if (ch && ch.grab && (ch.touching || trunkNear(ch))) { climb = ch; climbSide = cnames[ci]; break; }
+    }
+    S.grabbing = climbSide;
+    if (climb) {
+      S.vel.set(0, 0, 0);
+      S.pos.x -= (climb.now.x - climb.prev.x);
+      S.pos.z -= (climb.now.z - climb.prev.z);
+      S.pos.y = Math.max(groundAt(), Math.min(9, S.pos.y - (climb.now.y - climb.prev.y)));
+      S.onGround = S.pos.y <= groundAt() + 0.02;
     } else {
-      S.onGround = false;
+      var drag = (S.onGround && !pushed) ? DRAG_GROUND : DRAG_AIR;
+      S.vel.multiplyScalar(Math.max(0, 1 - drag * dt));
+      S.vel.y += GRAVITY * dt;
+      S.pos.addScaledVector(S.vel, dt);
+      var gy = groundAt();
+      if (S.pos.y <= gy + 1e-4) {
+        S.pos.y = gy;
+        if (S.vel.y < 0) S.vel.y = 0;
+        S.onGround = true;
+      } else {
+        S.onGround = false;
+      }
     }
     /* el límite del mundo: pared invisible en el borde de la isla */
     var radius = WORLDS[S.world].radius - 0.9;
@@ -614,14 +821,16 @@
       }
     }
     if (S.pos.y < FALL_Y) respawn();
-    S.player.position.copy(S.pos);
+    /* el cuerpo va bajado «drop» para que el suelo quede a la altura del pecho */
+    S.player.position.set(S.pos.x, S.pos.y - drop, S.pos.z);
     S.player.updateMatrixWorld(true);
   }
 
   function respawn() {
     S.pos.set(0, 0, 0);
     S.vel.set(0, 0, 0);
-    S.player.position.copy(S.pos);
+    S.grabbing = null;
+    S.player.position.set(0, -(S.drop || 0), 0);
     S.player.updateMatrixWorld(true);
     emit('¡ups! al centro otra vez');
   }
@@ -675,12 +884,16 @@
     g.fillStyle = '#9fc4ae';
     g.font = '19px system-ui,sans-serif';
     g.fillText('Manos al suelo y arrástralas: así se anda.', 24, 176);
+    g.fillStyle = '#8ff7ff';
+    g.font = 'bold 19px system-ui,sans-serif';
+    g.fillText(S.grabbing ? ('🖐️ agarrado (' + (S.grabbing === 'left' ? 'izq' : 'der') +
+      ') · suelo al pecho') : ('🦍 monke · suelo al pecho · gatillo = trepar'), 24, 202);
     g.fillStyle = '#ffcf6b';
     g.font = '18px system-ui,sans-serif';
-    g.fillText(String(S.msg || '').slice(0, 42), 24, 208);
+    g.fillText(String(S.msg || '').slice(0, 42), 24, 228);
     g.fillStyle = '#7fa692';
-    g.font = '16px system-ui,sans-serif';
-    g.fillText('Salir: menú del visor', 24, 236);
+    g.font = '15px system-ui,sans-serif';
+    g.fillText('Salir: menú del visor', 344, 228);
     if (S.hudTex) S.hudTex.needsUpdate = true;
   }
 
@@ -693,7 +906,8 @@
     try { pose = frame.getViewerPose(S.refSpace); } catch (e) { pose = null; }
     if (!pose) return out;
     var tr = pose.transform;
-    out.p.set(tr.position.x + S.pos.x, tr.position.y + S.pos.y, tr.position.z + S.pos.z);
+    out.p.set(tr.position.x + S.pos.x, tr.position.y + S.pos.y - (S.drop || 0),
+      tr.position.z + S.pos.z);
     out.q.set(tr.orientation.x, tr.orientation.y, tr.orientation.z, tr.orientation.w);
     out.fwd.set(0, 0, -1).applyQuaternion(out.q);
     return out;
@@ -712,7 +926,7 @@
       } else {
         camW.set(0, 3, 7);
       }
-      S.hud.position.set(S.pos.x, S.pos.y + 2.05, S.pos.z);
+      S.hud.position.set(S.pos.x, S.pos.y + 1.6, S.pos.z);
       S.hud.lookAt(camW);
       S.hud.visible = true;
       return;
@@ -785,6 +999,11 @@
       bounces: S.bounces,
       speed: S.vel ? Math.round(S.vel.length() * 10) / 10 : 0,
       onGround: !!S.onGround,
+      pos: S.pos ? { x: Math.round(S.pos.x * 100) / 100, y: Math.round(S.pos.y * 100) / 100,
+        z: Math.round(S.pos.z * 100) / 100 } : null,
+      drop: Math.round((S.drop || 0) * 100) / 100,
+      grabbing: S.grabbing || null,
+      body: !!S.body,
       msg: S.msg
     };
   }
@@ -823,6 +1042,7 @@
     }
     readHands(frame);
     physics(dt);
+    updateAvatar(frame);
     updateProps(dt);
     drawHud(false);
     placeHud(frame);
@@ -851,6 +1071,7 @@
     return loadThree().then(function (T) {
       S.three = T;
       if (!S.scene) buildScene();
+      if (!S.body) buildAvatar();
       if (!S.preview) makeRenderer(host);
       S.renderer.xr.enabled = true;
       return global.navigator.xr.requestSession('immersive-vr', {
@@ -866,10 +1087,12 @@
       S.t = 0;
       S.refSpace = null;
       S.hands = { left: null, right: null };
+      S.dropSet = false;                 // recalcula el suelo según tu altura
+      S.grabbing = null;
       makeHud();
       buildWorld(S.world);
       try { S.refSpace = S.renderer.xr.getReferenceSpace(); } catch (e) {}
-      emit('¡dentro! manos al suelo y arrástralas para andar');
+      emit('¡dentro! brazos largos: manos al suelo y arrastra para andar');
       pushState(true);
       S.session.requestAnimationFrame(onFrame);
       return state();
@@ -894,15 +1117,18 @@
   }
 
   function placePreviewCam() {
-    var d = 7.2;
+    var d = 6.4;
     /* la cámara cuelga del jugador (S.player): se pasa a coordenadas locales
-       para que la vista previa gire alrededor del jugador y no se vaya con él */
+       para que la vista previa gire alrededor del jugador y no se vaya con él.
+       El jugador va bajado «drop» (el suelo a la altura del pecho), así que la
+       altura local se compensa con ese desplazamiento. */
+    var drop = S.drop || 0;
     var wx = Math.cos(S.camYaw) * d;
-    var wy = 3.1 + Math.sin(S.camPitch) * 3.4;
+    var wy = 2.6 + Math.sin(S.camPitch) * 3.0;
     var wz = Math.sin(S.camYaw) * d;
-    S.cam.position.set(wx - S.pos.x, wy - S.pos.y, wz - S.pos.z);
+    S.cam.position.set(wx - S.pos.x, wy - S.pos.y + drop, wz - S.pos.z);
     S.cam.updateMatrixWorld(true);
-    S.cam.lookAt(S.pos.x, S.pos.y + 1.05, S.pos.z);
+    S.cam.lookAt(S.pos.x, S.pos.y + 0.8, S.pos.z);
   }
 
   function previewStep() {
@@ -930,6 +1156,7 @@
       S.lastPush = S.t;
     }
     physics(dt);
+    updateAvatar(null);
     updateProps(dt);
     drawHud(false);
     placePreviewCam();
@@ -947,12 +1174,16 @@
       S.three = T;
       S.preview = true;
       if (!S.scene) buildScene();
+      if (!S.body) buildAvatar();
       var r = makeRenderer(host);
       r.xr.enabled = false;
       S.cam.aspect = (host.clientWidth || 640) / (host.clientHeight || 360);
       S.cam.updateProjectionMatrix();
       makeHud();
       buildWorld(S.opts.world || S.world);
+      /* en el PC no hay altura de ojos real: monke bajito como en las gafas */
+      S.drop = 0;
+      S.dropSet = true;
       S.running = true;
       S.last = 0;
       S.t = 0;
@@ -1010,6 +1241,11 @@
     S.hudCtx = null;
     S.hudTex = null;
     S.props = [];
+    S.trunks = [];
+    S.avatar = null;
+    S.body = null;
+    S.dropSet = false;
+    S.grabbing = null;
     S.hands = { left: null, right: null };
     S.vel = null;
     S.pos = null;
@@ -1039,7 +1275,31 @@
     start: start,
     startPreview: startPreview,
     stop: stopAll,
-    state: state
+    state: state,
+    /* el monke: cuerpo visible, manos y cuánto va bajado el suelo */
+    monke: function () {
+      var r2 = function (v) { return Math.round((v || 0) * 100) / 100; };
+      var out = {
+        body: !!S.body,
+        parts: S.body ? Object.keys(S.body) : [],
+        hands: !!(S.body && S.body.hands && S.body.hands.left && S.body.hands.right),
+        drop: r2(S.drop),
+        eyeY: r2(S.eyeY),
+        grabbing: S.grabbing || null
+      };
+      if (out.hands) {
+        out.handPos = {
+          left: [r2(S.body.hands.left.g.position.x), r2(S.body.hands.left.g.position.y),
+            r2(S.body.hands.left.g.position.z)],
+          right: [r2(S.body.hands.right.g.position.x), r2(S.body.hands.right.g.position.y),
+            r2(S.body.hands.right.g.position.z)]
+        };
+        out.shoulderY = r2(S.body.shL.position.y);
+        out.torsoY = r2(S.body.torso.position.y);
+        out.armLen = [r2(S.body.armL.scale.y), r2(S.body.armR.scale.y)];
+      }
+      return out;
+    }
   };
 })(window);
 

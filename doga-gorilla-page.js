@@ -67,7 +67,8 @@
       kBells: String(s.bells || 0),
       kBounces: String(s.bounces || 0),
       kSpeed: fmt(s.speed) + ' m/s',
-      kGround: s.running ? (s.onGround ? 'sí' : 'aire') : '—'
+      kGround: s.running ? (s.onGround ? 'sí' : 'aire') : '—',
+      kBody: s.running ? (s.grabbing ? '🖐️ trepando' : (s.body ? '🦍 monke' : '—')) : '—'
     };
     for (var k in K) {
       if (!Object.prototype.hasOwnProperty.call(K, k)) continue;
@@ -134,7 +135,7 @@
       busy = false;
       if (outBtn) outBtn.disabled = false;
       pill('on', 'en VR · ' + (s && s.worldName ? s.worldName : ''));
-      addLog('¡dentro! manos al suelo y arrástralas para andar');
+      addLog('¡dentro! brazos largos: manos al suelo y arrastra para andar');
     }).catch(function (err) {
       fail('VR', err);
     });
