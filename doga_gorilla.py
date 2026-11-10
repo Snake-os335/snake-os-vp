@@ -1,4 +1,4 @@
-"""Doga Tag VR (2026.32) — pilla-pilla estilo «gorilla tag» en el bosque de Doganiero.
+"""Doga Tag VR (2026.33) — pilla-pilla estilo «gorilla tag» en el bosque de Doganiero.
 
 El juego entero vive en la carpeta doga-tag-vr/ (Three.js r160 en módulos ES, sin
 compilar nada):
@@ -41,7 +41,7 @@ from fastapi.responses import FileResponse, HTMLResponse
 
 GAME = "doga-gorilla"
 GAME_NAME = "Doga Tag VR"
-GAME_VERSION = "2026.32"
+GAME_VERSION = "2026.33"
 HOST = "doga-gorilla."          # doga-gorilla.softportweb.com
 
 _APP_DIR = FsPath(__file__).resolve().parent

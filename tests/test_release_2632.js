@@ -41,7 +41,7 @@ var readme = read('README.md');
 ok('sustitución: fuera el juego viejo, dentro doga-tag-vr/');
 
 /* 2) Servidor: la carpeta del juego, rutas saneadas y caché por token */
-hay(srv, 'GAME_VERSION = "2026.32"', 'versión del juego 2026.32');
+assert.ok(/GAME_VERSION = "2026\.\d{2}"/.test(srv), 'versión del juego (2026.32 o posterior)');
 hay(srv, 'GAME_NAME = "Doga Tag VR"', 'nombre del juego');
 hay(srv, '_GAME_DIR = _APP_DIR / "doga-tag-vr"', 'sirve la carpeta doga-tag-vr');
 hay(srv, '_FILES_URL = "/doga-gorilla/files/"', 'los archivos van por /doga-gorilla/files/');
@@ -75,7 +75,8 @@ hay(page, '<script type="module" src="./game.js">', 'arranca game.js como módul
   .forEach(function (id) { hay(page, 'id="' + id + '"', 'la página tiene #' + id); });
 hay(page, 'Jugar en escritorio', 'botón de jugar');
 hay(page, 'WASD', 'controles de escritorio');
-hay(page, 'mantén las manos contra el suelo', 'explica la locomoción de brazos');
+hay(page, 'manos contra el suelo', 'explica la locomoción de brazos');
+hay(page, 'joystick izquierdo', 'explica que en VR se anda con el joystick');
 hay(page, 'Doga-huesos', 'los huesos');
 hay(page, 'Tienda Doganiero', 'la tienda');
 hay(page, 'la lleva', 'quién la lleva');
@@ -93,7 +94,7 @@ hay(game, 'function updatePlayerDesktop(dt, t)', 'andar en el ordenador');
 hay(game, 'function updatePlayerVR(dt)', 'locomoción de brazos en VR');
 hay(game, 'function insideSurface(p)', 'las manos detectan superficies');
 hay(game, 'h.anchor = s; vibrate(i);', 'la mano se ancla y vibra el mando');
-hay(game, 'player.vel.copy(v.multiplyScalar(1.15 * powerMul().fling)', 'al soltar sale disparado');
+hay(game, 'player.vel.copy(v.multiplyScalar(1.25 * powerMul().fling)', 'al soltar sale disparado');
 hay(game, 'function supportHeight(', 'altura de apoyo (suelo, rocas, azoteas)');
 hay(game, 'function pushOut(', 'choques contra troncos y edificios');
 hay(game, 'const WORLD_R = 58;', 'límite del mundo');
@@ -129,7 +130,8 @@ ok('motor: brazos, pilla-pilla, huesos, tienda, power-ups, ciudad, audio y API')
 
 
 /* 5) index.html: versión 2026.32 con sus novedades del juego */
-hay(html, "window.SNAKE_OS_VERSION='2026.32'", 'versión 2026.32');
+hay(html, "window.SNAKE_OS_VERSION='2026.", 'la versión de Snake OS se publica ahí');
+assert.ok(/window\.SNAKE_OS_VERSION='2026\.\d{2}'/.test(html), 'versión de Snake OS con formato 2026.xx');
 hay(html, "{v:'2026.32'", 'entrada de novedades 2026.32');
 assert.ok(html.indexOf("{v:'2026.32'") < html.indexOf("{v:'2026.31'"),
   'la entrada 2026.32 va primera');

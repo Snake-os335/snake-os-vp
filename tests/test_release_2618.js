@@ -133,7 +133,7 @@ async function main() {
   assert.strictEqual(html.indexOf('i9-offline'), -1, 'no quedan clases i9-offline');
   assert.strictEqual(html.indexOf('/api/server-i9/connected'), -1, 'el frontend ya no consulta el server i9');
   assert.ok(html.indexOf('function gateServerI9(){ continueAfterOsGate(); }') >= 0, 'el arranque sigue tras el gate');
-  assert.ok(html.indexOf("window.SNAKE_OS_VERSION='2026.32'") >= 0, 'versión 2026.22');
+  assert.ok(html.indexOf("window.SNAKE_OS_VERSION='2026.33'") >= 0, 'versión 2026.22');
   assert.ok(html.indexOf("{v:'2026.22'") >= 0, 'entrada de novedades 2026.22');
   ok('index.html sin pantalla ni sondeos del server i9');
 

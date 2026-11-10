@@ -201,7 +201,7 @@ Dos páginas nuevas en este mismo servidor (no hace falta otro despliegue):
   `mirrorStream()`, `state()`, `supported()`).
 - **Pruebas:** `node tests/test_release_2623.js` (y `tests/test_release_2616.js` … `tests/test_release_2622.js`).
 
-## Doga Tag VR (2026.32): pilla-pilla estilo «gorilla tag» en el bosque de Doganiero
+## Doga Tag VR (2026.32, con la locomoción más rápida de 2026.33): pilla-pilla estilo «gorilla tag» en el bosque de Doganiero
 
 Sustituye al juego anterior de 2026.31 (ya no está `doga-gorilla.js`). Es el juego completo: bosque
 con **Ciudad Doganiero**, bots, **Doga-huesos**, tienda de cosméticos, power-ups, audio procedural y
@@ -213,12 +213,14 @@ juego, en `doga-tag-vr/lib/three.module.js` (módulos ES + `importmap`), así qu
 | <https://snake-os-vp.softportweb.com/doga-gorilla> | la página del juego (también `/doga-tag-vr`) |
 | <https://doga-gorilla.softportweb.com> | lo mismo, en su propio subdominio cuando el túnel lo publique |
 
-- **Cómo se anda (lo importante):** como en *gorilla tag*, **con los brazos**. En VR apoyas las manos
-  en el suelo, los troncos, las rocas o las plataformas (`insideSurface`) y las **arrastras** para
-  empujarte (`updatePlayerVR`, anclas por mano y `handHistory` para el impulso); al **soltar** sales
-  disparado con la media de la velocidad de las manos (`powerMul().cap`). En el ordenador, **WASD**
-  anda, el **ratón** mira, **espacio** salta, **shift** corre y **clic** da un manotazo. En el móvil,
-  mitad izquierda para moverse y mitad derecha para mirar.
+- **Cómo se anda (lo importante):** con el **joystick izquierdo** andas hacia donde miras (`applyStickWalk`,
+  `xrSticks`: zona muerta `STICK_DEAD = 0,16`, `VR_WALK = 7 m/s` y `VR_RUN = 12 m/s` con el joystick a
+  tope, con pasos de nudillos y frenada suave al soltarlo) y, como en *gorilla tag*, también **con los
+  brazos**: en VR apoyas las manos en el suelo, los troncos, las rocas o las plataformas (`insideSurface`)
+  y las **arrastras** para empujarte (`updatePlayerVR`, anclas por mano y `handHistory` para el impulso);
+  al **soltar** sales disparado con la media de la velocidad de las manos (`powerMul().cap`, 13 m/s).
+  En el ordenador, **WASD** anda a 8,2 m/s, el **ratón** mira, **espacio** salta, **shift** corre a
+  12,5 m/s y **clic** da un manotazo. En el móvil, mitad izquierda para moverse y mitad derecha para mirar.
 - **El mundo:** claro de Doganiero (`AREA_R = 15 m`), bosque de 170 árboles instanciados, rocas y
   troncos (`trunks`, `boxes`) por los que trepar, y **Ciudad Doganiero** al norte (`CITY`, `-52..-23`
   en Z) con plaza, calles, azoteas, torre del reloj, tiendas con toldos, farolas y contenedores.
@@ -237,7 +239,7 @@ juego, en `doga-tag-vr/lib/three.module.js` (módulos ES + `importmap`), así qu
   clic/raycast en el ordenador (`pressShop`, `shopRaycast`). Se guarda en `localStorage`
   (`dogaTag.v1`: huesos, `owned`, `hat`, `color`).
 - **Power-ups (8 s, reaparecen a los 25 s):** **Salto Snake 🐍** (salto ×1,8; en VR el lanzamiento
-  ×1,55 con tope 15 m/s) y **Turbo Doga ⚡** (velocidad ×1,55 y más alcance de brazos). Ver
+  ×1,8 con tope 20 m/s) y **Turbo Doga ⚡** (velocidad ×1,55 y más alcance de brazos). Ver
   `powerMul`.
 - **Audio sin descargar nada:** WebAudio procedural (`initAudio`, `playImpact`, `beep`) con pasos de
   nudillos, variantes por superficie (hierba, madera, piedra, cemento, metal: `SURFACE_FX`,
@@ -267,17 +269,20 @@ juego, en `doga-tag-vr/lib/three.module.js` (módulos ES + `importmap`), así qu
 - **API:** `window.__game` (`THREE`, `scene`, `rig`, `camera`, `entities`, `player`, `hands`, `boxes`,
   `trunks`, `setIt`, `save`, `power`, `bones`, `powerItems`, `shopButtons`, `pressShop`, `tagBurst`,
   `CITY`, `CITY_SPOTS`, `inCity`, `keys`, `surfaceAt`, `ensureAudio`, `playImpact`, música, `look()`,
-  `simT`). Parámetros de URL para pruebas: `?autostart`,
+  `simT`, `xrSticks`, `applyStickWalk`, `vrWalk`, `VR_WALK`, `VR_RUN`, `STICK_DEAD`, `powerMul`).
+  Parámetros de URL para pruebas: `?autostart`,
   `&view=forest|doganiero|arms|tienda|avatar|ciudad`, `&freeze`, `&seed=N`.
 - **DNS / túnel (solo la primera vez):** en Cloudflare (túnel `snake-os-vp-cloudflared`) hay que añadir
   el *public hostname* `doga-gorilla.softportweb.com` → `http://web:8000`. Mientras no esté, el juego
   funciona igual en `https://snake-os-vp.softportweb.com/doga-gorilla`.
 - **Pruebas:** `node tests/test_doga_tag_vr.js` (arranca el motor de verdad: carga el `three.js` real y
   solo cambia el `WebGLRenderer` y el reloj, así que sin WebGL ni gafas se ejecutan el mundo, los bots,
-  los huesos, los power-ups, la tienda, el HUD, el pilla-pilla y la **locomoción de brazos en VR**),
+  los huesos, los power-ups, la tienda, el HUD, el pilla-pilla, la **locomoción de brazos en VR** y
+  **andar/correr con el joystick** —zona muerta, media potencia y a tope—, además de la velocidad a pie
+  en el ordenador),
   `python3 -m unittest tests.test_doga_tag_vr` (el `?v=` real de la página, las rutas saneadas y la
-  caché, sin fastapi) y `node tests/test_release_2632.js` (y `tests/test_release_2616.js` …
-  `tests/test_release_2623.js`).
+  caché, sin fastapi) y `node tests/test_release_2633.js` (y `tests/test_release_2616.js` …
+  `tests/test_release_2632.js`).
 
 
 ### Mascota MR sin límites (2026.31)

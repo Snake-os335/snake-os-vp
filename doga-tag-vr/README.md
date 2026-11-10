@@ -17,14 +17,14 @@ Open http://localhost:8000/ (desktop), or on a Quest browser via HTTPS / `adb re
 
 
 ## Controls
-- VR: arm locomotion. Press your hands against the ground, trunks, rocks or platforms and push; let go to fling yourself.
-- Desktop: WASD move, mouse look (pointer lock), Space jump, Shift run, click to swipe an arm.
+- VR: **left stick walks** where you look (push it all the way to run at 12 m/s), plus arm locomotion — press your hands against the ground, trunks, rocks or platforms and push; let go to fling yourself (`VR_WALK`, `VR_RUN`, `STICK_DEAD`, `xrSticks`, `applyStickWalk`).
+- Desktop: WASD move (8.2 m/s by default), mouse look (pointer lock), Space jump, Shift run (12.5 m/s), click to swipe an arm.
 - Mobile: left half drag = move, right half drag = look/swipe.
 
 ## Doganiero features
 - Avatar: low-poly faceted gorilla built from three.js primitives (dark charcoal/navy body with a procedural mottled CanvasTexture, heart-shaped grey face mask, big round eyes, grey snout, large grey chest patch with a blue Doganiero "</>" emblem, very long thick arms, blocky low-poly hands, no legs). The player's VR/desktop hands use the same dark blocky hands.
 - Doga-huesos (bones): 24 floating bones around the map, respawning 18-28 s after pickup; counter in the HUD.
-- Power-ups (8 s, respawn 25 s): Salto Snake 🐍 (jump x1.8 on desktop, VR fling x1.55 with cap 15 m/s, green glowing hands) and Turbo Doga ⚡ (speed x1.55, bigger VR arm reach, blue glow).
+- Power-ups (8 s, respawn 25 s): Salto Snake 🐍 (jump x1.8 on desktop, VR fling x1.8 with cap 20 m/s, green glowing hands) and Turbo Doga ⚡ (speed x1.55, bigger VR arm reach, blue glow).
 - Tienda Doganiero in the clearing: hats (Gorra Doga, Chistera Snake, Hoja, Corona) and fur colours (Carbón, Verde Doga, Azul noche, Coral, Dorado). Press buttons with your hand in VR or click/tap on desktop/mobile. A preview avatar shows your look; bots wear cosmetics too. Bones, owned items and your choice are saved in localStorage (`dogaTag.v1`).
 - Green Doganiero burst (particles + ring) on every tag.
 - Ciudad Doganiero (north): low-poly town with rooftops, clock tower, plaza, shops/awnings, lamps, crates/dumpsters, concrete/metal footsteps; bots and collectibles play there too.

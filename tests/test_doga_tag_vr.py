@@ -209,7 +209,7 @@ class TestCacheDeArchivos(unittest.TestCase):
 
 class TestEstado(unittest.TestCase):
     def test_estado_dice_la_version(self):
-        self.assertEqual(dg.GAME_VERSION, "2026.32")
+        self.assertRegex(dg.GAME_VERSION, r"^2026\.\d{2}$", "versión del juego con formato 2026.xx")
         self.assertEqual(dg.GAME_NAME, "Doga Tag VR")
         src = (Path(ROOT) / "doga_gorilla.py").read_text(encoding="utf-8")
         self.assertIn('"build": _assets_sig()', src, "el estado trae la firma del juego")

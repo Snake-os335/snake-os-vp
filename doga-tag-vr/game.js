@@ -596,8 +596,77 @@ const ctrlHand = ['left', 'right'];
 const gripOf = (h) => { const k = ctrlHand.indexOf(h.side < 0 ? 'left' : 'right'); return grips[k >= 0 ? k : (h.side < 0 ? 0 : 1)]; };
 grips.forEach((g, i) => g.addEventListener('connected', e => { ctrlHand[i] = e.data.handedness; }));
 let inVR = false;
-renderer.xr.addEventListener('sessionstart', () => { inVR = true; started = true; startEl.style.display = 'none'; camera.position.set(0, 0, 0); });
-renderer.xr.addEventListener('sessionend', () => { inVR = false; camera.position.set(0, EYE, 0); });
+
+// ---------- andar con el joystick en VR (para que moverse no cueste) ----------
+// Con el joystick izquierdo se anda hacia donde miras y a tope se corre; los brazos
+// siguen sirviendo para trepar, empujar y salir disparado.
+const VR_WALK = 7.0;      // m/s con el joystick a media potencia
+const VR_RUN = 12.0;      // m/s con el joystick a tope (adelante del todo)
+const STICK_DEAD = 0.16;  // zona muerta: no se anda sin querer
+const vrWalk = new THREE.Vector3();
+let vrStepAcc = 0;
+const swA = new THREE.Vector3(), swB = new THREE.Vector3(), swC = new THREE.Vector3();
+
+renderer.xr.addEventListener('sessionstart', () => { inVR = true; started = true; startEl.style.display = 'none'; camera.position.set(0, 0, 0); vrWalk.set(0, 0, 0); });
+renderer.xr.addEventListener('sessionend', () => { inVR = false; camera.position.set(0, EYE, 0); vrWalk.set(0, 0, 0); });
+
+function xrSticks() {
+  const out = { x: 0, y: 0, from: '' };
+  const sess = renderer.xr.getSession ? renderer.xr.getSession() : null;
+  const srcs = (sess && sess.inputSources) || [];
+  let left = null, any = null, anyMag = STICK_DEAD;
+  for (const src of srcs) {
+    const ax = src && src.gamepad && src.gamepad.axes;
+    if (!ax || ax.length < 2) continue;
+    // xr-standard: el joystick va en axes[2] y axes[3], con y = -1 para adelante
+    const x = ax.length >= 4 ? ax[2] : ax[0];
+    const y = ax.length >= 4 ? ax[3] : ax[1];
+    const mag = Math.hypot(x, y);
+    if (!(mag > STICK_DEAD)) continue;
+    if (src.handedness === 'left' && !left) left = { x, y, from: 'left' };
+    if (mag > anyMag) { anyMag = mag; any = { x, y, from: src.handedness || 'mando' }; }
+  }
+  const use = left || any;
+  if (!use) return out;
+  const d = Math.hypot(use.x, use.y);
+  const k = Math.min(1, (d - STICK_DEAD) / (1 - STICK_DEAD));
+  out.x = (use.x / d) * k; out.y = (use.y / d) * k; out.from = use.from;
+  return out;
+}
+
+function applyStickWalk(dt) {
+  const st = xrSticks();
+  const mag = Math.hypot(st.x, st.y);
+  const mul = powerMul();
+  camera.getWorldDirection(swA); swA.y = 0;
+  if (swA.lengthSq() < 1e-6) swA.set(-Math.sin(yaw), 0, -Math.cos(yaw));
+  swA.normalize();
+  swB.set(-swA.z, 0, swA.x);                        // derecha del jugador
+  const running = mag > 0.85;
+  const speed = (running ? VR_RUN : VR_WALK) * mul.speed;
+  swC.set(0, 0, 0).addScaledVector(swA, -st.y).addScaledVector(swB, st.x);
+  const dirLen = swC.length();
+  if (dirLen > 1e-4) swC.multiplyScalar(speed * (running ? 1 : Math.min(1, mag / 0.55)) / dirLen);
+  else swC.set(0, 0, 0);
+  const accel = mag > 0.01 ? (player.onGround ? 12 : 5) : 9;   // frenar al soltar el joystick
+  vrWalk.x += (swC.x - vrWalk.x) * Math.min(1, accel * dt);
+  vrWalk.z += (swC.z - vrWalk.z) * Math.min(1, accel * dt);
+  if (mag < 0.01 && Math.abs(vrWalk.x) < 0.15 && Math.abs(vrWalk.z) < 0.15) vrWalk.set(0, 0, 0);
+  rig.position.x += vrWalk.x * dt;
+  rig.position.z += vrWalk.z * dt;
+  // pasos de nudillos mientras se anda con el joystick
+  const sp = Math.hypot(vrWalk.x, vrWalk.z);
+  const headY = rig.position.y + camera.position.y;
+  const grounded = headY <= supportHeight(rig.position.x, rig.position.z, headY) + 0.45;
+  if (sp > 1 && grounded) {
+    vrStepAcc += dt * (1.4 + sp * 0.42);
+    if (vrStepAcc >= 1) {
+      vrStepAcc = 0;
+      playImpact({ surface: surfaceAt(rig.position.x, rig.position.z, rig.position.y + 0.3),
+        vol: running ? 0.2 : 0.14, pitch: running ? 1.05 : 0.95 });
+    }
+  } else if (sp < 0.4) vrStepAcc = 0;
+}
 
 // ---------- input (desktop) ----------
 const keys = {};
@@ -994,10 +1063,10 @@ function updatePlayerDesktop(dt, t) {
   let mx = (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0) + touchVec.x;
   let mz = (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0) - touchVec.y;
   const running = !!(keys.ShiftLeft || keys.ShiftRight);
-  const speed = (running ? 7.6 : 5.4) * powerMul().speed;
+  const speed = (running ? 12.5 : 8.2) * powerMul().speed;
   const wish = tmpV.set(0, 0, 0).addScaledVector(fwd, mz).addScaledVector(right, mx);
   if (wish.lengthSq() > 1) wish.normalize();
-  const accel = player.onGround ? 14 : 4;
+  const accel = player.onGround ? 22 : 7;
   player.vel.x += (wish.x * speed - player.vel.x) * Math.min(1, accel * dt);
   player.vel.z += (wish.z * speed - player.vel.z) * Math.min(1, accel * dt);
   if ((keys.Space) && player.onGround) { player.vel.y = 6.2 * powerMul().jump; player.onGround = false; }
@@ -1051,12 +1120,13 @@ function updatePlayerVR(dt) {
   } else {
     player.vel.y -= GRAV * dt;
     rig.position.addScaledVector(player.vel, dt);
-    player.vel.multiplyScalar(1 - 0.15 * dt);
+    player.vel.multiplyScalar(1 - 0.07 * dt);
     const head = rig.position.clone().add(camera.position);
     const gh = supportHeight(head.x, head.z, head.y) + 0.25;
     if (head.y < gh) { rig.position.y += gh - head.y; player.vel.y = Math.max(0, player.vel.y); player.vel.x *= 0.9; player.vel.z *= 0.9; }
     player.onGround = false;
   }
+  applyStickWalk(dt);
   pushOut(rig.position, 0.25, 1.0);
   const anyBefore = hands.some(h => h.anchor);
   hands.forEach((h, i) => {
@@ -1080,7 +1150,7 @@ function updatePlayerVR(dt) {
   });
   if (anyBefore && !hands.some(h => h.anchor) && handHistory.length) {
     const v = handHistory.reduce((a, b) => a.add(b), new THREE.Vector3()).divideScalar(handHistory.length);
-    player.vel.copy(v.multiplyScalar(1.15 * powerMul().fling).clampLength(0, powerMul().cap)); handHistory.length = 0;
+    player.vel.copy(v.multiplyScalar(1.25 * powerMul().fling).clampLength(0, powerMul().cap)); handHistory.length = 0;
   }
   // VR landing when falling onto a surface
   if (!anyBefore) {
@@ -1232,7 +1302,7 @@ const COLORS = { carbon: { name: 'Carbón', hex: 0x262c3a, palm: 0x1d212b, price
 const HATS = { ninguno: { name: 'Sin gorro', price: 0 }, gorra: { name: 'Gorra Doga', price: 5 }, snake: { name: 'Chistera Snake', price: 10 }, hoja: { name: 'Hoja', price: 4 }, corona: { name: 'Corona', price: 15 } };
 
 const power = { snake: 0, speed: 0 };
-const powerMul = () => ({ jump: power.snake > 0 ? 1.8 : 1, fling: (power.snake > 0 ? 1.55 : 1) * (power.speed > 0 ? 1.25 : 1), cap: power.snake > 0 ? 15 : 9, speed: power.speed > 0 ? 1.55 : 1, move: power.speed > 0 ? 0.35 : 0.25 });
+const powerMul = () => ({ jump: power.snake > 0 ? 1.8 : 1, fling: (power.snake > 0 ? 1.8 : 1.35) * (power.speed > 0 ? 1.3 : 1), cap: power.snake > 0 ? 20 : 13, speed: power.speed > 0 ? 1.55 : 1, move: power.speed > 0 ? 0.5 : 0.4 });
 
 function refreshPlayerLook(t = 0) {
   const c = COLORS[save.color] || COLORS.carbon;
@@ -1572,6 +1642,7 @@ renderer.setAnimationLoop(() => {
 addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
 window.__game = {
   THREE, scene, rig, camera, entities, player, hands, boxes, trunks, setIt, save, power, bones, powerItems, shopButtons, pressShop, tagBurst, CITY, CITY_SPOTS, inCity,
+  xrSticks, applyStickWalk, vrWalk, VR_WALK, VR_RUN, STICK_DEAD, powerMul,
   keys, ensureAudio, playImpact, surfaceAt, startTitleMusic, fadeOutTitleMusic, get musicPlaying() { return musicPlaying; }, get musicMuted() { return musicMuted; },
   get yaw() { return yaw; }, get pitch() { return pitch; },
   look(y, p) { yaw = y; if (p != null) pitch = p; },

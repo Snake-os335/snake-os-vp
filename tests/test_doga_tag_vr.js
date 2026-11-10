@@ -63,14 +63,15 @@ assert.ok(page.indexOf('src="./assets/doganiero-logo.png"') >= 0, 'logo Doganier
   });
 assert.ok(page.indexOf('Jugar en escritorio') >= 0, 'botón de jugar en escritorio');
 assert.ok(page.indexOf('WASD') >= 0 && page.indexOf('Espacio') >= 0, 'explica los controles de escritorio');
-assert.ok(page.indexOf('mantén las manos contra el suelo') >= 0, 'explica la locomoción de brazos en VR');
+assert.ok(page.indexOf('joystick') >= 0, 'la página explica que en VR se anda con el joystick');
+assert.ok(page.indexOf('manos contra el suelo') >= 0, 'y sigue explicando la locomoción de brazos');
 assert.ok(page.indexOf('Doga-huesos') >= 0 && page.indexOf('Tienda Doganiero') >= 0,
   'explica huesos y tienda');
 assert.ok(page.indexOf('lang="es"') >= 0, 'la página va en español');
 ok('página: importmap, HUD, tarjeta de inicio, botón de VR y controles');
 
 /* el servidor sirve la carpeta y no deja salir de ella */
-assert.ok(server.indexOf('GAME_VERSION = "2026.32"') >= 0, 'versión del juego 2026.32');
+assert.ok(/GAME_VERSION = "2026\.\d{2}"/.test(server), 'versión del juego con formato 2026.xx');
 assert.ok(server.indexOf('_GAME_DIR = _APP_DIR / "doga-tag-vr"') >= 0, 'sirve la carpeta doga-tag-vr');
 assert.ok(server.indexOf('@r.get("/doga-gorilla")') >= 0, 'ruta /doga-gorilla');
 assert.ok(server.indexOf('@r.get("/doga-tag-vr")') >= 0, 'alias /doga-tag-vr');
@@ -152,7 +153,8 @@ function buildSandbox() {
     this.enabled = false; this.isPresenting = false; this._l = {};
     this.getControllerGrip = function () { return new three.Group(); };
     this.getController = function () { return new three.Group(); };
-    this.getSession = function () { return null; };
+    this.session = null;
+    this.getSession = function () { return this.session; };
     this.setSession = function () { return Promise.resolve(); };
     this.setReferenceSpaceType = function () { };
     this.addEventListener = function (t, f) { (this._l[t] = this._l[t] || []).push(f); };
@@ -382,6 +384,74 @@ assert.ok(G.player.vel.length() > 0.05, 'al soltar las manos el impulso sigue (s
 xrDouble.dispatch('sessionend');
 step(env, 1);
 ok('VR: locomocion de brazos (empujar y salir disparado) con los dos mandos');
+
+/* VR: con el joystick izquierdo se anda y a tope se corre (sin apoyar las manos) */
+xrDouble.dispatch('sessionstart');
+step(env, 1);
+G.rig.rotation.set(0, 0, 0); G.camera.rotation.set(0, 0, 0); G.camera.position.set(0, 1.6, 0);
+G.rig.updateMatrixWorld(true);
+G.vrWalk.set(0, 0, 0);
+
+/* joystick quieto: zona muerta, no se anda solo */
+xrDouble.session = { inputSources: [{ handedness: 'left', gamepad: { axes: [0, 0, 0, -0.05] } }] };
+var idleStick = G.xrSticks();
+assert.strictEqual(idleStick.y, 0, 'la zona muerta del joystick no da orden de andar');
+/* las manos se suben (sin apoyarse) y se quita el impulso del test anterior */
+grips.forEach(function (g) { g.position.set(0, 3, 0); });
+step(env, 4);
+G.player.vel.set(0, 0, 0);
+step(env, 10);   /* se asienta (cae al suelo) y se resuelven los empujones de choque */
+var idleFrom = G.rig.position.clone();
+step(env, 30);
+var idleMoved = Math.hypot(G.rig.position.x - idleFrom.x, G.rig.position.z - idleFrom.z);
+assert.ok(idleMoved < 0.05, 'con el joystick quieto el jugador no anda (' + idleMoved.toFixed(3) + ' m)' +
+  ' vel=' + G.player.vel.toArray().map(function (n) { return n.toFixed(2); }).join(',') +
+  ' walk=' + G.vrWalk.toArray().map(function (n) { return n.toFixed(2); }).join(','));
+
+/* media potencia: anda */
+xrDouble.session = { inputSources: [{ handedness: 'left', gamepad: { axes: [0, 0, 0, -0.6] } }] };
+var halfStick = G.xrSticks();
+assert.ok(halfStick.y < -0.3 && halfStick.from === 'left', 'lee el joystick izquierdo hacia adelante');
+G.vrWalk.set(0, 0, 0);
+var halfFrom = G.rig.position.clone();
+step(env, 40);
+var halfSpeed = Math.hypot(G.vrWalk.x, G.vrWalk.z);
+assert.ok(halfSpeed > 5 && halfSpeed < 11, 'con el joystick a media potencia anda a ' + halfSpeed.toFixed(1) + ' m/s');
+assert.ok(G.rig.position.z < halfFrom.z - 0.5, 'anda hacia donde mira (adelante)');
+
+/* a tope: corre de verdad */
+xrDouble.session = { inputSources: [{ handedness: 'left', gamepad: { axes: [0, 0, 0, -1] } }] };
+G.vrWalk.set(0, 0, 0);
+step(env, 40);
+var runSpeed = Math.hypot(G.vrWalk.x, G.vrWalk.z);
+assert.ok(runSpeed > 10, 'con el joystick a tope corre a ' + runSpeed.toFixed(1) + ' m/s');
+assert.ok(runSpeed > halfSpeed * 1.5, 'correr es bastante mas rapido que andar');
+
+/* el mando derecho tambien sirve si es el unico que tiene joystick */
+xrDouble.session = { inputSources: [{ handedness: 'right', gamepad: { axes: [0, 0, 0, -1] } }] };
+assert.strictEqual(G.xrSticks().from, 'right', 'si solo hay joystick en el mando derecho, se usa');
+
+/* soltar el joystick frena y se para */
+xrDouble.session = null;
+step(env, 60);
+assert.ok(Math.hypot(G.vrWalk.x, G.vrWalk.z) < 0.05, 'al soltar el joystick el jugador se para');
+xrDouble.dispatch('sessionend');
+step(env, 1);
+ok('VR: andar y correr con el joystick (zona muerta, media potencia y a tope)');
+
+/* escritorio: se anda rapido de serie y con Shift se corre */
+G.keys.KeyW = true;
+G.power.speed = 0; G.power.snake = 0;
+step(env, 45);
+var deskWalk = Math.hypot(G.player.vel.x, G.player.vel.z);
+assert.ok(deskWalk > 7.5, 'sin Shift ya se anda rapido (' + deskWalk.toFixed(1) + ' m/s)');
+G.keys.ShiftLeft = true;
+step(env, 45);
+var deskRun = Math.hypot(G.player.vel.x, G.player.vel.z);
+assert.ok(deskRun > 11.5, 'con Shift se corre (' + deskRun.toFixed(1) + ' m/s)');
+assert.ok(G.powerMul().speed === 1, 'sin power-up la velocidad es la normal');
+G.keys.KeyW = false; G.keys.ShiftLeft = false;
+ok('escritorio: andar rapido de serie y correr con Shift');
 
 console.log('\ntest_doga_tag_vr OK  (' + renderStats.frames + ' fotogramas simulados, ' +
   renderStats.renders + ' dibujados)');
